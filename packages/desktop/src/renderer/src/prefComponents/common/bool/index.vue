@@ -117,9 +117,9 @@ span.el-switch__core::after {
   height: 10px;
 }
 
-.el-switch .el-switch__core {
+.pref-switch-item .el-switch .el-switch__core {
   border: 2px solid var(--iconColor);
-  background: transparent;
+  background: var(--iconColor);
   box-sizing: border-box;
 }
 
@@ -131,7 +131,7 @@ span.el-switch__label {
   background: var(--iconColor);
 }
 
-.el-switch.is-checked .el-switch__core {
+.pref-switch-item .el-switch.is-checked .el-switch__core {
   border-color: var(--themeColor);
   background-color: var(--themeColor);
 }
