@@ -1,7 +1,7 @@
 # Resolve exact visual geometry and interactions
 
 Type: `prototype`
-Status: `open`
+Status: `claimed`
 Blocked by: 04, 07
 
 ## Question
@@ -11,3 +11,4 @@ Using the matched screenshots, which exact dimensions, spacing tokens, visual hi
 ## Comments
 
 - The answer should distinguish exact acceptance values from deliberate deviations made to preserve MarkText capabilities.
+- Claimed after Preferences was explicitly excluded. The prototype will compare three main-shell variants through a `?variant=` switcher and keep the ticket open for user feedback.

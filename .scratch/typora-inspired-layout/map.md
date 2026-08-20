@@ -20,6 +20,7 @@ Produce an implementation-ready specification for replacing MarkText's applicati
 - [Choose the shell structure and behavior](issues/02-choose-shell-structure-and-behavior.md): adopt a full docked sidebar, compact second-row tabs, and a persistent bottom status bar while preserving MarkText capabilities.
 - [Set compatibility and acceptance guardrails](issues/03-set-compatibility-and-acceptance-guardrails.md): use Windows light mode as the visual baseline, retain dark and cross-platform usability, and migrate preferences into one replacement shell.
 - [Capture matched Typora and MarkText reference screenshots](issues/04-capture-matched-reference-screenshots.md): preserve paired light-shell evidence for sidebar-hidden and sidebar-visible states, with screenshot-pixel measurement caveats recorded.
+- [Decide whether Preferences joins the redesign](issues/07-decide-preferences-redesign-scope.md): exclude the separate settings window; use its screenshots only as optional shared-control evidence.
 
 ## Not yet specified
 
@@ -29,5 +30,6 @@ Produce an implementation-ready specification for replacing MarkText's applicati
 
 - Reproducing Typora's document theme, typography theme, proprietary code, or bundled assets.
 - Maintaining the old shell as a parallel, user-selectable layout.
+- Redesigning the separate Preferences window; its existing functionality and layout remain intact.
 - Implementing the layout while this map is still resolving decisions.
 - Unrelated product bugs, except where a layout acceptance test exposes a regression caused by the new shell.
