@@ -405,6 +405,7 @@
         "frontmatterType": "前言类型",
         "superSubScript": "启用 Pandoc 的 Markdown 扩展上标和下标",
         "footnote": "启用 Pandoc 的 Markdown 扩展脚注",
+        "latexMathDelimiters": "启用 LaTeX 数学分隔符 \\(...\\) 和 \\[...\\]",
         "isHtmlEnabled": "启用 HTML 渲染",
         "isGitlabCompatibilityEnabled": "启用 GitLab 兼容模式",
         "sequenceTheme": "序列图主题",
@@ -625,6 +626,7 @@
         "superSubScript": "上标/下标",
         "footnote": "脚注",
         "footnoteNotes": "脚注注释",
+        "latexMathDelimiters": "LaTeX 数学分隔符 \\(...\\) 和 \\[...\\]",
         "frontmatterType": {
           "jsonBrace": "带大括号的 JSON",
           "jsonSemicolon": "带分号的 JSON",

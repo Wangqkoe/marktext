@@ -404,6 +404,7 @@
         "frontmatterType": "The frontmatter type",
         "superSubScript": "Enable pandoc's markdown extension superscript and subscript",
         "footnote": "Enable pandoc's markdown extension footnote",
+        "latexMathDelimiters": "Enable LaTeX math delimiters \\(...\\) and \\[...\\]",
         "isHtmlEnabled": "Enable HTML rendering",
         "isGitlabCompatibilityEnabled": "Enable GitLab compatibility mode",
         "sequenceTheme": "Sequence diagram theme",
@@ -625,6 +626,7 @@
         "superSubScript": "Super/Sub script",
         "footnote": "Footnote",
         "footnoteNotes": "Footnote notes",
+        "latexMathDelimiters": "LaTeX math delimiters \\(...\\) and \\[...\\]",
         "frontmatterType": {
           "jsonBrace": "JSON with Braces",
           "jsonSemicolon": "JSON with Semicolon",

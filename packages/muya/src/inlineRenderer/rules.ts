@@ -9,7 +9,7 @@ export const beginRules = {
     /^( {0,3}\[)([^\]]+?)(\\*)(\]: *)(<?)([^\s>]+)(>?)(?:( +)(["'(]?)([^\n"'()]+)\9)?( *)$/,
 
     // extra syntax (not belongs to GFM)
-    multiple_math: /^(\$\$)$/,
+    multiple_math: /^(\$\$|\\\[)$/,
 };
 
 export const endRules = {
@@ -74,6 +74,11 @@ export const inlineExtensionRules = {
     subscript: /^(~)((?:[^~\s]|(?<=\\)\1|(?<=\\) )+?)(?<!\\)\1(?!\1)/,
     footnote_identifier: /^(\[\^)([^^[\]\s]+)(?<!\\)\]/,
 };
+
+// LaTeX inline math uses asymmetric delimiters, so it cannot share the
+// back-reference based `inline_math` rule above. The tokenizer enables this
+// rule only when the corresponding Muya option is on.
+export const latexInlineMathRule = /^(\\\()((?:\\(?!\))|[^\\\n])+?)(\\\))/;
 
 export type InlineExtensionRules = typeof inlineExtensionRules;
 

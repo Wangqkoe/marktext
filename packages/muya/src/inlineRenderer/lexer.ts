@@ -7,7 +7,7 @@ import type {
 } from './types';
 import escapeCharactersMap from '../config/escapeCharacter';
 import { isLengthEven, union } from '../utils';
-import { beginRules, inlineRules, linkValidateRules, validateRules } from './rules';
+import { beginRules, inlineRules, latexInlineMathRule, linkValidateRules, validateRules } from './rules';
 import {
     correctUrl,
     getAttributes,
@@ -69,6 +69,13 @@ function consumeBeginRules(state: ILexState, beginRules: BeginRules) {
         const to = beginRules[ruleName].exec(state.src);
 
         if (to) {
+            if (
+                ruleName === 'multiple_math'
+                && to[1] === '\\['
+                && !state.options.latexMathDelimiters
+            ) {
+                continue;
+            }
             const token = {
                 type: ruleName,
                 raw: to[0],
@@ -113,6 +120,34 @@ function consumeBeginRules(state: ILexState, beginRules: BeginRules) {
         state.src = state.src.substring(def[0].length);
         state.pos = state.pos + def[0].length;
     }
+}
+
+function tryLatexInlineMath(state: ILexState): boolean {
+    if (!state.options.latexMathDelimiters)
+        return false;
+
+    const match = latexInlineMathRule.exec(state.src);
+    if (!match)
+        return false;
+
+    pushPending(state);
+    const raw = match[0];
+    state.tokens.push({
+        type: 'inline_math',
+        raw,
+        range: {
+            start: state.pos,
+            end: state.pos + raw.length,
+        },
+        marker: match[1],
+        parent: state.tokens,
+        content: match[2],
+        backlash: '',
+    });
+    state.src = state.src.substring(raw.length);
+    state.pos += raw.length;
+
+    return true;
 }
 
 function tryBacklash(state: ILexState): boolean {
@@ -790,6 +825,7 @@ function tryTailHeader(state: ILexState): boolean {
 // The fixed, priority-ordered inline-rule handler list the tokenizer loop
 // iterates. This array order IS the rule-precedence contract.
 const INLINE_HANDLERS: ReadonlyArray<(state: ILexState) => boolean> = [
+    tryLatexInlineMath,
     tryBacklash,
     tryStrongEm,
     tryChunks,
@@ -858,6 +894,7 @@ export function tokenizer(src: string, {
     options = {
         superSubScript: true,
         footnote: false,
+        latexMathDelimiters: false,
     },
 }: ITokenizerOptions = {} as ITokenizerOptions) {
     const tokens = tokenizerFac(

@@ -101,7 +101,9 @@ const emptyStates: IEmptyStates = {
         name: 'math-block',
         text: '',
         meta: {
-            mathStyle: '', // '' for `$$` and 'gitlab' for ```math
+            // '' for $$, 'gitlab' for fenced math, and 'latex' /
+            // 'latex-inline' for the two display delimiter layouts.
+            mathStyle: '',
         },
     },
     'html-block': {

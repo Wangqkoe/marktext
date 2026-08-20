@@ -127,7 +127,7 @@ export interface ITaskListState {
 }
 
 export interface IMathMeta {
-    mathStyle: string; // "" | "gitlab";
+    mathStyle: '' | 'gitlab' | 'latex' | 'latex-inline';
 }
 
 export interface IMathBlockState {

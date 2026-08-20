@@ -52,6 +52,7 @@
   "frontmatterType": "-",
   "superSubScript": false,
   "footnote": false,
+  "latexMathDelimiters": false,
   "isHtmlEnabled": true,
   "isGitlabCompatibilityEnabled": false,
   "sequenceTheme": "hand",

@@ -42,11 +42,17 @@ const debug = logger('paragraph:content');
 const HTML_BLOCK_REG = /^<([a-z\d-]+)(?=\s|>)[^<>]*>$/i;
 const CODE_BLOCK_REG = /(^ {0,3}`{3,})([^` ]*)/;
 const MATH_BLOCK_REG = /^\$\$/;
+const LATEX_MATH_OPEN_REG = /^\\\[$/;
+const LATEX_MATH_INLINE_REG = /^\\\[((?:\\(?!\])|[^\\\n])+?)\\\]$/;
 // eslint-disable-next-line regexp/no-super-linear-backtracking
 const TABLE_BLOCK_REG = /^\|.*?(\\*)\|.*?(\\*)\|/;
 
 type BlockConversion
-    = | { kind: 'math' }
+    = | {
+        kind: 'math';
+        mathStyle: '' | 'latex' | 'latex-inline';
+        text: string;
+    }
         | { kind: 'code'; lang: string }
         | { kind: 'table' }
         | { kind: 'html'; tagName: string };
@@ -55,9 +61,17 @@ type BlockConversion
 // convert into on Enter". Shared by the enterHandler guard (to decide whether
 // to convert in place) and `_enterConvert` (to perform it), so the match rules
 // can never drift between the two.
-function matchBlockConversion(text: string): BlockConversion | null {
+function matchBlockConversion(text: string, latexMathDelimiters = false): BlockConversion | null {
     if (MATH_BLOCK_REG.test(text))
-        return { kind: 'math' };
+        return { kind: 'math', mathStyle: '', text: '' };
+
+    if (latexMathDelimiters) {
+        const inlineMatch = LATEX_MATH_INLINE_REG.exec(text);
+        if (inlineMatch)
+            return { kind: 'math', mathStyle: 'latex-inline', text: inlineMatch[1] };
+        if (LATEX_MATH_OPEN_REG.test(text))
+            return { kind: 'math', mathStyle: 'latex', text: '' };
+    }
 
     const codeBlockToken = text.match(CODE_BLOCK_REG);
     if (codeBlockToken)
@@ -257,7 +271,10 @@ class ParagraphContent extends Format {
         event.preventDefault();
         event.stopPropagation();
 
-        const match = matchBlockConversion(this.text);
+        const match = matchBlockConversion(
+            this.text,
+            this.muya.options.latexMathDelimiters,
+        );
         if (!match)
             return super.enterHandler(event);
 
@@ -265,9 +282,9 @@ class ParagraphContent extends Format {
             case 'math': {
                 const state = {
                     name: 'math-block',
-                    text: '',
+                    text: match.text,
                     meta: {
-                        mathStyle: '',
+                        mathStyle: match.mathStyle,
                     },
                 };
                 const mathBlock = ScrollPage.loadBlock('math-block').create(
@@ -559,7 +576,7 @@ class ParagraphContent extends Format {
         // (matches muyajs). Otherwise typing the block syntax in a list would
         // split the item and strand an empty list entry (#2276, plus table /
         // HTML block).
-        if (matchBlockConversion(this.text))
+        if (matchBlockConversion(this.text, this.muya.options.latexMathDelimiters))
             return this._enterConvert(event);
 
         const type = this._paragraphParentType();

@@ -405,6 +405,7 @@
         "frontmatterType": "フロントマターのタイプ",
         "superSubScript": "Pandocのmarkdown拡張上付き文字と下付き文字を有効にする",
         "footnote": "Pandocのmarkdown拡張脚注を有効にする",
+        "latexMathDelimiters": "LaTeX 数式区切り \\(...\\) と \\[...\\] を有効にする",
         "isHtmlEnabled": "HTMLレンダリングを有効にする",
         "isGitlabCompatibilityEnabled": "GitLab互換モードを有効にする",
         "sequenceTheme": "シーケンス図のテーマ",
@@ -625,6 +626,7 @@
         "superSubScript": "上付き/下付き文字",
         "footnote": "脚注",
         "footnoteNotes": "脚注",
+        "latexMathDelimiters": "LaTeX 数式区切り \\(...\\) と \\[...\\]",
         "frontmatterType": {
           "jsonBrace": "JSON括弧",
           "jsonSemicolon": "JSONセミコロン",

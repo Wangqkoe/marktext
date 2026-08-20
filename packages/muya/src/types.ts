@@ -32,6 +32,7 @@ export interface IMuyaOptions {
     superSubScript: boolean;
     footnote: boolean;
     math: boolean;
+    latexMathDelimiters: boolean;
     isGitlabCompatibilityEnabled: boolean;
     autoMoveCheckedToEnd: boolean;
     disableHtml: boolean;

@@ -405,12 +405,26 @@ export default class ExportMarkdown {
             meta: { mathStyle },
         } = state;
         const lines = text.split('\n');
-        result.push(indent + (mathStyle === '' ? '$$\n' : '```math\n'));
+
+        if (mathStyle === 'latex-inline' && lines.length === 1)
+            return `${indent}\\[${text}\\]\n`;
+
+        let openMarker = '\\[\n';
+        let closeMarker = '\\]\n';
+        if (mathStyle === '') {
+            openMarker = '$$\n';
+            closeMarker = '$$\n';
+        }
+        else if (mathStyle === 'gitlab') {
+            openMarker = '```math\n';
+            closeMarker = '```\n';
+        }
+        result.push(indent + openMarker);
 
         for (const line of lines)
             result.push(`${indent}${line}\n`);
 
-        result.push(indent + (mathStyle === '' ? '$$\n' : '```\n'));
+        result.push(indent + closeMarker);
 
         return result.join('');
     }

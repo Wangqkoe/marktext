@@ -267,6 +267,11 @@
     "type": "boolean",
     "default": false
   },
+  "latexMathDelimiters": {
+    "description": "Markdown-Enable LaTeX math delimiters \\(...\\) and \\[...\\].",
+    "type": "boolean",
+    "default": false
+  },
   "isHtmlEnabled": {
     "description": "Markdown-Enable HTML rendering",
     "type": "boolean",

@@ -346,6 +346,8 @@ export const MUYA_DEFAULT_OPTIONS = {
     footnote: false,
     // Whether math block is supported.
     math: true,
+    // Whether LaTeX-style \(...\) and \[...\] math delimiters are supported.
+    latexMathDelimiters: false,
     isGitlabCompatibilityEnabled: true,
     // Move checked task list item to the end of task list.
     autoMoveCheckedToEnd: false,

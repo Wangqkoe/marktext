@@ -394,6 +394,7 @@ function applyParsedPaste(
     const {
         footnote,
         math,
+        latexMathDelimiters,
         isGitlabCompatibilityEnabled,
         trimUnnecessaryCodeBlockEmptyLines,
         frontMatter,
@@ -402,6 +403,7 @@ function applyParsedPaste(
     const states = new MarkdownToState({
         footnote,
         math,
+        latexMathDelimiters,
         isGitlabCompatibilityEnabled,
         trimUnnecessaryCodeBlockEmptyLines,
         frontMatter,
