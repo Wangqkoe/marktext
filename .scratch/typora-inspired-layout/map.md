@@ -19,10 +19,10 @@ Produce an implementation-ready specification for replacing MarkText's applicati
 - [Define the destination and scope](issues/01-define-destination-and-scope.md): target the application shell and workspace layout, excluding document-theme imitation and execution itself.
 - [Choose the shell structure and behavior](issues/02-choose-shell-structure-and-behavior.md): adopt a full docked sidebar, compact second-row tabs, and a persistent bottom status bar while preserving MarkText capabilities.
 - [Set compatibility and acceptance guardrails](issues/03-set-compatibility-and-acceptance-guardrails.md): use Windows light mode as the visual baseline, retain dark and cross-platform usability, and migrate preferences into one replacement shell.
+- [Capture matched Typora and MarkText reference screenshots](issues/04-capture-matched-reference-screenshots.md): preserve paired light-shell evidence for sidebar-hidden and sidebar-visible states, with screenshot-pixel measurement caveats recorded.
 
 ## Not yet specified
 
-- Screenshot evidence may expose secondary states or spacing relationships that are not yet visible enough to turn into precise questions.
 - Exact dark-shell token values and allowed native-title-bar deviations depend on the light-shell geometry chosen from matched screenshots.
 
 ## Out of scope
