@@ -26,6 +26,7 @@ Required hierarchy and interactions:
 - Sidebar Files/Outline modes live at the top of the full sidebar rather than in a separate activity rail.
 - The tab row stays below the title bar and begins over the editor region when the sidebar is visible.
 - The status bar's left group contains, in order: whole-sidebar toggle, `</>` source-mode toggle, then current sidebar/editor context.
+- The whole-sidebar toggle and source-mode toggle each use an approximately 32px-wide control footprint. The sidebar chevron renders at 18px so it has comparable visual weight to its neighboring controls.
 - The source-mode button has tooltip and accessible name `Toggle Source Code Mode`, exposes pressed/active state, and invokes the existing active-tab source/WYSIWYG transition. It must not create a second editor-mode state machine.
 - The status bar's right group contains document mode, line/column, and word count. Word count uses the corrected active-tab count state.
 - No responsive breakpoint changes the shell into an overlay or restores the old rail. The layout remains fluid; users explicitly hide the docked sidebar when they need the full narrow viewport. Existing persisted sidebar visibility and width behavior must be retained or migrated.
@@ -46,3 +47,5 @@ Deliberate deviations from Typora:
 - Run `pnpm exec vite .scratch/typora-inspired-layout/prototype --host 127.0.0.1 --port 5173` from that worktree, then open `http://127.0.0.1:5173/?variant=A`.
 - Visual QA confirmed all three URL variants render, the complete sidebar hides/restores, and the floating arrows update the shareable query parameter. Awaiting the user's choice or combination of A (Reference-aligned), B (Workspace column), and C (Compact focus).
 - The user selected A and requested a bottom-bar source-code-mode button. Prototype commit `c331f3cc` adds the button and an in-memory WYSIWYG/source transition; visual QA confirmed both states.
+- Reopened for a minor approved-variant refinement: enlarge the hide-sidebar arrow to match the neighboring bottom-bar controls.
+- Prototype commit `3df3e9f0` gives the sidebar toggle a 32px control width and 18px chevron. Browser QA measured the sidebar and source controls at approximately 32px and 33px wide and reconfirmed complete hide/restore behavior.
