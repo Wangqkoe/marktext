@@ -214,7 +214,10 @@ export const useLayoutStore = defineStore('layout', () => {
 
   // Canonical transitions route through legacy mutators until ticket 03 removes
   // them, keeping current IPC, preferences and buffered state synchronized.
-  /** Normalizes and persists the expanded width, then schedules a buffered-state update. */
+  /**
+   * Persists the expanded width and schedules a buffered-state update. Finite values clamp
+   * to 220px; missing, blank, non-numeric and non-finite values become the 255px default.
+   */
   function setSidebarWidth(width: unknown): void {
     SET_SIDE_BAR_WIDTH(width)
   }

@@ -11,21 +11,21 @@ vi.mock('@/store/bufferedState', () => ({ debouncedSendBufferedState: vi.fn() })
 
 import { useLayoutStore } from '@/store/layout'
 
-const win = window as unknown as {
+const mockWindow = window as unknown as {
   electron?: { ipcRenderer: { on: Mock; send: Mock; invoke: Mock } }
   marktext?: { env: { windowId: number } }
 }
 
 describe('canonical shell layout state', () => {
   beforeEach(() => {
-    win.electron = {
+    mockWindow.electron = {
       ipcRenderer: {
         on: vi.fn(),
         send: vi.fn(),
         invoke: vi.fn(() => Promise.resolve(false))
       }
     }
-    win.marktext = { env: { windowId: 1 } }
+    mockWindow.marktext = { env: { windowId: 1 } }
     localStorage.clear()
     setActivePinia(createPinia())
   })
