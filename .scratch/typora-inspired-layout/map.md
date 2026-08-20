@@ -1,6 +1,7 @@
 # Typora-inspired MarkText application shell
 
 Label: `wayfinder:map`
+Status: `resolved`
 
 ## Destination
 
@@ -22,10 +23,11 @@ Produce an implementation-ready specification for replacing MarkText's applicati
 - [Capture matched Typora and MarkText reference screenshots](issues/04-capture-matched-reference-screenshots.md): preserve paired light-shell evidence for sidebar-hidden and sidebar-visible states, with screenshot-pixel measurement caveats recorded.
 - [Decide whether Preferences joins the redesign](issues/07-decide-preferences-redesign-scope.md): exclude the separate settings window; use its screenshots only as optional shared-control evidence.
 - [Resolve exact visual geometry and interactions](issues/05-resolve-visual-geometry-and-interactions.md): adopt Reference-aligned prototype A with a 255px full sidebar, 30px title bar, 26px tabs, 24px status bar, and bottom-bar source-mode control.
+- [Define the implementation handoff](issues/06-define-implementation-handoff.md): implement one grid shell behind a deep typed layout interface, deterministic legacy-state migration, shared editor-status adapters, semantic theme tokens, and a complete automated/manual acceptance matrix.
 
 ## Not yet specified
 
-- None currently; the remaining implementation handoff question is fully specified as a child ticket.
+- None. The route to the implementation-ready specification is complete.
 
 ## Out of scope
 

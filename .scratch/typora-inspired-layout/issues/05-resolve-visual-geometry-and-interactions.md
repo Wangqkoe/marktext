@@ -10,7 +10,7 @@ Using the matched screenshots, which exact dimensions, spacing tokens, visual hi
 
 ## Answer
 
-Use prototype A, **Reference-aligned**, as the implementation baseline, with the user's requested source-mode control added to the status bar. The approved prototype primary source is local branch `codex/prototype-typora-shell` at commit `c331f3cc`.
+Use prototype A, **Reference-aligned**, as the implementation baseline, with the user's requested source-mode control added to the status bar. The approved prototype primary source is local branch `codex/prototype-typora-shell` at commit `0a2d74c5`.
 
 Required geometry for the Windows light-shell baseline:
 
