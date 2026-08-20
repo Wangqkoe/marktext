@@ -24,9 +24,10 @@ Required geometry for the Windows light-shell baseline:
 Required hierarchy and interactions:
 
 - Sidebar Files/Outline modes live at the top of the full sidebar rather than in a separate activity rail.
+- Files/Outline begins directly at the sidebar's top edge; there is no empty sidebar-header row or placeholder icon above it.
 - The tab row stays below the title bar and begins over the editor region when the sidebar is visible.
 - The status bar's left group contains, in order: whole-sidebar toggle, `</>` source-mode toggle, then current sidebar/editor context.
-- The whole-sidebar toggle and source-mode toggle each use an approximately 32px-wide control footprint. The sidebar chevron renders at 18px so it has comparable visual weight to its neighboring controls.
+- The whole-sidebar toggle and source-mode toggle each use an exact 34px-wide control footprint. Both icons use a 16×16px SVG view box and the same grid-centering rule, so their horizontal and vertical centers match exactly.
 - The source-mode button has tooltip and accessible name `Toggle Source Code Mode`, exposes pressed/active state, and invokes the existing active-tab source/WYSIWYG transition. It must not create a second editor-mode state machine.
 - The status bar's right group contains document mode, line/column, and word count. Word count uses the corrected active-tab count state.
 - No responsive breakpoint changes the shell into an overlay or restores the old rail. The layout remains fluid; users explicitly hide the docked sidebar when they need the full narrow viewport. Existing persisted sidebar visibility and width behavior must be retained or migrated.
@@ -49,3 +50,5 @@ Deliberate deviations from Typora:
 - The user selected A and requested a bottom-bar source-code-mode button. Prototype commit `c331f3cc` adds the button and an in-memory WYSIWYG/source transition; visual QA confirmed both states.
 - Reopened for a minor approved-variant refinement: enlarge the hide-sidebar arrow to match the neighboring bottom-bar controls.
 - Prototype commit `3df3e9f0` gives the sidebar toggle a 32px control width and 18px chevron. Browser QA measured the sidebar and source controls at approximately 32px and 33px wide and reconfirmed complete hide/restore behavior.
+- Reopened to remove the accidental 42px empty sidebar header and make the two left status-bar controls exactly equal in width and icon alignment.
+- Prototype commit `0a2d74c5` removes the empty A-variant sidebar header and replaces both status controls with centered SVG buttons. Browser QA measured both buttons at 34px wide, both icons at 16×16px, identical center Y coordinates, and reconfirmed source switching plus complete sidebar hide/restore.
