@@ -1489,6 +1489,9 @@ const setMarkdownToEditor = (payload: unknown) => {
     // `json-change`, so seed the TOC explicitly (otherwise it stays empty until
     // the first edit, and a file switch keeps the previous file's TOC).
     editorStore.UPDATE_TOC(editor.value.getTOC())
+    if (id) {
+      editorStore.UPDATE_WORD_COUNT(id, muyaWordCount(editor.value.getMarkdown()))
+    }
     // A freshly created/opened tab should be ready to type into.
     focusFreshEditor()
   }
@@ -1605,6 +1608,9 @@ const handleFileChange = (payload: unknown) => {
       if (id) {
         getSyntheticHistory(id, editor.value.getMarkdown())
       }
+    }
+    if (id) {
+      editorStore.UPDATE_WORD_COUNT(id, muyaWordCount(editor.value.getMarkdown()))
     }
   } else if (newCursor) {
     applyCursor(editor.value, newCursor)
@@ -1809,7 +1815,10 @@ onMounted(() => {
   // after the first edit — so the pristine content never maps to id 0 and
   // undoing back to the on-disk content can never read as clean again (PG15).
   if (currentFile.value?.id) {
-    getSyntheticHistory(currentFile.value.id, muya.getMarkdown())
+    const { id } = currentFile.value
+    const markdown = muya.getMarkdown()
+    getSyntheticHistory(id, markdown)
+    editorStore.UPDATE_WORD_COUNT(id, muyaWordCount(markdown))
   }
 
   const container = getScrollContainer()!

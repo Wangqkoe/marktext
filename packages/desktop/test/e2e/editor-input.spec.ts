@@ -114,6 +114,24 @@ test.describe('Title-bar word counter (item 24)', () => {
     const counter = page.locator(WORD_COUNT_TEXT)
     await expect(counter).toBeVisible({ timeout: 5000 })
     await expect.poll(() => counterText(page)).toMatch(/^W\s/)
+
+    const markdown = await getMarkdownContent(page, app)
+    expect(expectedCount(markdown).word).toBeGreaterThan(0)
+    await expect.poll(() => counterValue(page), { timeout: 5000 }).toBe(expectedCount(markdown).word)
+  })
+
+  test('opening and switching seeded tabs updates the counter before any edit', async() => {
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'alpha beta gamma\n')
+    await expect
+      .poll(async() => (await getMarkdownContent(page, app)).trim(), { timeout: 5000 })
+      .toBe('alpha beta gamma')
+    await expect.poll(() => counterValue(page), { timeout: 5000 }).toBe(3)
+
+    await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
+    await expect
+      .poll(async() => (await getMarkdownContent(page, app)).trim(), { timeout: 5000 })
+      .toBe('# Counter\n\nOne two three.')
+    await expect.poll(() => counterValue(page), { timeout: 5000 }).toBe(5)
   })
 
   test('typing ASCII words + CJK characters raises the word count to the engine value', async() => {

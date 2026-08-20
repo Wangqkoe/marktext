@@ -1385,6 +1385,14 @@ export const useEditorStore = defineStore('editor', {
       this.toc = listToTree<TocItem>(toc ?? [])
     },
 
+    UPDATE_WORD_COUNT(id: string, wordCount: IFileState['wordCount']): void {
+      const tabIndex = this.tabIdToIndex[id]
+      if (tabIndex === undefined) return
+
+      const tab = this.tabs[tabIndex]
+      if (tab) tab.wordCount = wordCount
+    },
+
     // Content change from realtime preview editor and source code editor
     // There is a chance that this event is fired AFTER the tab is switched.
     LISTEN_FOR_CONTENT_CHANGE({
