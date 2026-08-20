@@ -72,11 +72,18 @@ export interface IUserPreferences {
   [key: string]: unknown
 }
 
-export type SidebarView = 'files' | 'search' | 'toc'
+export const SIDEBAR_VIEWS = ['files', 'search', 'toc'] as const
+
+export type SidebarView = (typeof SIDEBAR_VIEWS)[number]
+
+export const isSidebarView = (view: unknown): view is SidebarView =>
+  typeof view === 'string' && (SIDEBAR_VIEWS as readonly string[]).includes(view)
 
 export interface LayoutState {
+  /** Visibility is independent of the selected view, which is retained while hidden. */
   sidebarVisible: boolean
   sidebarView: SidebarView
+  /** Expanded sidebar width in CSS pixels; normalized to at least 220px. */
   sidebarWidth: number
   tabBarVisible: boolean
 }

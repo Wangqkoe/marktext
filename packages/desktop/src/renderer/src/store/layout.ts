@@ -3,23 +3,18 @@ import { defineStore } from 'pinia'
 import bus from '../bus'
 import { usePreferencesStore } from './preferences'
 import { debouncedSendBufferedState } from './bufferedState'
-import type { LayoutState as CanonicalLayout, SidebarView } from '@shared/types/preferences'
+import {
+  isSidebarView,
+  type LayoutState as CanonicalLayout,
+  type LegacyLayoutState,
+  type SidebarView
+} from '@shared/types/preferences'
 
 export type { SidebarView } from '@shared/types/preferences'
 
-interface LegacyLayoutPartial {
-  rightColumn?: string
-  showSideBar?: boolean
-  showTabBar?: boolean
-  sideBarWidth?: number | string
-}
+type LegacyLayoutPartial = LegacyLayoutState
 
-interface CanonicalLayoutPartial {
-  sidebarView?: unknown
-  sidebarVisible?: unknown
-  tabBarVisible?: unknown
-  sidebarWidth?: unknown
-}
+type CanonicalLayoutPartial = { [Field in keyof CanonicalLayout]?: unknown }
 
 type PersistedLayoutPartial = LegacyLayoutPartial & CanonicalLayoutPartial
 
@@ -38,26 +33,26 @@ const normalizeSideBarWidth = (width: unknown): number => {
   return Number.isFinite(numericWidth) ? Math.max(numericWidth, 220) : 255
 }
 
-interface LegacyBufferedLayout {
-  rightColumn: string
-  showSideBar: boolean
-  showTabBar: boolean
-  sideBarWidth: number
-}
-
-const isSidebarView = (view: unknown): view is SidebarView =>
-  view === 'files' || view === 'search' || view === 'toc'
+type LegacyBufferedLayout = Required<LegacyLayoutState>
 
 const hasOwn = (state: object, key: keyof PersistedLayoutPartial): boolean =>
   Object.prototype.hasOwnProperty.call(state, key)
 
 const createCanonicalLayoutState = (state: unknown): CanonicalLayout | null => {
   if (!state || typeof state !== 'object') return null
-  const s = state as PersistedLayoutPartial
-  const rawSidebarView = hasOwn(s, 'sidebarView') ? s.sidebarView : s.rightColumn
-  const rawSidebarVisible = hasOwn(s, 'sidebarVisible') ? s.sidebarVisible : s.showSideBar
-  const rawTabBarVisible = hasOwn(s, 'tabBarVisible') ? s.tabBarVisible : s.showTabBar
-  const rawSidebarWidth = hasOwn(s, 'sidebarWidth') ? s.sidebarWidth : s.sideBarWidth
+  const snapshot = state as PersistedLayoutPartial
+  const rawSidebarView = hasOwn(snapshot, 'sidebarView')
+    ? snapshot.sidebarView
+    : snapshot.rightColumn
+  const rawSidebarVisible = hasOwn(snapshot, 'sidebarVisible')
+    ? snapshot.sidebarVisible
+    : snapshot.showSideBar
+  const rawTabBarVisible = hasOwn(snapshot, 'tabBarVisible')
+    ? snapshot.tabBarVisible
+    : snapshot.showTabBar
+  const rawSidebarWidth = hasOwn(snapshot, 'sidebarWidth')
+    ? snapshot.sidebarWidth
+    : snapshot.sideBarWidth
 
   return {
     sidebarView: isSidebarView(rawSidebarView) ? rawSidebarView : 'files',
@@ -176,15 +171,16 @@ export const useLayoutStore = defineStore('layout', () => {
 
   function LISTEN_FOR_LAYOUT(): void {
     window.electron.ipcRenderer.on('mt::set-view-layout', (_e, layout) => {
-      const l = layout as unknown as LegacyLayoutPartial
-      if (l.rightColumn) {
+      const incomingLayout = layout as unknown as LegacyLayoutPartial
+      if (incomingLayout.rightColumn) {
         SET_LAYOUT({
-          ...l,
-          rightColumn: l.rightColumn === rightColumn.value ? '' : l.rightColumn,
+          ...incomingLayout,
+          rightColumn:
+            incomingLayout.rightColumn === rightColumn.value ? '' : incomingLayout.rightColumn,
           showSideBar: true
         })
       } else {
-        SET_LAYOUT(l)
+        SET_LAYOUT(incomingLayout)
       }
       DISPATCH_LAYOUT_MENU_ITEMS()
     })
@@ -216,6 +212,9 @@ export const useLayoutStore = defineStore('layout', () => {
     SET_SIDE_BAR_WIDTH(width)
   }
 
+  // Canonical transitions route through legacy mutators until ticket 03 removes
+  // them, keeping current IPC, preferences and buffered state synchronized.
+  /** Normalizes and persists the expanded width, then schedules a buffered-state update. */
   function setSidebarWidth(width: unknown): void {
     SET_SIDE_BAR_WIDTH(width)
   }
@@ -244,6 +243,7 @@ export const useLayoutStore = defineStore('layout', () => {
     TOGGLE_LAYOUT_ENTRY('showTabBar')
   }
 
+  /** Restores canonical or legacy persisted state and synchronizes menu checkmarks. */
   function restoreLayout(snapshot: unknown): void {
     RESTORE_BUFFERED_STATE(snapshot)
   }

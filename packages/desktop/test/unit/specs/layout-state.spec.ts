@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 vi.hoisted(() => {
-  const w = globalThis as unknown as { window?: { path?: { sep: string } } }
-  w.window ??= {}
-  w.window.path ??= { sep: '/' }
+  const testWindow = globalThis as unknown as { window?: { path?: { sep: string } } }
+  testWindow.window ??= {}
+  testWindow.window.path ??= { sep: '/' }
 })
 
 vi.mock('@/store/bufferedState', () => ({ debouncedSendBufferedState: vi.fn() }))
