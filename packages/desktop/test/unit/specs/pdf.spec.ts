@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import * as pdf from '@/util/pdf'
 
 // `@/util/pdf` reads `window.path.join` and (for disk themes)
 // `window.marktext.paths` / `window.fileUtils` at call time, all normally
 // injected by the preload bridge. Stub the surface before the hoisted imports
 // run so the module graph can load. Per-test overrides below swap the
-// `window.fileUtils` behavior via `vi.resetModules()` + dynamic import.
+// `window.fileUtils` behavior that the helpers read at call time.
 vi.hoisted(() => {
   const w = globalThis as unknown as {
     window?: {
@@ -28,12 +29,11 @@ vi.hoisted(() => {
 // here.
 
 const loadPdf = async() => {
-  return import('@/util/pdf')
+  return pdf
 }
 
 describe('getCssForOptions', () => {
   beforeEach(() => {
-    vi.resetModules()
     const w = globalThis as unknown as {
       window: {
         marktext: { paths: { userDataPath: string } }
