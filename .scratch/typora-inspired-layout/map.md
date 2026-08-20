@@ -21,10 +21,11 @@ Produce an implementation-ready specification for replacing MarkText's applicati
 - [Set compatibility and acceptance guardrails](issues/03-set-compatibility-and-acceptance-guardrails.md): use Windows light mode as the visual baseline, retain dark and cross-platform usability, and migrate preferences into one replacement shell.
 - [Capture matched Typora and MarkText reference screenshots](issues/04-capture-matched-reference-screenshots.md): preserve paired light-shell evidence for sidebar-hidden and sidebar-visible states, with screenshot-pixel measurement caveats recorded.
 - [Decide whether Preferences joins the redesign](issues/07-decide-preferences-redesign-scope.md): exclude the separate settings window; use its screenshots only as optional shared-control evidence.
+- [Resolve exact visual geometry and interactions](issues/05-resolve-visual-geometry-and-interactions.md): adopt Reference-aligned prototype A with a 255px full sidebar, 30px title bar, 26px tabs, 24px status bar, and bottom-bar source-mode control.
 
 ## Not yet specified
 
-- Exact dark-shell token values and allowed native-title-bar deviations depend on the light-shell geometry chosen from matched screenshots.
+- None currently; the remaining implementation handoff question is fully specified as a child ticket.
 
 ## Out of scope
 

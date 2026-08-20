@@ -11,3 +11,4 @@ What component boundaries, shared state transitions, preference migration rules,
 ## Comments
 
 - The answer is the final implementation-ready specification and should link every affected component and test seam in the repository.
+- Include the semantic dark-theme token mapping and cross-platform/native-title-bar smoke matrix; these no longer require separate visual decisions after prototype A was approved.
