@@ -1,6 +1,7 @@
 // Buffered editor state (persisted across window close/reopen).
 
 import type { IFileState } from './files'
+import type { LegacyLayoutState, SidebarView } from './preferences'
 
 export interface BufferedEditorState {
   tabs: IFileState[]
@@ -12,8 +13,11 @@ export interface BufferedProjectState {
   [key: string]: unknown
 }
 
-export interface BufferedLayoutState {
-  [key: string]: unknown
+export interface BufferedLayoutState extends LegacyLayoutState {
+  sidebarView?: SidebarView
+  sidebarVisible?: boolean
+  sidebarWidth?: number
+  tabBarVisible?: boolean
 }
 
 export interface BufferedState {

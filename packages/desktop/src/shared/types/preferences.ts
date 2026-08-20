@@ -72,9 +72,18 @@ export interface IUserPreferences {
   [key: string]: unknown
 }
 
+export type SidebarView = 'files' | 'search' | 'toc'
+
 export interface LayoutState {
-  rightColumn: 'files' | 'search' | 'toc'
-  showSideBar: boolean
-  showTabBar: boolean
-  [key: string]: unknown
+  sidebarVisible: boolean
+  sidebarView: SidebarView
+  sidebarWidth: number
+  tabBarVisible: boolean
+}
+
+export interface LegacyLayoutState {
+  rightColumn?: string
+  showSideBar?: boolean
+  showTabBar?: boolean
+  sideBarWidth?: number | string
 }

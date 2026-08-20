@@ -3,42 +3,67 @@ import { defineStore } from 'pinia'
 import bus from '../bus'
 import { usePreferencesStore } from './preferences'
 import { debouncedSendBufferedState } from './bufferedState'
+import type { LayoutState as CanonicalLayout, SidebarView } from '@shared/types/preferences'
 
-interface LayoutPartial {
+export type { SidebarView } from '@shared/types/preferences'
+
+interface LegacyLayoutPartial {
   rightColumn?: string
   showSideBar?: boolean
   showTabBar?: boolean
   sideBarWidth?: number | string
 }
 
+interface CanonicalLayoutPartial {
+  sidebarView?: unknown
+  sidebarVisible?: unknown
+  tabBarVisible?: unknown
+  sidebarWidth?: unknown
+}
+
+type PersistedLayoutPartial = LegacyLayoutPartial & CanonicalLayoutPartial
+
 interface SetLayoutOptions {
   scheduleBufferUpdate?: boolean
 }
 
 const normalizeSideBarWidth = (width: unknown): number => {
+  if (
+    (typeof width !== 'number' && typeof width !== 'string') ||
+    (typeof width === 'string' && width.trim() === '')
+  ) {
+    return 255
+  }
   const numericWidth = Number(width)
-  return Number.isFinite(numericWidth) ? Math.max(numericWidth, 220) : 280
+  return Number.isFinite(numericWidth) ? Math.max(numericWidth, 220) : 255
 }
 
-interface BufferedLayout {
-  rightColumn: string | undefined
+interface LegacyBufferedLayout {
+  rightColumn: string
   showSideBar: boolean
   showTabBar: boolean
   sideBarWidth: number
 }
 
-const createBufferedLayoutState = (state: unknown): BufferedLayout | null => {
-  if (!state || typeof state !== 'object') return null
-  const s = state as LayoutPartial
+const isSidebarView = (view: unknown): view is SidebarView =>
+  view === 'files' || view === 'search' || view === 'toc'
 
-  // Pass through `rightColumn` (may be undefined). The pre-migration JS did
-  // not coerce to 'files' here — RESTORE_BUFFERED_STATE then routes through
-  // SET_LAYOUT which only assigns when the key is defined.
+const hasOwn = (state: object, key: keyof PersistedLayoutPartial): boolean =>
+  Object.prototype.hasOwnProperty.call(state, key)
+
+const createCanonicalLayoutState = (state: unknown): CanonicalLayout | null => {
+  if (!state || typeof state !== 'object') return null
+  const s = state as PersistedLayoutPartial
+  const rawSidebarView = hasOwn(s, 'sidebarView') ? s.sidebarView : s.rightColumn
+  const rawSidebarVisible = hasOwn(s, 'sidebarVisible') ? s.sidebarVisible : s.showSideBar
+  const rawTabBarVisible = hasOwn(s, 'tabBarVisible') ? s.tabBarVisible : s.showTabBar
+  const rawSidebarWidth = hasOwn(s, 'sidebarWidth') ? s.sidebarWidth : s.sideBarWidth
+
   return {
-    rightColumn: s.rightColumn,
-    showSideBar: !!s.showSideBar,
-    showTabBar: !!s.showTabBar,
-    sideBarWidth: normalizeSideBarWidth(s.sideBarWidth)
+    sidebarView: isSidebarView(rawSidebarView) ? rawSidebarView : 'files',
+    sidebarVisible: !!rawSidebarVisible,
+    tabBarVisible: !!rawTabBarVisible,
+    sidebarWidth: normalizeSideBarWidth(rawSidebarWidth)
   }
 }
 
@@ -50,6 +75,10 @@ export const useLayoutStore = defineStore('layout', () => {
   const showSideBar = ref(false)
   const showTabBar = ref(false)
   const sideBarWidth = ref<number>(initialSideBarWidth)
+  const sidebarView = ref<SidebarView>('files')
+  const sidebarVisible = computed<boolean>(() => showSideBar.value)
+  const tabBarVisible = computed<boolean>(() => showTabBar.value)
+  const sidebarWidth = computed<number>(() => sideBarWidth.value)
 
   // Actual rendered sidebar width. `sideBarWidth` is the right-column width
   // (clamped to ≥220 by `normalizeSideBarWidth`); when `rightColumn` is empty
@@ -60,9 +89,12 @@ export const useLayoutStore = defineStore('layout', () => {
     if (!rightColumn.value) return 45
     return Number(sideBarWidth.value)
   })
+  const effectiveSidebarWidth = computed<number>(() =>
+    sidebarVisible.value ? sidebarWidth.value : 0
+  )
 
   function SET_LAYOUT(
-    layout: LayoutPartial,
+    layout: LegacyLayoutPartial,
     { scheduleBufferUpdate = true }: SetLayoutOptions = {}
   ): void {
     if (layout.showSideBar !== undefined) {
@@ -78,37 +110,38 @@ export const useLayoutStore = defineStore('layout', () => {
         value: !!layout.showSideBar
       })
     }
-    // Match the pre-migration `Object.assign(this, layout)` semantics: assign
-    // each known field as-is (no normalization here; SET_SIDE_BAR_WIDTH owns
-    // sideBarWidth's normalization), and skip unknown keys silently.
+    // Keep the legacy fields synchronized while canonical state is introduced.
     if (layout.rightColumn !== undefined) rightColumn.value = layout.rightColumn
+    if (isSidebarView(layout.rightColumn)) sidebarView.value = layout.rightColumn
     if (layout.showSideBar !== undefined) showSideBar.value = !!layout.showSideBar
     if (layout.showTabBar !== undefined) showTabBar.value = !!layout.showTabBar
-    if (layout.sideBarWidth !== undefined) sideBarWidth.value = layout.sideBarWidth as number
+    if (layout.sideBarWidth !== undefined) {
+      SET_SIDE_BAR_WIDTH(layout.sideBarWidth, { scheduleBufferUpdate: false })
+    }
     if (scheduleBufferUpdate) {
       debouncedSendBufferedState()
     }
   }
 
-  function CREATE_BUFFERED_STATE(): BufferedLayout | null {
-    return createBufferedLayoutState({
+  function CREATE_BUFFERED_STATE(): LegacyBufferedLayout {
+    return {
       rightColumn: rightColumn.value,
       showSideBar: showSideBar.value,
       showTabBar: showTabBar.value,
       sideBarWidth: sideBarWidth.value
-    })
+    }
   }
 
   function RESTORE_BUFFERED_STATE(state: unknown): void {
-    const layout = createBufferedLayoutState(state)
+    const layout = createCanonicalLayoutState(state)
     if (!layout) return
 
-    SET_SIDE_BAR_WIDTH(layout.sideBarWidth, { scheduleBufferUpdate: false })
+    SET_SIDE_BAR_WIDTH(layout.sidebarWidth, { scheduleBufferUpdate: false })
     SET_LAYOUT(
       {
-        rightColumn: layout.rightColumn,
-        showSideBar: layout.showSideBar,
-        showTabBar: layout.showTabBar
+        rightColumn: layout.sidebarView,
+        showSideBar: layout.sidebarVisible,
+        showTabBar: layout.tabBarVisible
       },
       { scheduleBufferUpdate: false }
     )
@@ -130,7 +163,7 @@ export const useLayoutStore = defineStore('layout', () => {
   }
 
   function SET_SIDE_BAR_WIDTH(
-    width: number | string,
+    width: unknown,
     { scheduleBufferUpdate = true }: SetLayoutOptions = {}
   ): void {
     const normalizedWidth = normalizeSideBarWidth(width)
@@ -143,7 +176,7 @@ export const useLayoutStore = defineStore('layout', () => {
 
   function LISTEN_FOR_LAYOUT(): void {
     window.electron.ipcRenderer.on('mt::set-view-layout', (_e, layout) => {
-      const l = layout as unknown as LayoutPartial
+      const l = layout as unknown as LegacyLayoutPartial
       if (l.rightColumn) {
         SET_LAYOUT({
           ...l,
@@ -183,12 +216,49 @@ export const useLayoutStore = defineStore('layout', () => {
     SET_SIDE_BAR_WIDTH(width)
   }
 
+  function setSidebarWidth(width: unknown): void {
+    SET_SIDE_BAR_WIDTH(width)
+  }
+
+  function selectSidebarView(view: SidebarView): void {
+    SET_LAYOUT({ rightColumn: view, showSideBar: true })
+  }
+
+  function showSidebar(view: SidebarView = sidebarView.value): void {
+    selectSidebarView(view)
+  }
+
+  function hideSidebar(): void {
+    SET_LAYOUT({ showSideBar: false })
+  }
+
+  function toggleSidebar(): void {
+    if (sidebarVisible.value) {
+      hideSidebar()
+    } else {
+      showSidebar()
+    }
+  }
+
+  function toggleTabBar(): void {
+    TOGGLE_LAYOUT_ENTRY('showTabBar')
+  }
+
+  function restoreLayout(snapshot: unknown): void {
+    RESTORE_BUFFERED_STATE(snapshot)
+  }
+
   return {
     rightColumn,
     showSideBar,
     showTabBar,
     sideBarWidth,
+    sidebarView,
+    sidebarVisible,
+    tabBarVisible,
+    sidebarWidth,
     effectiveSideBarWidth,
+    effectiveSidebarWidth,
     SET_LAYOUT,
     CREATE_BUFFERED_STATE,
     RESTORE_BUFFERED_STATE,
@@ -196,6 +266,13 @@ export const useLayoutStore = defineStore('layout', () => {
     SET_SIDE_BAR_WIDTH,
     LISTEN_FOR_LAYOUT,
     DISPATCH_LAYOUT_MENU_ITEMS,
-    CHANGE_SIDE_BAR_WIDTH
+    CHANGE_SIDE_BAR_WIDTH,
+    setSidebarWidth,
+    selectSidebarView,
+    showSidebar,
+    hideSidebar,
+    toggleSidebar,
+    toggleTabBar,
+    restoreLayout
   }
 })
