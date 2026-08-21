@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { launchWithMarkdown, clickMenuById } from './helpers'
+import { launchWithMarkdown, clickMenuById, sendIpcToRenderer } from './helpers'
 
 // Wait until a `v-show`-toggled element's visibility differs from `wasVisible`.
 // A missing element counts as "not visible", so the change-detection logic
@@ -50,92 +50,129 @@ test.describe('Layout panel toggles', () => {
     await clickMenuById(app, 'tabBarMenuItem')
   })
 
-  test('TOC menu toggles ToC panel without throwing', async() => {
-    // Ensure sidebar is visible so TOC has somewhere to render.
+  test('Sidebar uses full-pane navigation and active view selection is a no-op', async() => {
     const sideBar = page.locator('.side-bar')
     if (!(await sideBar.isVisible())) {
       await clickMenuById(app, 'sideBarMenuItem')
-      await page.waitForFunction(
-        () => {
-          const el = document.querySelector('.side-bar') as HTMLElement | null
-          return el && el.offsetParent !== null
-        },
-        null,
-        { timeout: 5000 }
-      )
     }
-    await clickMenuById(app, 'tocMenuItem')
-    // No specific selector to assert (TOC mounts inside the sidebar);
-    // verifying the menu invocation does not throw is the main signal.
-    await page.waitForTimeout(200)
-    await clickMenuById(app, 'tocMenuItem')
+
+    await expect(page.locator('.side-bar .left-column')).toHaveCount(0)
+    await expect(page.getByRole('tab', { name: 'Files' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Outline' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Search' })).toBeVisible()
+
+    const filesTab = page.getByRole('tab', { name: 'Files' })
+    await filesTab.click()
+    const width = await sideBar.evaluate((element) => element.getBoundingClientRect().width)
+    await filesTab.click()
+
+    await expect(sideBar).toBeVisible()
+    await expect(filesTab).toHaveAttribute('aria-selected', 'true')
+    expect(await sideBar.evaluate((element) => element.getBoundingClientRect().width)).toBe(width)
   })
 
-  // Regression for the gap left between the sidebar and editor when the
-  // sidebar collapses to its 45px icon strip (rightColumn=''). The store's
-  // `sideBarWidth` is clamped to ≥220, so the editor's max-width must come
-  // from the *effective* sidebar width, not the raw store value.
-  test('Editor fills width after collapsing sidebar to icon strip', async() => {
-    // Ensure sidebar is visible.
+  test('Sidebar view commands open the complete pane and preserve its width', async() => {
     const sideBar = page.locator('.side-bar')
     if (!(await sideBar.isVisible())) {
       await clickMenuById(app, 'sideBarMenuItem')
-      await page.waitForFunction(
-        () => {
-          const el = document.querySelector('.side-bar') as HTMLElement | null
-          return !!(el && el.offsetParent !== null)
-        },
-        null,
-        { timeout: 5000 }
-      )
     }
 
-    // Open search panel and then collapse it back to the icon strip by
-    // clicking the search icon. We use a locator-based click (not a DOM
-    // .click()) so Playwright handles focus/activation correctly.
-    const searchIcon = page.locator('.side-bar .left-column > ul').first().locator('li').nth(1)
-
-    // Step 1: ensure rightColumn='search' (sidebar width ≥ 220 with the
-    // search panel mounted at `.side-bar-search`).
-    for (let i = 0; i < 3; i++) {
-      const { width, hasSearch } = await page.evaluate(() => {
-        const sb = document.querySelector('.side-bar') as HTMLElement | null
-        return {
-          width: sb ? Math.round(sb.getBoundingClientRect().width) : 0,
-          hasSearch: !!document.querySelector('.side-bar .right-column .side-bar-search')
-        }
-      })
-      if (width >= 220 && hasSearch) break
-      await searchIcon.click()
-      await page.waitForTimeout(250)
-    }
-
-    // Step 2: click search icon again to collapse to icon strip. The sidebar
-    // shrinks to its 45px icon column (+1px border-right = 46px outer width).
-    await searchIcon.click()
-    await page.waitForFunction(
-      () => {
-        const sb = document.querySelector('.side-bar') as HTMLElement | null
-        return !!sb && sb.getBoundingClientRect().width <= 50
-      },
-      null,
-      { timeout: 5000 }
+    await page.getByRole('tab', { name: 'Outline' }).click()
+    await expect(page.locator('.side-bar-toc')).toBeVisible()
+    const expandedWidth = await sideBar.evaluate((element) =>
+      Math.round(element.getBoundingClientRect().width)
     )
 
-    const { editorWidth, sideBarWidth, viewportWidth } = await page.evaluate(() => {
-      const editor = document.querySelector('.editor-with-tabs') as HTMLElement | null
-      const sb = document.querySelector('.side-bar') as HTMLElement | null
-      return {
-        editorWidth: editor ? editor.getBoundingClientRect().width : 0,
-        sideBarWidth: sb ? sb.getBoundingClientRect().width : 0,
-        viewportWidth: window.innerWidth
-      }
+    await clickMenuById(app, 'sideBarMenuItem')
+    await expect(sideBar).toBeHidden()
+    expect(
+      await sideBar.evaluate((element) => Math.round(element.getBoundingClientRect().width))
+    ).toBe(0)
+
+    await sendIpcToRenderer(app, 'mt::set-view-layout', { rightColumn: 'search' })
+    await expect(sideBar).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Search' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    await expect(page.locator('.side-bar-search')).toBeVisible()
+    expect(
+      await sideBar.evaluate((element) => Math.round(element.getBoundingClientRect().width))
+    ).toBe(expandedWidth)
+
+    await page.getByRole('tab', { name: 'Files' }).click()
+    await expect(page.locator('.tree-view')).toBeVisible()
+    await clickMenuById(app, 'tocMenuItem')
+    await expect(page.getByRole('tab', { name: 'Outline' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    await expect(page.locator('.side-bar-toc')).toBeVisible()
+    await clickMenuById(app, 'tocMenuItem')
+    await expect(sideBar).toBeVisible()
+    await expect(page.locator('.side-bar-toc')).toBeVisible()
+  })
+
+  test('Sidebar resize clamps at 220px and persists once when dragging ends', async() => {
+    const sideBar = page.locator('.side-bar')
+    if (!(await sideBar.isVisible())) {
+      await clickMenuById(app, 'sideBarMenuItem')
+    }
+
+    await page.evaluate(() => {
+      const storage = localStorage
+      const original = storage.setItem.bind(storage)
+      Object.defineProperty(storage, 'setItem', {
+        configurable: true,
+        value(key: string, value: string) {
+          const state = window as typeof window & { __sidebarWidthWrites?: number }
+          if (key === 'side-bar-width') {
+            state.__sidebarWidthWrites = (state.__sidebarWidthWrites ?? 0) + 1
+          }
+          original(key, value)
+        }
+      })
+      ;(window as typeof window & { __sidebarWidthWrites?: number }).__sidebarWidthWrites = 0
     })
-    // Sidebar is the 45px icon strip (+1px border). The editor must consume
-    // the remaining viewport width — before the fix it was capped by the
-    // store's `sideBarWidth` (clamped to ≥220), leaving a 175+ px gap to the
-    // right of the editor.
-    expect(sideBarWidth).toBeLessThanOrEqual(50)
-    expect(Math.abs(editorWidth - (viewportWidth - sideBarWidth))).toBeLessThanOrEqual(1)
+
+    const dragBar = page.locator('.side-bar .drag-bar')
+    const box = await dragBar.boundingBox()
+    if (!box) throw new Error('Sidebar resize handle is not visible')
+    await page.mouse.move(box.x + 1, box.y + 80)
+    await page.mouse.down()
+    await page.mouse.move(50, box.y + 80, { steps: 8 })
+    await page.mouse.up()
+
+    expect(
+      await sideBar.evaluate((element) => Math.round(element.getBoundingClientRect().width))
+    ).toBe(220)
+    expect(await page.evaluate(() => localStorage.getItem('side-bar-width'))).toBe('220')
+    expect(
+      await page.evaluate(
+        () => (window as typeof window & { __sidebarWidthWrites?: number }).__sidebarWidthWrites
+      )
+    ).toBe(1)
+  })
+
+  test('Settings stays pinned to the sidebar bottom and opens Preferences', async() => {
+    const sideBar = page.locator('.side-bar')
+    if (!(await sideBar.isVisible())) {
+      await clickMenuById(app, 'sideBarMenuItem')
+    }
+
+    const settings = page.getByRole('button', { name: 'Settings' })
+    const sideBarBox = await sideBar.boundingBox()
+    const settingsBox = await settings.boundingBox()
+    if (!sideBarBox || !settingsBox) throw new Error('Sidebar settings control is not visible')
+    expect(
+      Math.abs(sideBarBox.y + sideBarBox.height - (settingsBox.y + settingsBox.height))
+    ).toBeLessThanOrEqual(1)
+
+    const preferenceWindowPromise = app.waitForEvent('window')
+    await settings.click()
+    const preferencePage = await preferenceWindowPromise
+    await preferencePage.waitForLoadState('domcontentloaded')
+    await expect(preferencePage.locator('.pref-sidebar')).toBeVisible()
+    await preferencePage.close()
   })
 })

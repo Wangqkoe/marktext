@@ -140,7 +140,7 @@ const isWholeWord = ref(false)
 const isRegexp = ref(false)
 const searchEl = ref<HTMLInputElement | null>(null)
 
-const { rightColumn, showSideBar } = storeToRefs(layoutStore)
+const { sidebarView, sidebarVisible } = storeToRefs(layoutStore)
 const { currentFile } = storeToRefs(editorStore)
 const { projectTree } = storeToRefs(projectStore)
 const {
@@ -312,8 +312,8 @@ const cancelSearcher = (): void => {
   }
 }
 
-watch(showSideBar, (value, oldValue) => {
-  if (rightColumn.value === 'search') {
+watch(sidebarVisible, (value, oldValue) => {
+  if (sidebarView.value === 'search') {
     if (value && !oldValue) {
       handleFindInFolder(false)
     } else {
@@ -340,7 +340,7 @@ onMounted(() => {
 }
 .search-wrapper {
   display: flex;
-  margin: 37px 8px 10px 8px;
+  margin: 8px 8px 10px 8px;
   padding: 0 6px;
   border-radius: 4px;
   height: 28px;

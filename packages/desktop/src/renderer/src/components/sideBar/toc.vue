@@ -3,9 +3,6 @@
     class="side-bar-toc"
     :class="[{ 'side-bar-toc-overflow': !wordWrapInToc, 'side-bar-toc-wordwrap': wordWrapInToc }]"
   >
-    <div class="title">
-      {{ t('sideBar.toc.title') }}
-    </div>
     <el-tree
       v-if="keyedToc.length"
       :data="keyedToc"
@@ -29,10 +26,7 @@ import { usePreferencesStore } from '@/store/preferences'
 import { deriveKeyedToc, type KeyedTocNode } from '@/util/tocKeys'
 import bus from '../../bus'
 import { storeToRefs } from 'pinia'
-import { useI18n } from 'vue-i18n'
 import { ArrowRight } from '@element-plus/icons-vue'
-
-const { t } = useI18n()
 
 const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
@@ -93,20 +87,12 @@ const handleClick = (data: { slug?: unknown }): void => {
 
 <style>
 .side-bar-toc {
-  height: calc(100% - 35px);
+  height: 100%;
   margin: 0;
   padding: 0;
   list-style: none;
   display: flex;
   flex-direction: column;
-}
-
-.side-bar-toc .title {
-  color: var(--sideBarTitleColor);
-  font-weight: 600;
-  font-size: 16px;
-  margin: 37px 0 10px 0;
-  padding-left: 25px;
 }
 
 .side-bar-toc .el-tree-node {

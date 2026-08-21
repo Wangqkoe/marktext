@@ -1,216 +1,249 @@
 <template>
-  <div
-    v-show="showSideBar"
+  <aside
+    v-show="sidebarVisible"
     ref="sideBar"
     class="side-bar"
-    :style="[!rightColumn ? { 'min-width': '45px' } : {}, { width: `${finalSideBarWidth}px` }]"
+    :style="{ width: `${finalSideBarWidth}px` }"
   >
-    <div class="left-column">
-      <ul>
-        <li
-          v-for="(c, index) of sideBarIcons"
-          :key="index"
-          :class="{ active: c.id === rightColumn }"
-          @click="handleLeftIconClick(c.id)"
-        >
-          <component :is="c.icon" />
-        </li>
-      </ul>
-      <ul class="bottom">
-        <li
-          v-for="(c, index) of sideBarBottomIcons"
-          :key="index"
-          @click="handleLeftBottomClick(c.id)"
-        >
-          <component :is="c.icon" />
-        </li>
-      </ul>
-    </div>
-    <div
-      v-show="rightColumn"
-      class="right-column"
+    <nav
+      class="side-bar-navigation"
+      role="tablist"
+      :aria-label="t('preferences.general.sidebar.title')"
     >
+      <button
+        type="button"
+        class="side-bar-view-tab"
+        role="tab"
+        :aria-selected="sidebarView === 'files'"
+        :class="{ active: sidebarView === 'files' }"
+        @click="selectView('files')"
+      >
+        {{ t('sideBar.icons.files') }}
+      </button>
+      <button
+        type="button"
+        class="side-bar-view-tab"
+        role="tab"
+        :aria-selected="sidebarView === 'toc'"
+        :class="{ active: sidebarView === 'toc' }"
+        @click="selectView('toc')"
+      >
+        {{ t('sideBar.icons.toc') }}
+      </button>
+      <button
+        type="button"
+        class="side-bar-search-button"
+        :title="t('sideBar.icons.search')"
+        :aria-label="t('sideBar.icons.search')"
+        :aria-pressed="sidebarView === 'search'"
+        :class="{ active: sidebarView === 'search' }"
+        @click="selectView('search')"
+      >
+        <Search aria-hidden="true" />
+      </button>
+    </nav>
+
+    <div class="side-bar-content">
       <tree
-        v-if="rightColumn === 'files'"
+        v-show="sidebarView === 'files'"
         :project-tree="projectTree"
         :opened-files="openedFiles"
         :tabs="tabs"
       />
-      <side-bar-search v-else-if="rightColumn === 'search'" />
-      <toc v-else-if="rightColumn === 'toc'" />
+      <side-bar-search v-show="sidebarView === 'search'" />
+      <toc v-show="sidebarView === 'toc'" />
     </div>
+
+    <button
+      type="button"
+      class="side-bar-settings"
+      :title="t('sideBar.icons.settings')"
+      :aria-label="t('sideBar.icons.settings')"
+      @click="openSettings"
+    >
+      <Setting aria-hidden="true" />
+      <span>{{ t('sideBar.icons.settings') }}</span>
+    </button>
+
     <div
-      v-show="rightColumn"
       ref="dragBar"
       class="drag-bar"
     />
-  </div>
+  </aside>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
-import { useLayoutStore } from '@/store/layout'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Search, Setting } from '@element-plus/icons-vue'
+import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
+import { useLayoutStore, type SidebarView } from '@/store/layout'
 import { useProjectStore } from '@/store/project'
 import { useEditorStore } from '@/store/editor'
-
-import { sideBarIcons, sideBarBottomIcons } from './help'
 import Tree from './tree.vue'
 import SideBarSearch from './search.vue'
 import Toc from './toc.vue'
-import { storeToRefs } from 'pinia'
 import type { TabDescriptor } from './types'
 
+const { t } = useI18n()
 const layoutStore = useLayoutStore()
 const projectStore = useProjectStore()
 const editorStore = useEditorStore()
 
-const sideBar = ref<HTMLDivElement | null>(null)
-const dragBar = ref<HTMLDivElement | null>(null)
-
-const openedFiles = ref<TabDescriptor[]>([])
-const sideBarViewWidth = ref(280)
-
-const { rightColumn, showSideBar, sideBarWidth } = storeToRefs(layoutStore)
-
+const { sidebarView, sidebarVisible, sidebarWidth } = storeToRefs(layoutStore)
 const { projectTree } = storeToRefs(projectStore)
 const { tabs } = storeToRefs(editorStore)
 
-const finalSideBarWidth = computed<number>(() => {
-  if (!showSideBar.value) return 0
-  if (rightColumn.value === '') return 45
-  return sideBarViewWidth.value < 220 ? 220 : sideBarViewWidth.value
+const sideBar = ref<HTMLElement | null>(null)
+const dragBar = ref<HTMLDivElement | null>(null)
+const openedFiles = ref<TabDescriptor[]>([])
+const sideBarViewWidth = ref(sidebarWidth.value)
+
+let isResizing = false
+let startX = 0
+let startWidth = sideBarViewWidth.value
+
+const finalSideBarWidth = computed(() => Math.max(sideBarViewWidth.value, 220))
+
+watch(sidebarWidth, (width) => {
+  if (!isResizing) sideBarViewWidth.value = width
 })
 
-onMounted(() => {
-  nextTick(() => {
-    const dragBarEl = dragBar.value
-    if (!dragBarEl) return
-    let startX = 0
-    let currentSideBarWidth = +sideBarWidth.value
-    let startWidth = currentSideBarWidth
-
-    sideBarViewWidth.value = currentSideBarWidth
-
-    const mouseUpHandler = (): void => {
-      document.removeEventListener('mousemove', mouseMoveHandler, false)
-      document.removeEventListener('mouseup', mouseUpHandler, false)
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(currentSideBarWidth < 220 ? 220 : currentSideBarWidth)
-    }
-
-    const mouseMoveHandler = (event: MouseEvent): void => {
-      const offset = event.clientX - startX
-      currentSideBarWidth = startWidth + offset
-      sideBarViewWidth.value = currentSideBarWidth
-    }
-
-    const mouseDownHandler = (event: MouseEvent): void => {
-      startX = event.clientX
-      startWidth = +sideBarWidth.value
-      document.addEventListener('mousemove', mouseMoveHandler, false)
-      document.addEventListener('mouseup', mouseUpHandler, false)
-    }
-
-    dragBarEl.addEventListener('mousedown', mouseDownHandler, false)
-  })
-})
-
-const handleLeftIconClick = (name: string): void => {
-  if (rightColumn.value === name) {
-    // Capture the expanded width BEFORE collapsing: once rightColumn is '',
-    // finalSideBarWidth evaluates to the 45px icon strip and would overwrite
-    // the user's real width with the clamped 220px minimum (#2421).
-    const widthToPersist = finalSideBarWidth.value
-    layoutStore.SET_LAYOUT({ rightColumn: '' })
-    layoutStore.CHANGE_SIDE_BAR_WIDTH(widthToPersist)
-  } else {
-    const needDispatch = rightColumn.value === ''
-    layoutStore.SET_LAYOUT({ rightColumn: name })
-    sideBarViewWidth.value = +sideBarWidth.value
-    if (needDispatch) {
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(finalSideBarWidth.value)
-    }
-  }
+const stopResize = (): void => {
+  if (!isResizing) return
+  isResizing = false
+  document.removeEventListener('mousemove', previewResize, false)
+  document.removeEventListener('mouseup', stopResize, false)
+  layoutStore.setSidebarWidth(finalSideBarWidth.value)
 }
 
-const handleLeftBottomClick = (name: string): void => {
-  if (name === 'settings') {
-    projectStore.OPEN_SETTING_WINDOW()
-  }
+const previewResize = (event: MouseEvent): void => {
+  sideBarViewWidth.value = Math.max(startWidth + event.clientX - startX, 220)
+}
+
+const startResize = (event: MouseEvent): void => {
+  isResizing = true
+  startX = event.clientX
+  startWidth = finalSideBarWidth.value
+  document.addEventListener('mousemove', previewResize, false)
+  document.addEventListener('mouseup', stopResize, false)
+}
+
+onMounted(() => {
+  dragBar.value?.addEventListener('mousedown', startResize, false)
+})
+
+onBeforeUnmount(() => {
+  dragBar.value?.removeEventListener('mousedown', startResize, false)
+  document.removeEventListener('mousemove', previewResize, false)
+  document.removeEventListener('mouseup', stopResize, false)
+})
+
+const selectView = (view: SidebarView): void => {
+  layoutStore.selectSidebarView(view)
+}
+
+const openSettings = (): void => {
+  projectStore.OPEN_SETTING_WINDOW()
 }
 </script>
 
 <style scoped>
 .side-bar {
-  display: flex;
-  flex-shrink: 0;
-  flex-grow: 0;
-  width: 280px;
-  height: 100vh;
-  min-width: 220px;
   position: relative;
+  display: flex;
+  min-width: 220px;
+  height: 100vh;
+  flex: 0 0 auto;
+  flex-direction: column;
+  padding-top: var(--titleBarHeight);
+  box-sizing: border-box;
   color: var(--sideBarColor);
   user-select: none;
   background: var(--sideBarBgColor);
   border-right: 1px solid var(--itemBgColor);
 }
 
-.side-bar .left-column svg {
-  color: var(--iconColor);
-}
-
-.left-column {
-  height: 100%;
-  width: 45px;
+.side-bar-navigation {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding-top: 28px;
-  box-sizing: border-box;
+  height: 35px;
+  min-height: 35px;
+  align-items: stretch;
+  border-bottom: 1px solid var(--itemBgColor);
 }
 
-.left-column > ul {
-  opacity: 1;
-}
-
-.left-column ul {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-}
-
-.left-column ul > li {
-  width: 45px;
-  height: 45px;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
+.side-bar-view-tab,
+.side-bar-search-button,
+.side-bar-settings {
+  border: 0;
+  color: var(--sideBarColor);
+  background: transparent;
   cursor: pointer;
 }
 
-.left-column ul > li > svg {
-  width: 18px;
-  height: 18px;
-  color: var(--sideBarIconColor);
-  opacity: 1;
-  transition: transform 0.25s ease-in-out;
-}
-
-.left-column ul > li.active > svg {
-  color: var(--themeColor);
-}
-
-.side-bar:hover .left-column ul li svg {
-  opacity: 1;
-}
-
-.right-column {
+.side-bar-view-tab {
+  position: relative;
+  min-width: 0;
   flex: 1;
-  width: calc(100% - 50px);
+  padding: 0 8px;
   overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-bar-view-tab.active {
+  color: var(--sideBarTitleColor);
+  font-weight: 600;
+}
+
+.side-bar-view-tab.active::after {
+  position: absolute;
+  right: 22%;
+  bottom: 0;
+  left: 22%;
+  height: 2px;
+  background: var(--themeColor);
+  content: '';
+}
+
+.side-bar-search-button {
+  display: grid;
+  width: 34px;
+  min-width: 34px;
+  place-items: center;
+}
+
+.side-bar-search-button svg,
+.side-bar-settings svg {
+  width: 16px;
+  height: 16px;
+}
+
+.side-bar-search-button:hover,
+.side-bar-search-button.active,
+.side-bar-settings:hover {
+  color: var(--themeColor);
+  background: var(--sideBarItemHoverBgColor);
+}
+
+.side-bar-content {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.side-bar-content > * {
+  height: 100%;
+}
+
+.side-bar-settings {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  text-align: left;
 }
 
 .drag-bar {
@@ -218,7 +251,6 @@ const handleLeftBottomClick = (name: string): void => {
   top: 0;
   right: 0;
   bottom: 0;
-  height: 100%;
   width: 3px;
   cursor: col-resize;
 }

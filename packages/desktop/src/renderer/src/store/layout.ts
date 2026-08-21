@@ -75,18 +75,11 @@ export const useLayoutStore = defineStore('layout', () => {
   const tabBarVisible = computed<boolean>(() => showTabBar.value)
   const sidebarWidth = computed<number>(() => sideBarWidth.value)
 
-  // Actual rendered sidebar width. `sideBarWidth` is the right-column width
-  // (clamped to ≥220 by `normalizeSideBarWidth`); when `rightColumn` is empty
-  // the sidebar collapses to its 45px icon strip. Consumers that need to
-  // subtract the sidebar from viewport space must use this, not the raw ref.
-  const effectiveSideBarWidth = computed<number>(() => {
-    if (!showSideBar.value) return 0
-    if (!rightColumn.value) return 45
-    return Number(sideBarWidth.value)
-  })
   const effectiveSidebarWidth = computed<number>(() =>
     sidebarVisible.value ? sidebarWidth.value : 0
   )
+  // Legacy spelling retained until ticket 03 contracts the old layout interface.
+  const effectiveSideBarWidth = effectiveSidebarWidth
 
   function SET_LAYOUT(
     layout: LegacyLayoutPartial,
@@ -172,13 +165,8 @@ export const useLayoutStore = defineStore('layout', () => {
   function LISTEN_FOR_LAYOUT(): void {
     window.electron.ipcRenderer.on('mt::set-view-layout', (_e, layout) => {
       const incomingLayout = layout as unknown as LegacyLayoutPartial
-      if (incomingLayout.rightColumn) {
-        SET_LAYOUT({
-          ...incomingLayout,
-          rightColumn:
-            incomingLayout.rightColumn === rightColumn.value ? '' : incomingLayout.rightColumn,
-          showSideBar: true
-        })
+      if (isSidebarView(incomingLayout.rightColumn)) {
+        selectSidebarView(incomingLayout.rightColumn)
       } else {
         SET_LAYOUT(incomingLayout)
       }
@@ -223,6 +211,7 @@ export const useLayoutStore = defineStore('layout', () => {
   }
 
   function selectSidebarView(view: SidebarView): void {
+    if (sidebarVisible.value && sidebarView.value === view) return
     SET_LAYOUT({ rightColumn: view, showSideBar: true })
   }
 

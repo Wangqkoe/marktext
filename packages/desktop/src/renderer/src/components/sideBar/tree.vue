@@ -1,11 +1,10 @@
 <template>
   <div class="tree-view">
-    <div class="title">
-      <!-- Placeholder -->
-    </div>
-
     <!-- Opened tabs -->
-    <div v-if="openedFilesInSidebar" class="opened-files">
+    <div
+      v-if="openedFilesInSidebar"
+      class="opened-files"
+    >
       <div class="title">
         <el-icon
           class="icon-arrow"
@@ -301,15 +300,6 @@ onMounted(() => {
   flex-direction: column;
   height: 100%;
 }
-.tree-view > .title {
-  height: 35px;
-  line-height: 35px;
-  padding: 0 15px;
-  display: flex;
-  flex-shrink: 0;
-  flex-direction: row-reverse;
-}
-
 .icon-arrow {
   margin-right: 5px;
   transition: transform 0.25s ease-out;
