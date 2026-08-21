@@ -40,8 +40,15 @@ The independent Ticket 07 review of `932b89ba...d983a1f6` found three release bl
 ## Manual and platform matrix
 
 - Windows automated acceptance: passed.
-- Windows interactive visual inspection: attempted with an isolated development profile. The automation bridge returned an all-black capture and no accessibility tree after the required handle refresh, so the visual result is recorded as blocked rather than passed.
+- Windows custom-title-bar light mode: passed interactive inspection in an isolated development profile. The compact title row, 255px docked sidebar, hidden-sidebar zero-width state, status controls and editor workspace matched the approved shell structure without a phantom rail or blank sidebar header.
+- Windows custom-title-bar dark mode: passed interactive inspection with Material Dark. The title controls, sidebar tabs/search/settings, dividers, editor and status controls remained distinguishable and aligned.
+- Windows 640×480 smoke: passed interactive inspection with a 331px widened, docked Outline sidebar. The editor remained usable, the sidebar did not transform into an overlay or activity rail, and the status controls remained present.
+- Windows 125% application zoom: passed interactive inspection in a fresh isolated profile. The dark custom title bar, sidebar, editor and bottom controls remained aligned and operable; the visible word count was `W 117`.
+- Windows source/status smoke: passed interactive inspection. The bottom source-mode control entered the CodeMirror view and the status bar reported `Source`, `Ln 25, Col 1` and `W 117`; the sidebar control retained the same footprint and alignment.
+- Windows sidebar state smoke: the running editor state recorded `sidebarView: "toc"`, `sidebarVisible: true` and `sidebarWidth: 331` after interaction. Restart persistence remains covered by the passing Electron acceptance test above because launching a file through a new command-line process intentionally creates a different editor-state record.
+- Windows native-title-bar startup smoke: **failed** in two fresh isolated Material Dark profiles at both 100% and 125% zoom. With `titleBarStyle: "native"`, the source build opened an opaque black client area titled `MarkText`, exposed no renderer accessibility tree and did not load the requested Markdown file. The equivalent custom-title-bar profiles loaded normally. Native light/dark layout inspection could not proceed past this reproducible release blocker, which must be diagnosed before Ticket 07 can close.
+- The normal installed MarkText profiles and windows were not modified; all interactive runs used temporary `--user-data-dir` profiles.
 - macOS and Linux: unavailable in this Windows workspace.
-- Native non-100% OS display scale: unavailable in the current session. Electron 125% application zoom is covered by automated acceptance.
+- Native non-100% OS display scale: unavailable in the current session. Electron 125% application zoom is covered by automated and interactive acceptance.
 
 No GitHub push was performed.
