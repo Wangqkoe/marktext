@@ -11,7 +11,7 @@
     >
       <button
         type="button"
-        class="side-bar-view-tab"
+        class="side-bar-view-tab app-shell-focus-ring"
         role="tab"
         :aria-selected="sidebarView === 'files'"
         :class="{ active: sidebarView === 'files' }"
@@ -21,7 +21,7 @@
       </button>
       <button
         type="button"
-        class="side-bar-view-tab"
+        class="side-bar-view-tab app-shell-focus-ring"
         role="tab"
         :aria-selected="sidebarView === 'toc'"
         :class="{ active: sidebarView === 'toc' }"
@@ -31,7 +31,7 @@
       </button>
       <button
         type="button"
-        class="side-bar-search-button"
+        class="side-bar-search-button app-shell-focus-ring"
         :title="t('sideBar.icons.search')"
         :aria-label="t('sideBar.icons.search')"
         :aria-pressed="sidebarView === 'search'"
@@ -55,7 +55,7 @@
 
     <button
       type="button"
-      class="side-bar-settings"
+      class="side-bar-settings app-shell-focus-ring"
       :title="t('sideBar.icons.settings')"
       :aria-label="t('sideBar.icons.settings')"
       @click="projectStore.OPEN_SETTING_WINDOW()"
@@ -215,14 +215,6 @@ onBeforeUnmount(() => {
 .side-bar-settings:hover {
   color: var(--appShellAccent);
   background: var(--appShellHoverBg);
-}
-
-.side-bar-view-tab:focus-visible,
-.side-bar-search-button:focus-visible,
-.side-bar-settings:focus-visible {
-  outline: 1px solid var(--appShellStrongFg);
-  outline-offset: -2px;
-  box-shadow: inset 0 0 0 1px var(--appShellFocus);
 }
 
 .side-bar-content {

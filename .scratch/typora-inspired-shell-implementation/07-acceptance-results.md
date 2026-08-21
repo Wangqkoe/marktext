@@ -5,19 +5,21 @@ Date: 2026-08-21
 ## Automated acceptance
 
 - `pnpm exec playwright test shell-acceptance.spec.ts`: 5 passed.
-  - Sidebar navigation, search, and settings expose visible keyboard focus.
+  - F6/Shift+F6 cycles shell regions; sidebar navigation, search, and settings expose visible keyboard focus.
   - The status-bar word counter is keyboard operable and visibly focused.
-  - Editor tabs can be selected, created, and closed from the keyboard with visible focus.
+  - Editor tabs use roving focus and can be selected, created, and closed from the keyboard with visible focus.
   - All 33 bundled themes meet the shell semantic contrast checks without per-theme shell branches.
   - Electron zoom at 125% keeps the status controls aligned and operable and restores the previous zoom afterward.
 - `pnpm exec playwright test layout-persistence.spec.ts`: 1 passed.
   - Restart persistence covers tabs, source-mode startup preference, sidebar state, and matching menu checkmarks.
 - `pnpm test:unit`: 767 passed, 1 skipped.
 - `pnpm typecheck`: passed.
+- `pnpm lint`: passed with 131 pre-existing warnings and no errors after removing Playwright's generated `.last-run.json` artifact.
+- `pnpm build:unpack`: passed.
 
 ## Full E2E run
 
-`pnpm test:e2e` completed with 231 passed, 4 skipped, and 11 failed. All ticket 07 shell-acceptance tests passed in that run. Four failures recovered when the affected specifications were rerun with one worker, indicating suite-load/concurrency sensitivity. Seven failures remained and are outside the shell ticket's scope:
+The final `pnpm test:e2e` run completed with 235 passed, 4 skipped, and 7 failed. All ticket 07 shell-acceptance and layout-persistence tests passed. The seven remaining failures are outside the shell ticket's scope:
 
 - Four Windows line-ending assertions in `all-blocks-roundtrip.spec.ts` (CRLF versus LF).
 - One legacy window-title expectation in `launch.spec.ts`.

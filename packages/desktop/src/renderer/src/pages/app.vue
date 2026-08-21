@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, nextTick, onMounted, ref } from 'vue'
+import { computed, watch, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useMainStore } from '@/store'
 import { storeToRefs } from 'pinia'
 import { addStyles, addThemeStyle, addCustomStyle, type AddStylesOptions } from '@/util/theme'
@@ -151,6 +151,39 @@ const handleCaretPosition = (update: CaretPositionUpdate): void => {
   })
 }
 
+const cycleShellFocus = (event: KeyboardEvent): void => {
+  if (event.key !== 'F6' || event.altKey || event.ctrlKey || event.metaKey) return
+
+  const regionDefinitions = [
+    ['.side-bar', '.side-bar [role="tab"][aria-selected="true"]'],
+    ['.editor-tabs', '.editor-tabs [role="tab"][aria-selected="true"]'],
+    ['.app-status-bar', '.app-status-bar button:not(:disabled)'],
+    ['.editor-with-tabs > .container', '.source-code .CodeMirror textarea, .editor-component']
+  ] as const
+  const regions = regionDefinitions
+    .map(([containerSelector, anchorSelector]) => {
+      const container = document.querySelector<HTMLElement>(containerSelector)
+      const anchor = document.querySelector<HTMLElement>(anchorSelector)
+      return container && anchor && container.getClientRects().length > 0 ? { container, anchor } : null
+    })
+    .filter((region): region is { container: HTMLElement; anchor: HTMLElement } => region !== null)
+  if (!regions.length) return
+
+  const activeElement = document.activeElement
+  const currentIndex = regions.findIndex(({ container }) =>
+    activeElement ? container.contains(activeElement) : false
+  )
+  const direction = event.shiftKey ? -1 : 1
+  const nextIndex =
+    currentIndex === -1
+      ? event.shiftKey
+        ? regions.length - 1
+        : 0
+      : (currentIndex + direction + regions.length) % regions.length
+  event.preventDefault()
+  regions[nextIndex]!.anchor.focus()
+}
+
 // Watchers
 watch(
   [() => currentFile.value?.id ?? null, sourceCode],
@@ -215,6 +248,7 @@ const setupDragDropHandler = (): void => {
   )
 }
 onMounted(async () => {
+  document.addEventListener('keydown', cycleShellFocus)
   if (window.marktext?.initialState) {
     preferencesStore.SET_USER_PREFERENCE(window.marktext.initialState)
   }
@@ -274,6 +308,10 @@ onMounted(async () => {
     }
     addStyles(style)
   })
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', cycleShellFocus)
 })
 </script>
 

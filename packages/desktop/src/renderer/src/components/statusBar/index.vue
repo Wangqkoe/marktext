@@ -2,9 +2,10 @@
   <div class="app-status-bar">
     <button
       type="button"
-      class="sidebar-toggle"
+      class="sidebar-toggle app-shell-focus-ring"
       :title="toggleLabel"
       :aria-label="toggleLabel"
+      :aria-pressed="sidebarVisible"
       @click="$emit('toggle-sidebar')"
     >
       <svg
@@ -21,7 +22,7 @@
     </button>
     <button
       type="button"
-      class="source-mode-toggle"
+      class="source-mode-toggle app-shell-focus-ring"
       title="Toggle Source Code Mode"
       aria-label="Toggle Source Code Mode"
       :aria-pressed="sourceMode"
@@ -74,7 +75,7 @@
       </template>
       <button
         type="button"
-        class="word-count"
+        class="word-count app-shell-focus-ring"
         @click.stop="cycleWordCount"
         @keydown.enter.space.prevent.stop="cycleWordCount"
       >
@@ -164,13 +165,6 @@ const cycleWordCount = (): void => {
   background: var(--appShellHoverBg);
 }
 
-.sidebar-toggle:focus-visible,
-.source-mode-toggle:focus-visible {
-  outline: 1px solid var(--appShellStrongFg);
-  outline-offset: -2px;
-  box-shadow: inset 0 0 0 1px var(--appShellFocus);
-}
-
 .source-mode-toggle[aria-pressed='true'] {
   color: var(--appShellStrongFg);
   background: var(--appShellHoverBg);
@@ -178,7 +172,7 @@ const cycleWordCount = (): void => {
 
 .source-mode-toggle:disabled {
   cursor: not-allowed;
-  opacity: 0.45;
+  opacity: var(--appShellDisabledOpacity);
 }
 
 .status-context {
@@ -221,12 +215,6 @@ const cycleWordCount = (): void => {
 .word-count:hover {
   color: var(--appShellStrongFg);
   background: var(--appShellHoverBg);
-}
-
-.word-count:focus-visible {
-  outline: 1px solid var(--appShellStrongFg);
-  outline-offset: -2px;
-  box-shadow: inset 0 0 0 1px var(--appShellFocus);
 }
 
 .status-count-detail {

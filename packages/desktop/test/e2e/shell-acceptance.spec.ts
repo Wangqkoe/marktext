@@ -39,6 +39,16 @@ const BUNDLED_THEMES = [
 ] as const
 
 const parseColor = (color: string): [number, number, number, number] => {
+  const hex = color.match(/^#([\da-f]{3}|[\da-f]{6})$/i)?.[1]
+  if (hex) {
+    const expanded = hex.length === 3 ? [...hex].map((channel) => channel.repeat(2)).join('') : hex
+    return [
+      Number.parseInt(expanded.slice(0, 2), 16),
+      Number.parseInt(expanded.slice(2, 4), 16),
+      Number.parseInt(expanded.slice(4, 6), 16),
+      1
+    ]
+  }
   const channels = color.match(/[\d.]+/g)?.map(Number)
   if (!channels || channels.length < 3) throw new Error(`Unsupported color: ${color}`)
   const [red = 0, green = 0, blue = 0, alpha = 1] = channels
@@ -74,8 +84,24 @@ const expectVisibleKeyboardFocus = async(
   page: Page,
   locator: ReturnType<Page['locator']>
 ): Promise<void> => {
-  await page.keyboard.press('Tab')
-  await locator.focus()
+  await page.keyboard.press('Escape')
+  let reachedThroughTabOrder = false
+  for (let regionAttempt = 0; regionAttempt < 8 && !reachedThroughTabOrder; regionAttempt++) {
+    await page.keyboard.press('F6')
+    reachedThroughTabOrder = await locator.evaluate((element) => element === document.activeElement)
+    const targetRegionIsActive = await locator.evaluate((element) => {
+      const region = element.closest(
+        '.side-bar, .editor-tabs, .app-status-bar, .editor-with-tabs > .container'
+      )
+      return !!region?.contains(document.activeElement)
+    })
+    if (!targetRegionIsActive) continue
+    for (let tabAttempt = 0; tabAttempt < 40 && !reachedThroughTabOrder; tabAttempt++) {
+      await page.keyboard.press('Tab')
+      reachedThroughTabOrder = await locator.evaluate((element) => element === document.activeElement)
+    }
+  }
+  expect(reachedThroughTabOrder).toBe(true)
   await expect(locator).toBeFocused()
   const focusStyle = await locator.evaluate((element) => {
     const style = getComputedStyle(element)
@@ -135,8 +161,10 @@ test.describe('Application shell acceptance', () => {
     const editorTabs = page.locator('.editor-tabs [role="tab"]')
     await expect(editorTabs).toHaveCount(2)
     const firstEditorTab = editorTabs.first()
-    await expectVisibleKeyboardFocus(page, firstEditorTab)
-    await page.keyboard.press('Enter')
+    const selectedEditorTab = page.locator('.editor-tabs [role="tab"][aria-selected="true"]')
+    await expectVisibleKeyboardFocus(page, selectedEditorTab)
+    await page.keyboard.press('ArrowLeft')
+    await expect(firstEditorTab).toBeFocused()
     await expect(firstEditorTab).toHaveAttribute('aria-selected', 'true')
 
     const newTab = page.getByRole('button', { name: 'New Tab' })
@@ -144,8 +172,10 @@ test.describe('Application shell acceptance', () => {
     await page.keyboard.press('Enter')
     await expect(editorTabs).toHaveCount(3)
 
-    await firstEditorTab.focus()
-    await page.keyboard.press('Enter')
+    await expectVisibleKeyboardFocus(page, selectedEditorTab)
+    await page.keyboard.press('ArrowLeft')
+    await page.keyboard.press('ArrowLeft')
+    await expect(firstEditorTab).toBeFocused()
     await expect(firstEditorTab).toHaveAttribute('aria-selected', 'true')
 
     const closeTab = page.locator('.editor-tabs li.active').getByRole('button', {
@@ -181,6 +211,7 @@ test.describe('Application shell acceptance', () => {
         }
         const status = style('.app-status-bar')
         const sidebar = style('.side-bar')
+        const root = getComputedStyle(document.documentElement)
         return {
           statusBackground: status.backgroundColor,
           sidebarBackground: sidebar.backgroundColor,
@@ -188,21 +219,33 @@ test.describe('Application shell acceptance', () => {
           icon: style('.sidebar-toggle').color,
           strongText: style('.side-bar-view-tab[aria-selected="true"]').color,
           divider: status.borderTopColor,
-          focus: style('.side-bar-view-tab:focus').outlineColor
+          focus: style('.side-bar-view-tab:focus').outlineColor,
+          hover: root.getPropertyValue('--appShellHoverBg'),
+          active: root.getPropertyValue('--appShellAccent'),
+          disabledOpacity: Number(root.getPropertyValue('--appShellDisabledOpacity')),
+          destructiveBackground: root.getPropertyValue('--appShellDestructiveHoverBg'),
+          destructiveForeground: root.getPropertyValue('--appShellDestructiveHoverFg')
         }
       })
 
+      const [strongRed, strongGreen, strongBlue] = parseColor(colors.strongText)
+      const disabledText = `rgba(${strongRed}, ${strongGreen}, ${strongBlue}, ${colors.disabledOpacity})`
       const ratios = {
         normalText: contrastRatio(colors.normalText, colors.statusBackground),
         icon: contrastRatio(colors.icon, colors.statusBackground),
         strongText: contrastRatio(colors.strongText, colors.sidebarBackground),
         focus: contrastRatio(colors.focus, colors.sidebarBackground),
-        divider: contrastRatio(colors.divider, colors.statusBackground)
+        divider: contrastRatio(colors.divider, colors.statusBackground),
+        hover: contrastRatio(colors.hover, colors.sidebarBackground),
+        active: contrastRatio(colors.active, colors.sidebarBackground),
+        pressed: contrastRatio(colors.hover, colors.statusBackground),
+        disabled: contrastRatio(disabledText, colors.statusBackground),
+        destructive: contrastRatio(colors.destructiveForeground, colors.destructiveBackground)
       }
       for (const [state, ratio] of Object.entries(ratios)) {
-        const minimum = state === 'divider' ? 1 : 3
-        if (ratio < minimum || (state === 'divider' && ratio === minimum)) {
-          failures.push(`${theme} ${state} ${ratio.toFixed(2)} < ${minimum}`)
+        const minimum = ['divider', 'hover', 'active', 'pressed', 'disabled'].includes(state) ? 1 : 3
+        if (ratio <= minimum) {
+          failures.push(`${theme} ${state} ${ratio.toFixed(2)} <= ${minimum}`)
         }
       }
     }
@@ -245,13 +288,16 @@ test.describe('Application shell acceptance', () => {
 
     const sidebarToggle = page.getByRole('button', { name: 'Toggle Sidebar' })
     const sidebarWasVisible = await page.locator('.side-bar').isVisible()
-    await sidebarToggle.focus()
+    await expect(sidebarToggle).toHaveAttribute('aria-pressed', String(sidebarWasVisible))
+    await expectVisibleKeyboardFocus(page, sidebarToggle)
     await page.keyboard.press('Enter')
     if (sidebarWasVisible) await expect(page.locator('.side-bar')).toBeHidden()
     else await expect(page.locator('.side-bar')).toBeVisible()
+    await expect(sidebarToggle).toHaveAttribute('aria-pressed', String(!sidebarWasVisible))
     await page.keyboard.press('Enter')
     if (sidebarWasVisible) await expect(page.locator('.side-bar')).toBeVisible()
     else await expect(page.locator('.side-bar')).toBeHidden()
+    await expect(sidebarToggle).toHaveAttribute('aria-pressed', String(sidebarWasVisible))
 
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1)

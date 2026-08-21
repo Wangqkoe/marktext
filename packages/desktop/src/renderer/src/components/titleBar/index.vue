@@ -387,7 +387,7 @@ div.title > span {
   color: var(--appShellStrongFg);
 }
 .frameless-titlebar-close:hover {
-  background-color: rgb(228, 79, 79);
+  background-color: var(--appShellDestructiveHoverBg);
 }
 .frameless-titlebar-minimize:hover,
 .frameless-titlebar-toggle:hover {
@@ -397,7 +397,7 @@ div.title > span {
   fill: currentcolor !important;
 }
 .frameless-titlebar-close:hover svg {
-  fill: #ffffff !important;
+  fill: var(--appShellDestructiveHoverFg) !important;
 }
 
 .text-center-vertical {

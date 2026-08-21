@@ -20,6 +20,9 @@
   --appShellVisibleDivider: color-mix(in srgb, var(--appShellDivider) 85%, var(--appShellStrongFg));
   --appShellAccent: var(--themeColor);
   --appShellFocus: var(--focusColor);
+  --appShellDisabledOpacity: 0.45;
+  --appShellDestructiveHoverBg: rgb(228, 79, 79);
+  --appShellDestructiveHoverFg: #ffffff;
 
   /*editor*/
   /*Theme color cluster*/
@@ -123,6 +126,12 @@
   --notificationWarningBg: #ff8800;
   --notificationErrorColor: #ffffff;
   --notificationErrorBg: #ff6969;
+}
+
+.app-shell-focus-ring:focus-visible {
+  outline: 1px solid var(--appShellStrongFg);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px var(--appShellFocus);
 }
 
 ::-webkit-scrollbar,

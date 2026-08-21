@@ -21,17 +21,20 @@
         >
           <button
             type="button"
-            class="tab-select"
+            class="tab-select app-shell-focus-ring"
             role="tab"
             :aria-selected="currentFile?.id === file.id"
+            :tabindex="currentFile?.id === file.id ? 0 : -1"
             @click.stop="selectFile(file)"
+            @keydown.left.prevent="selectAdjacentTab(file, -1)"
+            @keydown.right.prevent="selectAdjacentTab(file, 1)"
           >
             <span class="tab-filename">{{ file.filename }}</span>
             <span class="unsaved-dot" />
           </button>
           <button
             type="button"
-            class="close-icon"
+            class="close-icon app-shell-focus-ring"
             :aria-label="`Close ${file.filename}`"
             @click.stop="removeFileInTab(file)"
             @keydown.enter.space.prevent.stop="removeFileInTab(file)"
@@ -45,7 +48,7 @@
     </div>
     <button
       type="button"
-      class="new-file"
+      class="new-file app-shell-focus-ring"
       title="New Tab"
       aria-label="New Tab"
       @click.stop="newFile()"
@@ -88,6 +91,18 @@ const selectFile = (file: IFileState) => {
   if (file.id !== currentFile.value?.id) {
     editorStore.UPDATE_CURRENT_FILE(file)
   }
+}
+
+const selectAdjacentTab = (file: IFileState, offset: -1 | 1): void => {
+  const currentIndex = tabs.value.findIndex((tab) => tab.id === file.id)
+  if (currentIndex === -1) return
+  const nextIndex = (currentIndex + offset + tabs.value.length) % tabs.value.length
+  const nextFile = tabs.value[nextIndex]
+  if (!nextFile) return
+  selectFile(nextFile)
+  nextTick(() => {
+    tabDropContainer.value?.querySelectorAll<HTMLButtonElement>('.tab-select')[nextIndex]?.focus()
+  })
 }
 
 const removeFileInTab = (file: IFileState) => {
@@ -409,14 +424,6 @@ onBeforeUnmount(() => {
   background: transparent;
   border: 0;
   cursor: pointer;
-}
-
-.tab-select:focus-visible,
-.close-icon:focus-visible,
-.new-file:focus-visible {
-  outline: 1px solid var(--appShellStrongFg);
-  outline-offset: -2px;
-  box-shadow: inset 0 0 0 1px var(--appShellFocus);
 }
 
 .close-icon:focus-visible,
