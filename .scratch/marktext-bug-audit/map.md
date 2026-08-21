@@ -40,13 +40,20 @@ Produce an evidence-backed, prioritized bug-remediation specification for user-v
 - Treat screenshots and videos as supporting evidence only. Prefer disk, process and application state when evidence sources disagree.
 - Route ambiguous intended behavior to a product decision rather than treating Typora or current MarkText behavior as an automatic specification.
 - Retain every observed candidate with its disposition; only confirmed deterministic and confirmed intermittent product defects consume the five-finding cap.
+- Default to one independently reviewable implementation ticket per confirmed defect; merge symptoms only after proving a shared root cause, change and regression seam.
+- Require a red regression test before product-code changes whenever the failure seam is testable; OS-only defects need preserved 2/2 manual evidence and an automated test at the nearest trustworthy seam.
+- Require separate independent review for every P0/P1, persistence/serialization/file-sync fix, shared editor-state or IPC change, and for the complete batch before final acceptance.
+- Keep at least one atomic local test-and-fix commit per ticket; place review remediation in follow-up local commits and never push them.
+- Validate each ticket with its regression, adjacent tests and affected-package type checking; high-risk tickets also run the full unit and Electron E2E suites.
+- Close the batch only after full unit/E2E, type checking, lint with no new warnings, an unpacked build, the frozen exploration matrix, affected Windows manual checks and an independent Standards + Spec review.
+- Convert the completed audit to one batch specification and then one implementation ticket per independent confirmed defect. A P0 receives an immediate minimal emergency specification and ticket.
 
 ## Questions to resolve
 
 - [Define audit scope and severity](issues/01-define-audit-scope-and-severity.md): resolved; the first batch targets core Windows workflows under a P0-P3 model and a five-defect cap.
 - [Choose the exploratory surface matrix](issues/02-choose-exploratory-surface-matrix.md): resolved; use the frozen risk-paired F1–F4, E1–E5, M1–M5 and W1–W6 matrix.
 - [Define reproduction and triage rules](issues/03-define-reproduction-and-triage-rules.md): resolved; apply the controlled reproduction, evidence-package and classification rules recorded in the issue.
-- [Define the remediation handoff](issues/04-define-remediation-handoff.md): decide batching, test, review, commit and acceptance rules before converting findings to a specification and tickets.
+- [Define the remediation handoff](issues/04-define-remediation-handoff.md): resolved; use test-first per-defect tickets, risk-based independent review and batch-level acceptance before local closure.
 
 ## Out of scope
 
