@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Establish audit fixtures, evidence records and regression baselines.
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] W1 runs with F2 under E1 from fresh isolated state: open, render, WYSIWYG edit, source edit, return, undo/redo, save, compare disk content and reload.
 - [ ] Assertions cover serialized content, disk bytes where the line-ending contract requires them, dirty/saved state and absence of unexpected renderer/process errors.

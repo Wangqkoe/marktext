@@ -64,3 +64,14 @@ pnpm --filter marktext typecheck
 Results: **3 fixture-guard tests passed** in 6.7 seconds, **11 repaired-report baseline tests passed** in 15.8 seconds, and desktop typecheck passed.
 
 The candidate-template guard now parses only the nested list following `Final disposition`, rejects duplicate values, and requires exact ordered equality with `AUDIT_TRIAGE_DISPOSITIONS`. Negative checks prove that unrelated prose containing a missing disposition cannot satisfy the guard and that a duplicate final-disposition item fails validation.
+
+## Deferred review findings
+
+On 2026-08-21, the user explicitly chose to record the remaining low-impact review findings for later maintenance and proceed with the product audit:
+
+- The two negative disposition-template mutations use LF-specific replacement strings. A newly checked-out Windows worktree with CRLF conversion may fail those test mutations even though the parser and production audit template remain correct. Future maintenance should make the mutations newline-agnostic and exercise both LF and CRLF input.
+- Exported disposition parsing/validation helpers should document their accepted marker/list shape, normalized result and thrown validation failures.
+- `createIsolatedUserDataDir` should document uniqueness, name sanitization and disposable-versus-retained cleanup ownership.
+- The regular-expression constant can be renamed from `finalDispositionList` to `finalDispositionListPattern` for clarity.
+
+These are test portability, documentation and naming findings, not evidence of a user-data or product-runtime defect. They are accepted as deferred and do not block Ticket 02.

@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** implemented-awaiting-review
+**Status:** resolved
 
 - [x] F1 provides a blank unsaved document without relying on state from an earlier run.
 - [x] F2 reuses the canonical all-blocks document without leaving tracked-content modifications behind.
@@ -17,3 +17,12 @@
 - [x] The unchecked Preferences switch-contrast regression passes under the controlled audit baseline.
 - [x] Commands and generated-artifact locations are documented, original user files remain read-only, and no product repair is made in this ticket.
 - [x] All changes are committed locally and are not pushed to GitHub.
+
+## Resolution
+
+- Initial implementation: `7748e1d1`.
+- First review remediation: `0f01c58d`.
+- Second review remediation: `c287fd0f`.
+- Focused evidence records 3 fixture-guard tests, 11 repaired-report baseline tests and desktop type checking as passing in the implementation worktree.
+- Independent review confirmed the fixture behavior, retained-artifact ownership, repository-containment guard, exact CRLF fixture check and disposition parser itself. On 2026-08-21, the user explicitly accepted deferring the remaining low-impact review findings so the product audit could proceed.
+- Deferred maintenance is recorded in the Ticket 01 evidence file and does not block Ticket 02.

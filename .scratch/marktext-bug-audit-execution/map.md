@@ -19,7 +19,7 @@ Execute the approved [MarkText first-batch bug audit and remediation handoff spe
 
 ## Frontier
 
-Ticket 01 can start immediately. Work proceeds in dependency order. If a P0 is strongly evidenced or five product defects are confirmed before Ticket 05 finishes, preserve the evidence, document the early-stop condition, skip the remaining exploration work and advance to Ticket 06.
+Ticket 01 is resolved with its remaining low-impact review findings explicitly deferred by the user. Ticket 02 is now in progress. Work otherwise proceeds in dependency order. If a P0 is strongly evidenced or five product defects are confirmed before Ticket 05 finishes, preserve the evidence, document the early-stop condition, skip the remaining exploration work and advance to Ticket 06.
 
 ## Repository constraint
 
