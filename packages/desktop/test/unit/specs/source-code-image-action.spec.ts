@@ -5,6 +5,7 @@ import { dirname, resolve } from 'node:path'
 import { parse, compileScript } from 'vue/compiler-sfc'
 import ts from 'typescript'
 import { ref } from 'vue'
+import { toCaretPosition } from '@/util/caretPosition'
 
 // `handleImageAction` lives as a <script setup> closure in sourceCode.vue
 // (registered on the `image-action` bus during onMounted). The desktop unit
@@ -56,7 +57,7 @@ const loadComponent = (deps: Record<string, unknown>) => {
     `const { _defineComponent, ref, watch, onMounted, onBeforeUnmount, nextTick,
       useEditorStore, usePreferencesStore, storeToRefs, codeMirror,
       setCursorAtFirstLine, setTextDirection, getWordCount, adjustCursor, bus,
-      oneDarkThemes, railscastsThemes } = __deps
+      oneDarkThemes, railscastsThemes, toCaretPosition } = __deps
     ${js}
     return module.exports`
   ) as (deps: Record<string, unknown>, exports: object, module: object) => SetupModule
@@ -83,6 +84,7 @@ const makeDeps = (over: Record<string, unknown> = {}) => ({
   bus: { on: () => {}, off: () => {}, emit: () => {} },
   oneDarkThemes: [],
   railscastsThemes: [],
+  toCaretPosition,
   ...over
 })
 

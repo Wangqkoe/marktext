@@ -105,16 +105,30 @@ test.describe('Caret status', () => {
 
     await enterSourceMode(page, app)
     await expect(caretStatus(page)).toHaveText('Ln 3, Col 6')
-    const transition = await page.evaluate(
+    const modeTransition = await page.evaluate(
       () =>
         (window as typeof window & { __caretRecords?: Array<string | null> }).__caretRecords ?? []
     )
-    const clearedAt = transition.indexOf(null)
+    const clearedAt = modeTransition.indexOf(null)
     expect(clearedAt).toBeGreaterThanOrEqual(0)
-    expect(transition.slice(clearedAt + 1)).toContain('Ln 3, Col 6')
+    expect(modeTransition.slice(clearedAt + 1)).toContain('Ln 3, Col 6')
 
     expect(await setSourceCaret(page, 2, 2)).toBe(true)
     await expect(caretStatus(page)).toHaveText('Ln 3, Col 3')
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+        })
+    )
+    const afterSourceCaret = await page.evaluate(
+      () =>
+        (window as typeof window & { __caretRecords?: Array<string | null> }).__caretRecords ?? []
+    )
+    const sourcePositionAt = afterSourceCaret.lastIndexOf('Ln 3, Col 3')
+    expect(sourcePositionAt).toBeGreaterThan(clearedAt)
+    expect(afterSourceCaret.slice(sourcePositionAt + 1)).not.toContain('Ln 3, Col 6')
+
     await page.keyboard.press('ArrowRight')
     await expect(caretStatus(page)).toHaveText('Ln 3, Col 4')
     await page.keyboard.type('Z')

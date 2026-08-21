@@ -16,7 +16,8 @@ import { wordCount as getWordCount } from '@muyajs/core'
 import { adjustCursor } from '../../util'
 import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
-import { toCaretPosition, type CaretPositionUpdate } from '@/util/caretPosition'
+import { toCaretPosition } from '@/util/caretPosition'
+import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 
 // CodeMirror 5 ships no first-party types; the wrapper in src/renderer/src/
 // codeMirror/index.ts also keeps the surface intentionally loose.
@@ -31,7 +32,7 @@ interface MuyaIndexCursorLike {
 const props = defineProps<{
   markdown?: string
   muyaIndexCursor?: unknown
-  caretSession: number
+  caretSession: CaretSession
   textDirection: string
 }>()
 
@@ -52,7 +53,7 @@ const tabId = ref<string | null>(null)
 const { theme, sourceCode } = storeToRefs(preferencesStore)
 const { currentFile: currentTab } = storeToRefs(editorStore)
 
-const reportCaretPosition = (cm: CMInstance, session: number): void => {
+const reportCaretPosition = (cm: CMInstance, session: CaretSession): void => {
   emit('caret-position', {
     session,
     position: toCaretPosition(cm.getCursor('head'))

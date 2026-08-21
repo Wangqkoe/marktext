@@ -116,6 +116,7 @@ import { applyCursor, isIndexCursor } from '@/util/cursor'
 import {
   caretPositionFromIndexCursor,
   createAnimationFrameCoalescer,
+  type CaretSession,
   type CaretPositionUpdate
 } from '@/util/caretPosition'
 import EditorSearch from '../search/index.vue'
@@ -201,7 +202,7 @@ interface MuyaChange {
 const props = defineProps<{
   markdown?: string
   cursor?: unknown
-  caretSession: number
+  caretSession: CaretSession
   textDirection: string
   platform?: string
 }>()
@@ -289,7 +290,7 @@ const editorRef = ref<HTMLDivElement | null>(null)
 const imageViewerRef = ref<HTMLDivElement | null>(null)
 const rowInput = ref<InputNumberInstance | null>(null)
 
-const caretReporter = createAnimationFrameCoalescer((session: number) => {
+const caretReporter = createAnimationFrameCoalescer((session: CaretSession) => {
   const position = caretPositionFromIndexCursor(editor.value?.getCursorOffset())
   emit('caret-position', { session, position })
 })
