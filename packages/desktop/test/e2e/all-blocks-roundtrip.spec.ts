@@ -50,6 +50,15 @@ const save = async(app: ElectronApplication): Promise<void> => {
 
 const readDisk = (): string => fs.readFileSync(FIXTURE_ABS, 'utf-8')
 
+// MarkText normalizes every document to LF while it is in the editor, then
+// restores the file's detected line ending on save. Git may check this fixture
+// out as CRLF on Windows, so editor assertions must use the canonical LF form
+// while disk assertions continue to compare the original bytes.
+const normalizeToLf = (value: string): string => value.replace(/\r\n?/g, '\n')
+
+const restoreOriginalLineEnding = (value: string, original: string): string =>
+  original.includes('\r\n') ? value.replace(/\n/g, '\r\n') : value
+
 const isDirty = (page: Page): Promise<boolean> =>
   page.evaluate((sel) => !!document.querySelector(sel), UNSAVED_DOT)
 
@@ -57,12 +66,14 @@ test.describe('All blocks round-trip + save byte-stability (item 39)', () => {
   let app: ElectronApplication
   let page: Page
   let original: string
+  let canonicalOriginal: string
 
   test.beforeAll(async() => {
     // Snapshot the on-disk bytes BEFORE launching so we can restore them in
     // afterAll (the test saves into the real fixture file) and so we have the
     // exact baseline to compare the serialized + saved content against.
     original = readDisk()
+    canonicalOriginal = normalizeToLf(original)
     const launched = await launchWithDoc(FIXTURE_REL)
     app = launched.app
     page = launched.page
@@ -111,20 +122,19 @@ test.describe('All blocks round-trip + save byte-stability (item 39)', () => {
     expect(counts.link).toBeGreaterThanOrEqual(1)
   })
 
-  test('the freshly loaded doc is clean and serializes back to the original bytes', async() => {
+  test('the freshly loaded doc is clean and serializes to the canonical content', async() => {
     // A freshly opened (unedited) file must not be marked dirty.
     expect(await isDirty(page)).toBe(false)
 
-    // The engine's serialization of the loaded document equals the on-disk
-    // bytes — i.e. the fixture is already in canonical form, so loading it does
-    // not silently reformat anything.
+    // The engine's serialization equals the fixture after its documented LF
+    // normalization, so loading it does not silently reformat Markdown.
     const serialized = await getMarkdownContent(page, app)
-    expect(serialized).toBe(original)
+    expect(serialized).toBe(canonicalOriginal)
   })
 
   test('repeated source <-> WYSIWYG toggles do not mutate or reformat the content', async() => {
     // Toggle source mode in and out twice; the content must be identical after
-    // each handoff and must never diverge from the original.
+    // each handoff and must never diverge from the canonical content.
     for (let i = 0; i < 2; i++) {
       await enterSourceMode(page, app)
       const inSource = await page.evaluate(() => {
@@ -133,13 +143,13 @@ test.describe('All blocks round-trip + save byte-stability (item 39)', () => {
           | null
         return cm && cm.CodeMirror ? cm.CodeMirror.getValue() : null
       })
-      expect(inSource).toBe(original)
+      expect(inSource).toBe(canonicalOriginal)
       await exitSourceMode(page, app)
       await page.waitForTimeout(200)
     }
 
     const afterToggles = await getMarkdownContent(page, app)
-    expect(afterToggles).toBe(original)
+    expect(afterToggles).toBe(canonicalOriginal)
   })
 
   test('saving clears the unsaved indicator and writes the original bytes back to disk', async() => {
@@ -156,14 +166,14 @@ test.describe('All blocks round-trip + save byte-stability (item 39)', () => {
     await expect.poll(() => readDisk(), { timeout: 5000 }).toBe(original)
 
     // And the in-editor serialization still matches.
-    expect(await getMarkdownContent(page, app)).toBe(original)
+    expect(await getMarkdownContent(page, app)).toBe(canonicalOriginal)
   })
 
   test('a dirty edit saves through the full IPC path and persists the exact editor serialization', async() => {
     // Genuinely exercise the dirty -> save -> clean transition (test 4 may have
     // saved an already-clean tab). A bulk source-mode edit that appends a
     // paragraph dirties the tab; confirm the unsaved dot appears.
-    await setSourceMarkdown(page, app, original + '\nDIRTY EXTRA PARAGRAPH\n')
+    await setSourceMarkdown(page, app, canonicalOriginal + '\nDIRTY EXTRA PARAGRAPH\n')
     await expect.poll(() => isDirty(page), { timeout: 5000 }).toBe(true)
 
     // What the editor will persist is its own serialization of the current
@@ -175,6 +185,8 @@ test.describe('All blocks round-trip + save byte-stability (item 39)', () => {
 
     await save(app)
     await expect.poll(() => isDirty(page), { timeout: 5000 }).toBe(false)
-    await expect.poll(() => readDisk(), { timeout: 5000 }).toBe(editorContent)
+    await expect
+      .poll(() => readDisk(), { timeout: 5000 })
+      .toBe(restoreOriginalLineEnding(editorContent, original))
   })
 })

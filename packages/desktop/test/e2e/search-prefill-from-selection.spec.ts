@@ -46,7 +46,9 @@ test.describe('Find bar prefill from selection', () => {
     if (!point) throw new Error('could not locate the word "fox" in the editor')
 
     await page.mouse.dblclick(point.x, point.y)
-    await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toBe('fox')
+    await expect
+      .poll(() => page.evaluate(() => window.getSelection()?.toString().trim()))
+      .toBe('fox')
 
     // The DOM selection is set synchronously by the double-click, but the engine
     // commits it to its model on the next animation frame (content block

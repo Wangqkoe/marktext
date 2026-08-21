@@ -188,7 +188,10 @@ watch(searchMatches, (newValue, oldValue) => {
 const prefillFromSelection = () => {
   const selected = searchMatches.value?.value
   if (selected) {
-    searchValue.value = selected
+    // Chromium may include the following space when a word is selected by
+    // double-click. Treat that browser-specific selection boundary as padding
+    // so Find searches for the word the user visibly selected.
+    searchValue.value = selected.trim()
   }
 }
 

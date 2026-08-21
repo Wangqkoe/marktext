@@ -298,7 +298,7 @@ onBeforeUnmount(() => {
 }
 
 .close-icon:hover {
-  color: var(--focusColor);
+  color: var(--appShellFocus);
 }
 
 .editor-tabs {
@@ -344,7 +344,7 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     &[aria-grabbed='true'] {
-      color: var(--editorColor30) !important;
+      color: var(--appShellMutedFg) !important;
     }
     & > .close-icon {
       opacity: 0;
@@ -353,7 +353,7 @@ onBeforeUnmount(() => {
       outline: none;
     }
     &:hover {
-      background: var(--floatBgColor) !important;
+      background: var(--appShellHoverBg) !important;
     }
     &:hover > .close-icon {
       opacity: 1;
@@ -372,7 +372,7 @@ onBeforeUnmount(() => {
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: var(--themeColor);
+      background: var(--appShellAccent);
       flex-shrink: 0;
     }
   }
@@ -391,7 +391,7 @@ onBeforeUnmount(() => {
     }
   }
   & > li.active {
-    background: var(--itemBgColor);
+    background: var(--appShellDivider);
     z-index: 3;
     &:after {
       content: '';
@@ -400,7 +400,7 @@ onBeforeUnmount(() => {
       bottom: 0;
       right: 0;
       height: 2px;
-      background: var(--themeColor);
+      background: var(--appShellAccent);
     }
     & > .close-icon {
       opacity: 1;
@@ -426,8 +426,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.close-icon:focus-visible,
-.new-file:focus-visible {
+.close-icon:focus-visible {
   opacity: 1;
 }
 
@@ -449,13 +448,14 @@ onBeforeUnmount(() => {
   &.always-visible {
     opacity: 1;
   }
+  &:focus-visible {
+    opacity: 1;
+  }
 }
 
 .editor-tabs > .new-file:hover {
   transition: all 0.15s ease-in-out;
-  & > svg {
-    fill: var(--focusColor);
-  }
+  color: var(--appShellFocus);
 }
 
 /* dragula effects */

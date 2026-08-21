@@ -169,6 +169,9 @@ test.describe('Application shell acceptance', () => {
 
     const newTab = page.getByRole('button', { name: 'New Tab' })
     await expectVisibleKeyboardFocus(page, newTab)
+    await expect
+      .poll(() => newTab.evaluate((element) => Number(getComputedStyle(element).opacity)))
+      .toBe(1)
     await page.keyboard.press('Enter')
     await expect(editorTabs).toHaveCount(3)
 
@@ -184,6 +187,80 @@ test.describe('Application shell acceptance', () => {
     await expectVisibleKeyboardFocus(page, closeTab)
     await page.keyboard.press('Enter')
     await expect(editorTabs).toHaveCount(2)
+  })
+
+  test('editor tab states consume shell semantic theme values', async() => {
+    const editorTabs = page.locator('.tabs-container > li')
+    if ((await editorTabs.count()) < 2) {
+      await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'semantic tab\n')
+      await expect(editorTabs).toHaveCount(2)
+    }
+
+    const activeTabBeforeEdit = page.locator('.tabs-container > li.active')
+    const dirtyTabId = await activeTabBeforeEdit.getAttribute('data-id')
+    if (!dirtyTabId) throw new Error('Active tab has no stable id')
+    const dirtyTab = page.locator(`.tabs-container > li[data-id="${dirtyTabId}"]`)
+    await page.locator('.editor-component').click()
+    await page.keyboard.type('x')
+    await expect(dirtyTab).toHaveClass(/unsaved/)
+    await page.locator('.tabs-container > li:not(.active) .tab-select').first().click()
+    await expect(dirtyTab).not.toHaveClass(/active/)
+
+    const semanticColors = {
+      hover: 'rgb(11, 22, 33)',
+      active: 'rgb(44, 55, 66)',
+      accent: 'rgb(77, 88, 99)',
+      focus: 'rgb(101, 112, 123)'
+    }
+    await page.evaluate((colors) => {
+      const root = document.documentElement.style
+      root.setProperty('--appShellHoverBg', colors.hover)
+      root.setProperty('--appShellDivider', colors.active)
+      root.setProperty('--appShellAccent', colors.accent)
+      root.setProperty('--appShellFocus', colors.focus)
+    }, semanticColors)
+
+    try {
+      const unsavedDot = page.locator('.tabs-container > li.unsaved:not(.active) .unsaved-dot')
+      await expect(unsavedDot).toBeVisible()
+      expect(await unsavedDot.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
+        semanticColors.accent
+      )
+
+      const inactiveTab = page.locator('.tabs-container > li:not(.active)').first()
+      await inactiveTab.hover()
+      await expect
+        .poll(() => inactiveTab.evaluate((element) => getComputedStyle(element).backgroundColor))
+        .toBe(semanticColors.hover)
+
+      const activeTab = page.locator('.tabs-container > li.active')
+      await expect
+        .poll(() => activeTab.evaluate((element) => getComputedStyle(element).backgroundColor))
+        .toBe(semanticColors.active)
+      expect(
+        await activeTab.evaluate((element) => getComputedStyle(element, '::after').backgroundColor)
+      ).toBe(semanticColors.accent)
+
+      const newTab = page.getByRole('button', { name: 'New Tab' })
+      await newTab.hover()
+      await expect
+        .poll(() => newTab.evaluate((element) => getComputedStyle(element).color))
+        .toBe(semanticColors.focus)
+
+      const closeTab = activeTab.getByRole('button', { name: /Close/ })
+      await closeTab.hover()
+      await expect
+        .poll(() => closeTab.evaluate((element) => getComputedStyle(element).color))
+        .toBe(semanticColors.focus)
+    } finally {
+      await page.evaluate(() => {
+        const root = document.documentElement.style
+        root.removeProperty('--appShellHoverBg')
+        root.removeProperty('--appShellDivider')
+        root.removeProperty('--appShellAccent')
+        root.removeProperty('--appShellFocus')
+      })
+    }
   })
 
   test('every bundled theme resolves distinguishable semantic shell states', async() => {

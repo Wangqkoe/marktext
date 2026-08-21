@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { launchElectron } from './helpers'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import { clickMenuById, launchElectron } from './helpers'
 
 // #3439 — invoking "New File" (sidebar context menu) on a COLLAPSED folder did
 // nothing: the create <input> only renders inside the folder's expanded
@@ -20,13 +23,23 @@ const visibleNewInput = (page: Page): Promise<number> =>
 test.describe('New File on a collapsed folder (#3439)', () => {
   let app: ElectronApplication
   let page: Page
+  let projectDir: string
 
   test.beforeAll(async() => {
-    // launchElectron opens the desktop package folder in the sidebar (its
-    // sub-folders render as collapsed tree-folders).
-    const launched = await launchElectron()
+    // Establish the project state this regression needs instead of relying on
+    // a prior launch's persisted sidebar folder. The nested directory renders
+    // as a collapsed tree-folder.
+    projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-e2e-collapsed-folder-'))
+    const nestedDir = path.join(projectDir, 'nested')
+    fs.mkdirSync(nestedDir)
+    fs.writeFileSync(path.join(nestedDir, 'note.md'), '# Nested\n', 'utf-8')
+    const launched = await launchElectron([projectDir])
     app = launched.app
     page = launched.page
+    if (!(await page.locator('.side-bar').isVisible())) {
+      await clickMenuById(app, 'sideBarMenuItem')
+    }
+    await expect(page.locator('.side-bar')).toBeVisible()
     await page.waitForSelector('.side-bar-folder .folder-name', { timeout: 10000 })
 
     // Replace the sidebar context-menu popup handler so it does NOT open a real
@@ -61,6 +74,7 @@ test.describe('New File on a collapsed folder (#3439)', () => {
 
   test.afterAll(async() => {
     if (app) await app.close()
+    if (projectDir) fs.rmSync(projectDir, { recursive: true, force: true })
   })
 
   test('the create input appears when New File targets a collapsed folder', async() => {
