@@ -117,7 +117,12 @@ interface AffiliationEntry {
 }
 
 interface SelectionChange {
-  start: { key: string; offset: number; block?: { text?: string; functionType?: string }; type?: string }
+  start: {
+    key: string
+    offset: number
+    block?: { text?: string; functionType?: string }
+    type?: string
+  }
   end: { key: string; offset: number; block?: { functionType?: string }; type?: string }
   affiliation?: AffiliationEntry[]
   hasFrontMatter?: boolean
@@ -192,7 +197,7 @@ export const useEditorStore = defineStore('editor', {
       const layoutStore = useLayoutStore()
 
       projectStore.RESTORE_BUFFERED_STATE(rawState?.project)
-      layoutStore.RESTORE_BUFFERED_STATE(rawState?.layout)
+      layoutStore.restoreLayout(rawState?.layout)
       this.$patch((s) => {
         s.tabs = tabs
         s.currentFile = currentFile
@@ -872,14 +877,8 @@ export const useEditorStore = defineStore('editor', {
             project: projectStore
           })
         )
-        bus.emit(
-          'cmd::register-command',
-          new LineEndingCommand(this)
-        )
-        bus.emit(
-          'cmd::register-command',
-          new TrailingNewlineCommand(this)
-        )
+        bus.emit('cmd::register-command', new LineEndingCommand(this))
+        bus.emit('cmd::register-command', new TrailingNewlineCommand(this))
 
         setTimeout(() => {
           window.electron.ipcRenderer.send('mt::request-keybindings')
@@ -892,20 +891,20 @@ export const useEditorStore = defineStore('editor', {
           addBlankTab,
           markdownList,
           lineEnding,
-          sideBarVisibility,
-          tabBarVisibility,
+          sidebarVisible,
+          tabBarVisible,
+          restoreSessionLayout,
           sourceCodeModeEnabled
         } = config
 
         window.electron.ipcRenderer.send('mt::window-initialized')
         mainStore.SET_INITIALIZED()
         preferencesStore.SET_USER_PREFERENCE({ endOfLine: lineEnding })
-        layoutStore.SET_LAYOUT({
-          rightColumn: 'files',
-          showSideBar: !!sideBarVisibility,
-          showTabBar: !!tabBarVisibility
+        layoutStore.initializeLayout({
+          sidebarVisible: !!sidebarVisible,
+          tabBarVisible: !!tabBarVisible,
+          restoreSessionLayout: !!restoreSessionLayout
         })
-        layoutStore.DISPATCH_LAYOUT_MENU_ITEMS()
         preferencesStore.SET_MODE({
           type: 'sourceCode',
           checked: !!sourceCodeModeEnabled
@@ -1108,8 +1107,7 @@ export const useEditorStore = defineStore('editor', {
       this.updateTabIdToIndex() // Update before sending it out to prevent stale mappings.
 
       if (this.currentFile == null && this.tabs.length > 0) {
-        this.currentFile =
-          this.tabs[tabIndex] ?? this.tabs[tabIndex - 1] ?? this.tabs[0] ?? null
+        this.currentFile = this.tabs[tabIndex] ?? this.tabs[tabIndex - 1] ?? this.tabs[0] ?? null
         if (this.currentFile && typeof this.currentFile.markdown === 'string') {
           const { id, markdown, cursor, history, pathname, scrollTop, blocks, muyaIndexCursor } =
             this.currentFile
@@ -1242,7 +1240,10 @@ export const useEditorStore = defineStore('editor', {
     NEW_UNTITLED_TAB({
       markdown: markdownString,
       selected
-    }: { markdown?: string; selected?: boolean }): void {
+    }: {
+      markdown?: string
+      selected?: boolean
+    }): void {
       if (selected == null) {
         selected = true
       }
@@ -1351,8 +1352,7 @@ export const useEditorStore = defineStore('editor', {
       const { tabs } = this
       const layoutStore = useLayoutStore()
       if (always || tabs.length === 1) {
-        layoutStore.SET_LAYOUT({ showTabBar: true })
-        layoutStore.DISPATCH_LAYOUT_MENU_ITEMS()
+        layoutStore.showTabBar()
       }
     },
 
@@ -1807,10 +1807,7 @@ const getRootFolderFromState = (projectStore: ProjectStoreLike): string => {
  * @param markdown The text to trim.
  * @param trimTrailingNewlineOption The option how we should trim the final newlines.
  */
-const adjustTrailingNewlines = (
-  markdown: string,
-  trimTrailingNewlineOption: number
-): string => {
+const adjustTrailingNewlines = (markdown: string, trimTrailingNewlineOption: number): string => {
   if (!markdown) {
     return ''
   }
@@ -1983,9 +1980,7 @@ const createApplicationMenuState = ({
 /**
  * Creates a object that contains the formats selection state.
  */
-export const createSelectionFormatState = (
-  formats: SelectionFormat[]
-): Record<string, boolean> => {
+export const createSelectionFormatState = (formats: SelectionFormat[]): Record<string, boolean> => {
   const state: Record<string, boolean> = {}
   for (const item of formats) {
     // Underline/superscript/subscript/highlight are carried as `html_tag`

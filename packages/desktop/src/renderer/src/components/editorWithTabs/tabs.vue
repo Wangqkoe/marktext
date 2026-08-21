@@ -44,7 +44,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
-import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
 import dragula from 'dragula'
@@ -54,8 +53,6 @@ import bus from '../../bus'
 import type { IFileState } from '@shared/types/files'
 
 const editorStore = useEditorStore()
-const layoutStore = useLayoutStore()
-
 const { currentFile, tabs } = storeToRefs(editorStore)
 
 interface AutoScroller {
@@ -145,10 +142,6 @@ const closeAll = () => {
   editorStore.CLOSE_ALL_TABS()
 }
 
-const changeMaxWidth = (width: unknown) => {
-  layoutStore.CHANGE_SIDE_BAR_WIDTH(width as number)
-}
-
 const rename = (tabId: unknown) => {
   const tab = tabs.value.find((f) => f.id === tabId)
   if (tab && tab.pathname) {
@@ -191,7 +184,6 @@ onMounted(() => {
   bus.on('TABS::rename', rename)
   bus.on('TABS::copy-path', copyPath)
   bus.on('TABS::show-in-folder', showInFolder)
-  bus.on('EDITOR_TABS::change-max-width', changeMaxWidth)
 
   const tabsEl = tabContainer.value
   if (!tabsEl || !tabDropContainer.value) return
@@ -256,7 +248,6 @@ onBeforeUnmount(() => {
   bus.off('TABS::rename', rename)
   bus.off('TABS::copy-path', copyPath)
   bus.off('TABS::show-in-folder', showInFolder)
-  bus.off('EDITOR_TABS::change-max-width', changeMaxWidth)
 })
 </script>
 

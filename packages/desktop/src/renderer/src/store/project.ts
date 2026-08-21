@@ -1,6 +1,13 @@
 import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { addFile, unlinkFile, addDirectory, unlinkDirectory, resortTree, updateFileMtime } from './treeCtrl'
+import {
+  addFile,
+  unlinkFile,
+  addDirectory,
+  unlinkDirectory,
+  resortTree,
+  updateFileMtime
+} from './treeCtrl'
 import { usePreferencesStore } from './preferences'
 import bus from '../bus'
 import { create, paste, rename, type FileCreateType, type PasteOptions } from '../util/fileSystem'
@@ -53,6 +60,7 @@ const createBufferedProjectState = (state: unknown): BufferedProjectState => {
 }
 
 interface OpenProjectOptions {
+  revealLayout?: boolean
   scheduleBufferUpdate?: boolean
 }
 
@@ -98,7 +106,7 @@ export const useProjectStore = defineStore('project', () => {
 
   function OPEN_PROJECT(
     pathname: string,
-    { scheduleBufferUpdate = true }: OpenProjectOptions = {}
+    { revealLayout = true, scheduleBufferUpdate = true }: OpenProjectOptions = {}
   ): void {
     const layoutStore = useLayoutStore()
     const tree = createProjectRoot(pathname)
@@ -106,13 +114,9 @@ export const useProjectStore = defineStore('project', () => {
 
     projectTree.value = tree
 
-    const layout = {
-      rightColumn: 'files',
-      showSideBar: true,
-      showTabBar: true
+    if (revealLayout) {
+      layoutStore.openProjectLayout({ scheduleBufferUpdate })
     }
-    layoutStore.SET_LAYOUT(layout, { scheduleBufferUpdate })
-    layoutStore.DISPATCH_LAYOUT_MENU_ITEMS()
 
     // Process pending events that arrived before projectTree was initialized.
     for (const event of pendingTreeEvents.value) {
@@ -135,7 +139,7 @@ export const useProjectStore = defineStore('project', () => {
     const { rootDirectory } = createBufferedProjectState(state)
     if (rootDirectory) {
       if (projectTree.value?.pathname === rootDirectory) return
-      OPEN_PROJECT(rootDirectory, { scheduleBufferUpdate: false })
+      OPEN_PROJECT(rootDirectory, { revealLayout: false, scheduleBufferUpdate: false })
     } else {
       projectTree.value = null
       pendingTreeEvents.value = []
@@ -164,7 +168,12 @@ export const useProjectStore = defineStore('project', () => {
     switch (type) {
       case 'add': {
         const { pathname, data, isMarkdown } = change
-        addFile(projectTree.value!, change as Parameters<typeof addFile>[1], String(preferencesStore.fileSortBy), String(preferencesStore.fileSortOrder))
+        addFile(
+          projectTree.value!,
+          change as Parameters<typeof addFile>[1],
+          String(preferencesStore.fileSortBy),
+          String(preferencesStore.fileSortOrder)
+        )
         if (isMarkdown && newFileNameCache.value && pathname === newFileNameCache.value) {
           const fileState = getFileStateFromData(data as Record<string, unknown>)
           editorStore.UPDATE_CURRENT_FILE(fileState)
@@ -184,7 +193,12 @@ export const useProjectStore = defineStore('project', () => {
         break
       case 'change':
         if (change?.mtimeMs !== undefined) {
-          updateFileMtime(projectTree.value!, change as Parameters<typeof updateFileMtime>[1], String(preferencesStore.fileSortBy), String(preferencesStore.fileSortOrder))
+          updateFileMtime(
+            projectTree.value!,
+            change as Parameters<typeof updateFileMtime>[1],
+            String(preferencesStore.fileSortBy),
+            String(preferencesStore.fileSortOrder)
+          )
         }
         break
       default:

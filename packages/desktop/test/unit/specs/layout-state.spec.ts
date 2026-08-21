@@ -52,15 +52,19 @@ describe('canonical shell layout state', () => {
       expect(layoutStore.sidebarWidth).toBe(expected)
       expect(localStorage.getItem('side-bar-width')).toBe(String(expected))
     })
+  })
 
-    it('also normalizes widths received through the legacy layout interface', () => {
-      const layoutStore = useLayoutStore()
+  it('creates buffered state with only canonical layout fields', () => {
+    const layoutStore = useLayoutStore()
+    layoutStore.showSidebar('search')
+    layoutStore.setSidebarWidth(318)
+    layoutStore.toggleTabBar()
 
-      layoutStore.SET_LAYOUT({ sideBarWidth: 199 })
-
-      expect(layoutStore.sideBarWidth).toBe(220)
-      expect(layoutStore.sidebarWidth).toBe(220)
-      expect(localStorage.getItem('side-bar-width')).toBe('220')
+    expect(layoutStore.createBufferedState()).toEqual({
+      sidebarVisible: true,
+      sidebarView: 'search',
+      sidebarWidth: 318,
+      tabBarVisible: true
     })
   })
 
@@ -126,9 +130,24 @@ describe('canonical shell layout state', () => {
     expect(layoutStore.sidebarVisible).toBe(true)
     expect(layoutStore.tabBarVisible).toBe(true)
     expect(layoutStore.sidebarWidth).toBe(299)
-    expect(layoutStore.rightColumn).toBe(expected)
-    expect(layoutStore.showSideBar).toBe(true)
-    expect(layoutStore.showTabBar).toBe(true)
+  })
+
+  it('keeps legacy names out of live layout state after compatibility restore', () => {
+    const layoutStore = useLayoutStore()
+
+    layoutStore.restoreLayout({
+      rightColumn: '',
+      showSideBar: true,
+      showTabBar: true,
+      sideBarWidth: 45
+    })
+
+    expect(layoutStore.$state).toEqual({
+      sidebarView: 'files',
+      sidebarVisible: true,
+      tabBarVisible: true,
+      sidebarWidth: 220
+    })
   })
 
   it('maps a legacy snapshot with no sidebar view or width to canonical defaults', () => {
@@ -167,16 +186,6 @@ describe('canonical shell layout state', () => {
     })
   })
 
-  it('never exposes an empty canonical view through the legacy interface', () => {
-    const layoutStore = useLayoutStore()
-    layoutStore.selectSidebarView('toc')
-
-    layoutStore.SET_LAYOUT({ rightColumn: '' })
-
-    expect(layoutStore.rightColumn).toBe('')
-    expect(layoutStore.sidebarView).toBe('toc')
-  })
-
   it('selects a canonical sidebar view and opens the sidebar', () => {
     const layoutStore = useLayoutStore()
 
@@ -184,8 +193,68 @@ describe('canonical shell layout state', () => {
 
     expect(layoutStore.sidebarView).toBe('search')
     expect(layoutStore.sidebarVisible).toBe(true)
-    expect(layoutStore.rightColumn).toBe('search')
-    expect(layoutStore.showSideBar).toBe(true)
+  })
+
+  it('rejects invalid sidebar views received through the runtime action boundary', () => {
+    const layoutStore = useLayoutStore()
+    layoutStore.listenForLayoutActions()
+    const registration = mockWindow.electron?.ipcRenderer.on.mock.calls.find(
+      ([channel]) => channel === 'mt::layout-action'
+    )
+    expect(registration).toBeDefined()
+
+    registration?.[1]({}, { type: 'selectSidebarView', view: '' })
+
+    expect(layoutStore.sidebarView).toBe('files')
+    expect(layoutStore.sidebarVisible).toBe(false)
+  })
+
+  it('synchronizes menu checkmarks once and treats the active view as a no-op', () => {
+    const layoutStore = useLayoutStore()
+    const menuUpdates = () =>
+      mockWindow.electron!.ipcRenderer.send.mock.calls.filter(
+        ([channel]) => channel === 'mt::layout-menu-state-changed'
+      )
+
+    layoutStore.selectSidebarView('search')
+
+    expect(menuUpdates()).toEqual([
+      ['mt::layout-menu-state-changed', 1, { sidebarVisible: true, tabBarVisible: false }]
+    ])
+
+    layoutStore.selectSidebarView('search')
+    expect(menuUpdates()).toHaveLength(1)
+
+    layoutStore.toggleTabBar()
+    expect(menuUpdates()).toHaveLength(2)
+    expect(menuUpdates()[1]).toEqual([
+      'mt::layout-menu-state-changed',
+      1,
+      { sidebarVisible: true, tabBarVisible: true }
+    ])
+  })
+
+  it('does not restore session layout when restoration is disabled', () => {
+    const layoutStore = useLayoutStore()
+    layoutStore.initializeLayout({
+      sidebarVisible: false,
+      tabBarVisible: true,
+      restoreSessionLayout: false
+    })
+
+    layoutStore.restoreLayout({
+      rightColumn: 'toc',
+      showSideBar: true,
+      showTabBar: false,
+      sideBarWidth: 345
+    })
+
+    expect(layoutStore.createBufferedState()).toEqual({
+      sidebarVisible: false,
+      sidebarView: 'files',
+      sidebarWidth: 255,
+      tabBarVisible: true
+    })
   })
 
   it('hides the complete sidebar without clearing its selected view or width', () => {

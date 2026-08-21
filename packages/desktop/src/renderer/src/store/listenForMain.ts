@@ -6,10 +6,7 @@ export const useListenForMainStore = defineStore('listenForMain', () => {
   function EDITOR_EDIT_ACTION(type: string): void {
     const layoutStore = useLayoutStore()
     if (type === 'findInFolder') {
-      layoutStore.SET_LAYOUT({
-        rightColumn: 'search',
-        showSideBar: true
-      })
+      layoutStore.selectSidebarView('search')
     }
     bus.emit(type, type)
   }

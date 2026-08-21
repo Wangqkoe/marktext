@@ -12,6 +12,7 @@ import { showEditorContextMenu } from '../contextMenu/editor'
 import { loadMarkdownFile } from '../filesystem/markdown'
 import { switchLanguage } from '../spellchecker'
 import fs from 'fs'
+import type { BootstrapEditorConfig } from '@shared/types/files'
 
 type RawMarkdownDocument = Awaited<ReturnType<typeof loadMarkdownFile>>
 
@@ -79,6 +80,25 @@ class EditorWindow extends BaseWindow {
     this.bufferStoreInfo = null
   }
 
+  private _createBootstrapEditorConfig(
+    addBlankTab: boolean,
+    markdownList: string[]
+  ): BootstrapEditorConfig {
+    const { preferences } = this._accessor
+    const { sideBarVisibility, restoreLayoutState, tabBarVisibility, sourceCodeModeEnabled } =
+      preferences.getAll()
+
+    return {
+      addBlankTab,
+      markdownList,
+      lineEnding: preferences.getPreferredEol(),
+      sidebarVisible: restoreLayoutState ? !!sideBarVisibility : false,
+      tabBarVisible: !!tabBarVisibility,
+      restoreSessionLayout: !!restoreLayoutState,
+      sourceCodeModeEnabled: !!sourceCodeModeEnabled
+    }
+  }
+
   /**
    * Creates a new editor window.
    */
@@ -111,14 +131,10 @@ class EditorWindow extends BaseWindow {
     const {
       titleBarStyle,
       theme,
-      sideBarVisibility,
-      restoreLayoutState,
-      tabBarVisibility,
       sourceCodeModeEnabled,
       spellcheckerEnabled,
       spellcheckerLanguage
     } = preferences.getAll()
-    const resolvedSideBarVisibility = restoreLayoutState ? !!sideBarVisibility : false
 
     // Enable native or custom/frameless window and titlebar
     if (!isOsx) {
@@ -171,14 +187,13 @@ class EditorWindow extends BaseWindow {
       const lineEnding = preferences.getPreferredEol()
       appMenu.updateLineEndingMenu(this.id!, lineEnding)
 
-      win!.webContents.send('mt::bootstrap-editor', {
-        addBlankTab,
-        markdownList: this.bufferStoreInfo!.filePath ? [] : this._markdownToOpen,
-        lineEnding,
-        sideBarVisibility: resolvedSideBarVisibility,
-        tabBarVisibility,
-        sourceCodeModeEnabled
-      })
+      win!.webContents.send(
+        'mt::bootstrap-editor',
+        this._createBootstrapEditorConfig(
+          addBlankTab,
+          this.bufferStoreInfo!.filePath ? [] : this._markdownToOpen!
+        )
+      )
 
       if (this.bufferStoreInfo!.filePath) {
         this._restoreAllState()
@@ -483,19 +498,10 @@ class EditorWindow extends BaseWindow {
 
     browserWindow!.webContents.once('did-finish-load', () => {
       this.lifecycle = WindowLifecycle.READY
-      const { preferences } = this._accessor
-      const { sideBarVisibility, restoreLayoutState, tabBarVisibility, sourceCodeModeEnabled } =
-        preferences.getAll()
-      const resolvedSideBarVisibility = restoreLayoutState ? !!sideBarVisibility : false
-      const lineEnding = preferences.getPreferredEol()
-      browserWindow!.webContents.send('mt::bootstrap-editor', {
-        addBlankTab: true,
-        markdownList: [],
-        lineEnding,
-        sideBarVisibility: resolvedSideBarVisibility,
-        tabBarVisibility,
-        sourceCodeModeEnabled
-      })
+      browserWindow!.webContents.send(
+        'mt::bootstrap-editor',
+        this._createBootstrapEditorConfig(true, [])
+      )
     })
 
     this.lifecycle = WindowLifecycle.LOADING

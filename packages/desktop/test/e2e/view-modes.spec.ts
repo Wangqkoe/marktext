@@ -1,16 +1,11 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import {
-  launchWithMarkdown,
-  clickMenuById,
-  enterSourceMode,
-  exitSourceMode
-} from './helpers'
+import { launchWithMarkdown, clickMenuById, enterSourceMode, exitSourceMode } from './helpers'
 
 // Read the live `checked`/`enabled` state of a view-mode menu item straight
 // from the active application menu — the same Menu instance that
-// `viewLayoutChanged` (main/menu/actions/view.ts) mutates after the renderer
-// round-trips `mt::view-layout-changed`. Mirrors menu-sanity.spec.ts:60 and
+// `viewModeStateChanged` (main/menu/actions/view.ts) mutates after the renderer
+// round-trips `mt::view-mode-state-changed`. Mirrors menu-sanity.spec.ts:60 and
 // parity-pg1-menu-state.spec.ts:23.
 const viewModeMenuItem = async(
   app: ElectronApplication,
@@ -22,7 +17,7 @@ const viewModeMenuItem = async(
   }, id)
 
 // Poll the menu item until its `checked` flag matches `want` (the toggle ->
-// renderer -> `mt::view-layout-changed` -> main round-trip is async).
+// renderer -> `mt::view-mode-state-changed` -> main round-trip is async).
 const waitForChecked = async(
   app: ElectronApplication,
   id: string,
@@ -119,7 +114,7 @@ test.describe('View modes', () => {
 
     await enterSourceMode(page, app)
 
-    // The renderer round-trips `mt::view-layout-changed` with sourceCode:true,
+    // The renderer round-trips `mt::view-mode-state-changed` with sourceCode:true,
     // which disables both editing-mode items.
     expect((await waitForEnabled(app, 'typewriterModeMenuItem', false)).enabled).toBe(false)
     expect((await waitForEnabled(app, 'focusModeMenuItem', false)).enabled).toBe(false)
@@ -316,15 +311,9 @@ test.describe('View modes — typewriter scrolling (item 173)', () => {
     await expect(page.locator('.editor-wrapper')).toHaveClass(/(^|\s)typewriter(\s|$)/)
 
     // Place the caret in a middle paragraph and type so the engine re-centers.
-    await placeCaretIn(
-      page,
-      '.mu-container > p.mu-paragraph:nth-of-type(40) .mu-paragraph-content'
-    )
+    await placeCaretIn(page, '.mu-container > p.mu-paragraph:nth-of-type(40) .mu-paragraph-content')
     await page.click('.editor-component')
-    await placeCaretIn(
-      page,
-      '.mu-container > p.mu-paragraph:nth-of-type(40) .mu-paragraph-content'
-    )
+    await placeCaretIn(page, '.mu-container > p.mu-paragraph:nth-of-type(40) .mu-paragraph-content')
     await page.keyboard.type(' typed', { delay: 0 })
 
     // Typewriter re-centers the caret to STANDAR_Y (320) within a tolerance

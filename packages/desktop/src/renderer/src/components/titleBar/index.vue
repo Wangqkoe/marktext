@@ -3,14 +3,14 @@
     <div
       v-if="showTitleBar"
       class="title-bar-editor-bg"
-      :class="{ 'tabs-visible': showTabBar }"
+      :class="{ 'tabs-visible': tabBarVisible }"
     />
     <div
       v-if="showTitleBar"
       class="title-bar"
       :class="[
         { active: active },
-        { 'tabs-visible': showTabBar },
+        { 'tabs-visible': tabBarVisible },
         { frameless: titleBarStyle === 'custom' },
         { isOsx: isOsx }
       ]"
@@ -210,7 +210,7 @@ onMounted(async () => {
 })
 
 const { titleBarStyle } = storeToRefs(preferencesStore)
-const { showTabBar } = storeToRefs(layoutStore)
+const { tabBarVisible } = storeToRefs(layoutStore)
 
 const paths = computed(() => {
   if (!props.pathname) return []

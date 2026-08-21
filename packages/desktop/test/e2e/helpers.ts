@@ -50,6 +50,7 @@ process.on('exit', () => {
 export interface LaunchResult {
   app: ElectronApplication
   page: Page
+  userDataDir: string
 }
 
 export interface LaunchOptions {
@@ -59,6 +60,7 @@ export interface LaunchOptions {
   // should opt in — otherwise existing specs would silently ignore renderer
   // exceptions that previously surfaced as a dialog (a hidden regression risk).
   suppressErrorDialog?: boolean
+  userDataDir?: string
 }
 
 export const launchElectron = async(
@@ -69,7 +71,7 @@ export const launchElectron = async(
   const executablePath = getElectronPath()
   // Pass project root as entry so Electron reads package.json and getAppPath() returns project root.
   // Passing out/main/index.js directly bypasses package.json and breaks __static path resolution.
-  const userDataDir = trackTempDir(getTempPath())
+  const userDataDir = trackTempDir(options.userDataDir ?? getTempPath())
   const args = [projectRoot, '--user-data-dir', userDataDir].concat(userArgs)
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
@@ -86,7 +88,7 @@ export const launchElectron = async(
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
   await new Promise((resolve) => setTimeout(resolve, 500))
-  return { app, page }
+  return { app, page, userDataDir }
 }
 
 // Capture renderer-process errors that would otherwise pop the "Unexpected
@@ -134,7 +136,9 @@ export const clearRendererErrors = async(app: ElectronApplication): Promise<void
 export const expectNoRendererErrors = async(app: ElectronApplication): Promise<void> => {
   const errors = await getRendererErrors(app)
   if (errors.length > 0) {
-    const summary = errors.map((e) => `- ${e.name ?? 'Error'}: ${e.message}\n${e.stack ?? ''}`).join('\n\n')
+    const summary = errors
+      .map((e) => `- ${e.name ?? 'Error'}: ${e.message}\n${e.stack ?? ''}`)
+      .join('\n\n')
     throw new Error(`Expected no renderer errors, captured ${errors.length}:\n\n${summary}`)
   }
   expect(errors.length).toBe(0)
@@ -234,10 +238,7 @@ export const exitSourceMode = async(page: Page, app: ElectronApplication): Promi
   })
 }
 
-export const getMarkdownContent = async(
-  page: Page,
-  app: ElectronApplication
-): Promise<string> => {
+export const getMarkdownContent = async(page: Page, app: ElectronApplication): Promise<string> => {
   const wasInSource = await page.evaluate(
     () => !!document.querySelector('.source-code .CodeMirror')
   )
@@ -331,10 +332,10 @@ export const launchWithDoc = async(
   relativeFixture: string,
   options: LaunchOptions = {}
 ): Promise<LaunchResult> => {
-  const { app, page } = await launchElectron([relativeFixture], options)
+  const { app, page, userDataDir } = await launchElectron([relativeFixture], options)
   await waitForEditor(page)
   await waitForMenuReady(app)
-  return { app, page }
+  return { app, page, userDataDir }
 }
 
 export interface LaunchWithMarkdownResult extends LaunchResult {
@@ -346,10 +347,10 @@ export const launchWithMarkdown = async(
   options: LaunchOptions = {}
 ): Promise<LaunchWithMarkdownResult> => {
   const filePath = writeTempMarkdown(markdown)
-  const { app, page } = await launchElectron([filePath], options)
+  const { app, page, userDataDir } = await launchElectron([filePath], options)
   await waitForEditor(page)
   await waitForMenuReady(app)
-  return { app, page, filePath }
+  return { app, page, filePath, userDataDir }
 }
 
 export const sendIpcToRenderer = async(

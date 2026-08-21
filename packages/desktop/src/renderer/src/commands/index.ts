@@ -602,13 +602,13 @@ const commands: CommandDescriptor[] = [
   {
     id: 'view.toggle-sidebar',
     execute: async() => {
-      bus.emit('view:toggle-layout-entry', 'showSideBar')
+      bus.emit('view:layout-action', { type: 'toggleSidebar' })
     }
   },
   {
     id: 'view.toggle-tabbar',
     execute: async() => {
-      bus.emit('view:toggle-layout-entry', 'showTabBar')
+      bus.emit('view:layout-action', { type: 'toggleTabBar' })
     }
   },
 
@@ -649,17 +649,13 @@ const commands: CommandDescriptor[] = [
   {
     id: 'docs.user-guide',
     execute: async() => {
-      window.electron.shell.openExternal(
-        'https://marktext.me/docs/basics'
-      )
+      window.electron.shell.openExternal('https://marktext.me/docs/basics')
     }
   },
   {
     id: 'docs.markdown-syntax',
     execute: async() => {
-      window.electron.shell.openExternal(
-        'https://marktext.me/docs/markdown-syntax'
-      )
+      window.electron.shell.openExternal('https://marktext.me/docs/markdown-syntax')
     }
   },
 

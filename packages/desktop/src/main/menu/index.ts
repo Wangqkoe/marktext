@@ -4,16 +4,17 @@ import { app, Menu, ipcMain, type BrowserWindow } from 'electron'
 import log from 'electron-log'
 import { ensureDirSync, isDirectory2, isFile2 } from 'common/filesystem'
 import { isLinux, isOsx, isWindows } from '../config'
-import { updateSidebarMenu } from '../menu/actions/edit'
 import { updateFormatMenu } from '../menu/actions/format'
 import { updateSelectionMenus, type SelectionState } from '../menu/actions/paragraph'
 import { onInternalChannel } from '../utils/internalIpc'
-import { viewLayoutChanged } from '../menu/actions/view'
+import { layoutMenuStateChanged, viewModeStateChanged } from '../menu/actions/view'
 import configureMenu, { configSettingMenu } from '../menu/templates'
 import { setLanguage } from '../i18n.js'
 import type Preference from '../preferences'
 import type Keybindings from '../keyboard/shortcutHandler'
 import type { IUserPreferences } from '@shared/types/preferences'
+import type { LayoutMenuState } from '@shared/types/layout'
+import type { ViewModeState } from '@shared/types/viewMode'
 
 const RECENTLY_USED_DOCUMENTS_FILE_NAME = 'recently-used-documents.json'
 const MAX_RECENTLY_USED_DOCUMENTS = 12
@@ -54,11 +55,7 @@ class AppMenu {
    * @param keybindings The keybindings instances.
    * @param userDataPath The user data path.
    */
-  constructor(
-    preferences: Preference,
-    keybindings: Keybindings,
-    userDataPath: string
-  ) {
+  constructor(preferences: Preference, keybindings: Keybindings, userDataPath: string) {
     this._preferences = preferences
     this._keybindings = keybindings
     this._userDataPath = userDataPath
@@ -486,21 +483,24 @@ class AppMenu {
         updateFormatMenu(this.getWindowMenuById(windowId), formats)
       }
     )
-    ipcMain.on('mt::update-sidebar-menu', (_e, windowId: number, value: unknown) => {
-      if (!this.has(windowId)) {
-        log.error(`UpdateApplicationMenu: Cannot find window menu for window id ${windowId}.`)
-        return
-      }
-      updateSidebarMenu(this.getWindowMenuById(windowId), value)
-    })
     ipcMain.on(
-      'mt::view-layout-changed',
-      (_e, windowId: number, viewSettings: Record<string, unknown>) => {
+      'mt::view-mode-state-changed',
+      (_e, windowId: number, viewSettings: ViewModeState) => {
         if (!this.has(windowId)) {
           log.error(`UpdateApplicationMenu: Cannot find window menu for window id ${windowId}.`)
           return
         }
-        viewLayoutChanged(this.getWindowMenuById(windowId), viewSettings)
+        viewModeStateChanged(this.getWindowMenuById(windowId), viewSettings)
+      }
+    )
+    ipcMain.on(
+      'mt::layout-menu-state-changed',
+      (_e, windowId: number, layoutState: LayoutMenuState) => {
+        if (!this.has(windowId)) {
+          log.error(`UpdateApplicationMenu: Cannot find window menu for window id ${windowId}.`)
+          return
+        }
+        layoutMenuStateChanged(this.getWindowMenuById(windowId), layoutState)
       }
     )
     ipcMain.on('mt::editor-selection-changed', (_e, windowId: number, changes: SelectionState) => {

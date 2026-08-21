@@ -1,9 +1,9 @@
 <template>
   <div
     class="editor-with-tabs"
-    :style="{ 'max-width': `calc(100vw - ${effectiveSideBarWidth}px)` }"
+    :style="{ 'max-width': `calc(100vw - ${effectiveSidebarWidth}px)` }"
   >
-    <tabs v-show="showTabBar" />
+    <tabs v-show="tabBarVisible" />
     <div class="container">
       <editor
         :markdown="markdown"
@@ -38,12 +38,12 @@ defineProps<{
   cursor: unknown
   muyaIndexCursor?: unknown
   sourceCode: boolean
-  showTabBar: boolean
+  tabBarVisible: boolean
   textDirection: string
   platform: string
 }>()
 
-const { effectiveSideBarWidth } = storeToRefs(useLayoutStore())
+const { effectiveSidebarWidth } = storeToRefs(useLayoutStore())
 </script>
 
 <style scoped>

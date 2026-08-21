@@ -24,7 +24,7 @@
         :cursor="cursor"
         :muya-index-cursor="muyaIndexCursor"
         :source-code="sourceCode"
-        :show-tab-bar="showTabBar"
+        :tab-bar-visible="tabBarVisible"
         :text-direction="textDirection"
         :platform="platform"
       />
@@ -75,7 +75,7 @@ const notificationStore = useNotificationStore()
 const timer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const { windowActive, platform, init } = storeToRefs(mainStore)
-const { showTabBar } = storeToRefs(layoutStore)
+const { tabBarVisible } = storeToRefs(layoutStore)
 const { sourceCode, theme, customCss, textDirection, zoom } = storeToRefs(preferencesStore)
 const { projectTree } = storeToRefs(projectStore)
 const { currentFile } = storeToRefs(editorStore)
@@ -162,7 +162,7 @@ onMounted(async () => {
 
   mainStore.LISTEN_WIN_STATUS()
   await commandCenterStore.LISTEN_COMMAND_CENTER_BUS()
-  layoutStore.LISTEN_FOR_LAYOUT()
+  layoutStore.listenForLayoutActions()
   listenForMainStore.LISTEN_FOR_EDIT()
   preferencesStore.LISTEN_FOR_VIEW()
   listenForMainStore.LISTEN_FOR_SHOW_DIALOG()

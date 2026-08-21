@@ -1,7 +1,7 @@
 // Buffered editor state (persisted across window close/reopen).
 
 import type { IFileState } from './files'
-import type { LayoutState, LegacyLayoutState } from './preferences'
+import type { LayoutState } from './layout'
 
 export interface BufferedEditorState {
   tabs: IFileState[]
@@ -13,11 +13,9 @@ export interface BufferedProjectState {
   [key: string]: unknown
 }
 
-export type BufferedLayoutState = Partial<LayoutState> & LegacyLayoutState
-
 export interface BufferedState {
   editor?: BufferedEditorState
   project?: BufferedProjectState
-  layout?: BufferedLayoutState
+  layout?: Partial<LayoutState>
   [key: string]: unknown
 }

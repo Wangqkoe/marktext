@@ -35,7 +35,7 @@ test.describe('#2421 sidebar state survives complete hide/show', () => {
     const launched = await launchWithMarkdown('# Doc\n\n## A\n\n## B\n')
     app = launched.app
     page = launched.page
-    // The files panel is the default right column; make sure it is open + wide.
+    await setSidebarVisibility(app, page, true)
     await page.waitForFunction(
       () => {
         const el = document.querySelector('.side-bar') as HTMLElement | null
@@ -51,8 +51,7 @@ test.describe('#2421 sidebar state survives complete hide/show', () => {
   })
 
   test('hiding then restoring preserves a widened sidebar width', async() => {
-    // Widen the sidebar past the 220px minimum by dragging the drag-bar, so a
-    // width loss on collapse is observable (the default already sits at 220).
+    // Widen the sidebar past its default so a width loss is observable.
     const dragBar = page.locator('.side-bar .drag-bar')
     const box = await dragBar.boundingBox()
     if (!box) throw new Error('Sidebar resize handle is not visible')

@@ -32,6 +32,8 @@ import type {
 } from './files'
 import type { BufferedState as BufferedStateType } from './bufferedState'
 import type { MenuTemplate, MenuPopupPosition } from './menu'
+import type { LayoutAction, LayoutMenuState } from './layout'
+import type { ViewMode, ViewModeState } from './viewMode'
 
 // =================================================================
 // Invoke channels (renderer → main, returns Promise<T>)
@@ -130,7 +132,9 @@ export interface IpcSendChannels {
   'mt::open-file-by-window-id': [windowId: number, filePath: string, options?: unknown]
   'mt::open-keybindings-config': []
   'mt::open-setting-window': []
-  'mt::rename': [payload: { id: string; pathname: string; newPathname: string; currentFile?: unknown }]
+  'mt::rename': [
+    payload: { id: string; pathname: string; newPathname: string; currentFile?: unknown }
+  ]
   'mt::request-keybindings': []
   'mt::set-editor-format-menus-enabled': [windowId: number, enabled: boolean]
   'mt::response-export': [
@@ -171,8 +175,8 @@ export interface IpcSendChannels {
   'mt::shell::show-item': [fullPath: string]
   'mt::update-format-menu': [windowId: number, state: Record<string, boolean>]
   'mt::update-line-ending-menu': [windowId: number, lineEnding: LineEnding]
-  'mt::update-sidebar-menu': [windowId: number, visible: boolean]
-  'mt::view-layout-changed': [windowId: number, layout: unknown]
+  'mt::layout-menu-state-changed': [windowId: number, state: LayoutMenuState]
+  'mt::view-mode-state-changed': [windowId: number, state: ViewModeState]
   'mt::win::close': []
   'mt::win::maximize': []
   'mt::win::minimize': []
@@ -262,7 +266,7 @@ export interface IpcMainEventChannels {
   'mt::screenshot-captured': [filePath: string]
   'mt::set-line-ending': [lineEnding: LineEnding]
   'mt::set-pathname': [payload: { id: string; pathname: string; filename: string }]
-  'mt::set-view-layout': [layout: unknown]
+  'mt::layout-action': [action: LayoutAction]
   'mt::show-command-palette': []
   'mt::show-export-dialog': [type: ExportType]
   'mt::show-notification': [payload: unknown]
@@ -274,8 +278,7 @@ export interface IpcMainEventChannels {
   'mt::tab-saved': [tabId: string]
   'mt::tabs-cycle-left': []
   'mt::tabs-cycle-right': []
-  'mt::toggle-view-layout-entry': [entry: string]
-  'mt::toggle-view-mode-entry': [entry: string]
+  'mt::toggle-view-mode-entry': [entry: ViewMode]
   'mt::update-file': [payload: { type: 'add' | 'change' | 'unlink'; change: FileChangeDetail }]
   'mt::update-object-tree': [payload: unknown]
   'mt::user-preference': [partial: unknown]

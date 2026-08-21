@@ -10,6 +10,13 @@ const writeLine = (s: string): boolean => write(s + '\n')
 
 const cli = (): ParsedArgs => {
   let argv = process.argv.slice(1)
+  if (process.defaultApp) {
+    const appPath = path.resolve(app.getAppPath())
+    const appPathIndex = argv.findIndex(
+      (argument) => !argument.startsWith('-') && path.resolve(argument) === appPath
+    )
+    if (appPathIndex !== -1) argv.splice(appPathIndex, 1)
+  }
   if (process.env.NODE_ENV === 'development') {
     // Don't pass electron development arguments to MarkText and change user data path.
     argv = ['--user-data-dir', path.join(getPath('appData'), 'marktext-dev')]

@@ -36,7 +36,7 @@ export const createBufferedState = (): Record<string, unknown> | null => {
     version: BUFFERED_STATE_VERSION,
     ...editorState,
     project: stores.projectStore?.CREATE_BUFFERED_STATE?.() || null,
-    layout: stores.layoutStore?.CREATE_BUFFERED_STATE?.() || null
+    layout: stores.layoutStore?.createBufferedState() || null
   }
 }
 

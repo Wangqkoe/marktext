@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import bus from '../bus'
 import { setLanguage } from '../i18n'
+import { isViewMode } from '@shared/viewMode'
+import type { ViewMode, ViewModeState } from '@shared/types/viewMode'
 
 // Finite-value unions where the runtime currently constrains the field.
 // We keep these as plain strings everywhere else to avoid forcing prematurely
@@ -268,9 +270,8 @@ export const usePreferencesStore = defineStore('preferences', {
       ;(this as unknown as Record<string, unknown>)[type as string] = checked
     },
 
-    TOGGLE_VIEW_MODE(entryName: keyof PreferencesState | string): void {
-      const target = this as unknown as Record<string, unknown>
-      target[entryName as string] = !target[entryName as string]
+    TOGGLE_VIEW_MODE(entryName: ViewMode): void {
+      this[entryName] = !this[entryName]
     },
 
     ASK_FOR_USER_PREFERENCE(): void {
@@ -313,24 +314,23 @@ export const usePreferencesStore = defineStore('preferences', {
       })
       window.electron.ipcRenderer.on('mt::toggle-view-mode-entry', (_event, entryName) => {
         this.TOGGLE_VIEW_MODE(entryName)
-        const target = this as unknown as Record<string, unknown>
-        this.DISPATCH_EDITOR_VIEW_STATE({ [entryName]: target[entryName] })
+        this.DISPATCH_EDITOR_VIEW_STATE({ [entryName]: this[entryName] })
       })
     },
 
     // Toggle a view option and notify main process to toggle menu item.
     LISTEN_TOGGLE_VIEW(): void {
       bus.on('view:toggle-view-entry', (entryName) => {
-        const name = entryName as string
-        this.TOGGLE_VIEW_MODE(name)
-        const target = this as unknown as Record<string, unknown>
-        this.DISPATCH_EDITOR_VIEW_STATE({ [name]: target[name] })
+        if (isViewMode(entryName)) {
+          this.TOGGLE_VIEW_MODE(entryName)
+          this.DISPATCH_EDITOR_VIEW_STATE({ [entryName]: this[entryName] })
+        }
       })
     },
 
-    DISPATCH_EDITOR_VIEW_STATE(viewState: Record<string, unknown>): void {
+    DISPATCH_EDITOR_VIEW_STATE(viewState: ViewModeState): void {
       const { windowId } = window.marktext?.env ?? { windowId: -1 }
-      window.electron.ipcRenderer.send('mt::view-layout-changed', windowId, viewState)
+      window.electron.ipcRenderer.send('mt::view-mode-state-changed', windowId, viewState)
     }
   }
 })

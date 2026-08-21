@@ -91,7 +91,10 @@ test.describe('Layout panel toggles', () => {
       await sideBar.evaluate((element) => Math.round(element.getBoundingClientRect().width))
     ).toBe(0)
 
-    await sendIpcToRenderer(app, 'mt::set-view-layout', { rightColumn: 'search' })
+    await sendIpcToRenderer(app, 'mt::layout-action', {
+      type: 'selectSidebarView',
+      view: 'search'
+    })
     await expect(sideBar).toBeVisible()
     await expect(page.getByRole('button', { name: 'Search' })).toHaveAttribute(
       'aria-pressed',
