@@ -13,6 +13,9 @@ Date: 2026-08-21
   - Electron zoom at 125% keeps the status controls aligned and operable and restores the previous zoom afterward.
 - `pnpm exec playwright test layout-persistence.spec.ts`: 1 passed.
   - Restart persistence covers tabs, source-mode startup preference, sidebar state, and matching menu checkmarks.
+- `pnpm exec playwright test native-titlebar-startup.spec.ts --repeat-each=3`: 6 passed.
+  - Fresh Windows native-title-bar profiles load and paint the editor in light mode at 100% and Material Dark at 125%.
+  - The native configuration removes the in-app title row, loads the requested Markdown content and produces a non-black Electron compositor capture.
 - `pnpm test:unit`: 767 passed, 1 skipped.
 - `pnpm typecheck`: passed.
 - `pnpm lint`: passed with 131 pre-existing warnings and no errors after removing Playwright's generated `.last-run.json` artifact.
@@ -20,7 +23,7 @@ Date: 2026-08-21
 
 ## Full E2E run
 
-The final `pnpm test:e2e` run completed with 243 passed, 4 skipped, and 0 failed. All Ticket 07 shell-acceptance and layout-persistence tests passed.
+The final `pnpm test:e2e` run completed with 245 passed, 4 skipped, and 0 failed. All Ticket 07 shell-acceptance, native-title-bar startup and layout-persistence tests passed.
 
 The seven failures reported by the first full run were reproduced unchanged at the Ticket 07 base commit `932b89ba`, then repaired so they no longer block release acceptance:
 
@@ -46,7 +49,8 @@ The independent Ticket 07 review of `932b89ba...d983a1f6` found three release bl
 - Windows 125% application zoom: passed interactive inspection in a fresh isolated profile. The dark custom title bar, sidebar, editor and bottom controls remained aligned and operable; the visible word count was `W 117`.
 - Windows source/status smoke: passed interactive inspection. The bottom source-mode control entered the CodeMirror view and the status bar reported `Source`, `Ln 25, Col 1` and `W 117`; the sidebar control retained the same footprint and alignment.
 - Windows sidebar state smoke: the running editor state recorded `sidebarView: "toc"`, `sidebarVisible: true` and `sidebarWidth: 331` after interaction. Restart persistence remains covered by the passing Electron acceptance test above because launching a file through a new command-line process intentionally creates a different editor-state record.
-- Windows native-title-bar startup smoke: **failed** in two fresh isolated Material Dark profiles at both 100% and 125% zoom. With `titleBarStyle: "native"`, the source build opened an opaque black client area titled `MarkText`, exposed no renderer accessibility tree and did not load the requested Markdown file. The equivalent custom-title-bar profiles loaded normally. Native light/dark layout inspection could not proceed past this reproducible release blocker, which must be diagnosed before Ticket 07 can close.
+- Windows native-title-bar application smoke: passed through the dedicated Electron acceptance test in fresh light/100% and Material Dark/125% profiles. The editor shell and requested Markdown content loaded, the in-app title row was absent, and Electron's compositor returned painted pixels in six consecutive runs.
+- Windows native-title-bar external visual capture: unavailable. The Computer Use bridge's Windows Graphics Capture returned a black image and no accessibility tree for the native-framed window even while the Electron page and compositor were healthy. This is recorded as a capture-tool limitation rather than an application release blocker.
 - The normal installed MarkText profiles and windows were not modified; all interactive runs used temporary `--user-data-dir` profiles.
 - macOS and Linux: unavailable in this Windows workspace.
 - Native non-100% OS display scale: unavailable in the current session. Electron 125% application zoom is covered by automated and interactive acceptance.
