@@ -16,6 +16,12 @@ const waitForVisibilityFlip = (page: Page, selector: string, wasVisible: boolean
     { timeout: 5000 }
   )
 
+const ensureSidebarVisible = async(page: Page, app: ElectronApplication): Promise<void> => {
+  if (!(await page.locator('.side-bar').isVisible())) {
+    await clickMenuById(app, 'sideBarMenuItem')
+  }
+}
+
 test.describe('Layout panel toggles', () => {
   let app: ElectronApplication
   let page: Page
@@ -52,9 +58,7 @@ test.describe('Layout panel toggles', () => {
 
   test('Sidebar uses full-pane navigation and active view selection is a no-op', async() => {
     const sideBar = page.locator('.side-bar')
-    if (!(await sideBar.isVisible())) {
-      await clickMenuById(app, 'sideBarMenuItem')
-    }
+    await ensureSidebarVisible(page, app)
 
     await expect(page.locator('.side-bar .left-column')).toHaveCount(0)
     await expect(page.getByRole('tab', { name: 'Files' })).toBeVisible()
@@ -73,9 +77,7 @@ test.describe('Layout panel toggles', () => {
 
   test('Sidebar view commands open the complete pane and preserve its width', async() => {
     const sideBar = page.locator('.side-bar')
-    if (!(await sideBar.isVisible())) {
-      await clickMenuById(app, 'sideBarMenuItem')
-    }
+    await ensureSidebarVisible(page, app)
 
     await page.getByRole('tab', { name: 'Outline' }).click()
     await expect(page.locator('.side-bar-toc')).toBeVisible()
@@ -115,9 +117,7 @@ test.describe('Layout panel toggles', () => {
 
   test('Sidebar resize clamps at 220px and persists once when dragging ends', async() => {
     const sideBar = page.locator('.side-bar')
-    if (!(await sideBar.isVisible())) {
-      await clickMenuById(app, 'sideBarMenuItem')
-    }
+    await ensureSidebarVisible(page, app)
 
     await page.evaluate(() => {
       const storage = localStorage
@@ -156,9 +156,7 @@ test.describe('Layout panel toggles', () => {
 
   test('Settings stays pinned to the sidebar bottom and opens Preferences', async() => {
     const sideBar = page.locator('.side-bar')
-    if (!(await sideBar.isVisible())) {
-      await clickMenuById(app, 'sideBarMenuItem')
-    }
+    await ensureSidebarVisible(page, app)
 
     const settings = page.getByRole('button', { name: 'Settings' })
     const sideBarBox = await sideBar.boundingBox()

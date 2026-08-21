@@ -11,6 +11,22 @@ const sideBarWidth = (page: Page) =>
     return el ? Math.round(el.getBoundingClientRect().width) : 0
   })
 
+const setSidebarVisibility = async(
+  app: ElectronApplication,
+  page: Page,
+  visible: boolean
+): Promise<void> => {
+  const sideBar = page.locator('.side-bar')
+  if ((await sideBar.isVisible()) !== visible) {
+    await clickMenuById(app, 'sideBarMenuItem')
+  }
+  if (visible) {
+    await expect(sideBar).toBeVisible()
+  } else {
+    await expect(sideBar).toBeHidden()
+  }
+}
+
 test.describe('#2421 sidebar state survives complete hide/show', () => {
   let app: ElectronApplication
   let page: Page
@@ -56,12 +72,10 @@ test.describe('#2421 sidebar state survives complete hide/show', () => {
     const widened = await sideBarWidth(page)
     expect(widened).toBeGreaterThanOrEqual(300)
 
-    await clickMenuById(app, 'sideBarMenuItem')
-    await expect(page.locator('.side-bar')).toBeHidden()
+    await setSidebarVisibility(app, page, false)
     expect(await sideBarWidth(page)).toBe(0)
 
-    await clickMenuById(app, 'sideBarMenuItem')
-    await expect(page.locator('.side-bar')).toBeVisible()
+    await setSidebarVisibility(app, page, true)
 
     const reExpanded = await sideBarWidth(page)
     // The widened width must survive the collapse round-trip (it was reset to
@@ -84,10 +98,8 @@ test.describe('#2421 sidebar state survives complete hide/show', () => {
       { timeout: 5000 }
     )
 
-    // Toggle the complete sidebar off and back on through the public command.
-    await clickMenuById(app, 'sideBarMenuItem')
-    await expect(page.locator('.side-bar')).toBeHidden()
-    await clickMenuById(app, 'sideBarMenuItem')
+    await setSidebarVisibility(app, page, false)
+    await setSidebarVisibility(app, page, true)
     await page.waitForFunction(
       () => {
         const el = document.querySelector('.side-bar .opened-files') as HTMLElement | null
@@ -114,9 +126,8 @@ test.describe('#2421 sidebar state survives complete hide/show', () => {
     await expandIcon.click()
     await expect(rootNode).not.toHaveClass(/is-expanded/)
 
-    await clickMenuById(app, 'sideBarMenuItem')
-    await expect(page.locator('.side-bar')).toBeHidden()
-    await clickMenuById(app, 'sideBarMenuItem')
+    await setSidebarVisibility(app, page, false)
+    await setSidebarVisibility(app, page, true)
 
     await expect(page.getByRole('tab', { name: 'Outline' })).toHaveAttribute(
       'aria-selected',
@@ -130,9 +141,8 @@ test.describe('#2421 sidebar state survives complete hide/show', () => {
     const searchInput = page.getByPlaceholder('Search in folder...')
     await searchInput.fill('persistent query')
 
-    await clickMenuById(app, 'sideBarMenuItem')
-    await expect(page.locator('.side-bar')).toBeHidden()
-    await clickMenuById(app, 'sideBarMenuItem')
+    await setSidebarVisibility(app, page, false)
+    await setSidebarVisibility(app, page, true)
 
     await expect(page.getByRole('button', { name: 'Search' })).toHaveAttribute(
       'aria-pressed',

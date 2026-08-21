@@ -1,9 +1,8 @@
 <template>
   <aside
     v-show="sidebarVisible"
-    ref="sideBar"
     class="side-bar"
-    :style="{ width: `${finalSideBarWidth}px` }"
+    :style="{ width: `${renderedSidebarWidth}px` }"
   >
     <nav
       class="side-bar-navigation"
@@ -16,7 +15,7 @@
         role="tab"
         :aria-selected="sidebarView === 'files'"
         :class="{ active: sidebarView === 'files' }"
-        @click="selectView('files')"
+        @click="layoutStore.selectSidebarView('files')"
       >
         {{ t('sideBar.icons.files') }}
       </button>
@@ -26,7 +25,7 @@
         role="tab"
         :aria-selected="sidebarView === 'toc'"
         :class="{ active: sidebarView === 'toc' }"
-        @click="selectView('toc')"
+        @click="layoutStore.selectSidebarView('toc')"
       >
         {{ t('sideBar.icons.toc') }}
       </button>
@@ -37,7 +36,7 @@
         :aria-label="t('sideBar.icons.search')"
         :aria-pressed="sidebarView === 'search'"
         :class="{ active: sidebarView === 'search' }"
-        @click="selectView('search')"
+        @click="layoutStore.selectSidebarView('search')"
       >
         <Search aria-hidden="true" />
       </button>
@@ -59,7 +58,7 @@
       class="side-bar-settings"
       :title="t('sideBar.icons.settings')"
       :aria-label="t('sideBar.icons.settings')"
-      @click="openSettings"
+      @click="projectStore.OPEN_SETTING_WINDOW()"
     >
       <Setting aria-hidden="true" />
       <span>{{ t('sideBar.icons.settings') }}</span>
@@ -77,7 +76,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Search, Setting } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { useLayoutStore, type SidebarView } from '@/store/layout'
+import { useLayoutStore } from '@/store/layout'
 import { useProjectStore } from '@/store/project'
 import { useEditorStore } from '@/store/editor'
 import Tree from './tree.vue'
@@ -94,19 +93,18 @@ const { sidebarView, sidebarVisible, sidebarWidth } = storeToRefs(layoutStore)
 const { projectTree } = storeToRefs(projectStore)
 const { tabs } = storeToRefs(editorStore)
 
-const sideBar = ref<HTMLElement | null>(null)
 const dragBar = ref<HTMLDivElement | null>(null)
 const openedFiles = ref<TabDescriptor[]>([])
-const sideBarViewWidth = ref(sidebarWidth.value)
+const sidebarPreviewWidth = ref(sidebarWidth.value)
 
 let isResizing = false
 let startX = 0
-let startWidth = sideBarViewWidth.value
+let startWidth = sidebarPreviewWidth.value
 
-const finalSideBarWidth = computed(() => Math.max(sideBarViewWidth.value, 220))
+const renderedSidebarWidth = computed(() => Math.max(sidebarPreviewWidth.value, 220))
 
 watch(sidebarWidth, (width) => {
-  if (!isResizing) sideBarViewWidth.value = width
+  if (!isResizing) sidebarPreviewWidth.value = width
 })
 
 const stopResize = (): void => {
@@ -114,17 +112,17 @@ const stopResize = (): void => {
   isResizing = false
   document.removeEventListener('mousemove', previewResize, false)
   document.removeEventListener('mouseup', stopResize, false)
-  layoutStore.setSidebarWidth(finalSideBarWidth.value)
+  layoutStore.setSidebarWidth(renderedSidebarWidth.value)
 }
 
 const previewResize = (event: MouseEvent): void => {
-  sideBarViewWidth.value = Math.max(startWidth + event.clientX - startX, 220)
+  sidebarPreviewWidth.value = Math.max(startWidth + event.clientX - startX, 220)
 }
 
 const startResize = (event: MouseEvent): void => {
   isResizing = true
   startX = event.clientX
-  startWidth = finalSideBarWidth.value
+  startWidth = renderedSidebarWidth.value
   document.addEventListener('mousemove', previewResize, false)
   document.addEventListener('mouseup', stopResize, false)
 }
@@ -139,13 +137,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('mouseup', stopResize, false)
 })
 
-const selectView = (view: SidebarView): void => {
-  layoutStore.selectSidebarView(view)
-}
-
-const openSettings = (): void => {
-  projectStore.OPEN_SETTING_WINDOW()
-}
 </script>
 
 <style scoped>
