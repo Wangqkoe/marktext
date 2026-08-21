@@ -49,6 +49,7 @@ test.describe('Find bar prefill from selection', () => {
     await expect
       .poll(() => page.evaluate(() => window.getSelection()?.toString().trim()))
       .toBe('fox')
+    const selectedText = await page.evaluate(() => window.getSelection()?.toString() ?? '')
 
     // The DOM selection is set synchronously by the double-click, but the engine
     // commits it to its model on the next animation frame (content block
@@ -73,7 +74,9 @@ test.describe('Find bar prefill from selection', () => {
     await expect(searchBar).toBeVisible({ timeout: 5000 })
 
     const input = page.locator('.search-bar input').first()
-    await expect(input).toHaveValue('fox')
+    // Chromium may include the following space in a double-click selection.
+    // Find must preserve the browser's committed selection exactly.
+    await expect(input).toHaveValue(selectedText)
 
     // The selection seeds a real search: the result counter reports the match.
     const result = page.locator('.search-bar .search-result')

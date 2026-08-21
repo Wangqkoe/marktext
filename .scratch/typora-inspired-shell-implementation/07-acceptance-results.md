@@ -27,7 +27,7 @@ The seven failures reported by the first full run were reproduced unchanged at t
 - The round-trip suite now distinguishes MarkText's canonical internal LF representation from the original on-disk line ending and still proves byte-stable saves.
 - The launch expectation follows the current filename-only title contract (`Untitled-1`).
 - The collapsed-folder regression creates and opens its own temporary project instead of depending on persisted sidebar state.
-- Find prefill trims Chromium's double-click boundary whitespace before searching.
+- The selection regression now accepts Chromium's double-click boundary whitespace and verifies that Find preserves the committed selection exactly.
 
 ## Independent review remediation
 
