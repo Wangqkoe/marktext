@@ -147,10 +147,10 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   flex-direction: column;
   box-sizing: border-box;
-  color: var(--sideBarColor);
+  color: var(--appShellStrongFg);
   user-select: none;
   background: var(--sideBarBgColor);
-  border-right: 1px solid var(--itemBgColor);
+  border-right: 1px solid var(--appShellVisibleDivider);
 }
 
 .side-bar-navigation {
@@ -159,14 +159,14 @@ onBeforeUnmount(() => {
   min-height: var(--appShellTabBarHeight);
   box-sizing: border-box;
   align-items: stretch;
-  border-bottom: 1px solid var(--appShellDivider);
+  border-bottom: 1px solid var(--appShellVisibleDivider);
 }
 
 .side-bar-view-tab,
 .side-bar-search-button,
 .side-bar-settings {
   border: 0;
-  color: var(--appShellFg);
+  color: var(--appShellStrongFg);
   background: transparent;
   cursor: pointer;
 }
@@ -215,6 +215,14 @@ onBeforeUnmount(() => {
 .side-bar-settings:hover {
   color: var(--appShellAccent);
   background: var(--appShellHoverBg);
+}
+
+.side-bar-view-tab:focus-visible,
+.side-bar-search-button:focus-visible,
+.side-bar-settings:focus-visible {
+  outline: 1px solid var(--appShellStrongFg);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px var(--appShellFocus);
 }
 
 .side-bar-content {

@@ -52,7 +52,13 @@ const restart = async(
 const sidebarWidth = (page: Page): Promise<number> =>
   page.locator('.side-bar').evaluate((element) => Math.round(element.getBoundingClientRect().width))
 
+const menuChecked = (app: ElectronApplication, id: string): Promise<boolean> =>
+  app.evaluate(({ Menu }, menuId) => {
+    return !!Menu.getApplicationMenu()?.getMenuItemById(menuId)?.checked
+  }, id)
+
 test('canonical and legacy sidebar layouts survive application restart', async() => {
+  test.setTimeout(120_000)
   const launched = await launchWithMarkdown('# Persisted layout\n')
   let { app, page } = launched
   const { userDataDir } = launched
@@ -90,6 +96,26 @@ test('canonical and legacy sidebar layouts survive application restart', async()
       'true'
     )
 
+    const tabsWereVisible = await page.locator('.editor-tabs').isVisible()
+    expect(await menuChecked(app, 'tabBarMenuItem')).toBe(tabsWereVisible)
+    if (tabsWereVisible) await clickMenuById(app, 'tabBarMenuItem')
+    await expect(page.locator('.editor-tabs')).toBeHidden()
+    const sourceWasVisible = await page.locator('.source-code .CodeMirror').isVisible()
+    expect(await menuChecked(app, 'sourceCodeModeMenuItem')).toBe(sourceWasVisible)
+    if (!sourceWasVisible) await clickMenuById(app, 'sourceCodeModeMenuItem')
+    await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
+    await page.evaluate(() => {
+      window.electron.ipcRenderer.send('mt::set-user-preference', {
+        sourceCodeModeEnabled: true
+      })
+    })
+    ;({ app, page } = await restart(app, page, userDataDir))
+    await expect(page.locator('.editor-tabs')).toBeHidden()
+    await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
+    expect(await menuChecked(app, 'tabBarMenuItem')).toBe(false)
+    expect(await menuChecked(app, 'sourceCodeModeMenuItem')).toBe(true)
+    expect(await menuChecked(app, 'sideBarMenuItem')).toBe(true)
+
     await clickMenuById(app, 'sideBarMenuItem')
     await expect(page.locator('.side-bar')).toBeHidden()
     ;({ app, page } = await restart(app, page, userDataDir))
@@ -123,7 +149,6 @@ test('canonical and legacy sidebar layouts survive application restart', async()
     >
     preferences.restoreLayoutState = false
     fs.writeFileSync(preferencesPath, JSON.stringify(preferences), 'utf8')
-
     ;({ app, page } = await launchRestored(userDataDir))
     await expect(page.locator('.side-bar')).toBeHidden()
   } finally {

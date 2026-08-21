@@ -17,6 +17,7 @@
   --appShellIcon: var(--sideBarIconColor);
   --appShellHoverBg: var(--sideBarItemHoverBgColor);
   --appShellDivider: var(--itemBgColor);
+  --appShellVisibleDivider: color-mix(in srgb, var(--appShellDivider) 85%, var(--appShellStrongFg));
   --appShellAccent: var(--themeColor);
   --appShellFocus: var(--focusColor);
 

@@ -275,7 +275,7 @@ onBeforeUnmount(() => {
   background: transparent;
   height: var(--appShellTitleBarHeight);
   box-sizing: border-box;
-  color: var(--editorColor50);
+  color: var(--appShellStrongFg);
   position: fixed;
   left: 0;
   top: 0;
@@ -285,7 +285,7 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 .active {
-  color: var(--editorColor);
+  color: var(--appShellStrongFg);
 }
 img {
   height: 90%;
@@ -384,20 +384,20 @@ div.title > span {
   transform: translateX(-50%) translateY(-50%);
 }
 .frameless-titlebar-menu {
-  color: var(--sideBarColor);
+  color: var(--appShellStrongFg);
 }
 .frameless-titlebar-close:hover {
   background-color: rgb(228, 79, 79);
 }
 .frameless-titlebar-minimize:hover,
 .frameless-titlebar-toggle:hover {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: var(--appShellHoverBg);
 }
 .frameless-titlebar-button svg {
-  fill: #000000;
+  fill: currentcolor !important;
 }
 .frameless-titlebar-close:hover svg {
-  fill: #ffffff;
+  fill: #ffffff !important;
 }
 
 .text-center-vertical {

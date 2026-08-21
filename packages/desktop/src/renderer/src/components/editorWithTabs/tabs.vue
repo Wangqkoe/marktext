@@ -7,6 +7,8 @@
       <ul
         ref="tabDropContainer"
         class="tabs-container"
+        role="tablist"
+        aria-label="Open files"
       >
         <li
           v-for="file of tabs"
@@ -14,30 +16,44 @@
           :title="file.pathname"
           :class="{ active: currentFile?.id === file.id, unsaved: !file.isSaved }"
           :data-id="file.id"
-          @click.stop="selectFile(file)"
           @click.middle="closeTab(file.id)"
           @contextmenu.prevent="handleContextMenu($event, file)"
         >
-          <span>{{ file.filename }}</span>
-          <span class="unsaved-dot" />
-          <el-icon
-            class="close-icon"
-            :size="12"
-            @click.stop="removeFileInTab(file)"
+          <button
+            type="button"
+            class="tab-select"
+            role="tab"
+            :aria-selected="currentFile?.id === file.id"
+            @click.stop="selectFile(file)"
           >
-            <Close />
-          </el-icon>
+            <span class="tab-filename">{{ file.filename }}</span>
+            <span class="unsaved-dot" />
+          </button>
+          <button
+            type="button"
+            class="close-icon"
+            :aria-label="`Close ${file.filename}`"
+            @click.stop="removeFileInTab(file)"
+            @keydown.enter.space.prevent.stop="removeFileInTab(file)"
+          >
+            <el-icon :size="12">
+              <Close />
+            </el-icon>
+          </button>
         </li>
       </ul>
     </div>
-    <div
+    <button
+      type="button"
       class="new-file"
+      title="New Tab"
+      aria-label="New Tab"
       @click.stop="newFile()"
     >
       <el-icon :size="16">
         <Plus />
       </el-icon>
-    </div>
+    </button>
   </div>
 </template>
 
@@ -253,6 +269,15 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .close-icon {
+  display: grid;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  place-items: center;
+  color: inherit;
+  background: transparent;
+  border: 0;
   cursor: pointer;
   transition: opacity 0.15s ease-in-out;
 }
@@ -295,8 +320,8 @@ onBeforeUnmount(() => {
   & > li {
     transition: all 0.15s ease-in-out;
     position: relative;
-    padding: 0 8px;
-    color: var(--editorColor50);
+    padding: 0 4px;
+    color: var(--appShellStrongFg);
     font-size: 12px;
     line-height: var(--appShellTabBarHeight);
     height: var(--appShellTabBarHeight);
@@ -318,16 +343,16 @@ onBeforeUnmount(() => {
     &:hover > .close-icon {
       opacity: 1;
     }
-    &:hover > .unsaved-dot {
+    &:hover .unsaved-dot {
       display: none;
     }
-    & > span {
+    & .tab-filename {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
       margin-right: 3px;
     }
-    & > .unsaved-dot {
+    & .unsaved-dot {
       display: none;
       width: 6px;
       height: 6px;
@@ -340,13 +365,13 @@ onBeforeUnmount(() => {
     & > .close-icon {
       opacity: 0;
     }
-    & > .unsaved-dot {
+    & .unsaved-dot {
       display: block;
     }
     &:hover > .close-icon {
       opacity: 1;
     }
-    &:hover > .unsaved-dot {
+    &:hover .unsaved-dot {
       display: none;
     }
   }
@@ -365,22 +390,54 @@ onBeforeUnmount(() => {
     & > .close-icon {
       opacity: 1;
     }
-    & > .unsaved-dot {
+    & .unsaved-dot {
       display: none;
     }
   }
 }
+
+.tab-select {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  align-items: center;
+  padding: 0 4px;
+  overflow: hidden;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.tab-select:focus-visible,
+.close-icon:focus-visible,
+.new-file:focus-visible {
+  outline: 1px solid var(--appShellStrongFg);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px var(--appShellFocus);
+}
+
+.close-icon:focus-visible,
+.new-file:focus-visible {
+  opacity: 1;
+}
+
 .editor-tabs > .new-file {
   flex: 0 0 var(--appShellTabBarHeight);
   width: var(--appShellTabBarHeight);
   height: var(--appShellTabBarHeight);
   border-right: none;
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: space-around;
   cursor: pointer;
-  color: var(--editorColor50);
+  color: var(--appShellStrongFg);
   opacity: 0;
   &.always-visible {
     opacity: 1;

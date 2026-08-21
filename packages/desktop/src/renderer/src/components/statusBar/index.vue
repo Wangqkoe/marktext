@@ -72,12 +72,16 @@
           <span>All characters:</span><span>{{ wordCount.all }}</span>
         </div>
       </template>
-      <div
+      <button
+        type="button"
         class="word-count"
         @click.stop="cycleWordCount"
+        @keydown.enter.space.prevent.stop="cycleWordCount"
       >
-        <span class="text-center-vertical">{{ `${countLabels[displayedCountMode]} ${wordCount[displayedCountMode]}` }}</span>
-      </div>
+        <span class="text-center-vertical">{{
+          `${countLabels[displayedCountMode]} ${wordCount[displayedCountMode]}`
+        }}</span>
+      </button>
     </el-tooltip>
   </div>
 </template>
@@ -126,10 +130,10 @@ const cycleWordCount = (): void => {
   height: var(--appShellStatusBarHeight);
   box-sizing: border-box;
   align-items: center;
-  color: var(--appShellFg);
+  color: var(--appShellStrongFg);
   font-size: 11px;
   background: var(--appShellSidebarBg);
-  border-top: 1px solid var(--appShellDivider);
+  border-top: 1px solid var(--appShellVisibleDivider);
   user-select: none;
 }
 
@@ -141,7 +145,7 @@ const cycleWordCount = (): void => {
   height: 100%;
   padding: 0;
   place-items: center;
-  color: var(--appShellIcon);
+  color: var(--appShellStrongFg);
   background: transparent;
   border: 0;
   cursor: pointer;
@@ -162,8 +166,9 @@ const cycleWordCount = (): void => {
 
 .sidebar-toggle:focus-visible,
 .source-mode-toggle:focus-visible {
-  outline: 1px solid var(--appShellFocus);
+  outline: 1px solid var(--appShellStrongFg);
   outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px var(--appShellFocus);
 }
 
 .source-mode-toggle[aria-pressed='true'] {
@@ -180,7 +185,7 @@ const cycleWordCount = (): void => {
   min-width: 0;
   padding: 0 8px;
   overflow: hidden;
-  color: var(--appShellMutedFg);
+  color: var(--appShellStrongFg);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -192,27 +197,36 @@ const cycleWordCount = (): void => {
 
 .status-document-mode {
   padding: 0 8px;
-  color: var(--appShellMutedFg);
+  color: var(--appShellStrongFg);
 }
 
 .status-caret-position {
   padding: 0 8px;
-  color: var(--appShellMutedFg);
+  color: var(--appShellStrongFg);
   white-space: nowrap;
 }
 
 .word-count {
   height: 100%;
   padding: 0 8px;
+  border: 0;
   cursor: pointer;
-  color: var(--appShellMutedFg);
+  color: var(--appShellStrongFg);
+  font: inherit;
   line-height: calc(var(--appShellStatusBarHeight) - 1px);
   text-align: center;
+  background: transparent;
 }
 
 .word-count:hover {
   color: var(--appShellStrongFg);
   background: var(--appShellHoverBg);
+}
+
+.word-count:focus-visible {
+  outline: 1px solid var(--appShellStrongFg);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1px var(--appShellFocus);
 }
 
 .status-count-detail {
