@@ -214,6 +214,27 @@ test.describe('Application shell foundation', () => {
     await expect(toggle).toHaveAttribute('aria-pressed', 'false')
     await expect(page.locator('.status-document-mode')).toHaveText('Markdown')
 
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0]
+      if (!window) throw new Error('Editor window is unavailable')
+      window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'E', modifiers: ['control'] })
+      window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'E', modifiers: ['control'] })
+    })
+    await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ Menu }) =>
+            !!Menu.getApplicationMenu()?.getMenuItemById('sourceCodeModeMenuItem')?.checked
+        )
+      )
+      .toBe(true)
+
+    await toggle.click()
+    await expect(page.locator('.source-code')).toHaveCount(0)
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+
     await page.getByRole('button', { name: 'Toggle Sidebar' }).focus()
     await page.keyboard.press('Tab')
     await expect(toggle).toBeFocused()

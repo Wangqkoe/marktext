@@ -51,37 +51,17 @@ test.describe('Editor input and source-mode roundtrip', () => {
   })
 })
 
-// ---------------------------------------------------------------------------
-// Coverage backfill (checklist item 24). The desktop status-bar word/character/
-// paragraph counter renders the clickable
-// `.word-count > span.text-center-vertical` renders `${HASH[show].short}
-// ${wordCount[show]}` where `show` cycles word -> paragraph -> character -> all
-// on click (handleWordClick). The counter value flows from
-// editor.vue json-change -> LISTEN_FOR_CONTENT_CHANGE -> store/editor.ts tab
-// wordCount -> app.vue currentFile.wordCount -> the status-bar `word-count` prop.
-// The engine wordCount algorithm itself is unit-covered in
-// packages/muya/src/utils/__tests__/wordCount.spec.ts; this spec only locks the
-// desktop status-bar wiring (the value tracks edits + follows the active mode).
-// ---------------------------------------------------------------------------
-
 const WORD_COUNT_TEXT = '.app-status-bar .word-count .text-center-vertical'
 
-// Read the status-bar counter text, e.g. "W 12". Returns the trimmed string.
 const counterText = (page: Page): Promise<string> => page.locator(WORD_COUNT_TEXT).innerText()
 
-// Parse the trailing integer off a counter label like "W 12" / "P 3".
 const counterValue = async(page: Page): Promise<number> => {
   const text = await counterText(page)
   const match = text.trim().match(/(\d+)\s*$/)
   return match ? Number(match[1]) : NaN
 }
 
-// Mirror of the engine's wordCount algorithm
-// (packages/muya/src/utils/index.ts) so the test can derive the EXPECTED
-// status-bar value from the exact markdown that is actually loaded — the engine
-// algorithm itself is already unit-covered in
-// packages/muya/src/utils/__tests__/wordCount.spec.ts; this is only used to
-// pin the desktop status-bar's value/mode wiring to the live document.
+// Expected values stay independent from the desktop state wiring under test.
 const expectedCount = (
   markdown: string
 ): { word: number; paragraph: number; character: number; all: number } => {
@@ -160,9 +140,7 @@ test.describe('Status-bar word counter (item 24)', () => {
     // strictly increased over the pre-typing baseline.
     await expect.poll(() => counterValue(page), { timeout: 5000 }).toBeGreaterThan(before)
 
-    // The displayed value matches the engine's wordCount over the exact markdown
-    // that is now loaded (verifies the title-bar tracks the live document, and
-    // that the CJK chars each counted as a word).
+    // The independently derived value verifies both live updates and CJK handling.
     const markdown = await getMarkdownContent(page, app)
     await expect
       .poll(() => counterValue(page), { timeout: 5000 })

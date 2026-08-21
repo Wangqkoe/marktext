@@ -70,9 +70,7 @@
         class="word-count"
         @click.stop="cycleWordCount"
       >
-        <span class="text-center-vertical">{{
-          `${countLabels[shownCount]} ${wordCount[shownCount]}`
-        }}</span>
+        <span class="text-center-vertical">{{ `${countLabels[displayedCountMode]} ${wordCount[displayedCountMode]}` }}</span>
       </div>
     </el-tooltip>
   </div>
@@ -105,11 +103,11 @@ const countLabels: Record<(typeof countModes)[number], string> = {
   character: 'C',
   all: 'A'
 }
-const shownCount = ref<(typeof countModes)[number]>('word')
+const displayedCountMode = ref<(typeof countModes)[number]>('word')
 
 const cycleWordCount = (): void => {
-  const nextIndex = (countModes.indexOf(shownCount.value) + 1) % countModes.length
-  shownCount.value = countModes[nextIndex]!
+  const nextIndex = (countModes.indexOf(displayedCountMode.value) + 1) % countModes.length
+  displayedCountMode.value = countModes[nextIndex]!
 }
 </script>
 
