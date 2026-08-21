@@ -2,7 +2,12 @@ import { expect, test } from '@playwright/test'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { AUDIT_TRIAGE_DISPOSITIONS, createAuditRun } from './audit-fixtures'
+import {
+  AUDIT_TRIAGE_DISPOSITIONS,
+  createAuditRun,
+  parseFinalDispositionList,
+  validateCandidateTemplateDispositions
+} from './audit-fixtures'
 import {
   getMarkdownContent,
   isLauncherManagedUserDataDir,
@@ -10,6 +15,11 @@ import {
   waitForEditor,
   waitForMenuReady
 } from './helpers'
+
+const candidateTemplatePath = path.resolve(
+  __dirname,
+  '../../../../.scratch/marktext-bug-audit-execution/candidate-record-template.md'
+)
 
 test.describe('First-batch audit fixture baseline', () => {
   test('F1-F4 are generated independently and preserve the canonical fixture', async() => {
@@ -66,15 +76,33 @@ test.describe('First-batch audit fixture baseline', () => {
       expect(independentOne).not.toBe(run.sharedUserDataDir)
       expect(fs.existsSync(run.sharedUserDataDir)).toBe(true)
 
-      const template = fs.readFileSync(
-        path.resolve(__dirname, '../../../../.scratch/marktext-bug-audit-execution/candidate-record-template.md'),
-        'utf8'
-      )
-      for (const disposition of AUDIT_TRIAGE_DISPOSITIONS) expect(template).toContain(disposition)
+      const template = fs.readFileSync(candidateTemplatePath, 'utf8')
+      expect(parseFinalDispositionList(template)).toEqual(AUDIT_TRIAGE_DISPOSITIONS)
+      expect(() => validateCandidateTemplateDispositions(template)).not.toThrow()
     } finally {
       if (app) await app.close()
       run.cleanup()
     }
+  })
+
+  test('candidate disposition validation ignores unrelated prose and rejects duplicate list items', () => {
+    const template = fs.readFileSync(candidateTemplatePath, 'utf8')
+    const missingButElsewhere = template.replace(
+      '  - expected behavior\n',
+      'The unrelated expected behavior prose remains elsewhere in the template.\n'
+    )
+    expect(missingButElsewhere).toContain('expected behavior')
+    expect(() => validateCandidateTemplateDispositions(missingButElsewhere)).toThrow(
+      /must exactly match/
+    )
+
+    const withDuplicate = template.replace(
+      '  - expected behavior\n',
+      '  - expected behavior\n  - expected behavior\n'
+    )
+    expect(() => validateCandidateTemplateDispositions(withDuplicate)).toThrow(
+      /duplicate final dispositions/
+    )
   })
 
   test('retained artifact runs retain caller-owned profiles and reject repository targets', async() => {

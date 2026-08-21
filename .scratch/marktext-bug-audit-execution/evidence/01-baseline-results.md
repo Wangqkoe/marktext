@@ -50,3 +50,17 @@ pnpm --filter marktext typecheck
 Results: **2 fixture-guard tests passed** in 6.7 seconds, **11 repaired-report baseline tests passed** in 15.5 seconds, and desktop typecheck passed.
 
 The additional fixture guard confirms that a retained artifact run declares its profiles caller-owned to the Electron launcher, that `cleanup()` preserves that run root and shared profile, and that canonicalized `MARKTEXT_AUDIT_ARTIFACT_DIR` values targeting the repository root or a repository descendant are rejected before writes. F3's line-ending guard now examines raw bytes: every LF follows a CR and every CR precedes an LF.
+
+## Second review-remediation verification
+
+Second review remediation was verified on top of `0f01c58d` before its follow-up local commit.
+
+```powershell
+pnpm --filter marktext exec playwright test test/e2e/audit-fixtures.spec.ts
+pnpm --filter marktext exec playwright test test/e2e/editor-input.spec.ts test/e2e/preference-switch-contrast.spec.ts
+pnpm --filter marktext typecheck
+```
+
+Results: **3 fixture-guard tests passed** in 6.7 seconds, **11 repaired-report baseline tests passed** in 15.8 seconds, and desktop typecheck passed.
+
+The candidate-template guard now parses only the nested list following `Final disposition`, rejects duplicate values, and requires exact ordered equality with `AUDIT_TRIAGE_DISPOSITIONS`. Negative checks prove that unrelated prose containing a missing disposition cannot satisfy the guard and that a duplicate final-disposition item fails validation.

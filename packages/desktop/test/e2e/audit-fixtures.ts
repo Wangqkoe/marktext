@@ -21,6 +21,44 @@ export const AUDIT_TRIAGE_DISPOSITIONS = [
 export type AuditTriageDisposition = (typeof AUDIT_TRIAGE_DISPOSITIONS)[number]
 export type AuditFixtureId = 'F1' | 'F2' | 'F3' | 'F4'
 
+const finalDispositionList =
+  /^- Final disposition \(choose exactly one\):\r?\n((?: {2}- [^\r\n]+(?:\r?\n|$))+)/m
+
+/**
+ * Reads only the nested Markdown list immediately following the candidate
+ * template's Final disposition marker. Unrelated prose and other lists are
+ * deliberately out of scope.
+ */
+export const parseFinalDispositionList = (template: string): string[] => {
+  const match = template.match(finalDispositionList)
+  if (!match?.[1]) throw new Error('Candidate template is missing its Final disposition list.')
+  return match[1]
+    .trimEnd()
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^ {2}- /, ''))
+}
+
+/**
+ * Keeps the evidence template's triage list in exact lockstep with the audit
+ * contract. Order and cardinality are intentional; a duplicate is reported
+ * separately so it cannot mask a missing disposition.
+ */
+export const validateCandidateTemplateDispositions = (template: string): void => {
+  const actual = parseFinalDispositionList(template)
+  const duplicates = actual.filter((disposition, index) => actual.indexOf(disposition) !== index)
+  if (duplicates.length > 0) {
+    throw new Error(`Candidate template has duplicate final dispositions: ${duplicates.join(', ')}`)
+  }
+  if (
+    actual.length !== AUDIT_TRIAGE_DISPOSITIONS.length ||
+    actual.some((disposition, index) => disposition !== AUDIT_TRIAGE_DISPOSITIONS[index])
+  ) {
+    throw new Error(
+      `Candidate template final dispositions must exactly match the audit contract. Expected: ${AUDIT_TRIAGE_DISPOSITIONS.join(', ')}. Actual: ${actual.join(', ')}`
+    )
+  }
+}
+
 export interface AuditFixture {
   id: AuditFixtureId
   /** Undefined for F1, which deliberately represents a new unsaved tab. */
