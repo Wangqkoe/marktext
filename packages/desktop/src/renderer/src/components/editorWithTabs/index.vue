@@ -5,14 +5,18 @@
       <editor
         :markdown="markdown"
         :cursor="cursor"
+        :caret-session="caretSession"
         :text-direction="textDirection"
         :platform="platform"
+        @caret-position="$emit('caret-position', $event)"
       />
       <source-code
         v-if="sourceCode"
         :markdown="markdown"
         :muya-index-cursor="muyaIndexCursor"
+        :caret-session="caretSession"
         :text-direction="textDirection"
+        @caret-position="$emit('caret-position', $event)"
       />
     </div>
     <tab-notifications />
@@ -24,6 +28,7 @@ import Tabs from './tabs.vue'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
 import TabNotifications from './notifications.vue'
+import type { CaretPositionUpdate } from '@/util/caretPosition'
 
 defineProps<{
   markdown: string
@@ -32,10 +37,15 @@ defineProps<{
   // caller to widen.
   cursor: unknown
   muyaIndexCursor?: unknown
+  caretSession: number
   sourceCode: boolean
   tabBarVisible: boolean
   textDirection: string
   platform: string
+}>()
+
+defineEmits<{
+  'caret-position': [update: CaretPositionUpdate]
 }>()
 </script>
 

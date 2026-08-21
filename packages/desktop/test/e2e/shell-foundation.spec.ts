@@ -384,6 +384,7 @@ test.describe('Application shell foundation', () => {
     await expect(sourceToggle).toBeDisabled()
     await expect(sourceToggle).toHaveAttribute('aria-pressed', 'true')
     await expect(page.locator('.status-document-mode')).toHaveCount(0)
+    await expect(page.locator('.status-caret-position')).toHaveCount(0)
     await expect(page.locator('.app-status-bar .word-count')).toHaveCount(0)
 
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'restored source mode\n')

@@ -48,6 +48,12 @@
     >
       {{ sourceMode ? 'Source' : 'Markdown' }}
     </span>
+    <span
+      v-if="caretLabel"
+      class="status-caret-position"
+    >
+      {{ caretLabel }}
+    </span>
     <el-tooltip
       v-if="wordCount"
       placement="top-end"
@@ -77,15 +83,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FileWordCount } from '@shared/types/files'
+import { formatCaretPosition, type CaretPosition } from '@/util/caretPosition'
 
-defineProps<{
+const props = defineProps<{
   context: string
   sidebarVisible: boolean
   sourceMode: boolean
   sourceDisabled: boolean
+  caretPosition?: CaretPosition | null
   wordCount?: FileWordCount | null
   toggleLabel: string
 }>()
@@ -96,6 +104,7 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+const caretLabel = computed(() => formatCaretPosition(props.caretPosition ?? null))
 const countModes = ['word', 'paragraph', 'character', 'all'] as const
 const countLabels: Record<(typeof countModes)[number], string> = {
   word: 'W',
@@ -184,6 +193,12 @@ const cycleWordCount = (): void => {
 .status-document-mode {
   padding: 0 8px;
   color: var(--appShellMutedFg);
+}
+
+.status-caret-position {
+  padding: 0 8px;
+  color: var(--appShellMutedFg);
+  white-space: nowrap;
 }
 
 .word-count {

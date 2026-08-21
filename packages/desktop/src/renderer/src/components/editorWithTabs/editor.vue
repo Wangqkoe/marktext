@@ -113,6 +113,11 @@ import {
 } from '@muyajs/core'
 import { exportStyledHTML, type HeaderFooterPart } from '@/util/exportHtml'
 import { applyCursor, isIndexCursor } from '@/util/cursor'
+import {
+  caretPositionFromIndexCursor,
+  createAnimationFrameCoalescer,
+  type CaretPositionUpdate
+} from '@/util/caretPosition'
 import EditorSearch from '../search/index.vue'
 import bus from '@/bus'
 import { DEFAULT_EDITOR_FONT_FAMILY, DEFAULT_CODE_FONT_FAMILY } from '@/config'
@@ -196,8 +201,13 @@ interface MuyaChange {
 const props = defineProps<{
   markdown?: string
   cursor?: unknown
+  caretSession: number
   textDirection: string
   platform?: string
+}>()
+
+const emit = defineEmits<{
+  'caret-position': [update: CaretPositionUpdate]
 }>()
 
 // Get stores
@@ -278,6 +288,11 @@ const tableChecker = reactive({
 const editorRef = ref<HTMLDivElement | null>(null)
 const imageViewerRef = ref<HTMLDivElement | null>(null)
 const rowInput = ref<InputNumberInstance | null>(null)
+
+const caretReporter = createAnimationFrameCoalescer((session: number) => {
+  const position = caretPositionFromIndexCursor(editor.value?.getCursorOffset())
+  emit('caret-position', { session, position })
+})
 
 // Non-reactive variables
 let printer: Printer | null = null
@@ -823,9 +838,20 @@ watch(currentFile, (value, oldValue) => {
 })
 
 watch(
+  () => props.caretSession,
+  (session) => {
+    if (sourceCode.value) return
+    nextTick(() => {
+      if (!sourceCode.value) caretReporter.request(session)
+    })
+  }
+)
+
+watch(
   sourceCode,
   (value, oldValue) => {
     if (value && value !== oldValue) {
+      caretReporter.cancel()
       if (editor.value) {
         editor.value.hideAllFloatTools()
         // Compute the WYSIWYG caret as a source-markdown `{ line, ch }` index
@@ -1954,6 +1980,7 @@ onMounted(() => {
   })
 
   editor.value.on('selection-change', (changes: MuyaChange) => {
+    if (!sourceCode.value) caretReporter.request(props.caretSession)
     const y = (changes.cursorCoords?.y ?? null) as number | null
     if (y != null) {
       if (typewriter.value) {
@@ -1994,6 +2021,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  caretReporter.cancel()
   bus.off('file-loaded', setMarkdownToEditor)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
   bus.off('undo', handleUndo)

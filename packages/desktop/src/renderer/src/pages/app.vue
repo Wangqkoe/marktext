@@ -25,10 +25,12 @@
         :markdown="markdown"
         :cursor="cursor"
         :muya-index-cursor="muyaIndexCursor"
+        :caret-session="caretSession"
         :source-code="sourceCode"
         :tab-bar-visible="tabBarVisible"
         :text-direction="textDirection"
         :platform="platform"
+        @caret-position="handleCaretPosition"
       />
 
       <template #status>
@@ -37,6 +39,7 @@
           :sidebar-visible="sidebarVisible"
           :source-mode="sourceCode"
           :source-disabled="!hasCurrentFile"
+          :caret-position="caretPosition"
           :word-count="wordCount"
           :toggle-label="t('menu.view.toggleSidebar')"
           @toggle-sidebar="layoutStore.toggleSidebar()"
@@ -81,6 +84,7 @@ import { useNotificationStore } from '@/store/notification'
 import { useI18n } from 'vue-i18n'
 import { isOsx } from '@/util'
 import { shouldShowInAppTitleBar } from '@/components/titleBar/visibility'
+import { CaretUpdateGate, type CaretPosition, type CaretPositionUpdate } from '@/util/caretPosition'
 
 const mainStore = useMainStore()
 const editorStore = useEditorStore()
@@ -101,6 +105,12 @@ const { sourceCode, theme, customCss, textDirection, zoom, titleBarStyle } =
   storeToRefs(preferencesStore)
 const { projectTree } = storeToRefs(projectStore)
 const { currentFile } = storeToRefs(editorStore)
+
+const caretPosition = ref<CaretPosition | null>(null)
+const caretGate = new CaretUpdateGate((position) => {
+  caretPosition.value = position
+})
+const caretSession = ref(caretGate.begin())
 
 const pathname = computed(() => currentFile.value?.pathname)
 const filename = computed(() => currentFile.value?.filename)
@@ -134,7 +144,22 @@ const toggleSourceMode = (): void => {
   bus.emit('view:toggle-view-entry', 'sourceCode')
 }
 
+const handleCaretPosition = (update: CaretPositionUpdate): void => {
+  // Let the cleared state render before a replacement editor's first report.
+  nextTick(() => {
+    caretGate.accept(update.session, update.position)
+  })
+}
+
 // Watchers
+watch(
+  [() => currentFile.value?.id ?? null, sourceCode],
+  () => {
+    caretSession.value = caretGate.begin()
+  },
+  { flush: 'sync' }
+)
+
 watch(theme, (value, oldValue) => {
   if (value !== oldValue) {
     addThemeStyle(value)
