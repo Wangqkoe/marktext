@@ -1,7 +1,9 @@
 # Typora-inspired MarkText application shell
 
-Label: `ready-for-agent`
-Status: `ready-for-agent`
+Label: `resolved`
+Status: `resolved`
+
+Implementation and acceptance are complete. The resolved ticket set, verification results and recorded platform limitations are indexed in [the implementation map](../typora-inspired-shell-implementation/map.md).
 
 ## Problem Statement
 
