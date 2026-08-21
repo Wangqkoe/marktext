@@ -5,7 +5,7 @@ import chokidar, { type FSWatcher } from 'chokidar'
 import { exists } from 'common/filesystem'
 import { hasMarkdownExtension, checkPathExcludePattern } from 'common/filesystem/paths'
 import { getUniqueId } from '../utils'
-import { loadMarkdownFile } from '../filesystem/markdown'
+import { getContentHash, loadMarkdownFile } from '../filesystem/markdown'
 import { isLinux, isOsx } from '../config'
 import type { BrowserWindow } from 'electron'
 import type { LineEnding } from '@shared/types/files'
@@ -26,6 +26,7 @@ type WatchType = 'dir' | 'file'
 interface IgnoreEntry {
   windowId: number
   pathname: string
+  contentHash: string
   duration: number
   start: Date
 }
@@ -403,9 +404,10 @@ class Watcher {
   ignoreChangedEvent(
     windowId: number,
     pathname: string,
+    contentHash: string,
     duration: number = WATCHER_STABILITY_THRESHOLD + WATCHER_STABILITY_POLL_INTERVAL * 2
   ): void {
-    this._ignoreChangeEvents.push({ windowId, pathname, duration, start: new Date() })
+    this._ignoreChangeEvents.push({ windowId, pathname, contentHash, duration, start: new Date() })
   }
 
   /**
@@ -422,19 +424,22 @@ class Watcher {
       const { _ignoreChangeEvents } = this
       const currentTime = new Date()
       for (let i = 0; i < _ignoreChangeEvents.length; ++i) {
-        const { windowId, pathname: pathToIgnore, start, duration } = _ignoreChangeEvents[i]
+        const {
+          windowId,
+          pathname: pathToIgnore,
+          contentHash,
+          start,
+          duration
+        } = _ignoreChangeEvents[i]
         if (windowId === winId && pathToIgnore === pathname) {
           _ignoreChangeEvents.splice(i, 1)
           --i
 
-          // Modification origin is the editor and we should ignore the event.
-          if (currentTime.getTime() - start.getTime() < duration) {
-            return true
-          }
+          let isOwnSaveEvent = currentTime.getTime() - start.getTime() < duration
 
           // Try to catch cloud drives that emit the change event not
           // immediately or re-sync the change (GH#3044).
-          if (!usePolling) {
+          if (!isOwnSaveEvent && !usePolling) {
             try {
               const fileInfo = await fsPromises.stat(pathname)
               if (fileInfo.mtime.getTime() - start.getTime() < duration) {
@@ -445,10 +450,19 @@ class Watcher {
                     `Ignoring file event after "stat": current="${currentTime.toISOString()}", start="${start.toISOString()}", file="${fileInfo.mtime.toISOString()}".`
                   )
                 }
-                return true
+                isOwnSaveEvent = true
               }
             } catch (error) {
               console.error('Failed to "stat" file to determine modification time:', error)
+            }
+          }
+
+          if (isOwnSaveEvent) {
+            try {
+              const currentContent = await fsPromises.readFile(pathname)
+              return getContentHash(currentContent) === contentHash
+            } catch (error) {
+              console.error('Failed to read file to verify modification origin:', error)
             }
           }
         }

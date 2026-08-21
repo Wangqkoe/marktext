@@ -204,7 +204,7 @@ const handleResponseForSave = async(
   // populates every field for the unsaved-file dialog payload, so the cast
   // is safe at this seam.
   return writeMarkdownFile(filePath, markdown, options as Parameters<typeof writeMarkdownFile>[2])
-    .then(() => {
+    .then((contentHash) => {
       if (!alreadyExistOnDisk) {
         ipcMain.emit('window-add-file-path', win.id, filePath)
         ipcMain.emit('menu-add-recently-used', filePath)
@@ -212,7 +212,7 @@ const handleResponseForSave = async(
         const newFilename = path.basename(filePath!)
         win.webContents.send('mt::set-pathname', { id, pathname: filePath, filename: newFilename })
       } else {
-        ipcMain.emit('window-file-saved', win.id, filePath)
+        ipcMain.emit('window-file-saved', win.id, filePath, contentHash)
         win.webContents.send('mt::tab-saved', id)
       }
       return id
@@ -369,7 +369,7 @@ ipcMain.on(
     if (filePath && !canceled) {
       filePath = path.resolve(filePath)
       writeMarkdownFile(filePath, markdown, options as Parameters<typeof writeMarkdownFile>[2])
-        .then(() => {
+        .then((contentHash) => {
           if (!alreadyExistOnDisk) {
             ipcMain.emit('window-add-file-path', win.id, filePath)
             ipcMain.emit('menu-add-recently-used', filePath)
@@ -391,7 +391,7 @@ ipcMain.on(
               filename: newFilename
             })
           } else {
-            ipcMain.emit('window-file-saved', win.id, filePath)
+            ipcMain.emit('window-file-saved', win.id, filePath, contentHash)
             win.webContents.send('mt::tab-saved', id)
           }
         })

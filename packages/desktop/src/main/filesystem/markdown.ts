@@ -1,5 +1,6 @@
 import fsPromises from 'fs/promises'
 import path from 'path'
+import { createHash } from 'crypto'
 import log from 'electron-log'
 import iconv from 'iconv-lite'
 import { LINE_ENDING_REG, LF_LINE_ENDING_REG, CRLF_LINE_ENDING_REG } from '../config'
@@ -25,6 +26,10 @@ interface MarkdownDocumentRaw {
   adjustLineEndingOnSave: boolean
   trimTrailingNewline: number
   isMixedLineEndings: boolean
+}
+
+export const getContentHash = (content: Buffer): string => {
+  return createHash('sha256').update(content).digest('hex')
 }
 
 const getLineEnding = (lineEnding: LineEnding): string => {
@@ -70,7 +75,7 @@ export const writeMarkdownFile = (
   pathname: string,
   content: string,
   options: MarkdownDocumentOptions
-): Promise<void> => {
+): Promise<string> => {
   const { adjustLineEndingOnSave, lineEnding } = options
   const { encoding, isBom } = options.encoding
   const extension = path.extname(pathname) || '.md'
@@ -81,7 +86,7 @@ export const writeMarkdownFile = (
 
   const buffer = iconv.encode(content, encoding, { addBOM: isBom })
 
-  return writeFile(pathname, buffer, extension, undefined)
+  return writeFile(pathname, buffer, extension, undefined).then(() => getContentHash(buffer))
 }
 
 /**

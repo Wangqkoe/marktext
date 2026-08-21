@@ -200,7 +200,7 @@ export interface IpcSendChannels {
   'window-add-file-path': [windowId: number, filePath: string]
   'window-change-file-path': [windowId: number, oldPath: string, newPath: string]
   'window-close-by-id': [windowId: number]
-  'window-file-saved': [windowId: number, tabId: string]
+  'window-file-saved': [windowId: number, pathname: string, contentHash: string]
   'window-reload-by-id': [windowId: number]
   'window-toggle-always-on-top': [windowId: number]
 }
