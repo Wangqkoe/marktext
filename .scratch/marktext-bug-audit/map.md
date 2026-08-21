@@ -1,11 +1,15 @@
 # MarkText bug audit and remediation
 
 Label: `wayfinder:map`
-Status: `ready-for-agent`
+Status: `resolved`
 
 ## Destination
 
 Produce an evidence-backed, prioritized bug-remediation specification for user-visible MarkText defects, then hand each independently reproducible fix to small implementation tickets with explicit regression tests and review gates.
+
+## Resolution
+
+The planning questions are resolved and the accepted audit workflow is published as the [`ready-for-agent` specification](spec.md). The specification governs the bounded first audit batch and the later evidence-backed remediation handoff; it does not assume that any unobserved product defect exists.
 
 ## Notes
 
