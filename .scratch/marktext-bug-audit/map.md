@@ -34,12 +34,18 @@ Produce an evidence-backed, prioritized bug-remediation specification for user-v
 - Do not install optional tools solely for the audit. Exercise the missing-Pandoc path and mark conversion itself unavailable when Pandoc is absent.
 - Include limited real-Windows checks for native file dialogs, external file changes, bitmap paste/file drag, unsaved restart recovery and missing-Pandoc handling.
 - Freeze the accepted matrix during exploration; add only the smallest isolation scenario needed to investigate an anomaly, recording why it was added.
+- Confirm ordinary deterministic findings only after a 2/2 reproduction from a controlled state; confirm intermittent findings at 2 or more failures in a bounded 10-run loop.
+- Preserve a single strongly evidenced P0/P1 event immediately, pause exploration and attempt safe reproduction on a copy; classify it as high-severity pending until it meets confirmation criteria.
+- Require every confirmed finding to carry environment, fixture, steps, expected-behavior basis, application-level actual evidence, reproduction rate, a catching command or harness, and severity rationale.
+- Treat screenshots and videos as supporting evidence only. Prefer disk, process and application state when evidence sources disagree.
+- Route ambiguous intended behavior to a product decision rather than treating Typora or current MarkText behavior as an automatic specification.
+- Retain every observed candidate with its disposition; only confirmed deterministic and confirmed intermittent product defects consume the five-finding cap.
 
 ## Questions to resolve
 
 - [Define audit scope and severity](issues/01-define-audit-scope-and-severity.md): resolved; the first batch targets core Windows workflows under a P0-P3 model and a five-defect cap.
 - [Choose the exploratory surface matrix](issues/02-choose-exploratory-surface-matrix.md): resolved; use the frozen risk-paired F1–F4, E1–E5, M1–M5 and W1–W6 matrix.
-- [Define reproduction and triage rules](issues/03-define-reproduction-and-triage-rules.md): settle the evidence threshold that separates confirmed bugs, tool artifacts, expected behavior and product decisions.
+- [Define reproduction and triage rules](issues/03-define-reproduction-and-triage-rules.md): resolved; apply the controlled reproduction, evidence-package and classification rules recorded in the issue.
 - [Define the remediation handoff](issues/04-define-remediation-handoff.md): decide batching, test, review, commit and acceptance rules before converting findings to a specification and tickets.
 
 ## Out of scope
