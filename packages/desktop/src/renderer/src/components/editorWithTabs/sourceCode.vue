@@ -312,7 +312,7 @@ const listenChange = () => {
 // CodeMirror instead. Resolve the TOC entry to its heading line in the source.
 const handleScrollToHeader = (slug: unknown) => {
   if (!editor.value) return
-  const index = editorStore.listToc.findIndex(item => item.slug === slug)
+  const index = editorStore.listToc.findIndex((item) => item.slug === slug)
   if (index < 0) return
   const line = findMarkdownHeadingLine(editor.value.getValue(), index)
   if (line < 0) return
@@ -417,14 +417,17 @@ onBeforeUnmount(() => {
 
 <style>
 .source-code {
-  height: calc(100vh - var(--titleBarHeight));
+  height: 100%;
   box-sizing: border-box;
   overflow: auto;
 }
 .source-code .CodeMirror {
   height: auto;
-  margin: 50px auto;
-  max-width: var(--editorAreaWidth);
+  max-width: var(--appShellEditorLineWidth);
+  margin: var(--appShellEditorTopInset) auto;
+  padding-right: var(--appShellPaperMinInlinePadding);
+  padding-left: var(--appShellPaperMinInlinePadding);
+  box-sizing: border-box;
   background: transparent;
 }
 .source-code .CodeMirror-gutters {

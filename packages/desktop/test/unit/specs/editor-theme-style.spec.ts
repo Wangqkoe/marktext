@@ -73,29 +73,32 @@ describe('theme.ts style injection helpers', () => {
     })
   })
 
-  // Item 209 — setEditorWidth validates input and injects --editorAreaWidth override.
   describe('setEditorWidth', () => {
     const WIDTH_STYLE_ID = 'editor-width'
+    const expectedWidth = (value: string) =>
+      `calc(${value} + var(--appShellPaperMinInlinePadding) + var(--appShellPaperMinInlinePadding))`
 
     it.each(['60ch', '800px', '50%'])(
       'writes a calc() override for the valid value %s',
       (value) => {
         setEditorWidth(value)
 
+        const width = expectedWidth(value)
+
         expect(styleHtml(WIDTH_STYLE_ID)).toBe(
-          `:root { --editorAreaWidth: calc(100px + ${value}); --editor-area-width: calc(100px + ${value}); }`
+          `:root { --appShellEditorLineWidth: ${width}; --editorAreaWidth: ${width}; --editor-area-width: ${width}; }`
         )
       }
     )
 
-    it('overrides the active @muyajs/core width variable, not only the legacy one', () => {
-      // The WYSIWYG engine reads the kebab-case `--editor-area-width`
-      // (`.mu-container` max-width); the legacy camelCase `--editorAreaWidth`
-      // only reaches source mode. Both must be set or the preference is a no-op
-      // on the default theme (issue #4828).
+    it('overrides every shell and editor-engine width variable', () => {
       setEditorWidth('60%')
 
-      expect(styleHtml(WIDTH_STYLE_ID)).toContain('--editor-area-width: calc(100px + 60%);')
+      const css = styleHtml(WIDTH_STYLE_ID)
+      const width = expectedWidth('60%')
+      expect(css).toContain(`--appShellEditorLineWidth: ${width};`)
+      expect(css).toContain(`--editorAreaWidth: ${width};`)
+      expect(css).toContain(`--editor-area-width: ${width};`)
     })
 
     it('clears the override (empty innerHTML) for an empty string', () => {

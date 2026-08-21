@@ -627,11 +627,14 @@ watch(sequenceTheme, (value, oldValue) => {
   }
 })
 
-watch(() => preferencesStore.plantumlServer, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ plantumlServer: value }, true)
+watch(
+  () => preferencesStore.plantumlServer,
+  (value, oldValue) => {
+    if (value !== oldValue && editor.value) {
+      editor.value.setOptions({ plantumlServer: value }, true)
+    }
   }
-})
+)
 
 watch(listIndentation, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
@@ -2054,6 +2057,7 @@ onBeforeUnmount(() => {
 .editor-wrapper {
   height: 100%;
   position: relative;
+  --editor-area-width: var(--appShellEditorLineWidth);
   /* Contain the editor's z-indexed children (e.g. the math/diagram preview
      popups at z-index 10000) in their own stacking context so they cannot
      paint above modal dialogs rendered outside the editor. */
@@ -2104,8 +2108,7 @@ onBeforeUnmount(() => {
 }
 
 .editor-component .mu-container {
-  padding-top: 20px;
-  padding-bottom: 100vh;
+  padding: var(--appShellEditorTopInset) var(--appShellPaperMinInlinePadding) 100vh;
 }
 
 .typewriter .editor-component {

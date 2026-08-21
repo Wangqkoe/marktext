@@ -1,8 +1,5 @@
 <template>
-  <div
-    class="editor-with-tabs"
-    :style="{ 'max-width': `calc(100vw - ${effectiveSidebarWidth}px)` }"
-  >
+  <div class="editor-with-tabs">
     <tabs v-show="tabBarVisible" />
     <div class="container">
       <editor
@@ -23,8 +20,6 @@
 </template>
 
 <script setup lang="ts">
-import { useLayoutStore } from '@/store/layout'
-import { storeToRefs } from 'pinia'
 import Tabs from './tabs.vue'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
@@ -42,14 +37,13 @@ defineProps<{
   textDirection: string
   platform: string
 }>()
-
-const { effectiveSidebarWidth } = storeToRefs(useLayoutStore())
 </script>
 
 <style scoped>
 .editor-with-tabs {
   position: relative;
   height: 100%;
+  min-width: 0;
   flex: 1;
   display: flex;
   flex-direction: column;

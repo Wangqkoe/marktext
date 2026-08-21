@@ -136,7 +136,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousemove', previewResize, false)
   document.removeEventListener('mouseup', stopResize, false)
 })
-
 </script>
 
 <style scoped>
@@ -144,10 +143,9 @@ onBeforeUnmount(() => {
   position: relative;
   display: flex;
   min-width: 220px;
-  height: 100vh;
+  height: 100%;
   flex: 0 0 auto;
   flex-direction: column;
-  padding-top: var(--titleBarHeight);
   box-sizing: border-box;
   color: var(--sideBarColor);
   user-select: none;
@@ -157,17 +155,18 @@ onBeforeUnmount(() => {
 
 .side-bar-navigation {
   display: flex;
-  height: 35px;
-  min-height: 35px;
+  height: var(--appShellTabBarHeight);
+  min-height: var(--appShellTabBarHeight);
+  box-sizing: border-box;
   align-items: stretch;
-  border-bottom: 1px solid var(--itemBgColor);
+  border-bottom: 1px solid var(--appShellDivider);
 }
 
 .side-bar-view-tab,
 .side-bar-search-button,
 .side-bar-settings {
   border: 0;
-  color: var(--sideBarColor);
+  color: var(--appShellFg);
   background: transparent;
   cursor: pointer;
 }
@@ -184,7 +183,7 @@ onBeforeUnmount(() => {
 }
 
 .side-bar-view-tab.active {
-  color: var(--sideBarTitleColor);
+  color: var(--appShellStrongFg);
   font-weight: 600;
 }
 
@@ -194,7 +193,7 @@ onBeforeUnmount(() => {
   bottom: 0;
   left: 22%;
   height: 2px;
-  background: var(--themeColor);
+  background: var(--appShellAccent);
   content: '';
 }
 
@@ -214,8 +213,8 @@ onBeforeUnmount(() => {
 .side-bar-search-button:hover,
 .side-bar-search-button.active,
 .side-bar-settings:hover {
-  color: var(--themeColor);
-  background: var(--sideBarItemHoverBgColor);
+  color: var(--appShellAccent);
+  background: var(--appShellHoverBg);
 }
 
 .side-bar-content {

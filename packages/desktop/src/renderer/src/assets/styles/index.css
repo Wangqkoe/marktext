@@ -2,6 +2,23 @@
 :root {
   --titleBarHeight: 32px;
   --editorAreaWidth: 750px;
+  --appShellTitleBarHeight: 30px;
+  --appShellTabBarHeight: 26px;
+  --appShellStatusBarHeight: 24px;
+  --appShellSidebarWidth: 255px;
+  --appShellEditorLineWidth: 736px;
+  --appShellEditorTopInset: 38px;
+  --appShellPaperMinInlinePadding: 14px;
+  --appShellEditorBg: var(--editorBgColor);
+  --appShellSidebarBg: var(--sideBarBgColor);
+  --appShellFg: var(--sideBarColor);
+  --appShellStrongFg: var(--sideBarTitleColor);
+  --appShellMutedFg: var(--sideBarTextColor);
+  --appShellIcon: var(--sideBarIconColor);
+  --appShellHoverBg: var(--sideBarItemHoverBgColor);
+  --appShellDivider: var(--itemBgColor);
+  --appShellAccent: var(--themeColor);
+  --appShellFocus: var(--focusColor);
 
   /*editor*/
   /*Theme color cluster*/

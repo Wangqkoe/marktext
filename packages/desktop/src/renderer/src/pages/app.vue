@@ -1,17 +1,20 @@
 <template>
   <div class="editor-container">
-    <side-bar v-if="init" />
-
-    <div class="editor-middle">
-      <title-bar
-        :project="projectTree"
-        :pathname="pathname"
-        :filename="filename"
-        :active="windowActive"
-        :word-count="wordCount"
-        :platform="platform"
-        :is-saved="isSaved"
-      />
+    <application-shell :show-title-bar="showInAppTitleBar">
+      <template #title>
+        <title-bar
+          :project="projectTree"
+          :pathname="pathname"
+          :filename="filename"
+          :active="windowActive"
+          :word-count="wordCount"
+          :platform="platform"
+          :is-saved="isSaved"
+        />
+      </template>
+      <template #sidebar>
+        <side-bar v-if="init" />
+      </template>
 
       <div
         v-if="!init"
@@ -28,12 +31,21 @@
         :text-direction="textDirection"
         :platform="platform"
       />
-      <command-palette />
-      <about-dialog />
-      <export-setting-dialog />
-      <rename />
-      <import-modal />
-    </div>
+
+      <template #status>
+        <status-bar
+          :context="statusContext"
+          :sidebar-visible="sidebarVisible"
+          :toggle-label="t('menu.view.toggleSidebar')"
+          @toggle-sidebar="layoutStore.toggleSidebar()"
+        />
+      </template>
+    </application-shell>
+    <command-palette />
+    <about-dialog />
+    <export-setting-dialog />
+    <rename />
+    <import-modal />
   </div>
 </template>
 
@@ -43,9 +55,11 @@ import { useMainStore } from '@/store'
 import { storeToRefs } from 'pinia'
 import { addStyles, addThemeStyle, addCustomStyle, type AddStylesOptions } from '@/util/theme'
 import Recent from '@/components/recent/index.vue'
+import ApplicationShell from '@/components/applicationShell/index.vue'
 import EditorWithTabs from '@/components/editorWithTabs/index.vue'
 import TitleBar from '@/components/titleBar/index.vue'
 import SideBar from '@/components/sideBar/index.vue'
+import StatusBar from '@/components/statusBar/index.vue'
 import AboutDialog from '@/components/about/index.vue'
 import CommandPalette from '@/components/commandPalette/index.vue'
 import ExportSettingDialog from '@/components/exportSettings/index.vue'
@@ -61,6 +75,9 @@ import { useCommandCenterStore } from '@/store/commandCenter'
 import { useProjectStore } from '@/store/project'
 import { useAutoUpdatesStore } from '@/store/autoUpdates'
 import { useNotificationStore } from '@/store/notification'
+import { useI18n } from 'vue-i18n'
+import { isOsx } from '@/util'
+import { shouldShowInAppTitleBar } from '@/components/titleBar/visibility'
 
 const mainStore = useMainStore()
 const editorStore = useEditorStore()
@@ -71,12 +88,14 @@ const listenForMainStore = useListenForMainStore()
 const autoUpdateStore = useAutoUpdatesStore()
 const commandCenterStore = useCommandCenterStore()
 const notificationStore = useNotificationStore()
+const { t } = useI18n()
 
 const timer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const { windowActive, platform, init } = storeToRefs(mainStore)
-const { tabBarVisible } = storeToRefs(layoutStore)
-const { sourceCode, theme, customCss, textDirection, zoom } = storeToRefs(preferencesStore)
+const { tabBarVisible, sidebarVisible, sidebarView } = storeToRefs(layoutStore)
+const { sourceCode, theme, customCss, textDirection, zoom, titleBarStyle } =
+  storeToRefs(preferencesStore)
 const { projectTree } = storeToRefs(projectStore)
 const { currentFile } = storeToRefs(editorStore)
 
@@ -98,6 +117,14 @@ const muyaIndexCursor = computed<Record<string, unknown> | undefined>(
 
 const hasCurrentFile = computed<boolean>(() => {
   return currentFile.value?.markdown !== undefined
+})
+
+const showInAppTitleBar = computed(() => shouldShowInAppTitleBar(titleBarStyle.value, isOsx))
+
+const statusContext = computed(() => {
+  if (!hasCurrentFile.value) return 'No document'
+  if (!sidebarVisible.value) return 'Editor'
+  return t(`sideBar.icons.${sidebarView.value}`)
 })
 
 // Watchers
@@ -219,10 +246,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.editor-placeholder,
 .editor-container {
-  display: flex;
-  flex-direction: row;
   position: absolute;
   width: 100vw;
   height: 100vh;
@@ -231,23 +255,15 @@ onMounted(async () => {
   right: 0;
   bottom: 0;
 }
+.editor-placeholder {
+  width: 100%;
+  height: 100%;
+  background: var(--appShellEditorBg);
+}
 .editor-container .hide {
   z-index: -1;
   opacity: 0;
   position: absolute;
   left: -10000px;
-}
-.editor-placeholder {
-  background: var(--editorBgColor);
-}
-.editor-middle {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 100vh;
-  position: relative;
-  & > .editor {
-    flex: 1;
-  }
 }
 </style>

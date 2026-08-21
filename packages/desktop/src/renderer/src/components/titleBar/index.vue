@@ -319,8 +319,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .title-bar-editor-bg {
-  height: var(--titleBarHeight);
-  background: var(--editorBgColor);
+  height: var(--appShellTitleBarHeight);
+  background: var(--appShellEditorBg);
   position: relative;
   left: 0;
   top: 0;
@@ -330,7 +330,7 @@ onBeforeUnmount(() => {
   -webkit-app-region: drag;
   user-select: none;
   background: transparent;
-  height: var(--titleBarHeight);
+  height: var(--appShellTitleBarHeight);
   box-sizing: border-box;
   color: var(--editorColor50);
   position: fixed;
@@ -352,7 +352,7 @@ img {
 .title {
   padding: 0 142px;
   height: 100%;
-  line-height: var(--titleBarHeight);
+  line-height: var(--appShellTitleBarHeight);
   font-size: 14px;
   text-align: center;
   transition: all 0.25s ease-in-out;
@@ -451,7 +451,7 @@ div.title > span {
   position: relative;
   display: block;
   width: 46px;
-  height: var(--titleBarHeight);
+  height: var(--appShellTitleBarHeight);
 }
 .frameless-titlebar-button > div {
   position: absolute;

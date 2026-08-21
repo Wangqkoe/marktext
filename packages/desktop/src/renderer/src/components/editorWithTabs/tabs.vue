@@ -265,7 +265,7 @@ onBeforeUnmount(() => {
   position: relative;
   display: flex;
   flex-direction: row;
-  height: 28px;
+  height: var(--appShellTabBarHeight);
   user-select: none;
   box-shadow: 0px 0px 9px 2px rgba(0, 0, 0, 0.1);
   overflow: hidden;
@@ -275,7 +275,7 @@ onBeforeUnmount(() => {
 }
 .scrollable-tabs {
   flex: 0 1 auto;
-  height: 28px;
+  height: var(--appShellTabBarHeight);
   overflow: hidden;
 }
 .tabs-container {
@@ -283,7 +283,7 @@ onBeforeUnmount(() => {
   list-style: none;
   margin: 0;
   padding: 0;
-  height: 28px;
+  height: var(--appShellTabBarHeight);
   position: relative;
   display: flex;
   flex-direction: row;
@@ -298,8 +298,8 @@ onBeforeUnmount(() => {
     padding: 0 8px;
     color: var(--editorColor50);
     font-size: 12px;
-    line-height: 28px;
-    height: 28px;
+    line-height: var(--appShellTabBarHeight);
+    height: var(--appShellTabBarHeight);
     max-width: 280px;
     display: flex;
     align-items: center;
@@ -371,9 +371,9 @@ onBeforeUnmount(() => {
   }
 }
 .editor-tabs > .new-file {
-  flex: 0 0 28px;
-  width: 28px;
-  height: 28px;
+  flex: 0 0 var(--appShellTabBarHeight);
+  width: var(--appShellTabBarHeight);
+  height: var(--appShellTabBarHeight);
   border-right: none;
   background: transparent;
   display: flex;
