@@ -1,8 +1,15 @@
 import { expect, test } from '@playwright/test'
 import * as fs from 'node:fs'
+import * as os from 'node:os'
 import * as path from 'node:path'
-import { createAuditRun } from './audit-fixtures'
-import { getMarkdownContent, launchElectron, waitForEditor, waitForMenuReady } from './helpers'
+import { AUDIT_TRIAGE_DISPOSITIONS, createAuditRun } from './audit-fixtures'
+import {
+  getMarkdownContent,
+  isLauncherManagedUserDataDir,
+  launchElectron,
+  waitForEditor,
+  waitForMenuReady
+} from './helpers'
 
 test.describe('First-batch audit fixture baseline', () => {
   test('F1-F4 are generated independently and preserve the canonical fixture', async() => {
@@ -12,7 +19,7 @@ test.describe('First-batch audit fixture baseline', () => {
       // F1 has no disk path: a fresh profile launches the application's blank,
       // unsaved document rather than recovering state from an earlier audit.
       const f1Profile = run.createIsolatedUserDataDir('f1-blank')
-      const f1 = await launchElectron([], { userDataDir: f1Profile })
+      const f1 = await launchElectron([], run.launchOptionsForUserDataDir(f1Profile))
       app = f1.app
       await waitForEditor(f1.page)
       await waitForMenuReady(f1.app)
@@ -30,10 +37,22 @@ test.describe('First-batch audit fixture baseline', () => {
       const f3Path = run.fixtures.F3.documentPath as string
       const f3Bytes = fs.readFileSync(f3Path)
       expect(f3Path).toContain('F3 path with spaces 中文')
-      expect(f3Bytes.toString('utf8')).toContain('中文内容')
-      expect(f3Bytes.toString('utf8')).toContain('😀')
-      expect(f3Bytes.toString('utf8')).toContain('assets/audit-image.png')
-      expect(f3Bytes.toString('utf8')).toContain('\r\n')
+      const f3Text = f3Bytes.toString('utf8')
+      expect(f3Text).toContain('中文内容')
+      expect(f3Text).toContain('😀')
+      expect(f3Text).toContain('assets/audit-image.png')
+      // F3's bytes are entirely CRLF-delimited. A single CRLF occurrence
+      // could otherwise mask bare-LF line endings elsewhere in the fixture.
+      const lfOffsets = Array.from(f3Bytes.entries())
+        .filter(([, byte]) => byte === 0x0a)
+        .map(([offset]) => offset)
+      const crOffsets = Array.from(f3Bytes.entries())
+        .filter(([, byte]) => byte === 0x0d)
+        .map(([offset]) => offset)
+      expect(lfOffsets.length).toBeGreaterThan(0)
+      expect(crOffsets).toHaveLength(lfOffsets.length)
+      expect(lfOffsets.every((offset) => offset > 0 && f3Bytes[offset - 1] === 0x0d)).toBe(true)
+      expect(crOffsets.every((offset) => f3Bytes[offset + 1] === 0x0a)).toBe(true)
       expect(fs.existsSync(path.join(run.fixtures.F3.rootDir, 'assets', 'audit-image.png'))).toBe(true)
 
       const f4Path = run.fixtures.F4.documentPath as string
@@ -46,9 +65,55 @@ test.describe('First-batch audit fixture baseline', () => {
       expect(independentOne).not.toBe(independentTwo)
       expect(independentOne).not.toBe(run.sharedUserDataDir)
       expect(fs.existsSync(run.sharedUserDataDir)).toBe(true)
+
+      const template = fs.readFileSync(
+        path.resolve(__dirname, '../../../../.scratch/marktext-bug-audit-execution/candidate-record-template.md'),
+        'utf8'
+      )
+      for (const disposition of AUDIT_TRIAGE_DISPOSITIONS) expect(template).toContain(disposition)
     } finally {
       if (app) await app.close()
       run.cleanup()
+    }
+  })
+
+  test('retained artifact runs retain caller-owned profiles and reject repository targets', async() => {
+    const artifactParent = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-audit-retained-'))
+    const priorArtifactDir = process.env.MARKTEXT_AUDIT_ARTIFACT_DIR
+    let app: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+    let run: ReturnType<typeof createAuditRun> | undefined
+    try {
+      process.env.MARKTEXT_AUDIT_ARTIFACT_DIR = artifactParent
+      run = createAuditRun()
+      expect(run.artifactRetention).toBe('retained')
+
+      const launched = await launchElectron([], run.launchOptionsForUserDataDir(run.sharedUserDataDir))
+      app = launched.app
+      await waitForEditor(launched.page)
+      await waitForMenuReady(launched.app)
+      expect(isLauncherManagedUserDataDir(run.sharedUserDataDir)).toBe(false)
+      await app.close()
+      app = undefined
+
+      run.cleanup()
+      expect(fs.existsSync(run.rootDir)).toBe(true)
+      expect(fs.existsSync(run.sharedUserDataDir)).toBe(true)
+
+      // The root itself and descendants are both rejected before mkdtemp can
+      // write anything under the repository. This path is platform-neutral
+      // and realpath-safe on Windows.
+      process.env.MARKTEXT_AUDIT_ARTIFACT_DIR = path.resolve(__dirname, '../../../..')
+      expect(() => createAuditRun()).toThrow(/outside the repository/)
+      process.env.MARKTEXT_AUDIT_ARTIFACT_DIR = path.join(
+        path.resolve(__dirname, '../../../..'),
+        'packages'
+      )
+      expect(() => createAuditRun()).toThrow(/outside the repository/)
+    } finally {
+      if (app) await app.close()
+      if (priorArtifactDir === undefined) delete process.env.MARKTEXT_AUDIT_ARTIFACT_DIR
+      else process.env.MARKTEXT_AUDIT_ARTIFACT_DIR = priorArtifactDir
+      fs.rmSync(artifactParent, { recursive: true, force: true })
     }
   })
 })

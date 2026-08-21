@@ -36,3 +36,17 @@ pnpm --filter marktext typecheck
 Result: passed (`vue-tsc --noEmit -p tsconfig.json`).
 
 No product source was changed, no candidate product defect was recorded, and no command pushed to a remote.
+
+## Review-remediation verification
+
+Review remediation was verified on top of `7748e1d1` before its follow-up local commit.
+
+```powershell
+pnpm --filter marktext exec playwright test test/e2e/audit-fixtures.spec.ts
+pnpm --filter marktext exec playwright test test/e2e/editor-input.spec.ts test/e2e/preference-switch-contrast.spec.ts
+pnpm --filter marktext typecheck
+```
+
+Results: **2 fixture-guard tests passed** in 6.7 seconds, **11 repaired-report baseline tests passed** in 15.5 seconds, and desktop typecheck passed.
+
+The additional fixture guard confirms that a retained artifact run declares its profiles caller-owned to the Electron launcher, that `cleanup()` preserves that run root and shared profile, and that canonicalized `MARKTEXT_AUDIT_ARTIFACT_DIR` values targeting the repository root or a repository descendant are rejected before writes. F3's line-ending guard now examines raw bytes: every LF follows a CR and every CR precedes an LF.

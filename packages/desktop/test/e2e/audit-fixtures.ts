@@ -1,8 +1,10 @@
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import type { LaunchOptions } from './helpers'
 
 const canonicalAllBlocksPath = path.resolve(__dirname, 'data', 'all-blocks.md')
+const repositoryRoot = fs.realpathSync.native(path.resolve(__dirname, '../../../..'))
 
 export const AUDIT_TRIAGE_DISPOSITIONS = [
   'confirmed deterministic',
@@ -32,10 +34,37 @@ export interface AuditRun {
   /** One profile intentionally retained for a restart or persistence flow. */
   sharedUserDataDir: string
   createIsolatedUserDataDir: (flowName: string) => string
+  /**
+   * Audit profiles are caller-owned. Pass these options to launchElectron so
+   * its process-exit cleanup cannot delete retained evidence.
+   */
+  launchOptionsForUserDataDir: (userDataDir: string) => LaunchOptions
+  /** Retained runs preserve their root; disposable runs remove it. */
+  artifactRetention: 'disposable' | 'retained'
   cleanup: () => void
 }
 
 const sanitizePathSegment = (value: string): string => value.replace(/[^a-zA-Z0-9_-]/g, '-')
+
+const isRepositoryPath = (candidate: string): boolean => {
+  const relative = path.relative(repositoryRoot, candidate)
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+}
+
+const getRetainedArtifactParent = (): string | undefined => {
+  const configuredRoot = process.env.MARKTEXT_AUDIT_ARTIFACT_DIR
+  if (!configuredRoot) return undefined
+  // The documented contract requires an existing parent. realpath both
+  // resolves Windows casing/junctions and prevents a relative path from
+  // bypassing the repository containment guard.
+  const canonicalRoot = fs.realpathSync.native(path.resolve(configuredRoot))
+  if (isRepositoryPath(canonicalRoot)) {
+    throw new Error(
+      'MARKTEXT_AUDIT_ARTIFACT_DIR must be outside the repository to protect tracked and user-owned files.'
+    )
+  }
+  return canonicalRoot
+}
 
 const writeTinyPng = (filePath: string): void => {
   // A valid 1x1 transparent PNG. Its only purpose is to make F3's relative
@@ -90,9 +119,9 @@ const createF4 = (rootDir: string, sections = 240): AuditFixture => {
  * callers otherwise receive a unique OS-temp directory and must call cleanup.
  */
 export const createAuditRun = (): AuditRun => {
-  const configuredRoot = process.env.MARKTEXT_AUDIT_ARTIFACT_DIR
-  const rootDir = configuredRoot
-    ? fs.mkdtempSync(path.join(path.resolve(configuredRoot), 'marktext-audit-'))
+  const retainedArtifactParent = getRetainedArtifactParent()
+  const rootDir = retainedArtifactParent
+    ? fs.mkdtempSync(path.join(retainedArtifactParent, 'marktext-audit-'))
     : fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-audit-'))
   const fixturesRoot = path.join(rootDir, 'fixtures')
   const profilesRoot = path.join(rootDir, 'user-data')
@@ -123,6 +152,13 @@ export const createAuditRun = (): AuditRun => {
       const name = sanitizePathSegment(flowName) || 'unnamed-flow'
       return fs.mkdtempSync(path.join(profilesRoot, `isolated-${name}-`))
     },
-    cleanup: () => fs.rmSync(rootDir, { recursive: true, force: true })
+    launchOptionsForUserDataDir: (userDataDir: string): LaunchOptions => ({
+      userDataDir,
+      userDataDirOwnership: 'caller'
+    }),
+    artifactRetention: retainedArtifactParent ? 'retained' : 'disposable',
+    cleanup: () => {
+      if (!retainedArtifactParent) fs.rmSync(rootDir, { recursive: true, force: true })
+    }
   }
 }

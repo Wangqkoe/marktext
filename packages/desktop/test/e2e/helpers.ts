@@ -53,6 +53,8 @@ export interface LaunchResult {
   userDataDir: string
 }
 
+export type UserDataDirOwnership = 'launcher' | 'caller'
+
 export interface LaunchOptions {
   // When true, sets MARKTEXT_ERROR_INTERACTION=1 in the launch env so
   // src/main/exceptionHandler.ts suppresses the modal "Unexpected error"
@@ -61,7 +63,18 @@ export interface LaunchOptions {
   // exceptions that previously surfaced as a dialog (a hidden regression risk).
   suppressErrorDialog?: boolean
   userDataDir?: string
+  /**
+   * The launcher deletes only directories it owns when the Playwright process
+   * exits. A caller that retains or explicitly disposes a profile must opt out
+   * so a later process-exit sweep cannot destroy its evidence.
+   */
+  userDataDirOwnership?: UserDataDirOwnership
 }
+
+// This is intentionally exported for ownership-contract tests. It is not an
+// audit artifact API: production/audit callers express ownership through
+// LaunchOptions, and this only verifies that the launcher honours it.
+export const isLauncherManagedUserDataDir = (dir: string): boolean => createdTempDirs.has(dir)
 
 export const launchElectron = async(
   userArgs?: string[],
@@ -71,7 +84,8 @@ export const launchElectron = async(
   const executablePath = getElectronPath()
   // Pass project root as entry so Electron reads package.json and getAppPath() returns project root.
   // Passing out/main/index.js directly bypasses package.json and breaks __static path resolution.
-  const userDataDir = trackTempDir(options.userDataDir ?? getTempPath())
+  const userDataDir = options.userDataDir ?? getTempPath()
+  if ((options.userDataDirOwnership ?? 'launcher') === 'launcher') trackTempDir(userDataDir)
   const args = [projectRoot, '--user-data-dir', userDataDir].concat(userArgs)
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v

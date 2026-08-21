@@ -11,7 +11,9 @@
 | F3 | `F3 path with spaces 中文/CJK 中文 emoji 😀.md`, with CJK text, emoji, CRLF bytes, and `assets/audit-image.png` referenced relatively. |
 | F4 | A generated 240-section document (over 30 KB) containing prose and tables for input, scroll, source-mode, and save stability checks. |
 
-`createAuditRun()` allocates a unique run root in `%TEMP%/marktext-audit-*` by default. Each independent flow obtains a new `isolated-<flow>-*` profile via `createIsolatedUserDataDir()`. Restart/session/Preferences checks use only `shared-restart-persistence` from that same run. Set `MARKTEXT_AUDIT_ARTIFACT_DIR` to an existing, writable directory when retaining a manual run; the factory will create a unique `marktext-audit-*` child there.
+`createAuditRun()` allocates a unique disposable run root in `%TEMP%/marktext-audit-*` by default. Each independent flow obtains a new `isolated-<flow>-*` profile via `createIsolatedUserDataDir()`. Restart/session/Preferences checks use only `shared-restart-persistence` from that same run. Pass every factory-created profile to Electron via `run.launchOptionsForUserDataDir(profile)`; this declares the profile caller-owned, so the shared launcher will not delete it at process exit. Disposable runs remove their root through `run.cleanup()`.
+
+Set `MARKTEXT_AUDIT_ARTIFACT_DIR` only to an existing, writable directory **outside** this repository when retaining a manual run. The factory canonicalizes the configured path (including Windows casing and junction resolution), rejects the repository root and its descendants, creates a unique `marktext-audit-*` child, and makes `run.cleanup()` a preservation no-op. Remove retained evidence manually after it is no longer needed.
 
 ## Commands and artifact locations
 
