@@ -52,24 +52,22 @@ test.describe('Editor input and source-mode roundtrip', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Coverage backfill (checklist item 24). The desktop title-bar word/character/
-// paragraph counter lives in
-// packages/desktop/src/renderer/src/components/titleBar/index.vue: the clickable
+// Coverage backfill (checklist item 24). The desktop status-bar word/character/
+// paragraph counter renders the clickable
 // `.word-count > span.text-center-vertical` renders `${HASH[show].short}
 // ${wordCount[show]}` where `show` cycles word -> paragraph -> character -> all
 // on click (handleWordClick). The counter value flows from
 // editor.vue json-change -> LISTEN_FOR_CONTENT_CHANGE -> store/editor.ts tab
-// wordCount -> app.vue currentFile.wordCount -> the title-bar `word-count` prop.
+// wordCount -> app.vue currentFile.wordCount -> the status-bar `word-count` prop.
 // The engine wordCount algorithm itself is unit-covered in
 // packages/muya/src/utils/__tests__/wordCount.spec.ts; this spec only locks the
-// desktop title-bar wiring (the value tracks edits + follows the active mode).
+// desktop status-bar wiring (the value tracks edits + follows the active mode).
 // ---------------------------------------------------------------------------
 
-const WORD_COUNT_TEXT = '.word-count .text-center-vertical'
+const WORD_COUNT_TEXT = '.app-status-bar .word-count .text-center-vertical'
 
-// Read the title-bar counter text, e.g. "W 12". Returns the trimmed string.
-const counterText = (page: Page): Promise<string> =>
-  page.locator(WORD_COUNT_TEXT).innerText()
+// Read the status-bar counter text, e.g. "W 12". Returns the trimmed string.
+const counterText = (page: Page): Promise<string> => page.locator(WORD_COUNT_TEXT).innerText()
 
 // Parse the trailing integer off a counter label like "W 12" / "P 3".
 const counterValue = async(page: Page): Promise<number> => {
@@ -80,11 +78,13 @@ const counterValue = async(page: Page): Promise<number> => {
 
 // Mirror of the engine's wordCount algorithm
 // (packages/muya/src/utils/index.ts) so the test can derive the EXPECTED
-// title-bar value from the exact markdown that is actually loaded — the engine
+// status-bar value from the exact markdown that is actually loaded — the engine
 // algorithm itself is already unit-covered in
 // packages/muya/src/utils/__tests__/wordCount.spec.ts; this is only used to
-// pin the desktop title-bar's value/mode wiring to the live document.
-const expectedCount = (markdown: string): { word: number; paragraph: number; character: number; all: number } => {
+// pin the desktop status-bar's value/mode wiring to the live document.
+const expectedCount = (
+  markdown: string
+): { word: number; paragraph: number; character: number; all: number } => {
   const paragraph = markdown.split(/\n{2,}/).filter((line) => line).length
   const removedChinese = markdown.replace(/[一-龥]/g, '')
   const tokens = removedChinese.split(/\s+/).filter((t) => t)
@@ -95,7 +95,7 @@ const expectedCount = (markdown: string): { word: number; paragraph: number; cha
   return { word, paragraph, character, all }
 }
 
-test.describe('Title-bar word counter (item 24)', () => {
+test.describe('Status-bar word counter (item 24)', () => {
   let app: ElectronApplication
   let page: Page
 
@@ -117,7 +117,19 @@ test.describe('Title-bar word counter (item 24)', () => {
 
     const markdown = await getMarkdownContent(page, app)
     expect(expectedCount(markdown).word).toBeGreaterThan(0)
-    await expect.poll(() => counterValue(page), { timeout: 5000 }).toBe(expectedCount(markdown).word)
+    await expect
+      .poll(() => counterValue(page), { timeout: 5000 })
+      .toBe(expectedCount(markdown).word)
+    await expect(page.locator('.title-bar .word-count')).toHaveCount(0)
+  })
+
+  test('the detail tooltip retains all four counts', async() => {
+    await page.locator('.app-status-bar .word-count').hover()
+    const tooltip = page.getByRole('tooltip').last()
+    await expect(tooltip).toContainText('Words:')
+    await expect(tooltip).toContainText('Paragraphs:')
+    await expect(tooltip).toContainText('Characters:')
+    await expect(tooltip).toContainText('All characters:')
   })
 
   test('opening and switching seeded tabs updates the counter before any edit', async() => {
@@ -152,7 +164,9 @@ test.describe('Title-bar word counter (item 24)', () => {
     // that is now loaded (verifies the title-bar tracks the live document, and
     // that the CJK chars each counted as a word).
     const markdown = await getMarkdownContent(page, app)
-    await expect.poll(() => counterValue(page), { timeout: 5000 }).toBe(expectedCount(markdown).word)
+    await expect
+      .poll(() => counterValue(page), { timeout: 5000 })
+      .toBe(expectedCount(markdown).word)
   })
 
   test('the counter follows the active display mode as it is cycled', async() => {
@@ -233,8 +247,7 @@ test.describe('Edit > Select All (item 169)', () => {
       await page.waitForTimeout(120)
       const selected = await page.evaluate(() => window.getSelection()?.toString() ?? '')
       return (
-        selected.includes('First paragraph alpha.') &&
-        selected.includes('Last paragraph gamma.')
+        selected.includes('First paragraph alpha.') && selected.includes('Last paragraph gamma.')
       )
     }
 
@@ -250,11 +263,14 @@ test.describe('Edit > Select All (item 169)', () => {
     // Establish a known whole-document editor selection first (escalate fully).
     await placeCaretInEditor(page)
     await expect
-      .poll(async() => {
-        await sendIpcToRenderer(app, 'mt::editor-edit-action', 'selectAll')
-        await page.waitForTimeout(120)
-        return page.evaluate(() => window.getSelection()?.toString() ?? '')
-      }, { timeout: 5000 })
+      .poll(
+        async() => {
+          await sendIpcToRenderer(app, 'mt::editor-edit-action', 'selectAll')
+          await page.waitForTimeout(120)
+          return page.evaluate(() => window.getSelection()?.toString() ?? '')
+        },
+        { timeout: 5000 }
+      )
       .toContain('Last paragraph gamma.')
 
     // Open the find bar and move focus into its search input. handleSelectAll

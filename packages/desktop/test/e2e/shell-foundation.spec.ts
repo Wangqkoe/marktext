@@ -16,6 +16,9 @@ interface ShellGeometry {
   sidebarWidth: number
   sidebarControlWidth: number
   sidebarIcon: { width: number; height: number }
+  sourceControlWidth: number
+  sourceIcon: { width: number; height: number }
+  controlCenterDelta: { x: number; y: number }
   titleSpansWindow: boolean
   statusSpansWindow: boolean
   sidebarNavigationTop: number
@@ -45,6 +48,12 @@ const measureShell = (page: Page): Promise<ShellGeometry> =>
     const status = document.querySelector('.app-status-bar')
     const titleRect = title?.getBoundingClientRect()
     const statusRect = status?.getBoundingClientRect()
+    const sidebarIcon = document
+      .querySelector('.app-status-bar .sidebar-toggle svg')
+      ?.getBoundingClientRect()
+    const sourceIcon = document
+      .querySelector('.app-status-bar .source-mode-toggle svg')
+      ?.getBoundingClientRect()
     return {
       titleHeight: height('.title-bar'),
       sidebarNavigationHeight: height('.side-bar-navigation'),
@@ -56,6 +65,19 @@ const measureShell = (page: Page): Promise<ShellGeometry> =>
         width: width('.app-status-bar .sidebar-toggle svg'),
         height: height('.app-status-bar .sidebar-toggle svg')
       },
+      sourceControlWidth: width('.app-status-bar .source-mode-toggle'),
+      sourceIcon: {
+        width: width('.app-status-bar .source-mode-toggle svg'),
+        height: height('.app-status-bar .source-mode-toggle svg')
+      },
+      controlCenterDelta: {
+        x:
+          (sidebarIcon ? sidebarIcon.left + sidebarIcon.width / 2 : 0) -
+          (sourceIcon ? sourceIcon.left + sourceIcon.width / 2 - 34 : 0),
+        y:
+          (sidebarIcon ? sidebarIcon.top + sidebarIcon.height / 2 : 0) -
+          (sourceIcon ? sourceIcon.top + sourceIcon.height / 2 : 0)
+      },
       titleSpansWindow: titleRect?.left === 0 && titleRect?.right === innerWidth,
       statusSpansWindow: statusRect?.left === 0 && statusRect?.right === innerWidth,
       sidebarNavigationTop: navigation?.getBoundingClientRect().top ?? 0,
@@ -64,9 +86,7 @@ const measureShell = (page: Page): Promise<ShellGeometry> =>
         .querySelector('.frameless-titlebar-menu')
         ?.getBoundingClientRect().width,
       customWindowControlCount: document.querySelectorAll('.frameless-titlebar-button').length,
-      titleDragRegion: title
-        ? getComputedStyle(title).getPropertyValue('-webkit-app-region')
-        : ''
+      titleDragRegion: title ? getComputedStyle(title).getPropertyValue('-webkit-app-region') : ''
     }
   })
 
@@ -112,6 +132,9 @@ test.describe('Application shell foundation', () => {
       sidebarWidth: 255,
       sidebarControlWidth: 34,
       sidebarIcon: { width: 16, height: 16 },
+      sourceControlWidth: 34,
+      sourceIcon: { width: 16, height: 16 },
+      controlCenterDelta: { x: 0, y: 0 },
       titleSpansWindow: true,
       statusSpansWindow: true,
       sidebarNavigationTop: 30,
@@ -164,6 +187,39 @@ test.describe('Application shell foundation', () => {
       sourceBottom: geometry.sourceBottom
     })
     await exitSourceMode(page, app)
+  })
+
+  test('exposes source mode as one accessible shared status action', async() => {
+    const toggle = page.getByRole('button', { name: 'Toggle Source Code Mode' })
+    await expect(toggle).toBeEnabled()
+    await expect(toggle).toHaveAttribute('title', 'Toggle Source Code Mode')
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.locator('.status-document-mode')).toHaveText('Markdown')
+
+    await toggle.click()
+    await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('.status-document-mode')).toHaveText('Source')
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ Menu }) =>
+            !!Menu.getApplicationMenu()?.getMenuItemById('sourceCodeModeMenuItem')?.checked
+        )
+      )
+      .toBe(true)
+
+    await clickMenuById(app, 'sourceCodeModeMenuItem')
+    await expect(page.locator('.source-code')).toHaveCount(0)
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await expect(page.locator('.status-document-mode')).toHaveText('Markdown')
+
+    await page.getByRole('button', { name: 'Toggle Sidebar' }).focus()
+    await page.keyboard.press('Tab')
+    await expect(toggle).toBeFocused()
+    expect(await toggle.evaluate((element) => getComputedStyle(element).outlineStyle)).not.toBe(
+      'none'
+    )
   })
 
   test('reports the current context while toggling the complete sidebar', async() => {
@@ -295,10 +351,24 @@ test.describe('Application shell foundation', () => {
   })
 
   test('keeps status visible with no document context after the last tab closes', async() => {
+    const sourceToggle = page.getByRole('button', { name: 'Toggle Source Code Mode' })
+    await sourceToggle.click()
+    await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
+
     await page.locator('.tabs-container > li.active .close-icon').click()
     await expect(page.locator('.editor-component')).toHaveCount(0)
     await expect(page.locator('.app-status-bar')).toBeVisible()
     await expect(page.locator('.status-context')).toHaveText('No document')
     await expect(page.getByRole('button', { name: 'Toggle Sidebar' })).toBeEnabled()
+    await expect(sourceToggle).toBeDisabled()
+    await expect(sourceToggle).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('.status-document-mode')).toHaveCount(0)
+    await expect(page.locator('.app-status-bar .word-count')).toHaveCount(0)
+
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'restored source mode\n')
+    await expect(sourceToggle).toBeEnabled()
+    await expect(sourceToggle).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
+    await expect(page.locator('.status-document-mode')).toHaveText('Source')
   })
 })

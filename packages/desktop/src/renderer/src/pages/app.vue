@@ -7,7 +7,6 @@
           :pathname="pathname"
           :filename="filename"
           :active="windowActive"
-          :word-count="wordCount"
           :platform="platform"
           :is-saved="isSaved"
         />
@@ -36,8 +35,12 @@
         <status-bar
           :context="statusContext"
           :sidebar-visible="sidebarVisible"
+          :source-mode="sourceCode"
+          :source-disabled="!hasCurrentFile"
+          :word-count="wordCount"
           :toggle-label="t('menu.view.toggleSidebar')"
           @toggle-sidebar="layoutStore.toggleSidebar()"
+          @toggle-source-mode="toggleSourceMode"
         />
       </template>
     </application-shell>
@@ -126,6 +129,10 @@ const statusContext = computed(() => {
   if (!sidebarVisible.value) return 'Editor'
   return t(`sideBar.icons.${sidebarView.value}`)
 })
+
+const toggleSourceMode = (): void => {
+  bus.emit('view:toggle-view-entry', 'sourceCode')
+}
 
 // Watchers
 watch(theme, (value, oldValue) => {
