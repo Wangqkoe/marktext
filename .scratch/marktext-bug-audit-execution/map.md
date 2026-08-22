@@ -20,7 +20,9 @@ Execute the approved [MarkText first-batch bug audit and remediation handoff spe
 
 ## Frontier
 
-Tickets 01, 02, 02A, 06 and 07 are resolved. Ticket 02 confirmed a P0 data-loss race and stopped discovery; Tickets 03–05 remain unexecuted under the approved early-stop rule. Emergency repair `26b09ea6` plus queued/concurrent watcher review remediation `6e4b113c` are implemented and independently accepted locally. Ticket 06 published the [`ready-for-agent remediation specification`](../marktext-bug-remediation/spec.md), and Ticket 07 published the [`ready-for-agent remediation execution map`](../marktext-bug-remediation-execution/map.md). That map correctly records zero open, authorized product repairs: the completed watcher work is not reopened, find-navigation P2 remains deferred by user policy, and W1 automation/inconclusive evidence, baselines, and untested/unavailable scope create no implementation ticket. Remediation Ticket 01 (Final Standards + Spec review) is now the sole unblocked frontier; remediation Ticket 02 (final batch acceptance and closure) is blocked by it.
+The sole current frontier is **Ticket 03**. Ticket 04 is blocked by Ticket 03, and Ticket 05 is blocked by Ticket 04. Tickets 06 and 07 retain their emergency-stop publications as historical snapshots only; they must be re-executed after Tickets 03–05 provide new audit evidence. The resulting remediation specification and ticket map must then be regenerated before any final Standards + Spec review or final batch acceptance begins.
+
+Tickets 01, 02, and 02A remain resolved historical work. The P0 external-overwrite repair `26b09ea6` and its queued/concurrent watcher review remediation `6e4b113c` remain implemented and independently accepted locally; resumed audit work does not reopen either acceptance boundary. The confirmed find-navigation P2 remains deferred by user policy. The previously published remediation specification, remediation execution map, and their final-review/acceptance tickets are paused and superseded as current handoff artifacts; they are not current frontiers and must not be executed.
 
 ## Repository constraint
 

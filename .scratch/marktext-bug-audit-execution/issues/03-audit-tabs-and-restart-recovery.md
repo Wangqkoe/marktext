@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Current frontier:** This is the sole current frontier. The former P0 emergency pause has been withdrawn; begin this ticket from its documented clean state without reopening the accepted P0/02A watcher work.
+
 - [ ] W2 starts with F1 under E1 and uses the designated shared user-data directory only for this persistence flow.
 - [ ] Two tabs retain independent content, dirty/saved state, caret, scroll and undo/redo behavior across switching.
 - [ ] Closing and relaunching with unsaved content produces the documented recovery or protection behavior without silent loss.

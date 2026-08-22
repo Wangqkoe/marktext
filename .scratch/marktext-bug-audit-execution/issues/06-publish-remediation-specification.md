@@ -1,10 +1,16 @@
 # 06: Consolidate triage and publish the remediation specification
 
-**What to build:** Turn the completed or deliberately stopped audit into one evidence-backed remediation specification that identifies exactly which defects warrant repair, why they are prioritized and which observations must not become product changes.
+**What to build:** After the frozen audit matrix has either completed or reached a valid current stop condition, turn its evidence into one evidence-backed remediation specification that identifies exactly which defects warrant repair, why they are prioritized and which observations must not become product changes.
 
-**Blocked by:** 02: Audit document integrity and external file changes; 03: Audit tabs, unsaved documents and restart recovery; 04: Audit large documents and Windows boundary configurations; 05: Audit real Windows integration boundaries. A documented P0/five-confirmed-defect early-stop condition may satisfy the unfinished exploration blockers.
+**Blocked by:** 03: Audit tabs, unsaved documents and restart recovery; 04: Audit large documents and Windows boundary configurations; 05: Audit real Windows integration boundaries. The withdrawn P0 emergency pause does not satisfy these blockers.
 
-**Status:** resolved
+**Historical lifecycle:** `resolved` for the emergency-stop publication only.
+
+**Current lifecycle:** `ready-for-agent`, currently blocked by Tickets 03–05. Re-execute this ticket from the new complete audit evidence; do not treat the historical publication as the current remediation handoff.
+
+## Historical completion snapshot
+
+The checked items below accurately record the earlier emergency-stop publication. They are not current acceptance of this ticket and must be reassessed when this ticket is re-executed after Tickets 03–05.
 
 - [x] The audit stop condition is explicit: five confirmed product defects, complete frozen matrix, or emergency P0 interruption.
 - [x] Every observed candidate has one approved disposition and a rationale; no candidate disappears silently.
@@ -18,6 +24,10 @@
 - [x] If no product defect is confirmed, the specification records that valid outcome and does not invent remediation work.
 - [x] The specification is published locally with `ready-for-agent` status and is not pushed to GitHub.
 
-## Resolution
+## Historical resolution
 
-The emergency P0 interruption is the completed audit stop condition. The independent, ready-for-agent remediation handoff is published at [`../../marktext-bug-remediation/spec.md`](../../marktext-bug-remediation/spec.md). It records every observed candidate with one disposition, keeps the P0 repair `26b09ea6` and its accepted queued/concurrent watcher follow-up `6e4b113c` as repaired, defers the confirmed intermittent find-navigation P2 by user policy, and explicitly marks Ticket 03–05 scope untested or unavailable. Ticket 07 is now unblocked to consume this handoff; it is not started by this ticket.
+The emergency P0 interruption produced the historical handoff at [`../../marktext-bug-remediation/spec.md`](../../marktext-bug-remediation/spec.md). It retains every then-observed candidate, keeps the P0 repair `26b09ea6` and its accepted queued/concurrent watcher follow-up `6e4b113c` as repaired, and defers the confirmed intermittent find-navigation P2 by user policy.
+
+## Resumption instruction
+
+The user withdrew the emergency pause as the batch's permanent early-stop choice. After Tickets 03–05 are resolved, publish a new remediation specification from the combined evidence and advance Ticket 07 from that regenerated specification. The historical file is provisional and `superseded-by-resumed-audit`; it is not a current Ticket 07 input.

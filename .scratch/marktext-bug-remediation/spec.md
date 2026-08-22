@@ -1,15 +1,17 @@
 # MarkText first-batch bug-audit remediation specification
 
-Label: `ready-for-agent`
-Status: `ready-for-agent`
+Label: `provisional`
+Status: `superseded-by-resumed-audit`
+
+> Historical emergency-stop snapshot. The user resumed the frozen audit at Ticket 03; Tickets 03–05 must now produce new evidence before Ticket 06 is re-executed. This file is not a current Ticket 07 input and does not authorize remediation final review, acceptance, or product work.
 
 ## Handoff basis and stop condition
 
 This is the remediation handoff for the approved first-batch Windows bug audit. Discovery did **not** exhaust the frozen matrix and did not reach five confirmed defects: Ticket 02 confirmed the deterministic P0 `W3-AUTOSAVE-EXTERNAL-OVERWRITE` and the approved emergency-stop rule halted the audit immediately. Tickets 03, 04, and 05 were consequently not executed. Their workflows, Windows boundaries, other platforms, and optional-dependency coverage are not evidence of a pass.
 
-The P0's emergency repair is local commit `26b09ea6`. Independent Ticket 02A review then found the distinct queued-event-order and concurrent-event race in that repair; its follow-up is local commit `6e4b113c` and was accepted by the final independent Standards + Spec re-review. Neither commit was pushed.
+The P0's emergency repair is local commit `26b09ea6`. Independent Ticket 02A review then found the distinct queued-event-order and concurrent-event race in that repair; its follow-up is local commit `6e4b113c` and was accepted by Ticket 02A's ticket-level independent re-review. This is not a completed batch Final Review. Neither commit was pushed.
 
-This specification is a triage and acceptance handoff only. It does not authorize speculative product changes, restart the frozen audit matrix, or reopen the completed shell work.
+This was a triage and acceptance handoff for the emergency-stop snapshot only. Its records remain historically traceable, but the resumed audit supersedes it as a current handoff. It does not authorize speculative product changes, current final review or acceptance work, or reopening the completed shell work.
 
 ## Evidence and disposition register
 
@@ -28,7 +30,7 @@ No candidate is classified as expected behavior, product decision, environment f
 
 ## Explicitly untested or unavailable scope
 
-The emergency stop means the following are **untested/unavailable**, not passing and not candidates for remediation:
+At the time of this emergency-stop snapshot, the following were **untested/unavailable**, not passing and not candidates for remediation. Tickets 03–05 are now scheduled to collect this missing evidence.
 
 | Audit area | Status | Boundary of the claim |
 | --- | --- | --- |
@@ -42,7 +44,7 @@ The Ticket 02 W1/W3 controls and Ticket 02A's test results support only their st
 
 ## Priority and implementation queue
 
-There is no open product repair authorized by this specification:
+There was no open product repair authorized by this emergency-stop snapshot:
 
 1. The P0 external-overwrite defect is repaired and independently accepted (`26b09ea6`, with required queue/concurrency follow-up `6e4b113c`).
 2. The high-risk P2 watcher follow-up is repaired and independently accepted (`6e4b113c`).
@@ -73,4 +75,4 @@ For each future independently confirmed defect, create one implementation ticket
 
 ## Repository constraint
 
-All artifacts, tests, fixes, reviews, builds, and commits remain local. Do not push to GitHub. Ticket 07 may use this specification to create a map only after the coordinating task explicitly directs it; this Ticket 06 handoff does not begin Ticket 07.
+All artifacts, tests, fixes, reviews, builds, and commits remain local. Do not push to GitHub. This superseded historical file must not be used by Ticket 07; only the regenerated Ticket 06 specification after Tickets 03–05 may be converted into a current map.

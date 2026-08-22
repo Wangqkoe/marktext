@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Current lifecycle:** `ready-for-agent`, but currently blocked by Ticket 04. Do not begin it until Ticket 04 is resolved.
+
 - [ ] M1 checks real system Open, Save As and export dialogs with controlled source and destination files and verifies the resulting application and disk state.
 - [ ] M2 repeats the real external-file modification checks for both a clean document and one with unsaved changes.
 - [ ] M3 checks a real clipboard bitmap paste and a local-image drag/drop, including the selected image persistence policy and resulting on-disk/reference state.

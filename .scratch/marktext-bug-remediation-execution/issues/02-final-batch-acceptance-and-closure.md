@@ -1,10 +1,12 @@
 # 02: Final batch acceptance and closure
 
-**What to build:** Formally close the approved emergency remediation batch once its final independent review is accepted, giving users a verified end-to-end assurance that the repaired watcher path preserves a later external edit and handles queued/concurrent own-save events correctly, while precisely retaining every known exception and untested boundary.
+**Historical scope:** Formally close the approved emergency remediation batch once its final independent review is accepted, giving users a verified end-to-end assurance that the repaired watcher path preserves a later external edit and handles queued/concurrent own-save events correctly, while precisely retaining every known exception and untested boundary.
 
-**Blocked by:** 01: Final Standards + Spec review.
+**Blocked by:** A regenerated final-review ticket after resumed audit Tickets 03–05 and re-executed Tickets 06–07.
 
-**Status:** ready-for-agent
+**Status:** paused (`superseded-by-resumed-audit`)
+
+This is a historical proposed acceptance ticket, not a current frontier. Do not execute it or claim final review or final batch acceptance has occurred. Recreate any acceptance gate only from the regenerated remediation map.
 
 ## Evidence and acceptance scope
 

@@ -1,10 +1,12 @@
 # 01: Final Standards + Spec review
 
-**What to build:** Deliver an independent final two-axis review of the already repaired watcher remediation, so a user can rely on auto-save and external-file handling without silently losing a later external edit or producing a false external-change notification during queued or concurrent saves. The review must separately decide whether the implementation follows repository standards and whether it fulfills the approved remediation behavior, rather than treating a passing command as acceptance.
+**Historical scope:** Deliver an independent final two-axis review of the already repaired watcher remediation, so a user can rely on auto-save and external-file handling without silently losing a later external edit or producing a false external-change notification during queued or concurrent saves.
 
-**Blocked by:** None (can start immediately).
+**Blocked by:** The regenerated remediation map after resumed audit Tickets 03–05 and re-executed Tickets 06–07.
 
-**Status:** ready-for-agent
+**Status:** paused (`superseded-by-resumed-audit`)
+
+This is a historical proposed final-review ticket, not a current frontier. Do not execute it or treat its checklist as current acceptance. Recreate any final review only from the regenerated remediation map; its scope may differ after the resumed audit.
 
 ## Evidence and behavior contract
 

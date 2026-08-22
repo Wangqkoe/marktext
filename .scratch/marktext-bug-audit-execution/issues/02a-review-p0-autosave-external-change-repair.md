@@ -18,7 +18,7 @@ The save path must identify the exact bytes MarkText wrote. The watcher may supp
 - [x] Full unit tests pass after review remediation: 772 passed, 1 skipped. One unrelated theme test timed out once under parallel load and then passed 5/5 in isolation; the complete suite passed when rerun alone.
 - [ ] Full Electron E2E is green. After review remediation, 250 tests passed and 4 were skipped; the only two failures are the separately recorded, deferred find-navigation P2 cases.
 - [x] Touched-file lint has zero findings; the only output is Node's root configuration module-type warning.
-- [x] Independent Standards + Spec review confirms the persistence, file-sync and IPC repair after required remediation.
+- [x] Independent ticket-level Standards + Spec review confirms the persistence, file-sync and IPC repair after required remediation; this is not a completed batch Final Review.
 - [x] Implementation is committed locally as `26b09ea6` and is not pushed to GitHub.
 - [x] Review remediation is committed locally as `6e4b113c` and is not pushed to GitHub.
 
@@ -75,7 +75,7 @@ Both independent reviewers identified the same remaining serious race: Chokidar/
 - The known find-navigation P2 remains unchanged.
 - The W1 synthetic keyboard-input instability remains an automation/inconclusive candidate; no product change is authorized from that evidence.
 
-## Final independent re-review
+## Final ticket-level independent re-review
 
 ### Standards axis
 
@@ -91,4 +91,4 @@ Both independent reviewers identified the same remaining serious race: Chokidar/
 - CRLF, encoding and atomic-write contracts are unchanged.
 - Missing direct branch tests for the stat fallback and read failure are recorded as low-impact coverage work and deferred.
 
-Ticket 02A is accepted with the explicit full-suite exception for the known find-navigation P2. The W1 synthetic-input automation candidate and all other low-impact review observations remain recorded for later work.
+Ticket 02A is accepted with the explicit full-suite exception for the known find-navigation P2. This preserves the P0/02A ticket-level acceptance boundary; it is not a completed batch Final Review. The W1 synthetic-input automation candidate and all other low-impact review observations remain recorded for later work.

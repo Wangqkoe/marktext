@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Current lifecycle:** `ready-for-agent`, but currently blocked by Ticket 03. Do not begin it until Ticket 03 is resolved.
+
 - [ ] W4 runs F4 under E1 and checks input responsiveness, scrolling, source-mode transition, tab switching, save completion and absence of renderer/process errors.
 - [ ] Performance observations use a documented bounded operation and distinguish a repeatable product regression from host-load noise.
 - [ ] E2 runs a dark-theme representative workflow without loss of operability or hidden functional state.

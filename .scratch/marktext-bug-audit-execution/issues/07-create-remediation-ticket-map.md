@@ -1,10 +1,16 @@
 # 07: Create the confirmed-defect implementation ticket map
 
-**What to build:** Convert the approved remediation specification into a dependency-aware local implementation map in which every confirmed defect can be repaired, tested, independently reviewed where required and accepted without reopening audit decisions.
+**What to build:** Convert the current approved remediation specification into a dependency-aware local implementation map in which every confirmed defect can be repaired, tested, independently reviewed where required and accepted without reopening resolved work.
 
-**Blocked by:** 06: Consolidate triage and publish the remediation specification.
+**Blocked by:** the re-executed 06: Consolidate triage and publish the remediation specification, after Tickets 03–05.
 
-**Status:** resolved
+**Historical lifecycle:** `resolved` for the emergency-stop map publication only.
+
+**Current lifecycle:** `ready-for-agent`, currently blocked by the re-executed Ticket 06. Re-execute this ticket from the regenerated remediation specification; do not use the historical provisional specification or its map as current inputs.
+
+## Historical completion snapshot
+
+The checked items below accurately record the earlier emergency-stop map publication. They are not current acceptance of this ticket and must be reassessed when this ticket is re-executed.
 
 - [x] The approved remediation specification is processed through `to-tickets` rather than manually collapsing all defects into one task.
 - [x] Each independent confirmed defect receives one tracer-bullet implementation ticket; symptoms merge only under the proven same-root-cause rule.
@@ -16,6 +22,10 @@
 - [x] If the remediation specification contains zero confirmed defects, publish an explicit no-implementation closure rather than empty or speculative fix tickets.
 - [x] All ticket files and map changes are committed locally and are not pushed to GitHub.
 
-## Resolution
+## Historical resolution
 
-The [remediation execution map](../../marktext-bug-remediation-execution/map.md) is published with two approved, dependency-ordered final gates: Ticket 01, then Ticket 02. It intentionally creates no current product implementation ticket. The specification's general one-ticket-per-confirmed-defect rule is satisfied by the already completed P0 implementation `26b09ea6` and its required queued/concurrent watcher review remediation `6e4b113c`, both accepted through Ticket 02A; duplicating those tickets would reopen resolved work without new evidence. The only other confirmed product candidate, find-navigation P2, is explicitly deferred by user policy. Thus the correct no-implementation condition is **zero open and authorized repairs**, not a false assertion that the audit found no confirmed defects. W1 automation/inconclusive evidence, baselines, and untested/unavailable scope remain non-ticketed.
+The [remediation execution map](../../marktext-bug-remediation-execution/map.md) was published with two proposed final gates: Ticket 01, then Ticket 02. It intentionally created no product implementation ticket. The P0 implementation `26b09ea6` and its required queued/concurrent watcher review remediation `6e4b113c` remain accepted through Ticket 02A and must not be duplicated. Find-navigation P2 remains deferred by user policy; W1 automation/inconclusive evidence and baselines remain non-ticketed.
+
+## Resumption instruction
+
+The former map is paused and `superseded-by-resumed-audit`. After the regenerated Ticket 06 is resolved, recreate this dependency map from that specification and only then schedule the final review and acceptance gates. Do not execute the historical remediation Tickets 01 or 02.
