@@ -40,5 +40,69 @@ describe('watcher own-save event filtering', () => {
     watcher.ignoreChangedEvent(1, pathname, getContentHash(savedContent), 10_000)
 
     await expect(watcher._shouldIgnoreEvent(1, pathname, 'file', true)).resolves.toBe(false)
+
+    await fsPromises.writeFile(pathname, savedContent)
+    await expect(watcher._shouldIgnoreEvent(1, pathname, 'file', true)).resolves.toBe(true)
+  })
+
+  it('matches a newer queued save when an older save hash no longer matches disk', async() => {
+    const olderContent = Buffer.from('# Older MarkText save\n')
+    const newerContent = Buffer.from('# Newer MarkText save\n')
+    await fsPromises.writeFile(pathname, newerContent)
+    watcher.ignoreChangedEvent(1, pathname, getContentHash(olderContent), 10_000)
+    watcher.ignoreChangedEvent(1, pathname, getContentHash(newerContent), 10_000)
+
+    await expect(watcher._shouldIgnoreEvent(1, pathname, 'file', true)).resolves.toBe(true)
+  })
+
+  it('preserves a newer queued save after matching an older save event', async() => {
+    const olderContent = Buffer.from('# Older MarkText save\n')
+    const newerContent = Buffer.from('# Newer MarkText save\n')
+    watcher.ignoreChangedEvent(1, pathname, getContentHash(olderContent), 10_000)
+    watcher.ignoreChangedEvent(1, pathname, getContentHash(newerContent), 10_000)
+
+    await fsPromises.writeFile(pathname, olderContent)
+    await expect(watcher._shouldIgnoreEvent(1, pathname, 'file', true)).resolves.toBe(true)
+
+    await fsPromises.writeFile(pathname, newerContent)
+    await expect(watcher._shouldIgnoreEvent(1, pathname, 'file', true)).resolves.toBe(true)
+  })
+
+  it('serializes concurrent events so each observes its queued save', async() => {
+    const olderContent = Buffer.from('# Older MarkText save\n')
+    const newerContent = Buffer.from('# Newer MarkText save\n')
+    watcher.ignoreChangedEvent(1, pathname, getContentHash(olderContent), 10_000)
+    watcher.ignoreChangedEvent(1, pathname, getContentHash(newerContent), 10_000)
+
+    let releaseFirstRead!: () => void
+    const firstReadGate = new Promise<void>((resolve) => {
+      releaseFirstRead = resolve
+    })
+    let activeReads = 0
+    let maxActiveReads = 0
+    const readFile = vi
+      .spyOn(fsPromises, 'readFile')
+      .mockImplementationOnce(async() => {
+        activeReads++
+        maxActiveReads = Math.max(maxActiveReads, activeReads)
+        await firstReadGate
+        activeReads--
+        return olderContent
+      })
+      .mockImplementationOnce(async() => {
+        activeReads++
+        maxActiveReads = Math.max(maxActiveReads, activeReads)
+        activeReads--
+        return newerContent
+      })
+
+    const olderEvent = watcher._shouldIgnoreEvent(1, pathname, 'file', true)
+    const newerEvent = watcher._shouldIgnoreEvent(1, pathname, 'file', true)
+    await vi.waitFor(() => expect(readFile).toHaveBeenCalledTimes(1))
+    releaseFirstRead()
+
+    await expect(Promise.all([olderEvent, newerEvent])).resolves.toEqual([true, true])
+    expect(readFile).toHaveBeenCalledTimes(2)
+    expect(maxActiveReads).toBe(1)
   })
 })

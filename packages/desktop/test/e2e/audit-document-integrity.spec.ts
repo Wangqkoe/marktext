@@ -295,4 +295,65 @@ test.describe('Ticket 02 W3 — F3 path, CRLF, image, auto-save and external cha
       run.cleanup()
     }
   })
+
+  test('queued own-save events do not interrupt a newer pending auto-save', async() => {
+    test.setTimeout(90_000)
+    const run = createAuditRun()
+    const documentPath = run.fixtures.F3.documentPath as string
+    const profile = run.createIsolatedUserDataDir('w3-queued-own-save-events')
+    const launchOptions = {
+      ...run.launchOptionsForUserDataDir(profile),
+      suppressErrorDialog: true
+    }
+    let app: ElectronApplication | undefined
+
+    try {
+      const launched = await launchElectron([documentPath], launchOptions)
+      app = launched.app
+      const page = launched.page
+      await waitForEditor(page)
+      await waitForMenuReady(app)
+
+      await sendIpcToRenderer(app, 'mt::user-preference', {
+        autoSave: true,
+        autoSaveDelay: 100
+      })
+      await page.waitForTimeout(100)
+
+      const initial = await getMarkdownContent(page, app)
+      const firstSave = `${initial}\nW3-QUEUED-SAVE-A\n`
+      await setSourceMarkdown(page, app, firstSave)
+      await expect
+        .poll(() => fs.readFileSync(documentPath, 'utf8'), { timeout: 15_000 })
+        .toContain('W3-QUEUED-SAVE-A')
+      await expect.poll(() => isDirty(page), { timeout: 15_000 }).toBe(false)
+
+      const secondSave = `${firstSave}\nW3-QUEUED-SAVE-B\n`
+      await setSourceMarkdown(page, app, secondSave)
+      await expect
+        .poll(() => fs.readFileSync(documentPath, 'utf8'), { timeout: 15_000 })
+        .toContain('W3-QUEUED-SAVE-B')
+      await expect.poll(() => isDirty(page), { timeout: 15_000 }).toBe(false)
+
+      await sendIpcToRenderer(app, 'mt::user-preference', { autoSaveDelay: 3000 })
+      await page.waitForTimeout(50)
+      const pendingSave = `${secondSave}\nW3-QUEUED-SAVE-C\n`
+      await setSourceMarkdown(page, app, pendingSave)
+      await expect.poll(() => isDirty(page)).toBe(true)
+
+      // The coalesced watcher event for A/B arrives before C's longer auto-save
+      // delay. It must be recognized as an own-save event instead of canceling
+      // C's timer and presenting a false external-change conflict.
+      await page.waitForTimeout(1800)
+      await expect(page.locator('.editor-notifications')).not.toBeVisible()
+      await expect
+        .poll(() => fs.readFileSync(documentPath, 'utf8'), { timeout: 15_000 })
+        .toContain('W3-QUEUED-SAVE-C')
+      await expect.poll(() => isDirty(page), { timeout: 15_000 }).toBe(false)
+      await expectNoRendererErrors(app)
+    } finally {
+      if (app) await app.close().catch(() => {})
+      run.cleanup()
+    }
+  })
 })

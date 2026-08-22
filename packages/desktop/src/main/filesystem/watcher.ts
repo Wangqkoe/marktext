@@ -187,11 +187,13 @@ const unlinkDir = (win: BrowserWindow, pathname: string, type: WatchType): void 
 class Watcher {
   private _preferences: Preference
   private _ignoreChangeEvents: IgnoreEntry[]
+  private _pendingFileEventChecks: Map<string, Promise<void>>
   watchers: Record<string, WatcherEntry>
 
   constructor(preferences: Preference) {
     this._preferences = preferences
     this._ignoreChangeEvents = []
+    this._pendingFileEventChecks = new Map()
     this.watchers = {}
   }
 
@@ -395,11 +397,12 @@ class Watcher {
     Object.keys(this.watchers).forEach((id) => this.watchers[id].close())
     this.watchers = {}
     this._ignoreChangeEvents = []
+    this._pendingFileEventChecks.clear()
   }
 
   /**
-   * Ignore the next changed event within a certain time for the current file
-   * and window. Only valid for files and "add"/"change" events.
+   * Queue an expected changed event for content saved by MarkText. Only valid
+   * for files and "add"/"change" events.
    */
   ignoreChangedEvent(
     windowId: number,
@@ -420,9 +423,25 @@ class Watcher {
     type: WatchType,
     usePolling: boolean
   ): Promise<boolean> {
-    if (type === 'file') {
+    if (type !== 'file') return false
+
+    // EventEmitter does not await async listeners. Serialize checks for the
+    // same open file so each event observes and consumes a consistent queue.
+    const eventKey = `${winId}\0${pathname}`
+    const previousCheck = this._pendingFileEventChecks.get(eventKey) ?? Promise.resolve()
+    let releaseCurrentCheck!: () => void
+    const currentCheck = new Promise<void>((resolve) => {
+      releaseCurrentCheck = resolve
+    })
+    this._pendingFileEventChecks.set(eventKey, currentCheck)
+    await previousCheck
+
+    try {
       const { _ignoreChangeEvents } = this
       const currentTime = new Date()
+      let currentContentHash: string | undefined
+      let contentReadAttempted = false
+      let fileMtimeMs: number | null | undefined
       for (let i = 0; i < _ignoreChangeEvents.length; ++i) {
         const {
           windowId,
@@ -432,43 +451,71 @@ class Watcher {
           duration
         } = _ignoreChangeEvents[i]
         if (windowId === winId && pathToIgnore === pathname) {
-          _ignoreChangeEvents.splice(i, 1)
-          --i
-
-          let isOwnSaveEvent = currentTime.getTime() - start.getTime() < duration
+          let isOwnSaveCandidate = currentTime.getTime() - start.getTime() < duration
+          let isDelayedOwnSaveCandidate = false
 
           // Try to catch cloud drives that emit the change event not
           // immediately or re-sync the change (GH#3044).
-          if (!isOwnSaveEvent && !usePolling) {
-            try {
-              const fileInfo = await fsPromises.stat(pathname)
-              if (fileInfo.mtime.getTime() - start.getTime() < duration) {
-                if (
-                  globalThis.MARKTEXT_DEBUG_VERBOSE >= 3
-                ) {
-                  console.log(
-                    `Ignoring file event after "stat": current="${currentTime.toISOString()}", start="${start.toISOString()}", file="${fileInfo.mtime.toISOString()}".`
-                  )
-                }
-                isOwnSaveEvent = true
+          if (!isOwnSaveCandidate && !usePolling) {
+            if (fileMtimeMs === undefined) {
+              try {
+                fileMtimeMs = (await fsPromises.stat(pathname)).mtimeMs
+              } catch (error) {
+                fileMtimeMs = null
+                console.error('Failed to "stat" file to determine modification time:', error)
               }
-            } catch (error) {
-              console.error('Failed to "stat" file to determine modification time:', error)
+            }
+            if (fileMtimeMs !== null && fileMtimeMs - start.getTime() < duration) {
+              isOwnSaveCandidate = true
+              isDelayedOwnSaveCandidate = true
             }
           }
 
-          if (isOwnSaveEvent) {
+          if (!isOwnSaveCandidate) {
+            _ignoreChangeEvents.splice(i, 1)
+            --i
+            continue
+          }
+
+          if (!contentReadAttempted) {
+            contentReadAttempted = true
             try {
-              const currentContent = await fsPromises.readFile(pathname)
-              return getContentHash(currentContent) === contentHash
+              currentContentHash = getContentHash(await fsPromises.readFile(pathname))
             } catch (error) {
               console.error('Failed to read file to verify modification origin:', error)
+              return false
             }
           }
+
+          // A mismatched entry may describe an older coalesced or reordered
+          // save. Keep scanning until the current disk bytes match an eligible
+          // save, and retain unmatched entries for a later watcher event.
+          if (currentContentHash !== contentHash) continue
+
+          if (isDelayedOwnSaveCandidate && globalThis.MARKTEXT_DEBUG_VERBOSE >= 3) {
+            console.log(
+              `Ignoring file event after "stat": current="${currentTime.toISOString()}", start="${start.toISOString()}", file="${new Date(fileMtimeMs as number).toISOString()}".`
+            )
+          }
+
+          // A matching newer save supersedes older queued saves for this file;
+          // preserve any newer entries so out-of-order events can still match.
+          for (let j = i; j >= 0; --j) {
+            const entry = _ignoreChangeEvents[j]
+            if (entry.windowId === winId && entry.pathname === pathname) {
+              _ignoreChangeEvents.splice(j, 1)
+            }
+          }
+          return true
         }
       }
+      return false
+    } finally {
+      releaseCurrentCheck()
+      if (this._pendingFileEventChecks.get(eventKey) === currentCheck) {
+        this._pendingFileEventChecks.delete(eventKey)
+      }
     }
-    return false
   }
 }
 
