@@ -33,4 +33,4 @@
 - User impact and severity rationale: a valid external edit can be silently and irreversibly overwritten by a later MarkText auto-save; this is direct user-data loss.
 - Final disposition: confirmed deterministic.
 - Related candidate/duplicate or baseline, if applicable: none.
-- Next action / reason no product repair is proposed: repaired locally in `26b09ea6`; independent Ticket 02A review is mandatory before acceptance.
+- Next action / reason no product repair is proposed: repaired locally in `26b09ea6`; Ticket 02A review identified and repaired queued/concurrent watcher follow-up issues in `6e4b113c`, then accepted the cumulative repair with no serious findings remaining.

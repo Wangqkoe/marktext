@@ -20,7 +20,7 @@ Execute the approved [MarkText first-batch bug audit and remediation handoff spe
 
 ## Frontier
 
-Tickets 01 and 02 are resolved. Ticket 02 confirmed a P0 data-loss race and stopped discovery; Tickets 03–05 remain unexecuted under the approved early-stop rule. Emergency repair `26b09ea6` is implemented locally, and Ticket 02A is the current frontier because this persistence/file-sync/IPC change requires an independent ticket-level review. After Ticket 02A, advance to Ticket 06 for consolidation. The unrelated intermittent find-navigation P2 is recorded for later work and is not part of the emergency repair.
+Tickets 01, 02 and 02A are resolved. Ticket 02 confirmed a P0 data-loss race and stopped discovery; Tickets 03–05 remain unexecuted under the approved early-stop rule. Emergency repair `26b09ea6` plus queued/concurrent watcher review remediation `6e4b113c` are implemented and independently accepted locally. Ticket 06 is the current frontier for consolidation. The unrelated intermittent find-navigation P2, W1 synthetic-input automation candidate and low-impact review hardening items are recorded for later work and are not part of further emergency repair.
 
 ## Repository constraint
 
