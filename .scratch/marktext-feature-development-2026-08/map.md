@@ -15,7 +15,8 @@ Status: `exploring`
 - 本会话由协调任务负责需求探索、范围决策、拆票、依赖监控、集成和验收；具体代码、测试、文档和构建实现由独立执行任务完成。执行任务不得自行扩大范围或递归拆任务。
 - 用户负责确认目标、优先级、关键体验、Spec 和产品风险接受；未确认的关键体验不得视为已定稿。
 - 开始每个阶段前记录可恢复基线：分支、提交、`git status`、可运行的检查命令、相关模块和既有用户修改。既有修改必须保留并与本轮改动隔离。
-- 本轮创建时基线为：branch `codex/latex-math-delimiters-v0.20.0`，HEAD `db2de1cba774eb00cd8257163ad40cf6e33fd88a`；开始时唯一既有工作区改动是未跟踪的 `CONTEXT.md`。该文件必须保留，并排除在后续本轮提交之外。
+- 历史创建时基线为：branch `codex/latex-math-delimiters-v0.20.0`，HEAD `db2de1cba774eb00cd8257163ad40cf6e33fd88a`；当时唯一既有工作区改动是未跟踪的 `CONTEXT.md`。该历史事实保留作溯源记录；当前本轮稳定基线仍为 commit `db2de1cba774eb00cd8257163ad40cf6e33fd88a`，当前集成分支为 `codex/marktext-feature-development-2026-08`，当前集成 worktree 为 `E:\Program Files\Marktext-worktrees\marktext-feature-development-2026-08`。`CONTEXT.md` 必须保留，并排除在后续本轮提交之外。
+- 后续每张具体实现 Ticket 必须使用独立 worktree 和 `codex/<ticket-feature-name>` 任务分支；执行任务只提交本地改动，协调任务完成审查后才将其集成到本轮集成分支。全程禁止推送远程。
 - 已知根级验证命令为 `pnpm test:unit`、`pnpm test:e2e`、`pnpm typecheck`、`pnpm lint`、`pnpm build:unpack`；具体需求出现后仅按适用性执行，并记录 Passed/Failed/Skipped/Unavailable/Untested 及限制。
 - 先理解问题和成功信号，再决定是否实现；现有行为、类似功能、日志、复现步骤、截图和原型均是证据，不能把参考产品自动当成规范。
 - 每张 Ticket 应有单一可检查结果、明确文件/模块边界、前置依赖、风险等级、验收命令或人工步骤、回归范围和提交边界。
