@@ -17,6 +17,7 @@ Produce implementation-ready specifications, confirmed interaction prototypes, a
 ## Decisions so far
 
 - [确定首版产品边界](issues/01-define-v1-product-boundaries.md): the three V1 contracts, lossless Move, disk-backed Open, two-pane limit, standard details preview, and two mandatory prototype gates are accepted.
+- [复现并界定 HTML details 当前行为](issues/06-research-current-html-details-behavior.md): 源码证据确认 sanitized raw HTML preview 依赖浏览器 native details，MarkText 尚无专用样式/事件/动效；真实 browser/Electron、键盘和主题仍 Untested/Unavailable，后续 prototype 必须验证。
 
 ## Not yet specified
 

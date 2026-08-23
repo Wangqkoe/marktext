@@ -1,7 +1,8 @@
 # 定义标签页跨窗口传输与窗口生命周期契约
 
 Type: `grilling`
-Status: `open`
+Status: `in-progress`
+Claimed by: coordination task
 Blocked by: 01
 
 ## Question
