@@ -20,9 +20,9 @@ Execute the approved [MarkText first-batch bug audit and remediation handoff spe
 
 ## Frontier
 
-Tickets 03, 04, and 05 are resolved with their recorded W2, W4/W5, and M1–M5 acceptance evidence. The sole current frontier is **Ticket 06**. It is unlocked by the completed frozen audit matrix and must consolidate the current evidence before Ticket 07 is regenerated. Tickets 06 and 07 retain their emergency-stop publications as historical snapshots only; Ticket 06 must be re-executed from Tickets 01–05 before any final Standards + Spec review or final batch acceptance begins.
+Tickets 01–06 are resolved. Tickets 03–05 supplied the completed W2, W4/W5, and M1–M5 frozen-matrix evidence; Ticket 06 consolidated it into the sole current [remediation specification](../marktext-bug-remediation/spec.md). The sole current frontier is **Ticket 07**. It is unlocked to regenerate a dependency-aware remediation execution map from that specification. The map must state the evidence-backed zero-open/authorized-repair outcome and preserve the three confirmed P2s as deferred; it must not reopen the accepted watcher repairs or execute the historical paused map.
 
-Tickets 01, 02, and 02A remain resolved historical work. The P0 external-overwrite repair `26b09ea6` and its queued/concurrent watcher review remediation `6e4b113c` remain implemented and independently accepted locally; resumed audit work does not reopen either acceptance boundary. The confirmed find-navigation P2 remains deferred by user policy. The previously published remediation specification, remediation execution map, and their final-review/acceptance tickets are paused and superseded as current handoff artifacts; they are not current frontiers and must not be executed.
+Tickets 01, 02, and 02A remain resolved historical work. The P0 external-overwrite repair `26b09ea6` and its queued/concurrent watcher review remediation `6e4b113c` remain implemented and independently accepted locally; resumed audit work does not reopen either acceptance boundary. The confirmed find-navigation, bitmap-paste persistence, and missing-Pandoc localization P2s are deferred by user policy. The old remediation execution map and its final-review/acceptance tickets remain paused and `superseded-by-resumed-audit`; Ticket 07 must regenerate them before any future authorized work.
 
 ## Repository constraint
 

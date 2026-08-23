@@ -6,7 +6,7 @@
 
 **Historical lifecycle:** `resolved` for the emergency-stop map publication only.
 
-**Current lifecycle:** `ready-for-agent`, currently blocked by the re-executed Ticket 06. Re-execute this ticket from the regenerated remediation specification; do not use the historical provisional specification or its map as current inputs.
+**Current lifecycle:** `ready-for-agent`, unblocked by resolved Ticket 06. Execute this ticket only from the regenerated remediation specification; do not use the historical provisional specification or its map as current inputs.
 
 ## Historical completion snapshot
 
@@ -28,4 +28,4 @@ The [remediation execution map](../../marktext-bug-remediation-execution/map.md)
 
 ## Resumption instruction
 
-The former map is paused and `superseded-by-resumed-audit`. After the regenerated Ticket 06 is resolved, recreate this dependency map from that specification and only then schedule the final review and acceptance gates. Do not execute the historical remediation Tickets 01 or 02.
+The former map is paused and `superseded-by-resumed-audit`. Recreate its dependency map from the resolved Ticket 06 specification before scheduling any future authorized final-review or acceptance gates. Do not execute the historical remediation Tickets 01 or 02.
