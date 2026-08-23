@@ -1,7 +1,8 @@
 # 设计 pane-scoped workspace domain model
 
 Type: `grilling`
-Status: `open`
+Status: `in-progress`
+Claimed by: coordination task
 Blocked by: 01
 
 ## Question
