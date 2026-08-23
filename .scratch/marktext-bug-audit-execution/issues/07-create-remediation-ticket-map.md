@@ -18,7 +18,7 @@ The checked items below accurately record the earlier emergency-stop map publica
 - [x] Each ticket contains its evidence link, severity, reproduction rate, behavior contract, exclusions, red regression, commands, acceptance checks, review requirement and local-commit requirement.
 - [x] Blocking edges reflect genuine code or state dependencies, and tickets are ordered by P0, P1, P2 and P3 before impact and reproduction stability.
 - [x] P0/P1, persistence, serialization, file-sync, shared editor-state, IPC and window-lifecycle repairs explicitly require ticket-level independent review.
-- [x] The map includes final batch Standards + Spec review and complete acceptance gates after all implementation tickets.
+- [x] The map includes final batch Standards + Spec review and complete acceptance gates for every completed batch, including a batch with zero current implementation tickets.
 - [x] If the remediation specification contains zero confirmed defects, publish an explicit no-implementation closure rather than empty or speculative fix tickets.
 - [x] All ticket files and map changes are committed locally and are not pushed to GitHub.
 
@@ -28,4 +28,4 @@ The [remediation execution map](../../marktext-bug-remediation-execution/map.md)
 
 ## Resumption instruction
 
-The former map is paused and `superseded-by-resumed-audit`. Recreate its dependency map from the resolved Ticket 06 specification before scheduling any future authorized final-review or acceptance gates. Do not execute the historical remediation Tickets 01 or 02.
+The former map is paused and `superseded-by-resumed-audit`. Recreate a new dependency map from the resolved Ticket 06 specification with **zero product implementation tickets** and exactly two mandatory closure gates: first an independent Final Standards + Spec Review, then a Final Batch Acceptance/Closure ticket blocked by that review. Both gates cover the complete frozen matrix, accepted watcher-repair history, deferred dispositions, and all stated limits; neither authorizes a deferred P2 repair. Do not execute the historical remediation Tickets 01 or 02.

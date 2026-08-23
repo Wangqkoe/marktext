@@ -3,7 +3,7 @@
 Label: `provisional`
 Status: `paused` (`superseded-by-resumed-audit`)
 
-> Historical emergency-stop snapshot. The complete audit is now consolidated by the current [Ticket 06 remediation specification](../marktext-bug-remediation/spec.md). This map and its Tickets 01–02 remain paused and `superseded-by-resumed-audit`; they have no current authorization and must not be executed. Ticket 07 must regenerate the map from the current specification.
+> Historical emergency-stop snapshot. The complete audit is now consolidated by the current [Ticket 06 remediation specification](../marktext-bug-remediation/spec.md). This map and its Tickets 01–02 remain paused and `superseded-by-resumed-audit`; they have no current authorization and must not be executed. Ticket 07 must regenerate a new map with zero product implementation tickets and two mandatory closure gates from the current specification.
 
 ## Source and scope
 
@@ -28,7 +28,7 @@ The specification's rule that each independently confirmed defect receives an im
 
 ## Current frontier
 
-None in this paused map. The sole current frontier is audit Ticket 07, which must regenerate this map from the current Ticket 06 specification. Do not execute remediation Tickets 01 or 02 from this historical map.
+None in this paused map. The sole current frontier is audit Ticket 07, which must regenerate a new map from the current Ticket 06 specification. Its expected output is zero product implementation tickets plus two dependent mandatory closure gates: independent Final Standards + Spec Review, then Final Batch Acceptance/Closure. Do not execute remediation Tickets 01 or 02 from this historical map.
 
 ## Repository constraint
 

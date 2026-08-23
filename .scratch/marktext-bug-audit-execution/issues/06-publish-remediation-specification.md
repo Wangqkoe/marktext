@@ -26,7 +26,8 @@ The earlier emergency-stop publication remains historically traceable but is sup
 - [x] Test-first, independent-review, acceptance, atomic-local-commit and no-push constraints are retained without guessing implementation details or merging unproven roots.
 - [x] Pandoc conversion, other platforms, and unrun configurations are accurately bounded as unavailable or untested.
 - [x] The current specification is `ready-for-agent` Ticket 07 input, while the old remediation execution map remains paused/superseded until Ticket 07 regenerates it.
+- [x] Zero authorized product repairs is distinguished from zero closure gates: Ticket 07 must create an independent Final Standards + Spec Review followed by Final Batch Acceptance/Closure for the complete frozen batch, without authorizing any deferred P2 repair.
 
 ## Resolution
 
-Ticket 06 is resolved from the complete frozen matrix. It publishes no current product repair authorization because the only unrepaired confirmed findings are deferred P2s. Ticket 07 is unblocked to regenerate the dependency-aware remediation map from the new specification; it must preserve the explicit zero-authorized-repair queue and must not execute the historical paused map.
+Ticket 06 is resolved from the complete frozen matrix. It publishes no current product repair authorization because the only unrepaired confirmed findings are deferred P2s. Ticket 07 is unblocked to regenerate the dependency-aware remediation map from the new specification with **zero implementation tickets and two mandatory closure gates**: independent Final Standards + Spec Review, then Final Batch Acceptance/Closure. It must preserve the explicit zero-authorized-repair queue and must not execute the historical paused map.

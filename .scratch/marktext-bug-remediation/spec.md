@@ -61,13 +61,15 @@ Ticket 07 is unlocked solely to regenerate the remediation execution map from th
 1. Publish an explicit **no-current-product-implementation** queue: no P0/P1 repair is open, the two repaired watcher items are historical accepted work, and all three confirmed P2s are deferred without user authorization.
 2. Preserve each deferred P2 as a non-ticketed record with its evidence link and the rule that future work first establishes a trustworthy failing regression at the appropriate seam.
 3. Keep the prior remediation execution map paused and `superseded-by-resumed-audit`; it is not a source of current final-review or acceptance authorization.
-4. Create final Standards + Spec review and batch-acceptance gates only when a future authorized remediation batch actually contains work requiring them. Do not manufacture closure work from the deferred-only queue.
+4. Create **zero product implementation tickets and two mandatory closure gates**. Zero authorized repairs does not mean zero closure gates.
+5. Make the first gate an independent Final Standards + Spec Review of the complete frozen matrix, the existing accepted watcher repairs, every deferred disposition, and all untested/unavailable or environment/capture limits. It must not authorize a deferred P2 repair.
+6. Make the second gate a Final Batch Acceptance/Closure ticket blocked by the first gate. It must verify the complete-matrix evidence, required acceptance commands and stated exceptions/limits, again without authorizing a deferred P2 repair.
 
 ## Test-first, review, and acceptance contract for future authorization
 
 For any independently authorized future repair, first add the smallest trustworthy regression and show it fails for the recorded symptom. Test desktop-visible behavior at Electron E2E where reliable; use a focused unit seam for precise persistence, serialization, watcher, state, formatting, notification, or i18n contracts. A real-Windows-only issue also needs its exact 2/2 manual checklist and an automated test at the nearest reliable seam.
 
-Each ticket must run its new regression, directly related tests, and affected-package type checking. P0/P1 work and persistence, serialization, file-sync, shared-editor-state, IPC, or window-lifecycle changes require independent ticket-level review plus full unit and Electron E2E suites at acceptance. Batch acceptance requires the documented full checks, frozen matrix/affected Windows procedures, and independent Standards + Spec review. Keep one atomic local test-and-fix commit per repair and local follow-up review-remediation commits; never push.
+Each future product ticket must run its new regression, directly related tests, and affected-package type checking. P0/P1 work and persistence, serialization, file-sync, shared-editor-state, IPC, or window-lifecycle changes require independent ticket-level review plus full unit and Electron E2E suites at acceptance. Independently of whether a current product ticket exists, every completed audit batch requires the two closure gates above: independent Standards + Spec review followed by final batch acceptance with the documented full checks, frozen matrix/affected Windows procedures, and stated exceptions. Keep one atomic local test-and-fix commit per repair and local follow-up review-remediation commits; never push.
 
 ## Historical traceability
 
