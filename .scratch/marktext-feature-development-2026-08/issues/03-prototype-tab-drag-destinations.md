@@ -1,7 +1,7 @@
 # 验证标签拖动目的地与脱离原生窗口手势
 
 Type: `prototype`
-Status: `in-progress`
+Status: `prototype-review`
 Claimed by: prototype task
 Blocked by: 01
 
@@ -12,3 +12,10 @@ Create a low-cost interaction prototype that validates reorder, detach to a new 
 ## Comments
 
 - This gate is directly blocked only by the accepted V1 scope: it intentionally gathers gesture evidence before the final IPC lifecycle contract is chosen.
+- Prototype branch: `codex/prototype-tab-drag-destinations`
+- Prototype commit: `e63180698ef36fc8b2cbfed1f4e022276b3d88da` (`prototype: explore tab drag destinations`)
+- Run: `& 'E:\Program Files\Marktext\node_modules\.bin\electron.cmd' '.scratch\marktext-feature-development-2026-08\prototypes\tab-drag-destinations\main.cjs'`
+- Variants: **A — Edge bands** uses broad left/right landing zones; **B — Magnetic rail** grows a narrow edge rail into a live preview; **C — Dock compass** makes direction selection explicit in a central chooser. All use the current MarkText shell/tab/sidebar/status density and expose drag phase, candidate, commit/cancel state, motion, pointer coordinates, display, and clamp bounds.
+- Verified: in-memory reorder and split candidates/commits, Escape cancel, re-enter/recompute, narrow-window split disablement, reduced-motion behavior, and a real Electron IPC smoke that creates a target `BrowserWindow` with nearest-display clamp. Visual QA screenshots and detailed observations: `prototypes/tab-drag-destinations/evidence/summary.md`.
+- Not verified: a pointer released after it leaves a native `BrowserWindow` cannot be reliably observed as renderer `mouseup`; physical multi-monitor movement and DPI modes beyond the reported current scale remain Untested. Electron `capturePage` returned `UnknownVizError` on this workstation; checked-in static screenshots use local Chrome file rendering and are labelled accordingly.
+- User review needed: choose A/B/C (or components to combine), and decide whether a production native-boundary fallback is acceptable or must be proven through a main-process/native drag strategy before implementation.
