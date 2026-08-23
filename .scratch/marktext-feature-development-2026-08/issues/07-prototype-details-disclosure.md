@@ -1,13 +1,28 @@
 # 确认 details disclosure 视觉与交互
 
 Type: `prototype`
-Status: `prototype-review`
+Status: `resolved`
 Claimed by: prototype task
 Blocked by: 06
 
 ## Question
 
 Create a low-cost disclosure prototype that confirms triangle affordance, hover and focus states, keyboard interaction, motion and reduced motion, source-to-preview editing transition, and light/dark theme behavior.
+
+## Answer
+
+Accepted for the V1 implementation contract:
+
+- Use **A — Minimal inline row** (Obsidian-like).
+- Use a closed `▶` and open `▼` affordance. Animate the disclosure for 170ms in the normal case and 0ms under `prefers-reduced-motion`.
+- The entire `summary` is the hit area and uses native mouse behavior plus native Enter/Space keyboard interaction.
+- Enter source editing only through a `</>` button outside `summary`, shown on hover or `focus-visible`. Do not use hidden double-click as an editing gesture.
+- `Escape` or an explicit `Preview` action returns to a rebuilt preview.
+- Clicking to open or close changes only temporary UI state and does not rewrite Markdown. The source `open` attribute determines the initial state when the preview is rebuilt.
+- With `disableHtml`, show escaped source text rather than a native disclosure element.
+- The editor preview uses custom disclosure styles. V1 HTML/PDF export keeps standard `details`/`open` markup and does not copy editor-only styles.
+- Use semantic theme tokens that work in both light and dark themes.
+- Electron/Muya integration, screen-reader behavior, DOMPurify handling, and HTML/PDF export remain product acceptance checks.
 
 ## Comments
 
@@ -19,4 +34,4 @@ Create a low-cost disclosure prototype that confirms triangle affordance, hover 
 - Verified in the static in-memory prototype: native mouse toggling; native summary Enter behavior and focus ring; temporary native state differing from source `open`; raw source editing then explicit Preview/Escape rebuild; `disableHtml` displaying escaped source with no native element; dark mode; manual 0ms reduced motion; source-action and double-click preview affordances; URL-stable variant switching and keyboard guard. `node --check renderer.js` and the nine-state Chrome capture/assertion run passed.
 - Unverified: Muya/Electron event delegation, active-block transition timing, DOMPurify handling of every details attribute, actual application theme tokens, Electron/OS keyboard and screen-reader behavior, static HTML/PDF export styling, and production CSS specificity/performance.
 - Evidence: [prototype README](../prototypes/details-disclosure/README.md) and [evidence summary](../prototypes/details-disclosure/evidence/summary.md). Screenshots include closed/open states for each variant, keyboard focus/open, dark source editing, and disableHtml with reduced motion; all were captured at 1440 × 900 CSS px, scale 1, Windows Chrome headless.
-- User decision needed: choose **A**, **B**, **C**, or a deliberate combination; confirm triangle direction/rotation and 170ms/0ms motion; select a discoverable source-edit affordance (`</>` beside the preview, preview double-click, or another approach). Decide later whether static HTML/PDF export should reuse this editor styling; it is not implied by the preview contract.
+- Decision resolved by the Answer above; retain the prototype evidence and limitations as implementation acceptance inputs.

@@ -22,10 +22,10 @@ Produce implementation-ready specifications, confirmed interaction prototypes, a
 - [验证标签拖动目的地与脱离原生窗口手势](issues/03-prototype-tab-drag-destinations.md): A — Edge bands 已接受；脱离必须由真实窗口外左键释放提交，原生事件证明仍待下游完成。
 - [设计 pane-scoped workspace domain model](issues/04-design-pane-scoped-workspace-model.md): WindowWorkspace 以一到两个 Pane 组织窗口本地的 Document、View 与 Tab；焦点路由、隔离编辑器和可恢复的双栏生命周期均已定案。
 - [确认 Split 布局、命中区与动效](issues/05-prototype-split-layout-and-motion.md): A — Live divide 与几何/动效约束、菜单简化方案已接受。
+- [确认 details disclosure 视觉与交互](issues/07-prototype-details-disclosure.md): A — Minimal inline row（Obsidian-like）及其原生 summary、源码编辑、动效、主题与导出边界已接受。
 
 ## Not yet specified
 
-- Only the details disclosure CSS/event strategy remains to be specified.
 - Final implementation-ticket slicing after all decision and prototype gates are resolved.
 
 ## Out of scope
