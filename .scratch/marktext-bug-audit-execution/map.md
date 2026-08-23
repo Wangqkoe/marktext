@@ -20,7 +20,7 @@ Execute the approved [MarkText first-batch bug audit and remediation handoff spe
 
 ## Frontier
 
-Tickets 03 and 04 are resolved with their recorded W2 and W4/W5 acceptance evidence. The sole current frontier is **Ticket 05**; it is unlocked by Ticket 04's completed bounded large-document and configuration audit, but has not been started here. Tickets 06 and 07 retain their emergency-stop publications as historical snapshots only; they must be re-executed after Tickets 05 provides its new audit evidence. The resulting remediation specification and ticket map must then be regenerated before any final Standards + Spec review or final batch acceptance begins.
+Tickets 03, 04, and 05 are resolved with their recorded W2, W4/W5, and M1–M5 acceptance evidence. The sole current frontier is **Ticket 06**. It is unlocked by the completed frozen audit matrix and must consolidate the current evidence before Ticket 07 is regenerated. Tickets 06 and 07 retain their emergency-stop publications as historical snapshots only; Ticket 06 must be re-executed from Tickets 01–05 before any final Standards + Spec review or final batch acceptance begins.
 
 Tickets 01, 02, and 02A remain resolved historical work. The P0 external-overwrite repair `26b09ea6` and its queued/concurrent watcher review remediation `6e4b113c` remain implemented and independently accepted locally; resumed audit work does not reopen either acceptance boundary. The confirmed find-navigation P2 remains deferred by user policy. The previously published remediation specification, remediation execution map, and their final-review/acceptance tickets are paused and superseded as current handoff artifacts; they are not current frontiers and must not be executed.
 
