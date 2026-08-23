@@ -2,7 +2,7 @@
 
 Type: `grilling`
 Status: `open`
-Blocked by: 02, 04
+Blocked by: 02, 11
 
 ## Question
 
