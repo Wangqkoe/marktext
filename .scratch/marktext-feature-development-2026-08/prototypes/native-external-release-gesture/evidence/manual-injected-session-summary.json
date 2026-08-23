@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "raw": {
+    "path": "E:\\Program Files\\Marktext-worktrees\\marktext-feature-development-2026-08\\.scratch\\marktext-feature-development-2026-08\\prototypes\\native-external-release-gesture\\evidence\\manual-session.jsonl",
+    "sha256": "4c4dbbc0a1b88617299a6ecdbd48ea5d182e087d29f54e00c8610744eac0b5ea",
+    "bytes": 1852856,
+    "lines": 7519,
+    "timeRange": {
+      "start": "2026-08-23T18:27:59.951Z",
+      "end": "2026-08-23T18:34:17.338Z"
+    },
+    "sourceBounds": {
+      "dip": {
+        "x": 700,
+        "y": 300,
+        "width": 640,
+        "height": 420
+      },
+      "physical": {
+        "x": 700,
+        "y": 300,
+        "width": 640,
+        "height": 420
+      },
+      "display": {
+        "id": 2068720643,
+        "scaleFactor": 1,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 2560,
+          "height": 1440
+        },
+        "workArea": {
+          "x": 0,
+          "y": 0,
+          "width": 2560,
+          "height": 1392
+        }
+      },
+      "units": {
+        "dip": "Electron display-independent pixels",
+        "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+      }
+    }
+  },
+  "sourceGesture": {
+    "sourceTabMousedown": 17,
+    "rendererMousedownMarkedTrusted": 17,
+    "note": "Renderer isTrusted does not override the native injected-input trust gate."
+  },
+  "native": {
+    "mouse": {
+      "total": 3739,
+      "trusted": 0,
+      "injected": 3739,
+      "missingTrustFlag": 0
+    },
+    "up": {
+      "total": 43,
+      "trusted": 0,
+      "injected": 43,
+      "missingTrustFlag": 0
+    },
+    "down": {
+      "total": 43,
+      "trusted": 0,
+      "injected": 43,
+      "missingTrustFlag": 0
+    },
+    "escape": {
+      "total": 2,
+      "trusted": 0,
+      "injected": 2,
+      "missingTrustFlag": 0
+    },
+    "byType": {
+      "move": 3653,
+      "down": 43,
+      "up": 43,
+      "escape": 2
+    }
+  },
+  "lifecycleCounts": {
+    "candidate": 0,
+    "reentry": 0,
+    "commit": 0,
+    "timeout": 17,
+    "replaced": 15,
+    "cancel": 1,
+    "ignored": {
+      "injected": 3696,
+      "noActiveGesture": 5,
+      "total": 3701
+    }
+  },
+  "filtered": {
+    "lines": 140,
+    "path": "manual-injected-session-filtered.jsonl"
+  },
+  "verdict": "Unavailable: human-operated session arrived entirely as injected input"
+}

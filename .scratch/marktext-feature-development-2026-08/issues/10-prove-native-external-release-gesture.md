@@ -41,6 +41,15 @@ physical rect is used for hit testing. Every mouse event used to arm or commit
 must be `injected:false`; injected/missing-trust events are logged and ignored.
 Mixed-DPI behavior remains `Unavailable` pending physical validation.
 
+A user completed the manual Windows interaction pass, but its raw trace contains
+3,739 native mouse events (including 43 ups), all `injected:true`; trusted mouse
+and up events, candidates, re-entries, and commits are zero. The repeatable
+summary records raw SHA-256 and produces a filtered audit trace without the full
+pointer-move stream. Verdict: `Unavailable: human-operated session arrived
+entirely as injected input`. This proves the hook/trust gate fails closed, not a
+physical-release gesture. `injected:false` is an evidence gate only; product
+compatibility for remote-control and assistive input requires a separate decision.
+
 **Blockers:** a physical-mouse Windows trace from the event-level hook and
 independent high-risk review. Until both are complete per platform, external
 window detach stays disabled. This is compliant with the strict gesture but
@@ -57,6 +66,6 @@ Evidence and repeatable probe: [`prototypes/native-external-release-gesture`](..
 | Actual Windows cross-boundary physical left release | `Unavailable`: no usable active-desktop injection or out-of-window controller endpoint. |
 | Multi-display / mixed DPI | `Unavailable`: only one 96-DPI display was present. |
 | macOS / Linux | `Unavailable`: no host or native helper run. |
-| Physical manual input | `Untested`: no human-operated pass in this task. |
+| Physical manual input | `Unavailable`: human-operated pass completed, but every native mouse event/up was `injected:true`, so no physical-input claim. |
 
 Commands run: event-helper readiness command, `node --check .../main.cjs`, `node --check .../verify-state-machine.cjs`, and `node .../verify-state-machine.cjs` (Passed). The Electron `--automated` run remains `Unavailable` evidence; its trace records platform metadata and absence of usable native input.

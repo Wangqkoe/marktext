@@ -25,6 +25,24 @@ edge, then release on the desktop. The manual probe window and native hook remai
 active for 10 minutes (600,000 ms) after launch; the automated mode remains 30
 seconds. The live page and JSONL both expose the state.
 
+## Manual injected-session evidence
+
+Summarize a captured raw session without copying its pointer-move stream into the
+repository:
+
+```powershell
+node .scratch\marktext-feature-development-2026-08\prototypes\native-external-release-gesture\summarize-manual-trace.cjs <raw-manual-session.jsonl>
+```
+
+The supplied human-operated Windows session produced 3,739 native mouse events,
+including 43 button-up events; every one was `injected:true`, with zero trusted
+(`injected:false`) mouse/up events, candidates, or commits. The summarized
+verdict is `Unavailable: human-operated session arrived entirely as injected input`.
+The hook/trust gate therefore failed closed, but this is not proof of a physical
+external release. `injected:false` is an evidence gate only, not a product policy:
+support for remote-control and assistive-input mechanisms requires a separate
+product compatibility decision.
+
 ## Decision boundary
 
 Electron renderer events stop being an adequate source once the pointer leaves a

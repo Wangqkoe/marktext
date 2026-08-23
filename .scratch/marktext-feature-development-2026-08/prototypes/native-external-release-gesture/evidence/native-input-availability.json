@@ -20,6 +20,18 @@
     "trace": "records DIP bounds, physical bounds, display scaleFactor, and units"
   },
   "inputTrustContract": "candidate arming and commit require WH_MOUSE_LL events with injected:false; injected:true or missing flags are logged and ignored",
+  "humanOperatedSession": {
+    "summary": "manual-injected-session-summary.json",
+    "filteredAuditTrace": "manual-injected-session-filtered.jsonl",
+    "rawSha256": "4c4dbbc0a1b88617299a6ecdbd48ea5d182e087d29f54e00c8610744eac0b5ea",
+    "mouseEvents": 3739,
+    "upEvents": 43,
+    "trustedMouseEvents": 0,
+    "candidate": 0,
+    "commit": 0,
+    "verdict": "Unavailable: human-operated session arrived entirely as injected input",
+    "interpretation": "The trust gate failed closed; injected:false is a physical-evidence gate, not a product policy for remote-control or assistive input."
+  },
   "attempts": [
     {
       "method": "Win32 SendInput driver with the original WH_MOUSE_LL helper",

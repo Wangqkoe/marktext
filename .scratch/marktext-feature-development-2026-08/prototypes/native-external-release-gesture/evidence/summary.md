@@ -34,6 +34,21 @@ converted physical rectangle. Every mouse move/up that arms or commits must carr
 This is a coordinate contract, not mixed-DPI proof; mixed DPI remains
 `Unavailable`.
 
+## Human-operated injected session
+
+The supplied raw manual session was summarized with
+`summarize-manual-trace.cjs`, which records its SHA-256, byte/line counts, time
+range, source bounds, and a filtered non-pointer-move audit trace. It contains
+3,739 native mouse events, including 43 `native-up` events. All 3,739 mouse
+events and all 43 up events are `injected:true`; trusted mouse/up, candidate,
+re-entry, and commit counts are zero. The verdict is
+`Unavailable: human-operated session arrived entirely as injected input`.
+
+This is evidence that the hook/trust gate failed closed; it is not proof of a
+physical release. `injected:false` is only the physical-evidence gate for this
+prototype, not a product strategy. A future product decision must separately
+address compatible behavior for remote-control and assistive-input methods.
+
 ## Strategy / fallback
 
 | Strategy | Review result |
