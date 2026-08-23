@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
+import * as fs from 'node:fs'
 import {
+  launchElectron,
   launchWithMarkdown,
   getMarkdownContent,
   enterSourceMode,
@@ -8,7 +10,8 @@ import {
   typeIntoEditor,
   placeCaretInEditor,
   setSourceMarkdown,
-  sendIpcToRenderer
+  sendIpcToRenderer,
+  waitForEditor
 } from './helpers'
 
 test.describe('Editor input and source-mode roundtrip', () => {
@@ -48,6 +51,41 @@ test.describe('Editor input and source-mode roundtrip', () => {
   test('Typing into the editor appends content', async() => {
     await typeIntoEditor(page, ' typed-token')
     await expect.poll(async() => await getMarkdownContent(page, app)).toContain('typed-token')
+  })
+})
+
+test.describe('Source-mode entry preserves pending WYSIWYG input', () => {
+  test('immediately entering source mode preserves the tail after save and reopen', async() => {
+    const tail = ' SOURCE-MODE-ENTRY-TAIL-7e4d1c '
+    const launched = await launchWithMarkdown('pending source-mode input\n')
+    let app = launched.app
+    let page = launched.page
+
+    try {
+      await typeIntoEditor(page, tail)
+      await enterSourceMode(page, app)
+
+      const sourceValue = await page.evaluate(() => {
+        const cm = document.querySelector('.source-code .CodeMirror') as
+          | (Element & { CodeMirror?: { getValue(): string } })
+          | null
+        return cm?.CodeMirror?.getValue() ?? ''
+      })
+      expect(sourceValue).toContain(tail)
+
+      await exitSourceMode(page, app)
+      await sendIpcToRenderer(app, 'mt::editor-ask-file-save')
+      await expect.poll(() => fs.readFileSync(launched.filePath, 'utf8')).toContain(tail)
+
+      await app.close()
+      const reopened = await launchElectron([launched.filePath])
+      app = reopened.app
+      page = reopened.page
+      await waitForEditor(page)
+      await expect.poll(async() => await getMarkdownContent(page, app)).toContain(tail)
+    } finally {
+      await app.close()
+    }
   })
 })
 

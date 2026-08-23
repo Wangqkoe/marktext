@@ -271,6 +271,13 @@ export const usePreferencesStore = defineStore('preferences', {
     },
 
     TOGGLE_VIEW_MODE(entryName: ViewMode): void {
+      // The WYSIWYG engine commits edits to `currentFile.markdown` on rAF. On
+      // entry to source mode, CodeMirror receives that markdown immediately;
+      // flush first so an edit made in the same frame cannot be omitted from
+      // the source handoff or a subsequent save (#3803).
+      if (entryName === 'sourceCode' && !this.sourceCode) {
+        bus.emit('flush-active-editor')
+      }
       this[entryName] = !this[entryName]
     },
 
