@@ -2,9 +2,9 @@
 
 **What to build:** Independently verify and close the completed first audit batch only after final review has found no serious unresolved issue, giving maintainers an accurate acceptance record for the frozen Windows audit matrix and the accepted watcher repairs while preserving every known exception and deferred disposition.
 
-**Blocked by:** None — Ticket 01 resolved with Standards and Spec accepted.
+**Blocked by:** Ticket 02 acceptance gates — fresh `pnpm test:e2e` failed before executing tests (Playwright parser error at `test/e2e/audit-large-boundaries.spec.ts:97`), and fresh `pnpm lint` failed with 11 errors / 131 warnings. See [Ticket 02 evidence](../evidence/02-final-batch-acceptance-and-closure.md).
 
-**Status:** ready-for-agent (current frontier; unexecuted)
+**Status:** blocked (acceptance attempted; closure not granted)
 
 ## Start gate and evidence
 
@@ -14,12 +14,12 @@ The scope accepts completed work in `26b09ea6` and `6e4b113c`; it does not reope
 
 ## Acceptance criteria
 
-- [ ] Confirm Ticket 01's independent Standards and Spec conclusions have no unresolved serious blocker before running acceptance. A serious new finding blocks closure, requires separately committed review remediation, and requires affected verification to be repeated.
-- [ ] Execute and record the relevant watcher regressions, including `pnpm --filter marktext exec vitest run test/unit/specs/watcher-ignore-change.spec.ts` and `pnpm --filter marktext exec playwright test test/e2e/audit-document-integrity.spec.ts --grep "immediately after auto-save|queued own-save events" --repeat-each=2`, plus directly related regressions required by the current evidence.
-- [ ] Execute and record the original-spec full acceptance commands: `pnpm test:unit`, `pnpm test:e2e`, `pnpm typecheck`, `pnpm lint`, and `pnpm build:unpack`. Lint acceptance requires zero errors and no new warnings; the unpacked production build must complete. Record actual results rather than inferring them from prior runs.
-- [ ] Verify the complete frozen-matrix evidence and run the affected real Windows procedures where the environment permits, using the documented disk/profile/application-state oracles. Confirm the user-visible watcher contract: an external edit immediately after auto-save reaches safe reload/conflict handling rather than later overwrite, and rapid queued/concurrent own-save events retain the right save without false external-change handling.
-- [ ] Record the full Electron E2E result exactly. Do not call unavailable, skipped, failed, or known-deferred work passing. In particular, Pandoc conversion is unavailable because Pandoc was not installed; macOS, Linux, native display scaling, and other unrun configurations are untested; retain known deferred P2s and prior harness/environment limits explicitly.
-- [ ] Close only when no serious unresolved issue remains, all executed commands and procedures have traceable evidence, and the final record preserves the frozen matrix, repaired watcher history, three P2 deferrals, baselines, performance observations, automation/harness/capture limits, and unavailable/untested boundaries. Commit closure artifacts atomically and locally; do not push.
+- [x] Confirm Ticket 01's independent Standards and Spec conclusions have no unresolved serious blocker before running acceptance. A serious new finding blocks closure, requires separately committed review remediation, and requires affected verification to be repeated.
+- [x] Execute and record the relevant watcher regressions, including `pnpm --filter marktext exec vitest run test/unit/specs/watcher-ignore-change.spec.ts` and `pnpm --filter marktext exec playwright test test/e2e/audit-document-integrity.spec.ts --grep "immediately after auto-save|queued own-save events" --repeat-each=2`, plus directly related regressions required by the current evidence.
+- [ ] Execute and record the original-spec full acceptance commands: `pnpm test:unit`, `pnpm test:e2e`, `pnpm typecheck`, `pnpm lint`, and `pnpm build:unpack`. All commands were run and recorded, but this criterion is not accepted: full E2E executed 0 tests and failed; lint failed its zero-error/no-new-warning gate.
+- [x] Verify the complete frozen-matrix evidence and run the affected real Windows procedures where the environment permits, using the documented disk/profile/application-state oracles. The matrix and authoritative prior user-operated M1–M5 evidence were rechecked; M1–M5 were not safely rerun unattended. The focused fresh watcher regressions confirm the stated user-visible contract.
+- [x] Record the full Electron E2E result exactly. `pnpm test:e2e` exited 1 and executed 0 tests because of the Playwright parser failure; it is not called passing. Pandoc conversion remains unavailable because Pandoc was not installed; macOS, Linux, native display scaling, and other unrun configurations remain untested; the three P2s and prior harness/environment limits are retained explicitly in Ticket 02 evidence.
+- [ ] Close only when no serious unresolved issue remains, all executed commands and procedures have traceable evidence, and the final record preserves the frozen matrix, repaired watcher history, three P2 deferrals, baselines, performance observations, automation/harness/capture limits, and unavailable/untested boundaries. **Blocked:** mandatory full-E2E and lint gates failed; see Ticket 02 evidence. Commit closure artifacts only after all gates accept; do not push.
 
 ## Acceptance boundary
 

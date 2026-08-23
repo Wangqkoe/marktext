@@ -1,7 +1,7 @@
 # MarkText first-batch bug-remediation execution
 
-Label: `ready-for-agent`
-Status: `Ticket 01 resolved; Ticket 02 ready-for-agent`
+Label: `blocked`
+Status: `Ticket 01 resolved; Ticket 02 acceptance attempted and blocked`
 
 > This is the unique current remediation execution map, republished by resolved audit Ticket 07 from the current [remediation specification](../marktext-bug-remediation/spec.md). The former emergency-stop map is historical only: it remains traceable in Git history and the current specification, but is not a current queue, frontier, or authorization.
 
@@ -26,7 +26,7 @@ The frozen candidate register and evidence links remain in the [remediation spec
 
 ## Frontier and dependency edges
 
-**Current frontier: Ticket 02 — Final Batch Acceptance/Closure.** Ticket 01 is resolved: its independent final review recorded **Standards: accepted** and **Spec: accepted**, with no unresolved serious blocker (see [Ticket 01 evidence](evidence/01-final-standards-and-spec-review.md)). Ticket 02 is ready-for-agent and remains unexecuted; it is the only authorized next closure gate. No other work is authorized by this map.
+**Current frontier: blocked at Ticket 02 — Final Batch Acceptance/Closure.** Ticket 01 is resolved: its independent final review recorded **Standards: accepted** and **Spec: accepted**, with no unresolved serious blocker (see [Ticket 01 evidence](evidence/01-final-standards-and-spec-review.md)). Fresh Ticket 02 verification is recorded in [its final acceptance evidence](evidence/02-final-batch-acceptance-and-closure.md), but closure is blocked: `pnpm test:e2e` exited 1 before executing tests because `test/e2e/audit-large-boundaries.spec.ts:97` violates the Playwright object-destructuring requirement, and `pnpm lint` exited 1 with 11 errors / 131 warnings. No product implementation is authorized. A separately authorized maintenance correction and fresh rerun of the failed mandatory commands are required before this batch can be marked resolved.
 
 ## Repository constraint
 
