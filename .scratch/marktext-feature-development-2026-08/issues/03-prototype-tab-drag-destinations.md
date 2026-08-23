@@ -1,7 +1,8 @@
 # 验证标签拖动目的地与脱离原生窗口手势
 
 Type: `prototype`
-Status: `open`
+Status: `in-progress`
+Claimed by: prototype task
 Blocked by: 01
 
 ## Question
