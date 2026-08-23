@@ -86,7 +86,7 @@ test.describe('First-batch audit fixture baseline', () => {
   })
 
   test('candidate disposition validation ignores unrelated prose and rejects duplicate list items', () => {
-    const template = fs.readFileSync(candidateTemplatePath, 'utf8')
+    const template = fs.readFileSync(candidateTemplatePath, 'utf8').replace(/\r\n/g, '\n')
     const missingButElsewhere = template.replace(
       '  - expected behavior\n',
       'The unrelated expected behavior prose remains elsewhere in the template.\n'

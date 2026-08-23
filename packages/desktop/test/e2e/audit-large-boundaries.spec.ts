@@ -94,7 +94,7 @@ const expectStableMeasurement = (measurement: Measurement): void => {
 }
 
 test.describe('Ticket 04 W4/W5 — large document and Windows boundary audit', () => {
-  test('W4: F4/E1 performs bounded edits, scrolling, source round trips, tab switch and saves without errors', async(_args, testInfo) => {
+  test('W4: F4/E1 performs bounded edits, scrolling, source round trips, tab switch and saves without errors', async({ browserName: _browserName }, testInfo) => {
     test.setTimeout(180_000)
     const measurements: Measurement[] = []
     for (const fixtureId of ['F4', 'F4', 'F2'] as const) {

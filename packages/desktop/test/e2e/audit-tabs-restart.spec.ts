@@ -30,7 +30,7 @@ const sourceValue = (page: Page): Promise<string> =>
     return cm?.CodeMirror?.getValue() ?? ''
   })
 
-const setSource = async (app: ElectronApplication, page: Page, markdown: string): Promise<void> => {
+const setSource = async(app: ElectronApplication, page: Page, markdown: string): Promise<void> => {
   await enterSourceMode(page, app)
   await page.evaluate((value) => {
     const cm = document.querySelector('.source-code .CodeMirror') as Element & {
@@ -47,22 +47,22 @@ const menuChecked = (app: ElectronApplication, id: string): Promise<boolean> =>
     id
   )
 
-const stubSaveDialog = async (app: ElectronApplication, targetPath: string): Promise<void> => {
-  await app.evaluate(async ({ dialog }, savePath) => {
+const stubSaveDialog = async(app: ElectronApplication, targetPath: string): Promise<void> => {
+  await app.evaluate(async({ dialog }, savePath) => {
     const g = global as unknown as {
       __mt_audit_original_save_dialog__?: typeof dialog.showSaveDialog
     }
     if (!g.__mt_audit_original_save_dialog__) {
       g.__mt_audit_original_save_dialog__ = dialog.showSaveDialog.bind(dialog)
     }
-    ;(dialog as unknown as { showSaveDialog: unknown }).showSaveDialog = async () => ({
+    ;(dialog as unknown as { showSaveDialog: unknown }).showSaveDialog = async() => ({
       canceled: false,
       filePath: savePath
     })
   }, targetPath)
 }
 
-const restoreSaveDialog = async (app: ElectronApplication): Promise<void> => {
+const restoreSaveDialog = async(app: ElectronApplication): Promise<void> => {
   await app.evaluate(({ dialog }) => {
     const g = global as unknown as {
       __mt_audit_original_save_dialog__?: typeof dialog.showSaveDialog
@@ -74,7 +74,7 @@ const restoreSaveDialog = async (app: ElectronApplication): Promise<void> => {
   })
 }
 
-const restartSharedProfile = async (
+const restartSharedProfile = async(
   app: ElectronApplication,
   userDataDir: string
 ): Promise<{ app: ElectronApplication; page: Page }> => {
@@ -86,7 +86,7 @@ const restartSharedProfile = async (
 }
 
 test.describe('W2 audit — tabs, unsaved restart recovery and Save As', () => {
-  test('two F1 tabs keep content, dirty state, caret, scroll and history independent', async () => {
+  test('two F1 tabs keep content, dirty state, caret, scroll and history independent', async() => {
     test.setTimeout(90_000)
     const run = createAuditRun()
     const profile = run.createIsolatedUserDataDir('w2-tabs')
@@ -186,12 +186,12 @@ test.describe('W2 audit — tabs, unsaved restart recovery and Save As', () => {
     }
   })
 
-  test('shared restart profile recovers unsaved F1 content and persisted view preferences', async () => {
+  test('shared restart profile recovers unsaved F1 content and persisted view preferences', async() => {
     test.setTimeout(90_000)
     const run = createAuditRun()
     let app: ElectronApplication | undefined
     try {
-      let launched = await launchElectron(
+      const launched = await launchElectron(
         [],
         run.launchOptionsForUserDataDir(run.sharedUserDataDir)
       )
@@ -254,7 +254,7 @@ test.describe('W2 audit — tabs, unsaved restart recovery and Save As', () => {
     }
   })
 
-  test('Save As writes a controlled F1 destination and that file reopens with the same content', async () => {
+  test('Save As writes a controlled F1 destination and that file reopens with the same content', async() => {
     test.setTimeout(90_000)
     const run = createAuditRun()
     const profile = run.createIsolatedUserDataDir('w2-save-as')
