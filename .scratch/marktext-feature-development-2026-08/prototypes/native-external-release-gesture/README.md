@@ -21,7 +21,9 @@ attempted mouse input to the helper, so its generated failing trace is availabil
 evidence rather than a passing gesture result. It writes a JSONL event trace and
 `evidence/automated-windows-primary-summary.json`.
 For a manual pass, omit `--automated`, drag the blue source tab beyond the window
-edge, then release on the desktop. The live page and JSONL both expose the state.
+edge, then release on the desktop. The manual probe window and native hook remain
+active for 10 minutes (600,000 ms) after launch; the automated mode remains 30
+seconds. The live page and JSONL both expose the state.
 
 ## Decision boundary
 

@@ -49,7 +49,8 @@ function nativeEvent (event) {
   machine.native(event)
 }
 function spawnHook () {
-  const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'native-mouse-hook.ps1'), '-Milliseconds', '30000'], { windowsHide: true })
+  const hookMilliseconds = automated ? 30000 : 600000
+  const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'native-mouse-hook.ps1'), '-Milliseconds', String(hookMilliseconds)], { windowsHide: true })
   let resolveReady
   let rejectReady
   const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject })
