@@ -1,7 +1,7 @@
 # MarkText first-batch bug-remediation execution
 
 Label: `blocked`
-Status: `Ticket 01 resolved; Ticket 02 source-mode blocker repaired but closure remains blocked`
+Status: `Ticket 01 resolved; Ticket 02 source-mode repair independently accepted but closure remains blocked`
 
 > This is the unique current remediation execution map, republished by resolved audit Ticket 07 from the current [remediation specification](../marktext-bug-remediation/spec.md). The former emergency-stop map is historical only: it remains traceable in Git history and the current specification, but is not a current queue, frontier, or authorization.
 
@@ -26,7 +26,7 @@ The frozen candidate register and evidence links remain in the [remediation spec
 
 ## Frontier and dependency edges
 
-**Current frontier: blocked at Ticket 02 — Final Batch Acceptance/Closure.** Ticket 01 is resolved: its independent final review recorded **Standards: accepted** and **Spec: accepted**, with no unresolved serious blocker (see [Ticket 01 evidence](evidence/01-final-standards-and-spec-review.md)). The independently authorized source-mode repair now flushes the active WYSIWYG editor at the shared entry to source mode; its [diagnosis and verification evidence](evidence/02-source-mode-entry-flush-diagnosis-and-repair.md) records a 29/30 pre-fix red loop, 30/30 post-fix loop, and a fresh full E2E result of 261 passed and 4 skipped. The full rerun's two task-list-autocheck cases passed, but its earlier failure remains separately pending explicit disposition and is not attributed to the source-mode repair. Ticket 02 must remain blocked until the required independent high-risk review, task-list disposition, and final acceptance decision complete.
+**Current frontier: blocked at Ticket 02 — Final Batch Acceptance/Closure.** Ticket 01 is resolved: its independent final review recorded **Standards: accepted** and **Spec: accepted**, with no unresolved serious blocker (see [Ticket 01 evidence](evidence/01-final-standards-and-spec-review.md)). The independently authorized source-mode repair now flushes the active WYSIWYG editor at the shared entry to source mode; its [diagnosis and verification evidence](evidence/02-source-mode-entry-flush-diagnosis-and-repair.md) records a 29/30 pre-fix red loop, 30/30 post-fix loop, and a fresh full E2E result of 261 passed and 4 skipped. Its [independent high-risk review](evidence/02-source-mode-entry-flush-independent-high-risk-review.md) records **Standards: accepted** and **Spec: accepted** with no serious blocker. The full rerun's two task-list-autocheck cases passed, but its earlier failure remains separately pending explicit disposition and is not attributed to the source-mode repair. Ticket 02 must remain blocked until task-list disposition and final acceptance complete; the next frontier is independent task-list-autocheck characterization.
 
 ## Repository constraint
 
