@@ -1,7 +1,8 @@
 # 确认 details disclosure 视觉与交互
 
 Type: `prototype`
-Status: `open`
+Status: `in-progress`
+Claimed by: prototype task
 Blocked by: 06
 
 ## Question
