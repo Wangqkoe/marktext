@@ -1,7 +1,7 @@
 # MarkText first-batch bug-remediation execution
 
-Label: `blocked`
-Status: `Ticket 01 resolved; Ticket 02 source-mode repair independently accepted; task-list disposition non-blocking; final acceptance remains`
+Label: `resolved`
+Status: `batch resolved; Ticket 01 and Ticket 02 accepted; no current frontier`
 
 > This is the unique current remediation execution map, republished by resolved audit Ticket 07 from the current [remediation specification](../marktext-bug-remediation/spec.md). The former emergency-stop map is historical only: it remains traceable in Git history and the current specification, but is not a current queue, frontier, or authorization.
 
@@ -13,7 +13,7 @@ Status: `Ticket 01 resolved; Ticket 02 source-mode repair independently accepted
 - Open/authorized repairs: **0**.
 - Product implementation tickets: **0**.
 
-This batch still has exactly **two mandatory closure gates**. A zero-authorized-repair queue does not eliminate the independent final review or final acceptance required by the originating audit specification.
+The two mandatory closure gates are complete: Ticket 01 independently accepted Standards and Spec, and Ticket 02's fresh final acceptance rerun is accepted. Open/authorized repairs remain **0**; the three P2 records remain deferred and require future separate authorization.
 
 ## Non-ticketed records
 
@@ -26,7 +26,7 @@ The frozen candidate register and evidence links remain in the [remediation spec
 
 ## Frontier and dependency edges
 
-**Current frontier: final acceptance rerun at Ticket 02 — Final Batch Acceptance/Closure.** Ticket 01 is resolved: its independent final review recorded **Standards: accepted** and **Spec: accepted**, with no unresolved serious blocker (see [Ticket 01 evidence](evidence/01-final-standards-and-spec-review.md)). The independently authorized source-mode repair now flushes the active WYSIWYG editor at the shared entry to source mode; its [diagnosis and verification evidence](evidence/02-source-mode-entry-flush-diagnosis-and-repair.md) records a 29/30 pre-fix red loop, 30/30 post-fix loop, and a fresh full E2E result of 261 passed and 4 skipped. Its [independent high-risk review](evidence/02-source-mode-entry-flush-independent-high-risk-review.md) records **Standards: accepted** and **Spec: accepted** with no serious blocker. The task-list report now has an explicit [non-blocking disposition](evidence/02-task-list-autocheck-disposition.md): 262/262 bounded Electron cases and 4/4 Muya controls passed, while its earlier single failure remains historically inconclusive and is not attributed to the source-mode repair. Ticket 02 remains unresolved only pending final acceptance; the next frontier is its final acceptance rerun.
+**No current frontier — batch resolved.** Ticket 01's independent final review recorded **Standards: accepted** and **Spec: accepted** with no unresolved serious blocker. The source-mode repair retains its 29/30 pre-fix, 30/30 post-fix, and independent high-risk acceptance history; the task-list report remains a non-blocking historical observation (262/262 bounded Electron and 4/4 Muya controls). Ticket 02's [fresh final acceptance rerun](evidence/02-final-batch-acceptance-rerun.md) at `95c464f4` passed all mandatory gates, including 261 passed/4 skipped full E2E, with no serious blocker. The three deferred P2 records stay deferred; no repair is authorized.
 
 ## Repository constraint
 
