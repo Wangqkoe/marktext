@@ -4,7 +4,7 @@
 
 **Blocked by:** Ticket 02 acceptance gate — fresh `pnpm test:e2e` executed 255 passing tests but failed 5 and skipped 4. Four failures expose source-mode entry truncating pending deferred editor state; the remaining task-list autocheck failure is separately recorded and is not yet attributed to that same cause. See [Ticket 02 evidence](../evidence/02-final-batch-acceptance-and-closure.md).
 
-**Status:** blocked (acceptance attempted; closure not granted)
+**Status:** blocked (source-mode blocker repaired; independent review and final closure still required)
 
 ## Start gate and evidence
 
@@ -19,7 +19,7 @@ The scope accepts completed work in `26b09ea6` and `6e4b113c`; it does not reope
 - [ ] Execute and record the original-spec full acceptance commands: `pnpm test:unit`, `pnpm test:e2e`, `pnpm typecheck`, `pnpm lint`, and `pnpm build:unpack`. All commands were run and recorded; final lint passed after local test-maintenance commit `9b95bf5`, but this criterion is not accepted because the current full E2E run had 255 passed, 5 failed, and 4 skipped.
 - [x] Verify the complete frozen-matrix evidence and run the affected real Windows procedures where the environment permits, using the documented disk/profile/application-state oracles. The matrix and authoritative prior user-operated M1–M5 evidence were rechecked; M1–M5 were not safely rerun unattended. The focused fresh watcher regressions confirm the stated user-visible contract.
 - [x] Record the full Electron E2E result exactly. The current `pnpm test:e2e` exited 1 with 255 passed, 5 failed, and 4 skipped; it is not called passing. Pandoc conversion remains unavailable because Pandoc was not installed; macOS, Linux, native display scaling, and other unrun configurations remain untested; the three P2s and prior harness/environment limits are retained explicitly in Ticket 02 evidence.
-- [ ] Close only when no serious unresolved issue remains, all executed commands and procedures have traceable evidence, and the final record preserves the frozen matrix, repaired watcher history, three P2 deferrals, baselines, performance observations, automation/harness/capture limits, and unavailable/untested boundaries. **Blocked:** the current full E2E identifies a serious source-mode-entry persistence boundary requiring an independently authorized high-risk repair/review and rerun; the separate task-list autocheck E2E failure also needs disposition. Commit closure artifacts only after all gates accept; do not push.
+- [ ] Close only when no serious unresolved issue remains, all executed commands and procedures have traceable evidence, and the final record preserves the frozen matrix, repaired watcher history, three P2 deferrals, baselines, performance observations, automation/harness/capture limits, and unavailable/untested boundaries. **Blocked:** the source-mode-entry persistence repair is recorded in [dedicated evidence](../evidence/02-source-mode-entry-flush-diagnosis-and-repair.md) with a 30/30 post-fix pressure loop and a fresh 261-passed/4-skipped full E2E. It still requires independent high-risk review. The separately failing task-list autocheck passed in that full rerun but remains pending its own explicit disposition; it is not attributed to this repair. Commit closure artifacts only after all gates accept; do not push.
 
 ## Acceptance boundary
 
