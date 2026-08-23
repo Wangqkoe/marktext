@@ -1,13 +1,21 @@
 # 验证标签拖动目的地与脱离原生窗口手势
 
 Type: `prototype`
-Status: `prototype-review`
+Status: `resolved`
 Claimed by: prototype task
 Blocked by: 01
 
 ## Question
 
 Create a low-cost interaction prototype that validates reorder, detach to a new window, left/right split targets, cancel, re-enter, narrow windows, multi-display behavior, and reduced-motion behavior. Preserve screenshots or recordings and the tested platform details as evidence.
+
+## Answer
+
+The accepted split direction affordance is **A — Edge bands**: broad left and right overlays are split candidates, and releasing inside the selected band commits the split. Reorder, cancel, re-entry/recompute, narrow-window disablement, and reduced-motion behavior follow the evidence recorded by the prototype.
+
+The accepted detach gesture is a real external release: while holding the left mouse button on a tab, drag it beyond the source native-window boundary and commit a new-window detach only when that button is released outside the window. Crossing the boundary alone, blur, and timeout never detach. Re-entering the source window cancels the external candidate and recomputes the in-window destination.
+
+The prototype verified target-window creation and nearest-display clamping, but did not prove that a cross-`BrowserWindow` mouse-up can be observed. Physical multi-display/DPI behavior remains unverified; platform-specific proof and any safe fallback decision are delegated to the downstream native-gesture prototype.
 
 ## Comments
 
