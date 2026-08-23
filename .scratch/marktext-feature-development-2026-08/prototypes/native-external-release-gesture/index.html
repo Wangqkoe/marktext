@@ -1,0 +1,33 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Native external-release gesture probe</title>
+<style>
+  body { margin: 0; background: #1f2430; color: #e8edf6; font: 14px/1.45 system-ui, sans-serif; user-select: none; }
+  #tab { padding: 13px 18px; background: #2775d8; cursor: grab; font-weight: 650; }
+  #tab:active { cursor: grabbing; background: #155cae; }
+  main { padding: 18px; } code { color: #9bc9ff; } #state { white-space: pre-wrap; color: #a9efb2; } #events { height: 210px; overflow: auto; background: #121722; padding: 10px; font: 12px ui-monospace, monospace; }
+</style>
+<div id="tab">Source tab — hold left button and release outside this window</div>
+<main>
+  <p><code>boundary crossing</code>, <code>blur</code>, and <code>timeout</code> only log. A native external <code>left up</code> is the only commit.</p>
+  <div id="state">waiting for source mousedown</div>
+  <pre id="events"></pre>
+</main>
+<script>
+  const state = document.querySelector('#state')
+  const events = document.querySelector('#events')
+  document.querySelector('#tab').addEventListener('mousedown', event => {
+    if (event.button !== 0) return
+    window.gestureProbe.begin()
+    window.gestureProbe.rendererEvent(`renderer-mousedown trusted=${event.isTrusted}`)
+  })
+  window.addEventListener('blur', () => window.gestureProbe.rendererEvent('renderer-blur'))
+  window.addEventListener('keydown', event => {
+    if (event.key === 'Escape') window.gestureProbe.cancel()
+  })
+  window.gestureProbe.onEvent(entry => {
+    state.textContent = entry.state || entry.type
+    events.textContent += JSON.stringify(entry) + '\n'
+    events.scrollTop = events.scrollHeight
+  })
+</script>

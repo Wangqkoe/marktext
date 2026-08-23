@@ -1,0 +1,34 @@
+{
+  "status": "Unavailable",
+  "scope": "physical Windows cross-BrowserWindow left-button release",
+  "environment": {
+    "os": "Windows 11 Pro build 26200 x64",
+    "electron": "42.1.0",
+    "primaryDisplay": "Mi Monitor 2560x1440, 144 Hz, scaleFactor 1, GetDpiForSystem 96",
+    "monitorCount": 1
+  },
+  "auditableEventSource": {
+    "sourceFile": "../native-mouse-hook.ps1",
+    "mouse": "WH_MOUSE_LL emits WM_MOUSEMOVE, WM_LBUTTONDOWN, and WM_LBUTTONUP with coordinates from MSLLHOOKSTRUCT.pt",
+    "keyboard": "WH_KEYBOARD_LL emits VK_ESCAPE key-down",
+    "verificationCommand": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .scratch\\marktext-feature-development-2026-08\\prototypes\\native-external-release-gesture\\native-mouse-hook.ps1 -Milliseconds 100"
+  },
+  "coordinateContract": {
+    "nativeMouse": "MSLLHOOKSTRUCT.pt is physical Windows screen pixels",
+    "window": "Electron BrowserWindow.getBounds() is retained as DIP and converted by screen.dipToScreenRect(source, dip)",
+    "hitTest": "only the converted physical rectangle is compared with native mouse coordinates",
+    "trace": "records DIP bounds, physical bounds, display scaleFactor, and units"
+  },
+  "inputTrustContract": "candidate arming and commit require WH_MOUSE_LL events with injected:false; injected:true or missing flags are logged and ignored",
+  "attempts": [
+    {
+      "method": "Win32 SendInput driver with the original WH_MOUSE_LL helper",
+      "result": "The helper was ready but observed no mouse events; no claim is made that the hook itself is unavailable to physical input."
+    },
+    {
+      "method": "Computer Use target-window drag",
+      "result": "The controller rejected endpoint (-90, 190) because it was outside the target window, so it cannot produce the required external release."
+    }
+  ],
+  "conclusion": "A physical-mouse trace remains required. The prior polling helper is deliberately removed because button-state reads and cursor reads are not an atomic release event."
+}

@@ -1,0 +1,384 @@
+{
+  "passed": true,
+  "scope": "shared probe state machine; not native-input evidence",
+  "results": {
+    "external-up": {
+      "passed": true,
+      "commits": 1,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "DETACH_COMMIT",
+          "gestureId": 1,
+          "state": "detached",
+          "reason": "native-left-button-release-outside-source",
+          "nativeEvent": {
+            "type": "native-up",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        }
+      ]
+    },
+    "boundary-only": {
+      "passed": true,
+      "commits": 0,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        }
+      ]
+    },
+    "blur": {
+      "passed": true,
+      "commits": 0,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "browser-window-blur-observed-no-detach",
+          "gestureId": 1,
+          "state": "external-candidate"
+        }
+      ]
+    },
+    "timeout": {
+      "passed": true,
+      "commits": 0,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "timeout-observed-no-detach",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "timedOutGestureId": 1
+        }
+      ]
+    },
+    "reenter-inside-up": {
+      "passed": true,
+      "commits": 0,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "reentered-source",
+          "gestureId": 1,
+          "state": "reentered-source",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 800,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "native-up-no-detach",
+          "gestureId": 1,
+          "state": "reentered-source",
+          "nativeEvent": {
+            "type": "native-up",
+            "x": 800,
+            "y": 480,
+            "injected": false
+          }
+        }
+      ]
+    },
+    "escape-outside-up": {
+      "passed": true,
+      "commits": 0,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "cancelled",
+          "gestureId": 1,
+          "state": "cancelled:native-escape",
+          "reason": "native-escape"
+        },
+        {
+          "type": "native-event-ignored-no-active-gesture",
+          "gestureId": null,
+          "state": null,
+          "nativeEvent": {
+            "type": "native-up",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        }
+      ]
+    },
+    "reenter-leave-again-outside-up": {
+      "passed": true,
+      "commits": 1,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "reentered-source",
+          "gestureId": 1,
+          "state": "reentered-source",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 800,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "DETACH_COMMIT",
+          "gestureId": 1,
+          "state": "detached",
+          "reason": "native-left-button-release-outside-source",
+          "nativeEvent": {
+            "type": "native-up",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        }
+      ]
+    },
+    "stale-timeout-cannot-affect-replacement-gesture": {
+      "passed": true,
+      "commits": 1,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "A"
+        },
+        {
+          "type": "gesture-replaced",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "replacementOrigin": "B"
+        },
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 2,
+          "state": "source-pressed",
+          "origin": "B"
+        },
+        {
+          "type": "timeout-stale-ignored",
+          "gestureId": 2,
+          "state": "source-pressed",
+          "timedOutGestureId": 1
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 2,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "DETACH_COMMIT",
+          "gestureId": 2,
+          "state": "detached",
+          "reason": "native-left-button-release-outside-source",
+          "nativeEvent": {
+            "type": "native-up",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        }
+      ]
+    },
+    "injected-move-cannot-arm-physical-up": {
+      "passed": true,
+      "commits": 0,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "native-injected-event-ignored",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": true
+          }
+        },
+        {
+          "type": "native-up-no-detach",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "nativeEvent": {
+            "type": "native-up",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        }
+      ]
+    },
+    "injected-up-cannot-commit": {
+      "passed": true,
+      "commits": 0,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false
+          }
+        },
+        {
+          "type": "native-injected-event-ignored",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-up",
+            "x": 620,
+            "y": 480,
+            "injected": true
+          }
+        }
+      ]
+    }
+  }
+}

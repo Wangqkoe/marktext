@@ -1,0 +1,117 @@
+{
+  "generatedAt": "2026-08-23T18:21:59.870Z",
+  "platform": "win32",
+  "electron": "42.1.0",
+  "automatedInput": "Win32 SendInput attempted; this controlled session did not expose a source-tab renderer event or event-level native mouse transition",
+  "primaryDisplay": {
+    "accelerometerSupport": "unknown",
+    "bounds": {
+      "x": 0,
+      "y": 0,
+      "width": 2560,
+      "height": 1440
+    },
+    "colorDepth": 32,
+    "colorSpace": "{primaries:BT709, transfer:SRGB, matrix:RGB, range:FULL}",
+    "depthPerComponent": 8,
+    "detected": true,
+    "displayFrequency": 144,
+    "id": 2068720643,
+    "internal": false,
+    "label": "Mi Monitor",
+    "maximumCursorSize": {
+      "width": 0,
+      "height": 0
+    },
+    "monochrome": false,
+    "nativeOrigin": {
+      "x": 0,
+      "y": 0
+    },
+    "rotation": 0,
+    "scaleFactor": 1,
+    "size": {
+      "width": 2560,
+      "height": 1440
+    },
+    "workArea": {
+      "x": 0,
+      "y": 0,
+      "width": 2560,
+      "height": 1392
+    },
+    "workAreaSize": {
+      "width": 2560,
+      "height": 1392
+    },
+    "touchSupport": "unknown"
+  },
+  "sourceBounds": {
+    "dip": {
+      "x": 700,
+      "y": 300,
+      "width": 640,
+      "height": 420
+    },
+    "physical": {
+      "x": 700,
+      "y": 300,
+      "width": 640,
+      "height": 420
+    },
+    "display": {
+      "id": 2068720643,
+      "scaleFactor": 1,
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 2560,
+        "height": 1440
+      },
+      "workArea": {
+        "x": 0,
+        "y": 0,
+        "width": 2560,
+        "height": 1392
+      }
+    },
+    "units": {
+      "dip": "Electron display-independent pixels",
+      "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+    }
+  },
+  "assertions": [
+    {
+      "scenario": "boundary-reenter",
+      "passed": false,
+      "commits": 0,
+      "status": "Unavailable without a source-tab renderer mousedown and event-level native hook input"
+    },
+    {
+      "scenario": "blur-reenter",
+      "passed": false,
+      "commits": 0,
+      "status": "Unavailable without a source-tab renderer mousedown and event-level native hook input"
+    },
+    {
+      "scenario": "timeout-external-release",
+      "passed": false,
+      "commits": 0,
+      "status": "Unavailable without a source-tab renderer mousedown and event-level native hook input"
+    },
+    {
+      "scenario": "escape-external-release",
+      "passed": false,
+      "commits": 0,
+      "status": "Unavailable without a source-tab renderer mousedown and event-level native hook input"
+    },
+    {
+      "scenario": "external-release",
+      "passed": false,
+      "commits": 0,
+      "status": "Unavailable without a source-tab renderer mousedown and event-level native hook input"
+    }
+  ],
+  "passed": false,
+  "status": "Unavailable"
+}
