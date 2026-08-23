@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Required review scope and evidence
 
@@ -20,12 +20,16 @@ Record the outcome or deliberate non-execution of the review controls: `git diff
 
 ## Acceptance criteria
 
-- [ ] Produce a **Standards conclusion** that separately evaluates repository conventions, test and evidence quality, local atomic-commit/no-push compliance, and the accepted watcher repair history. Record evidence links and distinguish any serious defect from a minor observation.
-- [ ] Produce a **Spec conclusion** that separately evaluates the complete frozen-matrix disposition register, the five-confirmed/two-repaired/three-deferred/zero-open authorization counts, the required review-and-acceptance workflow, and all scope limits against the originating audit specification.
-- [ ] Verify that the accepted watcher behavior remains traceable to its recorded regressions: a post-auto-save external edit is not overwritten by a later save, and queued or concurrent own-save events do not create a false external-change result or suppress the latest pending save. Review the documented test seams and results without claiming a rerun that did not occur.
-- [ ] Treat only an unresolved **serious** Standards or Spec issue as a closure blocker. If found, record the precise blocker, require separately committed review remediation and affected re-verification, then return to this gate. Record minor maintenance, portability, coverage, naming, or documentation observations as deferred; do not expand them into repair tickets.
-- [ ] Confirm the exclusions accurately: Pandoc conversion is unavailable (its safe missing-dependency path was tested); macOS, Linux, native display scaling, and other unrun configurations are untested; earlier capture/input limitations are historical environment observations; known deferred P2s remain deferred.
-- [ ] State an independent final result with two explicit fields: **Standards: accepted / serious blocker** and **Spec: accepted / serious blocker**. Only two accepted conclusions unblock Ticket 02. Keep resulting artifacts and any remediation in atomic local commits; do not push.
+- [x] Produce a **Standards conclusion** that separately evaluates repository conventions, test and evidence quality, local atomic-commit/no-push compliance, and the accepted watcher repair history. Record evidence links and distinguish any serious defect from a minor observation.
+- [x] Produce a **Spec conclusion** that separately evaluates the complete frozen-matrix disposition register, the five-confirmed/two-repaired/three-deferred/zero-open authorization counts, the required review-and-acceptance workflow, and all scope limits against the originating audit specification.
+- [x] Verify that the accepted watcher behavior remains traceable to its recorded regressions: a post-auto-save external edit is not overwritten by a later save, and queued or concurrent own-save events do not create a false external-change result or suppress the latest pending save. Review the documented test seams and results without claiming a rerun that did not occur.
+- [x] Treat only an unresolved **serious** Standards or Spec issue as a closure blocker. If found, record the precise blocker, require separately committed review remediation and affected re-verification, then return to this gate. Record minor maintenance, portability, coverage, naming, or documentation observations as deferred; do not expand them into repair tickets.
+- [x] Confirm the exclusions accurately: Pandoc conversion is unavailable (its safe missing-dependency path was tested); macOS, Linux, native display scaling, and other unrun configurations are untested; earlier capture/input limitations are historical environment observations; known deferred P2s remain deferred.
+- [x] State an independent final result with two explicit fields: **Standards: accepted / serious blocker** and **Spec: accepted / serious blocker**. Only two accepted conclusions unblock Ticket 02. Keep resulting artifacts and any remediation in atomic local commits; do not push.
+
+## Resolution
+
+The independent final review is recorded in [its evidence report](../evidence/01-final-standards-and-spec-review.md). **Standards: accepted. Spec: accepted.** No unresolved serious blocker remains, so Ticket 02 is unblocked and is the current ready, unexecuted closure gate.
 
 ## Review boundary
 

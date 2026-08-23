@@ -2,9 +2,9 @@
 
 **What to build:** Independently verify and close the completed first audit batch only after final review has found no serious unresolved issue, giving maintainers an accurate acceptance record for the frozen Windows audit matrix and the accepted watcher repairs while preserving every known exception and deferred disposition.
 
-**Blocked by:** 01: Final Standards + Spec Review.
+**Blocked by:** None — Ticket 01 resolved with Standards and Spec accepted.
 
-**Status:** ready-for-agent
+**Status:** ready-for-agent (current frontier; unexecuted)
 
 ## Start gate and evidence
 

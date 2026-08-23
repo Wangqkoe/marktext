@@ -1,7 +1,7 @@
 # MarkText first-batch bug-remediation execution
 
 Label: `ready-for-agent`
-Status: `ready-for-agent`
+Status: `Ticket 01 resolved; Ticket 02 ready-for-agent`
 
 > This is the unique current remediation execution map, republished by resolved audit Ticket 07 from the current [remediation specification](../marktext-bug-remediation/spec.md). The former emergency-stop map is historical only: it remains traceable in Git history and the current specification, but is not a current queue, frontier, or authorization.
 
@@ -26,7 +26,7 @@ The frozen candidate register and evidence links remain in the [remediation spec
 
 ## Frontier and dependency edges
 
-**Current frontier: Ticket 01 — Final Standards + Spec Review.** It is ready for an independent reviewer because it is blocked by none. Ticket 02 is ready-for-agent but cannot begin until Ticket 01 has independently found no unresolved serious Standards or Spec issue. No other work is authorized by this map.
+**Current frontier: Ticket 02 — Final Batch Acceptance/Closure.** Ticket 01 is resolved: its independent final review recorded **Standards: accepted** and **Spec: accepted**, with no unresolved serious blocker (see [Ticket 01 evidence](evidence/01-final-standards-and-spec-review.md)). Ticket 02 is ready-for-agent and remains unexecuted; it is the only authorized next closure gate. No other work is authorized by this map.
 
 ## Repository constraint
 
