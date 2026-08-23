@@ -1,9 +1,9 @@
 # MarkText first-batch bug-audit remediation specification
 
 Label: `ready-for-agent`
-Status: `ready-for-agent`
+Status: `published` (`Ticket 07 resolved`)
 
-> This is the unique current, evidence-backed remediation handoff and required input to Ticket 07. It supersedes the prior emergency-stop publication, which remains traceable through Ticket 06 and Git history. It does not reopen accepted watcher work or authorize product work before Ticket 07 publishes the current map.
+> This is the unique current, evidence-backed remediation handoff used by resolved Ticket 07 to publish the current [remediation execution map](../marktext-bug-remediation-execution/map.md). It supersedes the prior emergency-stop publication, which remains traceable through Ticket 06 and Git history. It does not reopen accepted watcher work or authorize product implementation.
 
 ## Handoff basis and audit stop
 

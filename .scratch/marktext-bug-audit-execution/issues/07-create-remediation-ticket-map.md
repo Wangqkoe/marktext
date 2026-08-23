@@ -1,12 +1,12 @@
 # 07: Create the confirmed-defect implementation ticket map
 
-**What to build:** Convert the current approved remediation specification into a dependency-aware local implementation map in which every confirmed defect can be repaired, tested, independently reviewed where required and accepted without reopening resolved work.
+**What to build:** Convert the current approved remediation specification into the dependency-aware local tracker that preserves the zero-authorized-repair queue and publishes its two mandatory closure gates without reopening accepted work or authorizing deferred P2 repairs.
 
 **Blocked by:** the re-executed 06: Consolidate triage and publish the remediation specification, after Tickets 03–05.
 
-**Historical lifecycle:** `resolved` for the emergency-stop map publication only.
+**Status:** resolved.
 
-**Current lifecycle:** `ready-for-agent`, unblocked by resolved Ticket 06. Execute this ticket only from the regenerated remediation specification; do not use the historical provisional specification or its map as current inputs.
+**Resolution:** Re-published the local one-file-per-ticket remediation tracker from resolved Ticket 06 and the current remediation specification. The unique current map is [`../../marktext-bug-remediation-execution/map.md`](../../marktext-bug-remediation-execution/map.md): it reports 5 confirmed / 2 repaired+ticket-level accepted / 3 P2 deferred / 0 open-authorized repairs / 0 product implementation tickets, and contains exactly two mandatory closure gates. The former emergency-stop map is historical only in Git history and documentation; it is not a current queue or authorization.
 
 ## Historical completion snapshot
 
@@ -24,8 +24,10 @@ The checked items below accurately record the earlier emergency-stop map publica
 
 ## Historical resolution
 
-The [remediation execution map](../../marktext-bug-remediation-execution/map.md) was published with two proposed final gates: Ticket 01, then Ticket 02. It intentionally created no product implementation ticket. The P0 implementation `26b09ea6` and its required queued/concurrent watcher review remediation `6e4b113c` remain accepted through Ticket 02A and must not be duplicated. Find-navigation P2 remains deferred by user policy; W1 automation/inconclusive evidence and baselines remain non-ticketed.
+The former emergency-stop map, with two proposed final gates, remains traceable only through Git history and the remediation specification. It intentionally created no product implementation ticket. The P0 implementation `26b09ea6` and its required queued/concurrent watcher review remediation `6e4b113c` remain accepted through Ticket 02A and must not be duplicated. Find-navigation P2 remains deferred by user policy; W1 automation/inconclusive evidence and baselines remain non-ticketed.
 
-## Resumption instruction
+## Current publication
 
-The former map is paused and `superseded-by-resumed-audit`. Recreate a new dependency map from the resolved Ticket 06 specification with **zero product implementation tickets** and exactly two mandatory closure gates: first an independent Final Standards + Spec Review, then a Final Batch Acceptance/Closure ticket blocked by that review. Both gates cover the complete frozen matrix, accepted watcher-repair history, deferred dispositions, and all stated limits; neither authorizes a deferred P2 repair. Do not execute the historical remediation Tickets 01 or 02.
+The current tracker contains **zero product implementation tickets** and exactly two `ready-for-agent` mandatory closure gates: [Ticket 01: Final Standards + Spec Review](../../marktext-bug-remediation-execution/issues/01-final-standards-and-spec-review.md), blocked by none, then [Ticket 02: Final Batch Acceptance/Closure](../../marktext-bug-remediation-execution/issues/02-final-batch-acceptance-and-closure.md), blocked by Ticket 01. Ticket 01 is the current remediation frontier. Both tickets cover the complete frozen matrix, accepted watcher-repair history, deferred dispositions, repository/spec boundaries, and unavailable or untested limits; neither authorizes a deferred P2 repair.
+
+Ticket 07 does not execute either closure gate. It publishes their dependency-aware map only.
