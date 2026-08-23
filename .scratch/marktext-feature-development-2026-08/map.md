@@ -18,10 +18,10 @@ Produce implementation-ready specifications, confirmed interaction prototypes, a
 
 - [确定首版产品边界](issues/01-define-v1-product-boundaries.md): the three V1 contracts, lossless Move, disk-backed Open, two-pane limit, standard details preview, and two mandatory prototype gates are accepted.
 - [复现并界定 HTML details 当前行为](issues/06-research-current-html-details-behavior.md): 源码证据确认 sanitized raw HTML preview 依赖浏览器 native details，MarkText 尚无专用样式/事件/动效；真实 browser/Electron、键盘和主题仍 Untested/Unavailable，后续 prototype 必须验证。
+- [定义标签页跨窗口传输与窗口生命周期契约](issues/02-define-cross-window-transfer-contract.md): Move 是有 ACK 与回滚保证的无损所有权转移；Open 仅打开已保存文件的独立磁盘副本，并以显式冲突保护与会话恢复维持多窗口安全。
 
 ## Not yet specified
 
-- The concrete IPC/tab-snapshot contract after the window-transfer and lifecycle decision is settled.
 - The pane controller and file-ownership seam after the pane-scoped workspace model is settled.
 - Platform fallbacks, including behavior where native drag/window boundaries differ.
 - The exact CSS and event strategy after both interaction prototypes provide evidence.
