@@ -1,7 +1,8 @@
 # Ticket 02 task-list-autocheck disposition
 
-**Date:** 2026-08-23 (America/Los_Angeles)  
-**Baseline:** `e6b2625c`  
+**Date:** 2026-08-23 (America/Los_Angeles)
+
+**Baseline:** `e6b2625c`
 **Scope:** independent characterization and disposition of the separately recorded task-list-autocheck failure only. No product repair, source-mode work, Ticket 02 closure, or deferred-P2 work is authorized or performed here.
 
 ## Preparation and feedback loop
