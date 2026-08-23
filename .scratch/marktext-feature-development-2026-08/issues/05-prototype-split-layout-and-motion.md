@@ -1,13 +1,23 @@
 # 确认 Split 布局、命中区与动效
 
 Type: `prototype`
-Status: `prototype-review`
+Status: `resolved`
 Claimed by: prototype task
 Blocked by: 03, 04
 
 ## Question
 
 Create a low-cost split-workspace prototype to confirm left/right drop targets, per-pane tabs, divider behavior, minimum widths, automatic collapse, focus movement, 150–200ms motion, and reduced-motion behavior. Preserve reviewable evidence for the accepted interaction.
+
+## Answer
+
+Accepted **A — Live divide**. The broad 31% Edge bands are accepted; while a candidate is active, the band expands in real time to preview a prospective 50/50 pane, and the layout is committed only when the pointer is released. Standard motion is 180ms; reduced-motion is 0ms.
+
+Pane minimum width is 320px. Split is disabled when the workspace is narrower than 720px, while tab reordering remains available. The divider is draggable and clamped to the pane minimum; double-clicking it resets the ratio to 50/50. Per-pane tabs and focus follow the accepted pane-scoped domain model. An empty pane auto-collapses, and an all-empty workspace creates a clean untitled page.
+
+The context-menu operation group is a flat, top-level sequence: `Move to new window`, `Open in new window`, `Split Right`, separated from existing items by a divider. There is no `Split Left` item and no submenu; left splitting is performed by dragging into the left Edge band.
+
+Electron/Vue integration, real editor behavior, dragula coexistence, native external-window dragging, multi-display and high-DPI behavior, and accessibility remain unverified and are implementation acceptance checks.
 
 ## Comments
 
@@ -19,4 +29,4 @@ Create a low-cost split-workspace prototype to confirm left/right drop targets, 
 - Verified in the in-memory prototype: full state readout for single/split, dragging/candidate/committed/cancelled/collapsed, left/right, per-pane tabs/active tab, FocusedPane, ratio, motion, and narrow feedback; candidate/release commit; Escape cancel; re-enter recompute; divider pointer drag with a 320px minimum pane clamp and double-click 50/50 reset; focus routing; empty-pane collapse; all-empty clean untitled; narrow disablement below 720px; reduced motion at 0ms; URL and keyboard variant switching. `node --check renderer.js` and Playwright local-file visual smoke passed.
 - Unverified: Electron/Vue integration, real MarkText editor state, dragula coexistence, native external-window drag behavior, physical multi-monitor / high-DPI behavior, and full accessibility review.
 - Evidence: `prototypes/split-layout-motion/evidence/summary.md`; each A/B/C variant now has an equivalent left-candidate and committed comparison: `variant-A-left-candidate.png`, `variant-A-committed.png`, `variant-B-left-candidate.png`, `variant-B-committed.png`, `variant-C-left-candidate.png`, `variant-C-committed.png`; `variant-C-collapsed-reduced.png` remains the seventh lifecycle/motion capture. All seven use 1440 × 900 CSS pixels at scale 1 and were state-panel checked before capture.
-- User choices needed before resolution: select **A**, **B**, **C**, or a combination; accept/change the 320px divider minimum; accept/change `Split ›` with explicit Left/Right submenu; accept/change the stated 180ms / 180ms / 160ms motion; and confirm pane-focus plus automatic-collapse behavior.
+- User choices confirmed: **A — Live divide**, the 320px divider minimum, 180ms standard motion / 0ms reduced motion, flat `Split Right` menu placement, pane focus, and automatic-collapse behavior.
