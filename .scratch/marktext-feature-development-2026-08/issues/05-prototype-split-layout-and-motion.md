@@ -1,7 +1,8 @@
 # 确认 Split 布局、命中区与动效
 
 Type: `prototype`
-Status: `open`
+Status: `in-progress`
+Claimed by: prototype task
 Blocked by: 03, 04
 
 ## Question
