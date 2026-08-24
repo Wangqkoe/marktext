@@ -1,0 +1,580 @@
+import type {
+  DocumentId,
+  EditorBindingSnapshot,
+  EditorLease,
+  EditorReport,
+  PaneEditorAdapter,
+  PaneEditorBinding,
+  PaneId,
+  PortableHistory,
+  ViewId,
+  ViewState,
+  WorkspaceCapability,
+  WorkspaceCommand,
+  WorkspaceController as WorkspaceControllerContract,
+  WorkspaceDocumentInput,
+  WorkspaceProjection,
+  WorkspaceResult
+} from '@shared/workspace'
+
+interface DocumentRecord {
+  id: DocumentId
+  fileKey?: string
+  observedDiskRevision?: string
+  markdown: string
+  dirty: boolean
+  revision: number
+  history: PortableHistory
+  title: string
+}
+
+interface ViewRecord {
+  id: ViewId
+  documentId: DocumentId
+  state: ViewState
+}
+
+interface PaneRecord {
+  id: PaneId
+  viewIds: ViewId[]
+  activeViewId: ViewId
+}
+
+interface CapabilityRecord {
+  readonly capability: WorkspaceCapability
+  readonly viewId: ViewId
+  readonly documentId: DocumentId
+  readonly documentRevision: number
+  used: boolean
+}
+
+interface BoundAdapter {
+  readonly adapter: PaneEditorAdapter
+  lease?: EditorLease
+}
+
+const EMPTY_HISTORY: PortableHistory = { version: 1, value: [] }
+const EMPTY_VIEW: ViewState = {
+  cursor: { line: 0, column: 0 },
+  selection: null,
+  scrollTop: 0,
+  mode: 'wysiwyg'
+}
+
+function clone<T>(value: T): T {
+  return structuredClone(value)
+}
+
+function freeze<T>(value: T): T {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value)
+    for (const child of Object.values(value as Record<string, unknown>)) freeze(child)
+  }
+  return value
+}
+
+/**
+ * Renderer-local, deterministic workspace owner.  It intentionally has no
+ * persistence/load method: live runtime state begins from an explicit seed.
+ */
+export class WorkspaceController implements WorkspaceControllerContract {
+  private readonly documents = new Map<DocumentId, DocumentRecord>()
+  private readonly views = new Map<ViewId, ViewRecord>()
+  private readonly panes = new Map<PaneId, PaneRecord>()
+  private readonly adapters = new Map<PaneId, BoundAdapter>()
+  private readonly leases = new WeakSet<object>()
+  private readonly capabilities = new Map<string, CapabilityRecord>()
+  private readonly listeners = new Set<(projection: WorkspaceProjection) => void>()
+  private focusedPaneId: PaneId = 'left'
+  private workspaceRevision = 0
+  private nextId = 1
+  private executeTail: Promise<void> = Promise.resolve()
+
+  constructor(initial: readonly WorkspaceDocumentInput[] = []) {
+    const first = this.createPane('left')
+    for (const input of initial) {
+      if (!input.fileKey || ![...this.documents.values()].some((document) => document.fileKey === input.fileKey)) {
+        this.appendDocument(first, input)
+      }
+    }
+    if (first.viewIds.length === 0) this.appendDocument(first, {})
+  }
+
+  execute(command: WorkspaceCommand): Promise<WorkspaceResult> {
+    const run = async(): Promise<WorkspaceResult> => this.apply(command)
+    const result = this.executeTail.then(run, run)
+    this.executeTail = result.then(() => undefined, () => undefined)
+    return result
+  }
+
+  getProjection(): WorkspaceProjection {
+    const panes = [...this.panes.values()].map((pane) => ({
+      paneId: pane.id,
+      activeViewId: pane.activeViewId,
+      tabs: pane.viewIds.map((viewId) => {
+        const view = this.views.get(viewId)!
+        const document = this.documents.get(view.documentId)!
+        return {
+          viewId,
+          documentId: document.id,
+          title: document.title,
+          ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+          dirty: document.dirty,
+          mode: view.state.mode
+        }
+      })
+    }))
+    return freeze({
+      workspaceRevision: this.workspaceRevision,
+      focusedPaneId: this.focusedPaneId,
+      splitRatio: this.panes.size === 2 ? 0.5 : null,
+      panes,
+      warnings: []
+    })
+  }
+
+  subscribe(listener: (projection: WorkspaceProjection) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  /** Assembly-only binding: ordinary callers use the WorkspaceController interface. */
+  async bindPaneEditor(paneId: PaneId, adapter: PaneEditorAdapter): Promise<PaneEditorBinding> {
+    const pane = this.panes.get(paneId)
+    if (!pane) throw new Error(`Cannot bind missing pane ${paneId}`)
+    const previous = this.adapters.get(paneId)
+    if (previous?.lease) this.leases.delete(previous.lease)
+    const bound: BoundAdapter = { adapter }
+    this.adapters.set(paneId, bound)
+    try {
+      await adapter.refresh(this.snapshotFor(paneId, pane.activeViewId))
+      const lease = freeze({ paneId, viewId: pane.activeViewId, mode: this.view(pane.activeViewId).state.mode })
+      this.leases.add(lease)
+      bound.lease = lease
+      return this.createBinding(bound, lease)
+    } catch (error) {
+      if (this.adapters.get(paneId) === bound) this.adapters.delete(paneId)
+      throw error
+    }
+  }
+
+  private createBinding(bound: BoundAdapter, lease: EditorLease): PaneEditorBinding {
+    return {
+      lease,
+      getSnapshot: (candidate) => this.validLease(bound, candidate) ? this.snapshotFor(candidate.paneId, candidate.viewId) : undefined,
+      report: (candidate, report) => {
+        if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
+        this.applyReport(candidate.viewId, report)
+        this.commit()
+        return this.applied()
+      },
+      flush: async(candidate) => this.withLease(bound, candidate, async() => {
+        this.applyReport(candidate.viewId, await bound.adapter.flush())
+      }),
+      handoffMode: async(candidate, mode) => this.withLease(bound, candidate, async() => {
+        const view = this.view(candidate.viewId)
+        await bound.adapter.flush().then((report) => this.applyReport(candidate.viewId, report))
+        const before = clone(view.state)
+        view.state = { ...view.state, mode }
+        try {
+          await bound.adapter.refresh(this.snapshotFor(candidate.paneId, candidate.viewId))
+          this.invalidate(bound)
+        } catch (error) {
+          view.state = before
+          throw error
+        }
+      }),
+      refresh: async(candidate) => this.withLease(bound, candidate, async() => {
+        await bound.adapter.refresh(this.snapshotFor(candidate.paneId, candidate.viewId))
+      })
+    }
+  }
+
+  private async withLease(bound: BoundAdapter, lease: EditorLease, work: () => Promise<void>): Promise<WorkspaceResult> {
+    if (!this.validLease(bound, lease)) return this.rejected('stale editor lease')
+    try {
+      await work()
+      this.commit()
+      return this.applied()
+    } catch (error) {
+      this.invalidate(bound)
+      return this.failed(errorMessage(error))
+    }
+  }
+
+  private async apply(command: WorkspaceCommand): Promise<WorkspaceResult> {
+    try {
+      switch (command.kind) {
+        case 'new-tab': return await this.newTab(command.paneId ?? this.focusedPaneId)
+        case 'open-document': return await this.openDocument(command.document)
+        case 'activate-view': return await this.activate(command.paneId, command.viewId, true)
+        case 'focus-pane': return await this.focus(command.paneId)
+        case 'split-pane': return await this.split(command.targetPaneId)
+        case 'move-view': return await this.move(command.viewId, command.targetPaneId)
+        case 'close-view': return await this.close(command.viewId)
+        case 'commit-authorized': return await this.commitAuthorized(command.capability)
+      }
+    } catch (error) {
+      return this.failed(errorMessage(error))
+    }
+  }
+
+  private async newTab(paneId: PaneId): Promise<WorkspaceResult> {
+    const pane = this.panes.get(paneId)
+    if (!pane) return this.rejected('missing pane')
+    await this.flushPane(paneId)
+    const doc = this.makeDocument({})
+    const view = this.makeView(doc.id)
+    await this.refreshAdapter(paneId, this.snapshotForRecord(paneId, view, doc))
+    this.documents.set(doc.id, doc)
+    this.views.set(view.id, view)
+    pane.viewIds.push(view.id)
+    pane.activeViewId = view.id
+    this.focusedPaneId = paneId
+    this.commit()
+    return this.applied()
+  }
+
+  private async openDocument(input: WorkspaceDocumentInput): Promise<WorkspaceResult> {
+    if (input.fileKey) {
+      const existing = [...this.documents.values()].find((document) => document.fileKey === input.fileKey)
+      if (existing) {
+        const existingView = [...this.views.values()].find((view) => view.documentId === existing.id)!
+        const pane = this.paneForView(existingView.id)!
+        return this.activate(pane.id, existingView.id, true)
+      }
+    }
+    const pane = this.panes.get(this.focusedPaneId)!
+    await this.flushPane(pane.id)
+    const doc = this.makeDocument(input)
+    const view = this.makeView(doc.id)
+    await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
+    this.documents.set(doc.id, doc)
+    this.views.set(view.id, view)
+    pane.viewIds.push(view.id)
+    pane.activeViewId = view.id
+    this.commit()
+    return this.applied()
+  }
+
+  private async activate(paneId: PaneId, viewId: ViewId, focus: boolean): Promise<WorkspaceResult> {
+    const pane = this.panes.get(paneId)
+    if (!pane || !pane.viewIds.includes(viewId)) return this.rejected('view is not in pane')
+    if (pane.activeViewId !== viewId) {
+      await this.flushPane(paneId)
+      await this.refreshAdapter(paneId, this.snapshotFor(paneId, viewId))
+      pane.activeViewId = viewId
+    }
+    if (focus && this.focusedPaneId !== paneId) await this.focus(paneId, false)
+    this.commit()
+    return this.applied()
+  }
+
+  private async focus(paneId: PaneId, shouldCommit = true): Promise<WorkspaceResult> {
+    const next = this.panes.get(paneId)
+    if (!next) return this.rejected('missing pane')
+    if (this.focusedPaneId !== paneId) {
+      await this.flushPane(this.focusedPaneId)
+      await this.refreshAdapter(paneId, this.snapshotFor(paneId, next.activeViewId))
+      this.focusedPaneId = paneId
+    }
+    if (shouldCommit) this.commit()
+    return this.applied()
+  }
+
+  private async split(targetPaneId: PaneId): Promise<WorkspaceResult> {
+    if (targetPaneId !== 'left' && targetPaneId !== 'right') return this.rejected('invalid pane')
+    if (this.panes.size === 2) return this.rejected('workspace already has two panes')
+    const source = this.panes.get('left')!
+    if (source.viewIds.length < 2) return this.rejected('split requires a remaining tab')
+    await this.flushPane(source.id)
+    const movingId = source.activeViewId
+    const remaining = source.viewIds.filter((id) => id !== movingId)
+    const sourceId: PaneId = targetPaneId === 'left' ? 'right' : 'left'
+    const moved = this.view(movingId)
+    const newSourceActive = remaining[0]!
+    const adapterActiveId = targetPaneId === 'left' ? moved.id : newSourceActive
+    await this.refreshAdapter('left', this.snapshotFor('left', adapterActiveId))
+    const sourcePane: PaneRecord = { id: sourceId, viewIds: remaining, activeViewId: newSourceActive }
+    const targetPane: PaneRecord = { id: targetPaneId, viewIds: [moved.id], activeViewId: moved.id }
+    this.panes.clear()
+    this.panes.set('left', targetPaneId === 'left' ? targetPane : sourcePane)
+    this.panes.set('right', targetPaneId === 'right' ? targetPane : sourcePane)
+    this.focusedPaneId = targetPaneId
+    this.commit()
+    return this.applied()
+  }
+
+  private async move(viewId: ViewId, targetPaneId: PaneId): Promise<WorkspaceResult> {
+    const source = this.paneForView(viewId)
+    const target = this.panes.get(targetPaneId)
+    if (!source || !target) return this.rejected('missing source or target pane')
+    if (source.id === target.id) return this.rejected('view is already in target pane')
+    await this.flushPane(source.id)
+    const remaining = source.viewIds.filter((id) => id !== viewId)
+    const targetSnapshot = this.snapshotFor(target.id, viewId)
+    const sourceSnapshot = remaining.length > 0 ? this.snapshotFor(source.id, remaining[0]!) : undefined
+    if (sourceSnapshot) await this.refreshAdapter(source.id, sourceSnapshot)
+    try {
+      await this.refreshAdapter(target.id, targetSnapshot)
+    } catch (error) {
+      if (sourceSnapshot) await this.refreshAdapter(source.id, this.snapshotFor(source.id, source.activeViewId))
+      throw error
+    }
+    source.viewIds = remaining
+    target.viewIds.push(viewId)
+    target.activeViewId = viewId
+    this.focusedPaneId = target.id
+    if (source.viewIds.length === 0) this.collapse(source.id)
+    this.commit()
+    return this.applied()
+  }
+
+  private async close(viewId: ViewId): Promise<WorkspaceResult> {
+    const pane = this.paneForView(viewId)
+    if (!pane) return this.rejected('missing view')
+    if (pane.activeViewId === viewId) await this.flushPane(pane.id)
+    const document = this.documents.get(this.view(viewId).documentId)!
+    if (document.dirty) return this.needsCloseCapability(viewId, document)
+    return this.removeView(viewId)
+  }
+
+  private async commitAuthorized(capability: WorkspaceCapability): Promise<WorkspaceResult> {
+    const stored = this.capabilities.get(capability.id)
+    if (!stored || stored.used || stored.capability.action !== capability.action) return this.rejected('stale or invalid capability')
+    const view = this.views.get(stored.viewId)
+    const document = this.documents.get(stored.documentId)
+    if (!view || !document || document.revision !== stored.documentRevision) return this.rejected('stale capability target')
+    stored.used = true
+    return this.removeView(stored.viewId)
+  }
+
+  private async removeView(viewId: ViewId): Promise<WorkspaceResult> {
+    const pane = this.paneForView(viewId)
+    if (!pane) return this.rejected('missing view')
+    const remaining = pane.viewIds.filter((id) => id !== viewId)
+    if (remaining.length > 0) {
+      const nextId = remaining.includes(pane.activeViewId) ? pane.activeViewId : remaining[0]!
+      await this.refreshAdapter(pane.id, this.snapshotFor(pane.id, nextId))
+      pane.viewIds = remaining
+      pane.activeViewId = nextId
+    } else if (this.panes.size === 2) {
+      this.removeDocumentAndView(viewId)
+      this.collapse(pane.id)
+      this.commit()
+      return this.applied()
+    } else {
+      const clean = this.makeDocument({})
+      const replacement = this.makeView(clean.id)
+      await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, replacement, clean))
+      this.documents.set(clean.id, clean)
+      this.views.set(replacement.id, replacement)
+      pane.viewIds = [replacement.id]
+      pane.activeViewId = replacement.id
+    }
+    this.removeDocumentAndView(viewId)
+    this.commit()
+    return this.applied()
+  }
+
+  private collapse(emptyPaneId: PaneId): void {
+    const survivor = [...this.panes.values()].find((pane) => pane.id !== emptyPaneId)!
+    this.panes.clear()
+    const only: PaneRecord = { ...survivor, id: 'left' }
+    this.panes.set('left', only)
+    const adapter = this.adapters.get(survivor.id)
+    for (const bound of this.adapters.values()) this.invalidate(bound)
+    this.adapters.clear()
+    if (adapter) this.adapters.set('left', adapter)
+    this.focusedPaneId = 'left'
+  }
+
+  private async flushPane(paneId: PaneId): Promise<void> {
+    const bound = this.adapters.get(paneId)
+    if (!bound) return
+    try {
+      this.applyReport(this.panes.get(paneId)!.activeViewId, await bound.adapter.flush())
+    } catch (error) {
+      this.invalidate(bound)
+      throw error
+    }
+  }
+
+  private async refreshAdapter(paneId: PaneId, snapshot: EditorBindingSnapshot): Promise<void> {
+    const bound = this.adapters.get(paneId)
+    if (!bound) return
+    const pane = this.panes.get(paneId)
+    const previous = pane?.activeViewId ? this.snapshotFor(paneId, pane.activeViewId) : undefined
+    try {
+      // A lease names a concrete active pane/view/mode; any controller-driven
+      // activation replaces that binding, so the old lease must be inert.
+      this.invalidate(bound)
+      await bound.adapter.refresh(snapshot)
+    } catch (error) {
+      // An adapter may report failure after it has staged a snapshot. Restore
+      // the controller's still-current binding before releasing its lease.
+      if (previous) {
+        try {
+          await bound.adapter.refresh(previous)
+        } catch {
+          // The adapter is no longer trusted either way; its lease stays dead.
+        }
+      }
+      this.invalidate(bound)
+      throw error
+    }
+  }
+
+  private applyReport(viewId: ViewId, report: EditorReport): void {
+    const view = this.view(viewId)
+    const document = this.documents.get(view.documentId)!
+    let changedDocument = false
+    if (report.markdown !== undefined && report.markdown !== document.markdown) {
+      document.markdown = report.markdown
+      document.dirty = true
+      changedDocument = true
+    }
+    if (report.portableHistory !== undefined) {
+      document.history = clone(report.portableHistory)
+      changedDocument = true
+    }
+    if (changedDocument) document.revision += 1
+    view.state = {
+      ...view.state,
+      ...(report.cursor ? { cursor: clone(report.cursor) } : {}),
+      ...(report.selection !== undefined ? { selection: clone(report.selection) } : {}),
+      ...(report.scrollTop !== undefined ? { scrollTop: report.scrollTop } : {})
+    }
+  }
+
+  private snapshotFor(paneId: PaneId, viewId: ViewId): EditorBindingSnapshot {
+    const view = this.view(viewId)
+    const document = this.documents.get(view.documentId)!
+    return this.snapshotForRecord(paneId, view, document)
+  }
+
+  private snapshotForRecord(paneId: PaneId, view: ViewRecord, document: DocumentRecord): EditorBindingSnapshot {
+    return freeze({
+      paneId,
+      viewId: view.id,
+      document: {
+        documentId: document.id,
+        ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+        ...(document.observedDiskRevision ? { observedDiskRevision: document.observedDiskRevision } : {}),
+        markdown: document.markdown,
+        dirty: document.dirty,
+        documentRevision: document.revision,
+        portableHistory: clone(document.history)
+      },
+      view: clone(view.state),
+      workspaceRevision: this.workspaceRevision
+    })
+  }
+
+  private makeDocument(input: WorkspaceDocumentInput): DocumentRecord {
+    const id = input.documentId ?? `document-${this.nextId++}`
+    if (this.documents.has(id)) throw new Error(`duplicate document id ${id}`)
+    return {
+      id,
+      ...(input.fileKey ? { fileKey: input.fileKey } : {}),
+      ...(input.observedDiskRevision ? { observedDiskRevision: input.observedDiskRevision } : {}),
+      markdown: input.markdown ?? '',
+      dirty: false,
+      revision: 0,
+      history: clone(input.portableHistory ?? EMPTY_HISTORY),
+      title: input.title ?? input.fileKey?.split(/[\\/]/).pop() ?? 'New Tab'
+    }
+  }
+
+  private makeView(documentId: DocumentId): ViewRecord {
+    return { id: `view-${this.nextId++}`, documentId, state: clone(EMPTY_VIEW) }
+  }
+
+  private createPane(id: PaneId): PaneRecord {
+    const pane: PaneRecord = { id, viewIds: [], activeViewId: '' }
+    this.panes.set(id, pane)
+    return pane
+  }
+
+  private appendDocument(pane: PaneRecord, input: WorkspaceDocumentInput): void {
+    const document = this.makeDocument(input)
+    const view = this.makeView(document.id)
+    this.documents.set(document.id, document)
+    this.views.set(view.id, view)
+    pane.viewIds.push(view.id)
+    pane.activeViewId = view.id
+  }
+
+  private view(viewId: ViewId): ViewRecord {
+    const view = this.views.get(viewId)
+    if (!view) throw new Error(`missing view ${viewId}`)
+    return view
+  }
+
+  private paneForView(viewId: ViewId): PaneRecord | undefined {
+    return [...this.panes.values()].find((pane) => pane.viewIds.includes(viewId))
+  }
+
+  private removeDocumentAndView(viewId: ViewId): void {
+    const view = this.views.get(viewId)
+    if (!view) return
+    this.views.delete(viewId)
+    this.documents.delete(view.documentId)
+  }
+
+  private needsCloseCapability(viewId: ViewId, document: DocumentRecord): WorkspaceResult {
+    const capability: WorkspaceCapability = { id: `capability-${this.nextId++}`, action: 'close-view' }
+    this.capabilities.set(capability.id, {
+      capability,
+      viewId,
+      documentId: document.id,
+      documentRevision: document.revision,
+      used: false
+    })
+    return { status: 'needs-decision', capability: freeze(capability) }
+  }
+
+  private validLease(bound: BoundAdapter, lease: EditorLease): boolean {
+    return bound.lease === lease && this.leases.has(lease)
+  }
+
+  private invalidate(bound: BoundAdapter): void {
+    if (bound.lease) this.leases.delete(bound.lease)
+    bound.lease = undefined
+  }
+
+  private commit(): void {
+    this.workspaceRevision += 1
+    const projection = this.getProjection()
+    for (const listener of this.listeners) {
+      try {
+        listener(projection)
+      } catch {
+        // An observer must never prevent other subscribers or a committed state.
+      }
+    }
+  }
+
+  private applied(): WorkspaceResult {
+    return { status: 'applied', workspaceRevision: this.workspaceRevision }
+  }
+
+  private rejected(reason: string): WorkspaceResult {
+    return { status: 'rejected', reason }
+  }
+
+  private failed(reason: string): WorkspaceResult {
+    return { status: 'failed', reason }
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** Compatibility name for the T01 live-runtime assembly seam. */
+export { WorkspaceController as WorkspaceRuntime }
+
+export function createWorkspaceRuntime(initial: readonly WorkspaceDocumentInput[] = []): WorkspaceController {
+  return new WorkspaceController(initial)
+}
