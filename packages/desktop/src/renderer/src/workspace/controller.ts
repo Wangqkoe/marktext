@@ -168,17 +168,23 @@ export class WorkspaceController implements WorkspaceControllerContract {
     // state before any refresh replaces that active representation.
     if (previous) await this.flushPane(paneId)
     const snapshot = this.snapshotFor(paneId, pane.activeViewId)
-    if (previous?.lease) this.leases.delete(previous.lease)
     const bound: BoundAdapter = { adapter }
-    this.adapters.set(paneId, bound)
     try {
       await adapter.refresh(snapshot)
-      this.issueLease(bound, paneId, pane.activeViewId, this.view(pane.activeViewId).state.mode)
-      return this.createBinding(bound)
     } catch (error) {
-      if (this.adapters.get(paneId) === bound) this.adapters.delete(paneId)
+      if (previous?.adapter === adapter) {
+        try {
+          await adapter.refresh(snapshot)
+        } catch {
+          this.invalidate(previous)
+        }
+      }
       throw error
     }
+    if (previous) this.invalidate(previous)
+    this.adapters.set(paneId, bound)
+    this.issueLease(bound, paneId, pane.activeViewId, this.view(pane.activeViewId).state.mode)
+    return this.createBinding(bound)
   }
 
   private createBinding(bound: BoundAdapter): PaneEditorBinding {

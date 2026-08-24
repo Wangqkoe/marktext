@@ -16,16 +16,21 @@ import { createWorkspaceRuntime } from '@/workspace'
 class MemoryEditor implements PaneEditorAdapter {
   readonly snapshots: EditorBindingSnapshot[] = []
   readonly reports: EditorReport[] = []
+  readonly refreshFailures: boolean[] = []
   flushCount = 0
   failAfterRefresh = false
   flushBarrier?: Promise<void>
 
   async refresh(snapshot: EditorBindingSnapshot): Promise<void> {
     this.snapshots.push(snapshot)
-    if (this.failAfterRefresh) {
+    if (this.failAfterRefresh || this.refreshFailures.shift()) {
       this.failAfterRefresh = false
       throw new Error('refresh failed after staging')
     }
+  }
+
+  failRefreshTimes(count: number): void {
+    for (let index = 0; index < count; index += 1) this.refreshFailures.push(true)
   }
 
   async flush(): Promise<EditorReport> {
@@ -528,6 +533,84 @@ describe('WorkspaceRuntime', () => {
     expect(nextLease).not.toBe(oldLease)
     expect(binding.report(nextLease, { markdown: 'current' }).status).toBe('applied')
     expect((await binding.flush(nextLease)).status).toBe('applied')
+  })
+
+  it('keeps a distinct previous binding usable when its replacement adapter fails staging', async() => {
+    const workspace = createWorkspaceRuntime()
+    const previousEditor = new MemoryEditor()
+    const previousBinding = await workspace.bindPaneEditor('left', previousEditor)
+    const previousLease = currentLease(previousBinding)
+    previousEditor.reports.push({
+      markdown: 'previous draft',
+      portableHistory: { version: 1, value: ['previous history'] },
+      toc: [{ id: 'previous-toc', title: 'Previous', level: 1 }],
+      status: { wordCount: 8 }
+    })
+    const replacement = new MemoryEditor()
+    replacement.failAfterRefresh = true
+
+    await expect(workspace.bindPaneEditor('left', replacement)).rejects.toThrow('refresh failed')
+
+    const snapshot = expectDefined(previousBinding.getSnapshot(previousLease))
+    expect(snapshot.document).toMatchObject({ markdown: 'previous draft', documentRevision: 1 })
+    expect(snapshot.document.portableHistory.value).toEqual(['previous history'])
+    expect(snapshot.toc).toEqual([{ id: 'previous-toc', title: 'Previous', level: 1 }])
+    expect(snapshot.status).toEqual({ wordCount: 8 })
+    expect(expectDefined(previousEditor.active).document.markdown).toBe('previous draft')
+    expect(expectDefined(previousEditor.active).document.portableHistory.value).toEqual([
+      'previous history'
+    ])
+    expect(expectDefined(previousEditor.active).toc).toEqual([
+      { id: 'previous-toc', title: 'Previous', level: 1 }
+    ])
+    expect(expectDefined(previousEditor.active).status).toEqual({ wordCount: 8 })
+    expect(previousBinding.report(previousLease, { scrollTop: 12 }).status).toBe('applied')
+    expect((await previousBinding.flush(previousLease)).status).toBe('applied')
+  })
+
+  it('compensates a same-instance staged bind failure and preserves its existing lease', async() => {
+    const workspace = createWorkspaceRuntime()
+    const editor = new MemoryEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const lease = currentLease(binding)
+    editor.reports.push({
+      markdown: 'same adapter draft',
+      portableHistory: { version: 1, value: ['same adapter history'] },
+      toc: [{ id: 'same-toc', title: 'Same', level: 1 }],
+      status: { wordCount: 11 }
+    })
+    editor.failRefreshTimes(1)
+
+    await expect(workspace.bindPaneEditor('left', editor)).rejects.toThrow('refresh failed')
+
+    const snapshot = expectDefined(binding.getSnapshot(lease))
+    expect(snapshot.document).toMatchObject({ markdown: 'same adapter draft', documentRevision: 1 })
+    expect(snapshot.document.portableHistory.value).toEqual(['same adapter history'])
+    expect(snapshot.toc).toEqual([{ id: 'same-toc', title: 'Same', level: 1 }])
+    expect(snapshot.status).toEqual({ wordCount: 11 })
+    expect(expectDefined(editor.active).document.markdown).toBe('same adapter draft')
+    expect(expectDefined(editor.active).document.portableHistory.value).toEqual([
+      'same adapter history'
+    ])
+    expect(expectDefined(editor.active).toc).toEqual([{ id: 'same-toc', title: 'Same', level: 1 }])
+    expect(expectDefined(editor.active).status).toEqual({ wordCount: 11 })
+    expect(binding.report(lease, { scrollTop: 18 }).status).toBe('applied')
+    expect((await binding.flush(lease)).status).toBe('applied')
+  })
+
+  it('invalidates a same-instance lease when staged bind recovery cannot restore its snapshot', async() => {
+    const workspace = createWorkspaceRuntime()
+    const editor = new MemoryEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const lease = currentLease(binding)
+    editor.reports.push({ markdown: 'unrecoverable draft' })
+    editor.failRefreshTimes(2)
+
+    await expect(workspace.bindPaneEditor('left', editor)).rejects.toThrow('refresh failed')
+
+    expect(binding.getLease()).toBeUndefined()
+    expect(binding.report(lease, { markdown: 'must remain stale' }).status).toBe('rejected')
+    expect((await binding.flush(lease)).status).toBe('rejected')
   })
 
   it('serializes a suspended flush before a transition and rejects an interleaved report', async() => {
