@@ -16,7 +16,7 @@ from fixed integration baseline `7ae5e2f416b171e5f44fc32434a65da4892e7e8b` to
 the final T02b HEAD, never as T02 alone. T04 is integrated and independently
 reviewed at that baseline, so its FileObservationHub/FileKey/DiskRevision/CAS
 port is now a consumable seam while it remains sole owner of watcher, hash and
-save I/O.
+save I/O. The final whole-diff three-dot review fixed point is `7ae5e2f4`.
 
 It blocks T03, T05, T06, T08 and T11 wherever those tickets consume real runtime
 Document/View state. T04 may execute in parallel through the integration seam
