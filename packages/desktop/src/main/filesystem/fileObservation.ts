@@ -32,10 +32,12 @@ export interface FileObservationStorage {
 /** A writeId is present only when an adapter can prove a watch event's origin. */
 export interface FileObservationEvent {
   readonly writeId?: string
+  readonly landedHash?: DiskRevision
 }
 
 export interface FileObservationWatchFactory {
   watch(fileKey: CanonicalFileKey, onChange: (event: FileObservationEvent) => void): () => void
+  recordWrite?(fileKey: CanonicalFileKey, event: Required<FileObservationEvent>): void
 }
 
 export type PeerDiskState = 'clean' | 'dirty'
@@ -170,7 +172,6 @@ export class FileObservationHub {
       this.leases.delete(old.lease)
       entry.subscribers.delete(subscriber.documentId)
     }
-    entry.epoch = this.nextEpoch++
     const lease = this.createLease(fileKey, subscriber.documentId)
     entry.subscribers.set(subscriber.documentId, { lease, subscriber: canonicalSubscriber })
     return lease
@@ -207,7 +208,6 @@ export class FileObservationHub {
     if (!entry || !slot || !this.leases.has(lease) || slot.lease !== lease) return false
     this.leases.delete(lease)
     entry.subscribers.delete(lease.subscriberId)
-    entry.epoch = this.nextEpoch++
     if (entry.subscribers.size === 0) {
       entry.closeWatcher()
       this.entries.delete(lease.fileKey)
@@ -220,6 +220,23 @@ export class FileObservationHub {
       this.leases.has(lease) &&
       this.entries.get(lease.fileKey)?.subscribers.get(lease.subscriberId)?.lease === lease
     )
+  }
+
+  refreshDocumentRevision(lease: FileObservationLease, documentRevision: number): boolean {
+    const entry = this.entries.get(lease.fileKey)
+    const slot = entry?.subscribers.get(lease.subscriberId)
+    if (!slot || !this.isCurrent(lease)) return false
+    entry.subscribers.set(lease.subscriberId, {
+      lease,
+      subscriber: { ...slot.subscriber, documentRevision }
+    })
+    return true
+  }
+
+  currentDocumentRevision(lease: FileObservationLease): number | undefined {
+    if (!this.isCurrent(lease)) return undefined
+    return this.entries.get(lease.fileKey)?.subscribers.get(lease.subscriberId)?.subscriber
+      .documentRevision
   }
 
   async issueOverwriteToken(request: OverwriteRequest): Promise<OverwriteToken> {
@@ -274,6 +291,7 @@ export class FileObservationHub {
           landedHash,
           expiresAt: this.now() + this.pendingOwnWriteTtlMs
         })
+        this.watchers.recordWrite?.(fileKey, { writeId, landedHash })
         return Object.freeze({
           status: 'saved' as const,
           writeId,
@@ -306,7 +324,9 @@ export class FileObservationHub {
       fileKey !== current.ownerLease.fileKey ||
       result.ownerLease !== current.ownerLease ||
       !this.isCurrent(current.ownerLease)
-    ) { return false }
+    ) {
+      return false
+    }
     this.acknowledgedSaves.add(result)
     return true
   }
@@ -358,7 +378,13 @@ export class FileObservationHub {
     const revision = await this.readRevision(fileKey)
     // An event that began before a handoff/subscriber generation change is inert.
     if (this.entries.get(fileKey) !== entry || entry.epoch !== eventEpoch) return
-    const writer = this.consumePendingWriterEvent(entry, fileKey, revision, event.writeId)
+    const writer = this.consumePendingWriterEvent(
+      entry,
+      fileKey,
+      revision,
+      event.writeId,
+      event.landedHash
+    )
     for (const slot of slots) {
       if (!this.isCurrent(slot.lease)) continue
       if (writer?.documentId === slot.subscriber.documentId) continue
@@ -376,9 +402,12 @@ export class FileObservationHub {
   }
 
   private matchesOwner(request: GuardedSaveRequest, fileKey: CanonicalFileKey): boolean {
+    const slot = this.entries.get(fileKey)?.subscribers.get(request.ownerLease.subscriberId)
     return (
       request.ownerLease.fileKey === fileKey &&
       request.ownerLease.subscriberId === request.documentId &&
+      slot?.lease === request.ownerLease &&
+      slot.subscriber.documentRevision === request.documentRevision &&
       this.isCurrent(request.ownerLease)
     )
   }
@@ -399,7 +428,8 @@ export class FileObservationHub {
     entry: FileEntry,
     fileKey: CanonicalFileKey,
     revision: DiskRevision | null,
-    writeId: string | undefined
+    writeId: string | undefined,
+    landedHash: DiskRevision | undefined
   ): PendingWriterEvent | undefined {
     this.prunePendingWriterEvents(entry)
     // Unattributed chokidar events are never own-suppressed by hash alone.
@@ -410,8 +440,11 @@ export class FileObservationHub {
     if (
       pending.fileKey !== fileKey ||
       pending.intendedHash !== pending.landedHash ||
-      pending.landedHash !== revision
-    ) { return undefined }
+      pending.landedHash !== revision ||
+      pending.landedHash !== landedHash
+    ) {
+      return undefined
+    }
     return pending
   }
 
@@ -441,7 +474,9 @@ export class FileObservationHub {
       binding.fileKey !== fileKey ||
       binding.observedDiskRevision !== current ||
       binding.purpose !== request.purpose
-    ) { return false }
+    ) {
+      return false
+    }
     binding.used = true
     return true
   }
@@ -464,24 +499,38 @@ export class FileObservationHub {
   }
 }
 
-const normalizePath = (pathname: string): string => {
+export interface FileKeyCasePolicy {
+  readonly caseSensitive?: boolean
+}
+
+const normalizePath = (pathname: string, caseSensitive: boolean): string => {
   const normalized = path.normalize(path.resolve(pathname))
-  return process.platform === 'win32' ? normalized.toLocaleLowerCase() : normalized
+  return caseSensitive ? normalized : normalized.toLocaleLowerCase()
 }
 
 /** Resolves existing ancestors so a new child below a symlink gets its canonical parent key. */
 export class NodeFileObservationStorage implements FileObservationStorage {
+  private readonly caseSensitive: boolean
+
+  constructor(policy: FileKeyCasePolicy = {}) {
+    // macOS commonly mounts case-insensitive volumes; callers can opt into a
+    // case-sensitive volume explicitly rather than relying on process.platform.
+    this.caseSensitive = policy.caseSensitive ?? process.platform === 'linux'
+  }
+
   async canonicalize(pathname: string): Promise<CanonicalFileKey> {
     const suffix: string[] = []
     let candidate = path.resolve(pathname)
     for (;;) {
       try {
         const resolved = await fsPromises.realpath(candidate)
-        return normalizePath(path.join(resolved, ...suffix)) as CanonicalFileKey
+        return normalizePath(path.join(resolved, ...suffix), this.caseSensitive) as CanonicalFileKey
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
         const parent = path.dirname(candidate)
-        if (parent === candidate) return normalizePath(path.resolve(pathname)) as CanonicalFileKey
+        if (parent === candidate) {
+          return normalizePath(path.resolve(pathname), this.caseSensitive) as CanonicalFileKey
+        }
         suffix.unshift(path.basename(candidate))
         candidate = parent
       }
@@ -502,14 +551,26 @@ export class NodeFileObservationStorage implements FileObservationStorage {
   }
 }
 
-/** Production raw watcher events lack write IDs and therefore never own-suppress. */
 export class ChokidarFileObservationWatchFactory implements FileObservationWatchFactory {
+  private readonly pendingWrites = new Map<CanonicalFileKey, Required<FileObservationEvent>[]>()
+
+  recordWrite(fileKey: CanonicalFileKey, event: Required<FileObservationEvent>): void {
+    const pending = this.pendingWrites.get(fileKey) ?? []
+    pending.push(event)
+    this.pendingWrites.set(fileKey, pending)
+  }
+
   watch(fileKey: CanonicalFileKey, onChange: (event: FileObservationEvent) => void): () => void {
     const watcher: FSWatcher = chokidar.watch(fileKey, {
       ignoreInitial: true,
       awaitWriteFinish: { stabilityThreshold: 1000, pollInterval: 150 }
     })
-    const rawEvent = (): void => onChange({})
+    const rawEvent = (): void => {
+      const pending = this.pendingWrites.get(fileKey)
+      const event = pending?.shift()
+      if (pending?.length === 0) this.pendingWrites.delete(fileKey)
+      onChange(event ?? {})
+    }
     watcher.on('add', rawEvent).on('change', rawEvent).on('unlink', rawEvent)
     return () => {
       watcher.close().catch((error: unknown) => {
@@ -528,12 +589,14 @@ export class MemoryFileObservationStorage implements FileObservationStorage {
   onRead?: () => void
   onWrite?: (fileKey: CanonicalFileKey, bytes: Buffer) => void
 
+  constructor(private readonly policy: FileKeyCasePolicy = {}) {}
+
   aliasParent(sourceParent: string, targetParent: string): void {
-    this.parentAliases.set(normalizePath(sourceParent), normalizePath(targetParent))
+    this.parentAliases.set(this.normalize(sourceParent), this.normalize(targetParent))
   }
 
   async canonicalize(pathname: string): Promise<CanonicalFileKey> {
-    let candidate = normalizePath(pathname)
+    let candidate = this.normalize(pathname)
     for (const [sourceParent, targetParent] of this.parentAliases) {
       if (candidate === sourceParent || candidate.startsWith(`${sourceParent}${path.sep}`)) {
         candidate = `${targetParent}${candidate.slice(sourceParent.length)}`
@@ -541,6 +604,10 @@ export class MemoryFileObservationStorage implements FileObservationStorage {
       }
     }
     return candidate as CanonicalFileKey
+  }
+
+  private normalize(pathname: string): string {
+    return normalizePath(pathname, this.policy.caseSensitive ?? false)
   }
 
   async read(fileKey: CanonicalFileKey): Promise<Buffer | null> {
@@ -559,6 +626,13 @@ export class MemoryFileObservationStorage implements FileObservationStorage {
 
 export class MemoryFileObservationWatchFactory implements FileObservationWatchFactory {
   readonly activeWatchers = new Map<CanonicalFileKey, Set<(event: FileObservationEvent) => void>>()
+  private readonly pendingWrites = new Map<CanonicalFileKey, Required<FileObservationEvent>[]>()
+
+  recordWrite(fileKey: CanonicalFileKey, event: Required<FileObservationEvent>): void {
+    const pending = this.pendingWrites.get(fileKey) ?? []
+    pending.push(event)
+    this.pendingWrites.set(fileKey, pending)
+  }
 
   watch(fileKey: CanonicalFileKey, onChange: (event: FileObservationEvent) => void): () => void {
     const callbacks =
@@ -573,5 +647,12 @@ export class MemoryFileObservationWatchFactory implements FileObservationWatchFa
 
   emit(fileKey: CanonicalFileKey, event: FileObservationEvent = {}): void {
     for (const callback of [...(this.activeWatchers.get(fileKey) ?? [])]) callback(event)
+  }
+
+  emitRaw(fileKey: CanonicalFileKey): void {
+    const pending = this.pendingWrites.get(fileKey)
+    const event = pending?.shift()
+    if (pending?.length === 0) this.pendingWrites.delete(fileKey)
+    this.emit(fileKey, event ?? {})
   }
 }

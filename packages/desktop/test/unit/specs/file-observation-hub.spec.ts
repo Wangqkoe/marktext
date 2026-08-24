@@ -82,7 +82,9 @@ describe('FileObservationHub', () => {
       bytes: Buffer.from('saved')
     })
     if (saved.status !== 'saved') throw new Error('expected save')
-    watchers.emit(direct, { writeId: saved.writeId })
+    // The storage→hub→watcher composition attaches the actual writeId/hash;
+    // a raw watcher event consumes it without guessing from bytes alone.
+    watchers.emitRaw(direct)
     await vi.waitFor(() => expect(linkChanges).toHaveLength(1))
     expect(directChanges).toEqual([])
     expect(linkChanges[0]?.kind).toBe('reload')
@@ -115,6 +117,36 @@ describe('FileObservationHub', () => {
     expect(targetChanges).toEqual([])
   })
 
+  it('keeps an old delayed read deliverable to an unchanged peer across ordinary subscribe/release', async() => {
+    const { hub, storage, watchers } = createHub()
+    const fileKey = raw('peer-churn')
+    const canonical = await hub.canonicalFileKey(fileKey)
+    storage.files.set(canonical, Buffer.from('external'))
+    const stableChanges: DiskChange[] = []
+    await hub.subscribe(subscriber('stable', fileKey, 'clean', stableChanges))
+    const readStarted = deferred()
+    const readGate = deferred()
+    storage.readBarrier = readGate.promise
+    storage.onRead = readStarted.release
+    watchers.emit(canonical)
+    await readStarted.promise
+    const transient = await hub.subscribe(subscriber('transient', fileKey, 'clean', []))
+    expect(hub.release(transient)).toBe(true)
+    readGate.release()
+    await vi.waitFor(() => expect(stableChanges).toHaveLength(1))
+  })
+
+  it('honors injected case-sensitivity policy for macOS-style and case-sensitive volumes', async() => {
+    const insensitive = new MemoryFileObservationStorage({ caseSensitive: false })
+    const sensitive = new MemoryFileObservationStorage({ caseSensitive: true })
+    await expect(insensitive.canonicalize('C:/workspace/Foo.md')).resolves.toBe(
+      await insensitive.canonicalize('C:/workspace/foo.md')
+    )
+    await expect(sensitive.canonicalize('C:/workspace/Foo.md')).resolves.not.toBe(
+      await sensitive.canonicalize('C:/workspace/foo.md')
+    )
+  })
+
   it('suppresses only a matching full writeId, preserves same-content writes, and does not suppress raw merged events', async() => {
     const { hub, storage, watchers } = createHub()
     const fileKey = raw('same-content')
@@ -136,6 +168,7 @@ describe('FileObservationHub', () => {
       bytes: Buffer.from('same')
     })
     if (first.status !== 'saved') throw new Error('expected first save')
+    expect(hub.refreshDocumentRevision(writer, 2)).toBe(true)
     const second = await hub.save({
       documentId: 'writer',
       documentRevision: 2,
@@ -147,14 +180,15 @@ describe('FileObservationHub', () => {
     if (second.status !== 'saved') throw new Error('expected second save')
     expect(await hub.pendingOwnWriteCount(fileKey)).toBe(2)
 
-    watchers.emit(canonical, { writeId: second.writeId })
+    watchers.emit(canonical, { writeId: second.writeId, landedHash: second.diskRevision })
     await vi.waitFor(() => expect(peerChanges).toHaveLength(1))
     expect(writerChanges).toEqual([])
     expect(await hub.pendingOwnWriteCount(fileKey)).toBe(1)
-    watchers.emit(canonical, { writeId: first.writeId })
+    watchers.emit(canonical, { writeId: first.writeId, landedHash: first.diskRevision })
     await vi.waitFor(() => expect(peerChanges).toHaveLength(2))
     expect(writerChanges).toEqual([])
 
+    expect(hub.refreshDocumentRevision(writer, 3)).toBe(true)
     const third = await hub.save({
       documentId: 'writer',
       documentRevision: 3,
@@ -183,6 +217,7 @@ describe('FileObservationHub', () => {
     let revision = await hub.getDiskRevision(fileKey)
     if (!revision) throw new Error('expected baseline')
     for (let documentRevision = 1; documentRevision <= 3; documentRevision += 1) {
+      expect(hub.refreshDocumentRevision(lease, documentRevision)).toBe(true)
       const result = await hub.save({
         documentId: 'writer',
         documentRevision,
