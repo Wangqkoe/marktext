@@ -9,6 +9,8 @@ with deterministic memory adapters. This ticket establishes same-FileKey
 serialization, watcher subscriber generations, stale-save protection and conflict
 state. It supplies production file-observation/save work behind T01 ports, but does
 not complete Electron renderer/session bridge, transfer ownership or UI decisions.
+It must not add normal workspace snapshot/load or use a normal session as file or
+emergency-recovery truth.
 
 Inputs: [V1 Spec](../v1-spec.md), [Issue 09](../../issues/09-design-tab-transfer-ipc-contract.md),
 [Issue 11](../../issues/11-design-workspace-controller-interface.md).

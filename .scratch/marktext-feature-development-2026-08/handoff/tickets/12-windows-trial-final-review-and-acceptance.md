@@ -22,8 +22,14 @@ Record OS/version, Electron/build commit, install/build provenance, display coun
 resolution/scale, hardware/input/accessibility context and observed results. Cover
 Windows single-primary physical external release; verify unsupported/mixed-DPI
 fallback disables detach but menu Move works. Exercise Move/Open, last tab,
-dirty/untitled/history, split/restore, disk conflicts, details source/preview,
+dirty/untitled/history, live split behavior, disk conflicts, details source/preview,
 keyboard/theme/reduced motion/disableHtml/round-trip/export.
+
+Also record that normal restart creates one clean New Tab, explicit associated/CLI
+launch opens only its target(s), no unavailable restore setting is visible, and
+dirty normal-exit confirmation is unchanged. Under default-off, force crash/Move
+recovery evidence to show EmergencyRecovery still runs; do not treat ordinary
+workspace state as recovery evidence.
 
 ## Acceptance and handoff
 

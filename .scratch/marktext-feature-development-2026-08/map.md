@@ -3,11 +3,15 @@
 Label: `wayfinder:map`
 Status: `complete`
 
-Destination: achieved — implementation handoff and acceptance matrix are ready.
+Destination: achieved — implementation handoff includes default-off normal startup
+and always-on emergency recovery boundaries.
 
 ## Destination
 
-Produce implementation-ready specifications, confirmed interaction prototypes, and an acceptance-backed ticket handoff for three coordinated workspace features: cross-window tabs, a two-pane split workspace, and styled raw-HTML `details` disclosures. This map does not implement product changes.
+Produce implementation-ready specifications, confirmed interaction prototypes, and
+an acceptance-backed ticket handoff for cross-window tabs, two-pane workspace,
+styled raw-HTML `details`, and default-off normal startup with independent
+emergency recovery. This map does not implement product changes.
 
 ## Notes
 
@@ -15,6 +19,8 @@ Produce implementation-ready specifications, confirmed interaction prototypes, a
 - The local integration branch is `codex/marktext-feature-development-2026-08` in `E:\Program Files\Marktext-worktrees\marktext-feature-development-2026-08`.
 - Every implementation ticket must use its own worktree and `codex/<ticket-feature-name>` branch. Commits stay local; never push.
 - Window/IPC behavior, pane persistence, and shared editor state are high-risk and require `gpt-5.6-terra` at `high` plus independent review. Normal implementation uses `gpt-5.6-terra` at `medium`.
+- Normal workspace restore is deferred; V1 uses a clean default startup or explicit
+  file targets while EmergencyRecovery remains mandatory.
 
 ## Decisions so far
 
@@ -29,6 +35,7 @@ Produce implementation-ready specifications, confirmed interaction prototypes, a
 - [定义分阶段实现交接与验收矩阵](issues/08-define-staged-handoff-and-acceptance.md): 已 resolved；最终 [V1 Spec](handoff/v1-spec.md)、[implementation tickets](handoff/tickets/) 和 [acceptance matrix](handoff/acceptance-matrix.md) 已交接，按 waves 实施并由矩阵验收。
 - [确认 Split 布局、命中区与动效](issues/05-prototype-split-layout-and-motion.md): A — Live divide 与几何/动效约束、菜单简化方案已接受。
 - [确认 details disclosure 视觉与交互](issues/07-prototype-details-disclosure.md): A — Minimal inline row（Obsidian-like）及其原生 summary、源码编辑、动效、主题与导出边界已接受。
+- [定义启动常规恢复与紧急恢复边界](issues/12-define-startup-restore-emergency-recovery-boundary.md): 默认启动不恢复普通工作区；显式文件优先；crash/power-loss/Move 紧急恢复始终运行，未来 normal restore 才由默认关闭的设置控制。
 
 ## Out of scope
 
@@ -36,4 +43,6 @@ Produce implementation-ready specifications, confirmed interaction prototypes, a
 - Showing the same document in both panes.
 - Persisting transient `details` click state or parsing Markdown inside raw HTML, unless a future map redraws the destination.
 - Preferences redesign.
+- Normal workspace restore setting/UI and normal session migration until a future
+  destination redraws this map.
 - Release, publishing, or any remote push.

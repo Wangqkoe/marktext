@@ -25,7 +25,9 @@ single Tabs/Editor/SourceCode `index.vue` cannot provide.
 
 Implement 31% bands, live prospective 50/50, commit on release, Escape/re-entry,
 320px pane min, 720px no-split, divider drag/double-click reset, 180/0ms motion,
-and automatic collapse. Do not import the prototype as production code.
+and automatic collapse. Pane/split/focus state is live-runtime only: ordinary
+restart begins clean/default and does not restore it. Do not import the prototype
+as production code.
 
 ## Acceptance and handoff
 

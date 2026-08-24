@@ -35,10 +35,11 @@ lease.
 
 ## Acceptance and handoff
 
-Run `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-controller.spec.ts`,
+Run `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts`,
 `pnpm -C packages/desktop exec playwright test test/e2e/tab-switch-cursor.spec.ts test/e2e/audit-tabs-restart.spec.ts`,
 and `pnpm -C packages/desktop typecheck`. Manually alternate source
 and WYSIWYG editing in two logical panes and prove cursor/scroll/history do not
 leak. Regression: editor-store, commands that consume its state, source mode and
-tab recovery. Commit only owned renderer files/tests. Require independent
-terra/high Standards + Spec review for shared-editor/persistence migration.
+in-process tab switching only; ordinary restart must not restore tabs, split, focus,
+scroll, or mode. Commit only owned renderer files/tests. Require independent
+terra/high Standards + Spec review for shared-editor/runtime migration.

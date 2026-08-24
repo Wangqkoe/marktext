@@ -8,15 +8,18 @@ second copy of this contract.
 
 ## Goal and non-goals
 
-Deliver three coordinated desktop features without weakening document ownership
-or recovery: lossless cross-window tabs, a left/right two-pane workspace, and a
-styled raw-HTML `details` preview. The accepted scope is owned by
-[Issue 01](../issues/01-define-v1-product-boundaries.md).
+Deliver coordinated desktop workspace features without weakening document
+ownership or recovery: lossless cross-window tabs, a left/right two-pane workspace,
+styled raw-HTML `details`, and default-off normal startup with independent
+emergency recovery. The accepted scope is owned by
+[Issue 01](../issues/01-define-v1-product-boundaries.md) and
+[Issue 12](../issues/12-define-startup-restore-emergency-recovery-boundary.md).
 
 V1 excludes more than two panes, vertical/nested splits, a document displayed in
 both panes, persistence of a user click on `details`, Markdown parsing inside raw
-HTML, preferences redesign, release/publishing, and any fallback that turns a
-window-boundary crossing, blur, or timeout into detach.
+HTML, preferences redesign, release/publishing, normal workspace restore setting/
+UI, normal session migration, automatic `editorBufferStore` load, and any fallback
+that turns a window-boundary crossing, blur, or timeout into detach.
 
 ## Canonical domain terms and seam
 
@@ -30,7 +33,11 @@ The terms below are normative and come from [Issue 04](../issues/04-design-pane-
 | View / Tab / Pane | A View owns cursor/selection/scroll/mode; a Tab orders one View in a Pane; a Pane owns ordered tabs, its active tab, and one editor adapter. |
 | WindowWorkspace | One or two panes, focused pane, and split ratio. A saved path is unique within it; a View moves but does not duplicate a Document. |
 | WorkspaceController | Deep renderer-side owner of registry, reducer and focus routing. Its ordinary public surface is `execute`, `getProjection`, and `subscribe`; assembly alone may `bindPaneEditor`. |
-| WorkspaceSessionCodec | The single pure, cross-process V1/V2 parser, validator, migrator and recovery-summary codec. It and domain/session types live in `packages/desktop/src/shared/workspace/`; main and renderer import it, neither imports the other. |
+| StartupIntent | The launch request: no explicit target, or explicit associated/CLI/other file targets. It is not normal workspace state. |
+| DefaultStartupPolicy | Current V1 policy: no explicit target creates one clean New Tab; explicit targets seed/open only themselves. |
+| NormalWorkspaceRestore | Future optional adapter controlled by a default-off setting, and eligible only with no explicit StartupIntent. It is unavailable in current V1. |
+| EmergencyRecovery | Always-on crash/power-loss and Move WAL/journal recovery. It is independent of NormalWorkspaceRestore and never suppressed by explicit targets. |
+| Emergency journal/store | Durable emergency truth for T05/T06. It is distinct from any future normal snapshot/store. |
 | EditorLease | Unforgeable pane/view/mode binding. All report/flush/handoff operations validate it atomically; a stale lease is inert. |
 | DiskRevision / FileKey | Canonical file key plus SHA-256 of persisted bytes. mtime/size are hints only. |
 | TabTransfer / capsule | Deep main-process Move transaction. A capsule is durable serialized portable state, addressed by digest; it never carries DOM, Muya instances, callbacks, or leases. |
@@ -47,13 +54,32 @@ Capability tokens bind command kind,
 targets and revisions, are single-use, and atomically reject stale/replayed or
 kind-mismatched operations.
 
-T01 establishes these ports/interfaces, deterministic memory adapters and the
-pure shared codec/controller. The required production implementations are phased:
-T02 binds `PaneEditorAdapter`; T04 supplies file-observation/save adapter work;
-T06 supplies Electron-backed `WorkspacePersistence`/session and remaining
-DocumentIO bridge work. This retains Issue 11's required production+memory seams
-without claiming an adapter is production-complete before its effect boundary is
-available.
+T01 establishes runtime controller ports/interfaces, deterministic memory adapters,
+DefaultStartupPolicy, and an EmergencyRecovery boundary. Correct Controller runtime
+does not load a normal workspace session, normal codec, or persistence. T02 binds
+`PaneEditorAdapter`; T04 supplies file-observation/save adapter work; T05/T06 own
+the emergency journal/store and Electron bridge. A future NormalWorkspaceRestore
+may add a normal snapshot/store and codec behind its setting, but is not part of
+this V1 handoff.
+
+## Startup and recovery boundary
+
+The startup order is mandatory. First, always scan and advance EmergencyRecovery.
+Next honor StartupIntent: explicit files open only the requested target set and
+must suppress NormalWorkspaceRestore. With no explicit target, current V1 uses
+DefaultStartupPolicy and creates one clean New Tab; a future enabled
+NormalWorkspaceRestore may replace that default only after its adapter exists.
+EmergencyRecovery is never suppressed: recovered emergency content goes through a
+safe recovery window/flow while explicit files still open according to intent. It
+is deliberately unspecified whether those appear in the same window.
+
+Dirty normal-exit save/discard confirmation is unchanged. Crash/power loss and
+Move recovery are always enabled. Do not make ordinary snapshot data emergency
+truth, silently load normal state while default-off, delete emergency records when
+removing normal restore, or expose an inert restore setting. The local reference
+`codex/workspace-restore-option@7636e01a` is not a merge source; any later adapter
+selectively migrates current compatible material from the then-current integration
+branch.
 
 ## Two-pane workspace behavior
 
@@ -71,10 +97,12 @@ remainder opposite. A second split is rejected. Moving a tab between panes moves
 its View. Empty panes auto-collapse; closing all content makes one clean untitled
 page. `FocusedPane` routes title, TOC, status/caret/word count, mode, commands,
 menus, shortcuts, find and formatting; autosave, observation and recovery run for
-every Document. Switching a tab flushes/refreshes only its pane. A legacy session
-migrates to one pane; malformed portions salvage valid content and safely collapse
-rather than failing a window. The complete behavior and invariant source is
-[Issue 04](../issues/04-design-pane-scoped-workspace-model.md).
+every Document. Switching a tab flushes/refreshes only its pane. This V1 preserves
+workspace state only for the live runtime; ordinary restart does not restore pane
+count, tab membership, focus, active tab, split ratio, scroll, or mode. Emergency
+recovery remains governed by its journal and safe recovery flow. The complete
+runtime invariant source is [Issue 04](../issues/04-design-pane-scoped-workspace-model.md),
+as bounded by [Issue 12](../issues/12-define-startup-restore-emergency-recovery-boundary.md).
 
 ## Cross-window behavior and durable safety
 
@@ -104,8 +132,10 @@ fence, blocking edit/save/close/retransfer; a second sealed ACK must match befor
 authorization. Pre-authorization boot/stage timeout is 15s with 5s ACK
 retry/cadence. Post-authorization timeout is recovery, never source rollback.
 
-The journal is transfer truth. It records owner migration and a recovery window
-session before restoring it; no source/old target session may revive moved content.
+The emergency journal is transfer truth. It records owner migration and a recovery
+window flow before restoring it; no source/old target normal session may revive
+moved content. It is not a normal workspace snapshot and remains active under
+DefaultStartupPolicy or an explicit StartupIntent.
 `completed` requires source release, target activation and session checkpoint plus
 journal fsync. Capsule SHA-256 covers exact stored bytes, tombstones/GC after
 abort/completion are bounded, and deletion failure cannot make a capsule the only
@@ -180,7 +210,7 @@ re-runs proportional checks, and updates the frontier.
 
 Before `commit-authorized`, an operation may abort and remove its staged target;
 after it, rollback means journal-driven forward recovery only. Never ship a data
-migration that cannot retain legacy session data or partial salvage. Feature flags
+migration that cannot retain legacy emergency data or partial salvage. Feature flags
 or capability gates must default unsafe external detach off; reverting UI exposure
 must not delete sessions, capsules or journals. A release requires automated
 matrix evidence, Windows manual trial, zero unresolved critical defects, final
