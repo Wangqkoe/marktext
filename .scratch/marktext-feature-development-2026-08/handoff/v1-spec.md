@@ -36,8 +36,9 @@ The terms below are normative and come from [Issue 04](../issues/04-design-pane-
 | StartupIntent | The launch request: no explicit target, or explicit associated/CLI/other file targets. It is not normal workspace state. |
 | DefaultStartupPolicy | Current V1 policy: no explicit target creates one clean New Tab; explicit targets seed/open only themselves. |
 | NormalWorkspaceRestore | Future optional adapter controlled by a default-off setting, and eligible only with no explicit StartupIntent. It is unavailable in current V1. |
-| EmergencyRecovery | Always-on crash/power-loss and Move WAL/journal recovery. It is independent of NormalWorkspaceRestore and never suppressed by explicit targets. |
-| Emergency journal/store | Durable emergency truth for T05/T06. It is distinct from any future normal snapshot/store. |
+| EmergencyRecovery | Always-on unified scan of CrashDraftRecovery and MoveRecovery. It is independent of NormalWorkspaceRestore and never suppressed by explicit targets. |
+| CrashDraftRecovery | Emergency checkpoint/store for a dirty saved or untitled Document plus minimal View state on crash/power loss. It never represents a clean normal workspace. |
+| MoveRecovery | TabTransfer's durable cross-window Move WAL/capsule source. It does not cover documents that never entered Move. |
 | EditorLease | Unforgeable pane/view/mode binding. All report/flush/handoff operations validate it atomically; a stale lease is inert. |
 | DiskRevision / FileKey | Canonical file key plus SHA-256 of persisted bytes. mtime/size are hints only. |
 | TabTransfer / capsule | Deep main-process Move transaction. A capsule is durable serialized portable state, addressed by digest; it never carries DOM, Muya instances, callbacks, or leases. |
@@ -55,28 +56,33 @@ targets and revisions, are single-use, and atomically reject stale/replayed or
 kind-mismatched operations.
 
 T01 establishes runtime controller ports/interfaces, deterministic memory adapters,
-DefaultStartupPolicy, and an EmergencyRecovery boundary. Correct Controller runtime
-does not load a normal workspace session, normal codec, or persistence. T02 binds
-`PaneEditorAdapter`; T04 supplies file-observation/save adapter work; T05/T06 own
-the emergency journal/store and Electron bridge. A future NormalWorkspaceRestore
-may add a normal snapshot/store and codec behind its setting, but is not part of
-this V1 handoff.
+DefaultStartupPolicy, typed CrashDraftRecovery/MoveRecovery boundaries, and their
+unified emergency scan input. Correct Controller runtime does not load a normal
+workspace session, normal codec, or persistence. T02 binds `PaneEditorAdapter`; T04
+supplies file-observation/save adapter work; T05 owns MoveRecovery only; T06 owns
+production CrashDraftRecovery lifecycle/store and both-source Electron startup
+scan. A future NormalWorkspaceRestore may add a normal snapshot/store and codec
+behind its setting, but is not part of this V1 handoff.
 
 ## Startup and recovery boundary
 
-The startup order is mandatory. First, always scan and advance EmergencyRecovery.
-Next honor StartupIntent: explicit files open only the requested target set and
-must suppress NormalWorkspaceRestore. With no explicit target, current V1 uses
-DefaultStartupPolicy and creates one clean New Tab; a future enabled
-NormalWorkspaceRestore may replace that default only after its adapter exists.
-EmergencyRecovery is never suppressed: recovered emergency content goes through a
-safe recovery window/flow while explicit files still open according to intent. It
-is deliberately unspecified whether those appear in the same window.
+The startup order is mandatory. First, always scan and advance CrashDraftRecovery
+and MoveRecovery. Next honor StartupIntent: explicit files open only the requested
+target set and suppress NormalWorkspaceRestore, never either emergency source. With
+no explicit target, current V1 uses DefaultStartupPolicy and creates one clean New
+Tab; a future enabled NormalWorkspaceRestore may replace that default only after
+its adapter exists. Emergency contents go through a safe recovery window/flow while
+explicit files still open according to intent; it is deliberately unspecified
+whether they appear in the same window.
 
-Dirty normal-exit save/discard confirmation is unchanged. Crash/power loss and
-Move recovery are always enabled. Do not make ordinary snapshot data emergency
-truth, silently load normal state while default-off, delete emergency records when
-removing normal restore, or expose an inert restore setting. The local reference
+Dirty normal-exit save/discard/cancel confirmation is unchanged. Clean shutdown is
+identified by a marker/equivalent finalization boundary; only a completed save or
+discard decision clears the related CrashDraft. Crash/power loss and Move recovery
+are always enabled. Do not make ordinary snapshot data emergency truth, silently
+load normal state while default-off, delete CrashDraft or Move records when removing
+normal restore, suppress emergency recovery for explicit files, or expose an inert
+restore setting. Legacy normal-session/`editorBufferStore` data is ignored but not
+deleted or overwritten. The local reference
 `codex/workspace-restore-option@7636e01a` is not a merge source; any later adapter
 selectively migrates current compatible material from the then-current integration
 branch.
@@ -132,10 +138,11 @@ fence, blocking edit/save/close/retransfer; a second sealed ACK must match befor
 authorization. Pre-authorization boot/stage timeout is 15s with 5s ACK
 retry/cadence. Post-authorization timeout is recovery, never source rollback.
 
-The emergency journal is transfer truth. It records owner migration and a recovery
-window flow before restoring it; no source/old target normal session may revive
-moved content. It is not a normal workspace snapshot and remains active under
-DefaultStartupPolicy or an explicit StartupIntent.
+The MoveRecovery journal is transfer truth for Move only. It records owner migration
+and a recovery window flow before restoring it; no source/old target normal session
+may revive moved content. CrashDraftRecovery separately protects dirty saved and
+untitled documents that never entered Move. Neither is a normal workspace snapshot,
+and both remain active under DefaultStartupPolicy or explicit StartupIntent.
 `completed` requires source release, target activation and session checkpoint plus
 journal fsync. Capsule SHA-256 covers exact stored bytes, tombstones/GC after
 abort/completion are bounded, and deletion failure cannot make a capsule the only

@@ -27,9 +27,12 @@ keyboard/theme/reduced motion/disableHtml/round-trip/export.
 
 Also record that normal restart creates one clean New Tab, explicit associated/CLI
 launch opens only its target(s), no unavailable restore setting is visible, and
-dirty normal-exit confirmation is unchanged. Under default-off, force crash/Move
-recovery evidence to show EmergencyRecovery still runs; do not treat ordinary
-workspace state as recovery evidence.
+dirty normal-exit save/discard/cancel confirmation is unchanged. Under default-off,
+force crash/power loss after dirty saved and untitled edits to show CrashDraftRecovery,
+then separately exercise MoveRecovery; explicit targets must not suppress either.
+Verify clean exit does not restore old tabs/split and no-restore launch leaves legacy
+normal `editorBufferStore` data intact. Do not treat ordinary workspace state as
+recovery evidence.
 
 ## Acceptance and handoff
 

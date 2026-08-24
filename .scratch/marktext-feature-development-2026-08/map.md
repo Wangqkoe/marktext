@@ -19,8 +19,6 @@ emergency recovery. This map does not implement product changes.
 - The local integration branch is `codex/marktext-feature-development-2026-08` in `E:\Program Files\Marktext-worktrees\marktext-feature-development-2026-08`.
 - Every implementation ticket must use its own worktree and `codex/<ticket-feature-name>` branch. Commits stay local; never push.
 - Window/IPC behavior, pane persistence, and shared editor state are high-risk and require `gpt-5.6-terra` at `high` plus independent review. Normal implementation uses `gpt-5.6-terra` at `medium`.
-- Normal workspace restore is deferred; V1 uses a clean default startup or explicit
-  file targets while EmergencyRecovery remains mandatory.
 
 ## Decisions so far
 

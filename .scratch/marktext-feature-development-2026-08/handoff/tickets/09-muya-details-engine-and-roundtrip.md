@@ -1,6 +1,6 @@
 # T09 — Muya details preview engine and semantic round-trip
 
-Wave: 2 · Risk/model: medium — `gpt-5.6-terra` / `medium` · Depends on: V1 Spec
+Wave: 1 · Risk/model: medium — `gpt-5.6-terra` / `medium` · Depends on: V1 Spec
 
 ## Result
 

@@ -2,6 +2,7 @@
 
 Type: `grilling`
 Status: `resolved`
+Claimed by: coordination task
 Blocked by: none
 
 ## Question
@@ -23,30 +24,44 @@ The canonical startup terms are:
   “Restore previous workspace on startup”, default off. Once implemented, it may
   participate only when the setting is on and StartupIntent has no explicit target.
   The setting is not exposed until that adapter works.
-- **EmergencyRecovery** scans and advances crash/power-loss and cross-window Move
-  WAL/journals. It is always enabled and is not suppressed by the setting or by an
-  explicit StartupIntent.
+- **EmergencyRecovery** is the combined scan input for two independent sources;
+  it is always enabled and is not suppressed by the setting or explicit intent.
+  **CrashDraftRecovery** preserves a dirty saved Document or untitled Document and
+  only the minimum View state needed to avoid loss during an abnormal end. It is
+  not a normal-close workspace snapshot and never restores clean tabs, split,
+  focus, active tab, scroll, or mode. **MoveRecovery** is the separate cross-window
+  Move WAL/capsule source owned by TabTransfer.
 
-Startup order is: (1) unconditionally scan/advance EmergencyRecovery; (2) honor
-StartupIntent—explicit targets open only their requested files; (3) otherwise use
-NormalWorkspaceRestore only when a future enabled adapter is available; (4) with
-no available normal restore, create the clean New Tab. Emergency content restores
-through a safe window/recovery flow while explicit targets still open as requested;
-this decision deliberately does not require them to share a window.
+Startup order is: (1) unconditionally scan/advance both CrashDraftRecovery and
+MoveRecovery; (2) honor StartupIntent—explicit targets open only their requested
+files; (3) otherwise use NormalWorkspaceRestore only when a future enabled adapter
+is available; (4) with no available normal restore, create the clean New Tab.
+Emergency content restores through a safe window/recovery flow while explicit
+targets still open as requested; this decision deliberately does not require them
+to share a window.
 
-Dirty normal-exit save/discard confirmation does not change. Emergency recovery is
-not a normal snapshot: normal snapshot/store is a deferred adapter, whereas the
-emergency journal/store is the T05/T06 source of truth. Removing normal restore
-must not delete crash or Move data. The public WorkspaceController runs from
+Dirty normal-exit save/discard/cancel confirmation does not change. A clean-shutdown
+marker (or equivalent finalization boundary) distinguishes CrashDraftRecovery from
+normal exit: only after a completed save/discard decision may its corresponding
+draft be cleared/closed. Emergency recovery is not a normal snapshot: normal
+snapshot/store is a deferred adapter, CrashDraftRecovery has its own emergency
+store, and MoveRecovery has its WAL/capsule truth. Removing normal restore must
+not delete either emergency source. The public WorkspaceController runs from
 runtime state and must not require normal session load, codec, or persistence.
 
-Current V1 implements only DefaultStartupPolicy and the required EmergencyRecovery
-boundary/integration. It does not implement V1→V2 normal session migration,
-automatic `editorBufferStore` loading, a restore setting/UI, or a normal
-WorkspacePersistence `load()`. Old, unimplemented exploratory material remains
-only as local reference `codex/workspace-restore-option@7636e01a`; any future
-NormalWorkspaceRestore may selectively migrate a current compatible session/codec
-from the then-current integration branch, never merge that old Controller whole.
+Legacy normal-session/`editorBufferStore` data is ignored by current no-restore
+startup but is neither deleted nor overwritten. This must be tested after a
+no-restore launch and recorded in integration and Windows-trial evidence.
+
+Current V1 implements DefaultStartupPolicy plus typed/in-memory emergency boundaries
+in T01; T05 implements only MoveRecovery; T06 implements CrashDraftRecovery
+production store/lifecycle, clean-shutdown determination and both-source startup
+scan. It does not implement V1→V2 normal migration, automatic `editorBufferStore`
+loading, a restore setting/UI, or a normal workspace `load()`. Old, unimplemented
+exploratory material remains only as local reference
+`codex/workspace-restore-option@7636e01a`; any future NormalWorkspaceRestore may
+selectively migrate a current compatible session/codec from the then-current
+integration branch, never merge that old Controller whole.
 
 ## Comments
 

@@ -7,9 +7,10 @@ Wave: 3 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T01, T04
 Build the deep, adapter-driven main-process TabTransfer module, durable capsule,
 journal state machine and recovery owner. Its deterministic transport must prove
 every phase, crash boundary and unique-owner invariant before Electron IPC exists.
-It provides the always-on EmergencyRecovery journal/store boundary for crash/power
-loss and Move; it does not register production IPC/native inputs, normal workspace
-restore, or menu/UI.
+It owns MoveRecovery only: the always-on cross-window Move WAL/capsule source. It
+does not protect dirty/untitled documents that never entered Move; CrashDraftRecovery
+is a distinct T01/T06 path. It does not register production IPC/native inputs,
+normal workspace restore, or menu/UI.
 
 Inputs: [V1 Spec](../v1-spec.md); [Issue 02](../../issues/02-define-cross-window-transfer-contract.md);
 [Issue 09](../../issues/09-design-tab-transfer-ipc-contract.md).
@@ -43,6 +44,7 @@ The suite kills/restarts at each phase and between intent/command/ACK/observed;
 checks source revision fence, history encoding/corruption, digest/tombstone,
 journal-owner migration, recovered last tab and no duplicate ownership. It must
 run regardless of explicit StartupIntent or default-off NormalWorkspaceRestore.
+It must not claim CrashDraftRecovery coverage.
 Manual
 check reviews a generated recovery projection. Commit only this module/tests.
 Independent terra/high Standards + Spec reviews must pass before T06; failure means
