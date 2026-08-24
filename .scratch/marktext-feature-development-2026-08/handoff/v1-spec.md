@@ -104,8 +104,9 @@ page. `FocusedPane` routes title, TOC, status/caret/word count, mode, commands,
 menus, shortcuts, find and formatting; autosave, observation and recovery run for
 every Document. Switching a tab flushes/refreshes only its pane. This V1 preserves
 workspace state only for the live runtime; ordinary restart does not restore pane
-count, tab membership, focus, active tab, split ratio, scroll, or mode. Emergency
-recovery remains governed by its journal and safe recovery flow. The complete
+count, tab membership, focus, active tab, split ratio, scroll, or mode.
+CrashDraftRecovery is governed by its independent crash-draft store and safe
+recovery flow; MoveRecovery alone is governed by the Move WAL/journal. The complete
 runtime invariant source is [Issue 04](../issues/04-design-pane-scoped-workspace-model.md),
 as bounded by [Issue 12](../issues/12-define-startup-restore-emergency-recovery-boundary.md).
 
