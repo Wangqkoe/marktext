@@ -36,8 +36,7 @@
 // `setContent` -> edit -> undo round-trip purely in trailing newlines (loading
 // `'x\n'` may serialize to `'x\n\n\n'`, while undoing an edit lands on `'x\n'`),
 // so the content signature must ignore them or undo-to-saved would never match.
-const stripTrailingNewlines = (content: string): string =>
-  content.replace(/[\r\n]+$/, '')
+const stripTrailingNewlines = (content: string): string => content.replace(/[\r\n]+$/, '')
 
 // A fast, stable 64-bit string hash (FNV-1a) over the trailing-newline-normalized
 // content. Used so the content -> id map stores short keys instead of whole

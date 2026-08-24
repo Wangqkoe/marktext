@@ -1,11 +1,9 @@
 <template>
-  <div
-    ref="sourceCodeContainer"
-    class="source-code"
-  />
+  <div ref="sourceCodeContainer" class="source-code" />
 </template>
 
 <script setup lang="ts">
+/* eslint-disable @stylistic/space-before-function-paren */
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
@@ -18,6 +16,7 @@ import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
 import { toCaretPosition } from '@/util/caretPosition'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
+import { singlePaneWorkspace } from '@/workspace'
 
 // CodeMirror 5 ships no first-party types; the wrapper in src/renderer/src/
 // codeMirror/index.ts also keeps the surface intentionally loose.
@@ -83,6 +82,16 @@ watch(
   }
 )
 
+watch(
+  () => props.markdown,
+  (markdown) => {
+    const scope = singlePaneWorkspace().getScope()
+    if (scope?.mode === 'source' && editor.value && typeof markdown === 'string') {
+      editor.value.setValue(markdown)
+    }
+  }
+)
+
 const getMarkdownAndCursor = (cm: CMInstance) => {
   let focus = cm.getCursor('head')
   let anchor = cm.getCursor('anchor')
@@ -141,6 +150,7 @@ interface FileChangePayloadLike {
 }
 
 const handleFileChange = (payload: unknown) => {
+  if (singlePaneWorkspace().getScope()) return
   const { id, markdown: newMarkdown, muyaIndexCursor } = payload as FileChangePayloadLike
   if (!editor.value) return
 
@@ -311,6 +321,13 @@ const saveContent = (cm: CMInstance) => {
   // See "beforeDestroy" note
   if (!viewDestroyed.value) {
     if (tabId.value) {
+      const scope = singlePaneWorkspace().getScope()
+      if (scope?.documentId === tabId.value) {
+        singlePaneWorkspace().reportSource(scope, {
+          markdown: newMarkdown,
+          status: { wordCount: wordCount.word }
+        })
+      }
       editorStore.LISTEN_FOR_CONTENT_CHANGE({
         id: tabId.value,
         markdown: newMarkdown,
@@ -365,7 +382,7 @@ onMounted(() => {
     styleActiveLine: true,
     direction: textDirection,
     viewportMargin: Infinity,
-    lineNumberFormatter (line: number) {
+    lineNumberFormatter(line: number) {
       if (line % 10 === 0 || line === 1) {
         return line
       } else {
@@ -430,13 +447,21 @@ onBeforeUnmount(() => {
   bus.off('image-action', handleImageAction)
   bus.off('scroll-to-header', handleScrollToHeader)
 
-  const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
-  bus.emit('file-changed', {
-    id: tabId.value,
-    markdown: newMarkdown,
-    muyaIndexCursor: cursor,
-    renderCursor: true
-  })
+  const scope = singlePaneWorkspace().getScope()
+  const id = tabId.value
+  if (id && scope?.mode === 'source' && scope.documentId === id) {
+    const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+    singlePaneWorkspace().reportSource(scope, {
+      markdown: newMarkdown,
+      status: { wordCount: getWordCount(newMarkdown).word }
+    })
+    editorStore.LISTEN_FOR_CONTENT_CHANGE({
+      id,
+      markdown: newMarkdown,
+      muyaIndexCursor: cursor
+    })
+    singlePaneWorkspace().handoffSource(scope)
+  }
 })
 </script>
 

@@ -4,18 +4,9 @@
     :class="[{ typewriter: typewriter, focus: focus, source: sourceCode }]"
     :dir="textDirection"
   >
-    <div
-      ref="editorRef"
-      class="editor-component"
-    />
-    <div
-      v-show="imageViewerVisible"
-      class="image-viewer"
-    >
-      <span
-        class="icon-close"
-        @click="setImageViewerVisible(false)"
-      >
+    <div ref="editorRef" class="editor-component" />
+    <div v-show="imageViewerVisible" class="image-viewer">
+      <span class="icon-close" @click="setImageViewerVisible(false)">
         <CloseIcon />
       </span>
       <div ref="imageViewerRef" />
@@ -34,10 +25,7 @@
           {{ t('editor.insertTable.title') }}
         </div>
       </template>
-      <el-form
-        :model="tableChecker"
-        :inline="true"
-      >
+      <el-form :model="tableChecker" :inline="true">
         <el-form-item :label="t('editor.insertTable.rows')">
           <el-input-number
             ref="rowInput"
@@ -63,10 +51,7 @@
           <el-button @click="dialogTableVisible = false">
             {{ t('common.cancel') }}
           </el-button>
-          <el-button
-            type="primary"
-            @click="handleDialogTableConfirm"
-          >
+          <el-button type="primary" @click="handleDialogTableConfirm">
             {{ t('common.ok') }}
           </el-button>
         </div>
@@ -77,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable @stylistic/space-before-function-paren */
 import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import log from 'electron-log'
 import {
@@ -138,6 +124,8 @@ import { useProjectStore } from '@/store/project'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SyntheticHistory, type IFileHistoryLike } from './syntheticHistory'
+import { singlePaneWorkspace, type PaneEditorEventScope, type PaneEditorSurface } from '@/workspace'
+import type { EditorBindingSnapshot, EditorReport } from '@shared/workspace'
 
 // Importing the engine entrypoint auto-injects its editor CSS (the muya.ts
 // module imports its stylesheets at load time). Desktop themes still target the
@@ -302,6 +290,8 @@ let switchLanguageCommand: SpellcheckerLanguageCommand | null = null
 let imageViewer: SimpleImageViewer | null = null
 // The engine has no `scroll` event; we listen on the scroll container directly.
 let scrollHandler: ((e: Event) => void) | null = null
+let paneScope: PaneEditorEventScope | undefined
+let paneSurface: PaneEditorSurface | undefined
 
 // The engine's undo/redo history (`getHistory()`) has a different shape than
 // the desktop store's `tab.history` (which drives the save/dirty tracking and
@@ -309,6 +299,9 @@ let scrollHandler: ((e: Event) => void) | null = null
 // per-tab map here for restoration across in-session tab switches, and feed the
 // store a SYNTHETIC desktop-shaped history.
 const engineHistoryByTab = new Map<string, unknown>()
+// Cursor serialisations remain renderer-only, but they are keyed by the
+// controller view identity rather than the ambient selected tab.
+const engineCursorByView = new Map<string, unknown>()
 
 // The WYSIWYG caret captured the instant the user switches INTO source mode.
 // Focus moves to CodeMirror while source mode is up, so by the time the tab is
@@ -474,7 +467,7 @@ class SimpleImageViewer {
   _onMousemove!: (e: MouseEvent) => void
   _onMouseup!: () => void
 
-  constructor (container: HTMLElement, { url }: { url: string }) {
+  constructor(container: HTMLElement, { url }: { url: string }) {
     this.container = container
     this.scale = 1
     this.translateX = 0
@@ -485,7 +478,7 @@ class SimpleImageViewer {
     this._init(url)
   }
 
-  _init (url: string) {
+  _init(url: string) {
     this.container.innerHTML = ''
     this.img = document.createElement('img')
     this.img.src = url
@@ -496,11 +489,11 @@ class SimpleImageViewer {
     this._bindEvents()
   }
 
-  _updateTransform () {
+  _updateTransform() {
     this.img.style.transform = `translate(${this.translateX}px,${this.translateY}px) scale(${this.scale})`
   }
 
-  _bindEvents () {
+  _bindEvents() {
     this._onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const factor = e.deltaY < 0 ? 1.1 : 0.9
@@ -531,7 +524,7 @@ class SimpleImageViewer {
     document.addEventListener('mouseup', this._onMouseup)
   }
 
-  destroy () {
+  destroy() {
     this.container.removeEventListener('wheel', this._onWheel)
     this.container.removeEventListener('mousedown', this._onMousedown)
     document.removeEventListener('mousemove', this._onMousemove)
@@ -568,6 +561,11 @@ watch(focus, (value) => {
 // state for the CURRENT cursor context (a code block/table still disables some
 // items) rather than blanket-enabling everything (#3531).
 watch(sourceCode, (isSource) => {
+  if (paneScope && isSource) {
+    paneScope.handoffMode('source').catch((error) => {
+      console.error('Failed to hand off pane editor mode:', error)
+    })
+  }
   const windowId = window.marktext?.env?.windowId ?? -1
   if (isSource) {
     window.electron.ipcRenderer.send('mt::set-editor-format-menus-enabled', windowId, false)
@@ -1493,6 +1491,10 @@ interface FileLoadedPayload {
 
 // listen for `open-single-file` event, it will call this method only when open a new file.
 const setMarkdownToEditor = (payload: unknown) => {
+  // The workspace composition owns mounted-pane refreshes. A legacy
+  // `file-loaded` delivery can otherwise race the queued controller command
+  // and flush the incoming document under the outgoing lease.
+  if (singlePaneWorkspace().isMounted()) return
   const { id, markdown: newMarkdown, cursor: newCursor } = (payload ?? {}) as FileLoadedPayload
   if (editor.value) {
     // `setContent` resets the document and clears the undo history; only set a
@@ -1537,10 +1539,13 @@ interface FileChangePayload {
   muyaIndexCursor?: unknown
   blocks?: unknown
   isReload?: boolean
+  workspaceRefresh?: boolean
+  sourceHandoff?: boolean
 }
 
 // listen for markdown change form source mode or change tabs etc
 const handleFileChange = (payload: unknown) => {
+  if (singlePaneWorkspace().isMounted() && !(payload as FileChangePayload)?.workspaceRefresh) return
   const {
     id,
     markdown: newMarkdown,
@@ -1548,7 +1553,8 @@ const handleFileChange = (payload: unknown) => {
     muyaIndexCursor,
     history: payloadHistory,
     scrollTop,
-    isReload
+    isReload,
+    sourceHandoff
   } = (payload ?? {}) as FileChangePayload
   if (!editor.value) return
   const container = getScrollContainer()
@@ -1573,7 +1579,7 @@ const handleFileChange = (payload: unknown) => {
     // those absent reliably isolates the WYSIWYG<-source handoff from a tab
     // activation that merely replays a tab's persisted `muyaIndexCursor`.
     const isSourceModeHandoff =
-      isIndexCursor(muyaIndexCursor) && !newCursor && payloadHistory == null
+      sourceHandoff || (isIndexCursor(muyaIndexCursor) && !newCursor && payloadHistory == null)
 
     if (isSourceModeHandoff) {
       // Record the bulk source-mode edit as a single undo boundary. When the
@@ -1835,6 +1841,60 @@ onMounted(() => {
   // the document tree and instantiates the registered UI plugins).
   muya.init()
   editor.value = muya
+
+  paneSurface = {
+    async refresh(snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope): Promise<void> {
+      paneScope = scope
+      if (!editor.value) return
+      handleFileChange({
+        id: snapshot.document.documentId,
+        markdown: snapshot.document.markdown,
+        cursor: engineCursorByView.get(snapshot.viewId),
+        scrollTop: snapshot.view.scrollTop,
+        workspaceRefresh: true,
+        sourceHandoff: singlePaneWorkspace().isSourceHandoff(snapshot)
+      })
+    },
+    async flush(snapshot: EditorBindingSnapshot): Promise<EditorReport> {
+      const sourceReport = singlePaneWorkspace().sourceReportFor(snapshot)
+      if (sourceReport) return sourceReport
+      if (!editor.value) return {}
+      const markdown = editor.value.getMarkdown()
+      const toc = editor.value
+        .getTOC()
+        .map((item: { slug?: string; content?: string; lvl?: number }) => ({
+          id: item.slug ?? item.content ?? '',
+          title: item.content ?? '',
+          level: item.lvl ?? 0
+        }))
+      return {
+        markdown,
+        scrollTop: getScrollContainer()?.scrollTop ?? 0,
+        toc,
+        status: { wordCount: muyaWordCount(markdown).word }
+      }
+    }
+  }
+  singlePaneWorkspace().setSourceHandoffHandler((report) => {
+    handleFileChange({
+      markdown: report.markdown,
+      workspaceRefresh: true,
+      sourceHandoff: true
+    })
+  })
+  const legacyTab = currentFile.value
+  if (legacyTab) {
+    singlePaneWorkspace()
+      .mount(paneSurface, {
+        id: legacyTab.id,
+        markdown: legacyTab.markdown,
+        title: legacyTab.filename,
+        ...(legacyTab.pathname ? { fileKey: legacyTab.pathname } : {})
+      })
+      .catch((error) => {
+        console.error('Failed to bind the pane editor:', error)
+      })
+  }
   // The first document's content is set via constructor options, so no
   // `file-loaded` / `setMarkdownToEditor` runs for it — seed its TOC here.
   editorStore.UPDATE_TOC(muya.getTOC())
@@ -1920,6 +1980,8 @@ onMounted(() => {
     // re-edited tab as clean (Phase G — G6).
     const engineHistory = editor.value.getHistory()
     engineHistoryByTab.set(id, engineHistory)
+    if (!paneScope || paneScope.documentId !== id) return
+    const toc = editor.value.getTOC()
     editorStore.LISTEN_FOR_CONTENT_CHANGE({
       id,
       markdown,
@@ -1928,7 +1990,7 @@ onMounted(() => {
       // Synthetic, desktop-shaped history so the store's save/dirty tracking
       // keeps working (the engine history shape is incompatible).
       history: makeSyntheticHistory(id, markdown),
-      toc: editor.value.getTOC(),
+      toc,
       blocks: editor.value.getState()
     })
   })
@@ -2011,7 +2073,12 @@ onMounted(() => {
     // `json-change`) survives an in-session tab switch — `tab.cursor` is what
     // `handleFileChange` replays on re-activation. Cheap: serialized caret only.
     if (currentFile.value?.id && editor.value) {
-      editorStore.PERSIST_CURSOR(currentFile.value.id, serializeCursor(editor.value.getSelection()))
+      const cursor = serializeCursor(editor.value.getSelection())
+      const scope = paneScope
+      if (scope?.documentId === currentFile.value.id) {
+        engineCursorByView.set(scope.viewId, cursor)
+      }
+      editorStore.PERSIST_CURSOR(currentFile.value.id, cursor)
     }
     pushSelectionMenuState(changes)
   })
@@ -2075,6 +2142,10 @@ onBeforeUnmount(() => {
   }
 
   if (editor.value) {
+    if (paneSurface) singlePaneWorkspace().unmount(paneSurface)
+    singlePaneWorkspace().setSourceHandoffHandler(undefined)
+    paneScope = undefined
+    paneSurface = undefined
     editor.value.destroy()
     editor.value = null
   }

@@ -2,11 +2,7 @@ import equal from 'deep-equal'
 import bus from '../bus'
 import { getUniqueId, deepClone } from '../util'
 import listToTree, { type ListItem, type TreeNode } from '../util/listToTree'
-import {
-  createDocumentState,
-  getOptionsFromState,
-  getBlankFileState
-} from './help'
+import { createDocumentState, getOptionsFromState, getBlankFileState } from './help'
 import notice from '../services/notification'
 import {
   FileEncodingCommand,
@@ -19,6 +15,7 @@ import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
 import { useMainStore } from '.'
+import { singlePaneWorkspace } from '@/workspace'
 import { t } from '../i18n'
 import { debouncedSendBufferedState, sendBufferedState } from './bufferedState'
 import type {
@@ -197,6 +194,10 @@ export const useEditorStore = defineStore('editor', {
      * Update scroll position for the currentFile
      */
     updateScrollPosition(id: string, scrollTop: number): void {
+      const scope = singlePaneWorkspace().getScope()
+      if (scope) {
+        if (scope.documentId !== id || scope.report({ scrollTop }).status !== 'applied') return
+      }
       if (!(id in this.tabIdToIndex)) {
         console.warn('updateScrollPosition: Cannot find tab index for id:', id)
         return
@@ -777,6 +778,10 @@ export const useEditorStore = defineStore('editor', {
         }
         window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
         this.currentFile = currentFile
+        const workspace = singlePaneWorkspace()
+        workspace.activateLegacyTab(currentFile).catch((error) => {
+          console.error('Failed to activate legacy pane tab:', error)
+        })
         didUpdateCurrentFile = true
 
         if (!this.tabs.some((file) => file.id === currentFile.id)) {
@@ -784,16 +789,18 @@ export const useEditorStore = defineStore('editor', {
           this.updateTabIdToIndex()
         }
 
-        bus.emit('file-changed', {
-          id,
-          markdown,
-          cursor,
-          muyaIndexCursor,
-          renderCursor: true,
-          history,
-          scrollTop,
-          blocks
-        })
+        if (!workspace.isMounted()) {
+          bus.emit('file-changed', {
+            id,
+            markdown,
+            cursor,
+            muyaIndexCursor,
+            renderCursor: true,
+            history,
+            scrollTop,
+            blocks
+          })
+        }
       }
 
       this.UPDATE_LINE_ENDING_MENU()
@@ -1348,6 +1355,8 @@ export const useEditorStore = defineStore('editor', {
       toc,
       blocks
     }: ContentChangePayload): void {
+      const scope = singlePaneWorkspace().getScope()
+      if (scope && scope.documentId !== id) return
       const preferencesStore = usePreferencesStore()
       const { autoSave } = preferencesStore
       if (!id) {
@@ -1366,6 +1375,7 @@ export const useEditorStore = defineStore('editor', {
       const { filename, pathname, markdown: oldMarkdown, trimTrailingNewline } = tab
 
       markdown = adjustTrailingNewlines(markdown, trimTrailingNewline)
+      if (scope && scope.report({ markdown }).status !== 'applied') return
       tab.markdown = markdown
 
       if (oldMarkdown.length === 0 && markdown.length === 1 && markdown[0] === '\n') {

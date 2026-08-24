@@ -58,6 +58,7 @@ export class RendererPaneEditorAdapter implements PaneEditorAdapter {
 export interface PaneEditorEventScope {
   readonly paneId: PaneId
   readonly viewId: ViewId
+  readonly documentId: string
   readonly mode: EditorMode
   report(report: EditorReport): WorkspaceResult
   flush(): Promise<WorkspaceResult>
@@ -69,6 +70,7 @@ class RendererPaneEditorEventScope implements PaneEditorEventScope {
     private readonly reporter: PaneEditorLeaseReporter,
     readonly paneId: PaneId,
     readonly viewId: ViewId,
+    readonly documentId: string,
     readonly mode: EditorMode
   ) {}
 
@@ -95,12 +97,19 @@ export class PaneEditorLeaseReporter {
     this.binding = binding
   }
 
+  getActiveScope(): PaneEditorEventScope | undefined {
+    return this.activeScope
+  }
+
   stage(snapshot: EditorBindingSnapshot): PaneEditorEventScope {
-    if (snapshot.paneId !== this.paneId) { throw new Error('pane adapter received the wrong pane snapshot') }
+    if (snapshot.paneId !== this.paneId) {
+      throw new Error('pane adapter received the wrong pane snapshot')
+    }
     return new RendererPaneEditorEventScope(
       this,
       snapshot.paneId,
       snapshot.viewId,
+      snapshot.document.documentId,
       snapshot.view.mode
     )
   }
