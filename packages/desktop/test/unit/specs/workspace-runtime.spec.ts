@@ -192,7 +192,22 @@ describe('WorkspaceRuntime', () => {
     expect((await sourceScope.flush()).status).toBe('applied')
 
     expect((await workspace.execute({ kind: 'new-tab', paneId: 'left' })).status).toBe('applied')
-    expect(sourceScope.report({ markdown: 'late source event' }).status).toBe('rejected')
+    // This is the delayed production-surface generation: every field is sent
+    // through the captured source scope after the controller has rebound.
+    expect(
+      sourceScope.report({
+        markdown: 'late source event',
+        portableHistory: { version: 1, value: ['late'] },
+        cursor: { line: 99, column: 99 },
+        selection: {
+          anchor: { line: 99, column: 99 },
+          head: { line: 99, column: 99 }
+        },
+        scrollTop: 999,
+        toc: [{ id: 'late', title: 'Late', level: 1 }],
+        status: { wordCount: 999, caret: { line: 99, column: 99 } }
+      }).status
+    ).toBe('rejected')
     const active = currentLease(binding)
     expect(binding.getSnapshot(active)?.document.markdown).toBe('')
     expect(surface.snapshots.at(-1)?.viewId).toBe(active.viewId)

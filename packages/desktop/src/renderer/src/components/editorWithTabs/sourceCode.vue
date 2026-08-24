@@ -15,7 +15,7 @@ import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
 import { toCaretPosition } from '@/util/caretPosition'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
-import { legacyPaneFallback as singlePaneWorkspace } from '@/workspace'
+import { legacyPaneFallback as singlePaneWorkspace, type PaneEditorEventScope } from '@/workspace'
 
 // CodeMirror 5 ships no first-party types; the wrapper in src/renderer/src/
 // codeMirror/index.ts also keeps the surface intentionally loose.
@@ -47,6 +47,7 @@ const editor = ref<CMInstance>(null)
 const commitTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const viewDestroyed = ref(false)
 const tabId = ref<string | null>(null)
+let sourceEventScope: PaneEditorEventScope | undefined
 
 const { theme, sourceCode } = storeToRefs(preferencesStore)
 const { currentFile: currentTab } = storeToRefs(editorStore)
@@ -313,19 +314,21 @@ const handleImageAction = (payload: unknown) => {
   }
 }
 
-const saveContent = (cm: CMInstance) => {
+const saveContent = (cm: CMInstance, scope = sourceEventScope) => {
   const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(cm)
   // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
   const wordCount = getWordCount(newMarkdown)
   // See "beforeDestroy" note
   if (!viewDestroyed.value) {
     if (tabId.value) {
-      const scope = singlePaneWorkspace().getScope()
       if (scope?.documentId === tabId.value) {
-        singlePaneWorkspace().reportSource(scope, {
+        const result = singlePaneWorkspace().reportSource(scope, {
           markdown: newMarkdown,
           status: { wordCount: wordCount.word }
         })
+        if (result.status !== 'applied') return
+      } else {
+        return
       }
       editorStore.LISTEN_FOR_CONTENT_CHANGE({
         id: tabId.value,
@@ -340,10 +343,10 @@ const saveContent = (cm: CMInstance) => {
   }
 }
 
-const listenChange = () => {
+const listenChange = (scope: PaneEditorEventScope) => {
   editor.value.on('cursorActivity', (cm: CMInstance) => {
     reportCaretPosition(cm, props.caretSession)
-    saveContent(cm)
+    saveContent(cm, scope)
   })
 }
 
@@ -428,8 +431,9 @@ onMounted(() => {
 
   editor.value = codeMirrorInstance
   tabId.value = id
+  sourceEventScope = singlePaneWorkspace().getScope()
 
-  listenChange()
+  if (sourceEventScope) listenChange(sourceEventScope)
   reportCaretPosition(codeMirrorInstance, props.caretSession)
 })
 
@@ -446,7 +450,7 @@ onBeforeUnmount(() => {
   bus.off('image-action', handleImageAction)
   bus.off('scroll-to-header', handleScrollToHeader)
 
-  const scope = singlePaneWorkspace().getScope()
+  const scope = sourceEventScope
   const id = tabId.value
   if (id && scope?.mode === 'source' && scope.documentId === id) {
     const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
