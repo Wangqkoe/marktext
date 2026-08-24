@@ -1,5 +1,5 @@
 {
-  "status": "Unavailable",
+  "status": "Passed: Windows single-primary physical external release contract",
   "scope": "physical Windows cross-BrowserWindow left-button release",
   "environment": {
     "os": "Windows 11 Pro build 26200 x64",
@@ -20,7 +20,22 @@
     "trace": "records DIP bounds, physical bounds, display scaleFactor, and units"
   },
   "inputTrustContract": "candidate arming and commit require WH_MOUSE_LL events with injected:false; injected:true or missing flags are logged and ignored",
-  "humanOperatedSession": {
+  "acceptedPhysicalSession": {
+    "summary": "manual-windows-primary-summary.json",
+    "filteredAuditTrace": "manual-windows-primary-filtered.jsonl",
+    "rawSha256": "373fc09c782b140ed3bea7a0f49bf182f0c1851150baaf80be0edbaf3bfbb49d",
+    "bytes": 3647637,
+    "lines": 4772,
+    "mouseEvents": 2679,
+    "upEvents": 17,
+    "trustedMouseEvents": 2679,
+    "trustedUpEvents": 17,
+    "candidate": 7,
+    "commit": 4,
+    "verdict": "Passed: Windows single-primary physical external release contract",
+    "captureLifecycle": "Main process was explicitly terminated and the trace frozen; no hook-exit was observed, so this is not described as graceful shutdown."
+  },
+  "historicalInjectedHumanOperatedSession": {
     "summary": "manual-injected-session-summary.json",
     "filteredAuditTrace": "manual-injected-session-filtered.jsonl",
     "rawSha256": "4c4dbbc0a1b88617299a6ecdbd48ea5d182e087d29f54e00c8610744eac0b5ea",
@@ -42,5 +57,5 @@
       "result": "The controller rejected endpoint (-90, 190) because it was outside the target window, so it cannot produce the required external release."
     }
   ],
-  "conclusion": "A physical-mouse trace remains required. The prior polling helper is deliberately removed because button-state reads and cursor reads are not an atomic release event."
+  "conclusion": "The Windows single-primary physical contract is accepted. The prior polling helper remains deliberately removed because button-state reads and cursor reads are not an atomic release event. Multi-display/mixed-DPI Windows, macOS, and Linux remain unavailable and V1 external detach is disabled there rather than replaced with another trigger."
 }

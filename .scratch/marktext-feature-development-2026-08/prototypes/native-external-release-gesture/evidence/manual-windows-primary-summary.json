@@ -1,0 +1,272 @@
+{
+  "schemaVersion": 1,
+  "verdict": "Passed: Windows single-primary physical external release contract",
+  "raw": {
+    "path": "E:\\Program Files\\Marktext-worktrees\\marktext-feature-development-2026-08\\.scratch\\marktext-feature-development-2026-08\\prototypes\\native-external-release-gesture\\evidence\\manual-session.jsonl",
+    "sha256": "373fc09c782b140ed3bea7a0f49bf182f0c1851150baaf80be0edbaf3bfbb49d",
+    "bytes": 3647637,
+    "lines": 4772,
+    "nSequence": "strictly continuous and unique 1..4772",
+    "timeRange": {
+      "start": "2026-08-24T02:38:43.528Z",
+      "end": "2026-08-24T02:45:36.209Z"
+    },
+    "sourceBoundsAtManualReady": {
+      "dip": {
+        "x": 700,
+        "y": 300,
+        "width": 640,
+        "height": 420
+      },
+      "physical": {
+        "x": 700,
+        "y": 300,
+        "width": 640,
+        "height": 420
+      },
+      "display": {
+        "id": 2068720643,
+        "scaleFactor": 1,
+        "bounds": {
+          "x": 0,
+          "y": 0,
+          "width": 2560,
+          "height": 1440
+        },
+        "workArea": {
+          "x": 0,
+          "y": 0,
+          "width": 2560,
+          "height": 1392
+        }
+      },
+      "units": {
+        "dip": "Electron display-independent pixels",
+        "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+      }
+    }
+  },
+  "probe": {
+    "integrationCommit": "a9b76808",
+    "hitTestSnapshotCommit": "b49389dc",
+    "lifecycleCommit": "a9b76808"
+  },
+  "captureLifecycle": {
+    "manualReady": {
+      "n": 1,
+      "at": "2026-08-24T02:38:43.528Z",
+      "type": "manual-ready"
+    },
+    "hookReady": {
+      "n": 2,
+      "at": "2026-08-24T02:38:44.106Z",
+      "type": "hook-ready"
+    },
+    "mainProcess": "explicitly terminated; capture frozen at final recorded event",
+    "hookExitObserved": false,
+    "shutdownInterpretation": "not graceful: no hook-exit record exists in the frozen trace"
+  },
+  "environment": {
+    "os": "Windows 11",
+    "electron": "42.1.0",
+    "displays": 1,
+    "primaryDisplay": {
+      "bounds": {
+        "x": 0,
+        "y": 0,
+        "width": 2560,
+        "height": 1440
+      },
+      "scaleFactor": 1,
+      "systemDpi": 96,
+      "units": "Windows physical screen pixels for WH_MOUSE_LL; Electron DIP for BrowserWindow bounds"
+    }
+  },
+  "nativeInput": {
+    "eventSource": {
+      "type": "native-ready",
+      "mouseSource": "WH_MOUSE_LL",
+      "keyboardSource": "WH_KEYBOARD_LL"
+    },
+    "mouse": {
+      "total": 2679,
+      "injectedFalse": 2679,
+      "injectedTrue": 0
+    },
+    "byType": {
+      "move": 2645,
+      "down": 17,
+      "up": 17,
+      "escape": 1
+    },
+    "up": {
+      "total": 17,
+      "injectedFalse": 17,
+      "injectedTrue": 0
+    }
+  },
+  "lifecycleCounts": {
+    "sourceGesture": 7,
+    "candidate": 7,
+    "reentry": 2,
+    "commit": 4,
+    "insideUpNoDetach": 2,
+    "cancel": 1,
+    "timeout": {
+      "total": 6,
+      "activeCandidate": 3,
+      "observedBeforeCandidate": 3
+    },
+    "blur": {
+      "total": 3,
+      "activeCandidate": 1,
+      "noActiveCandidate": 2
+    },
+    "replaced": 0,
+    "ignored": {
+      "injected": 0,
+      "noActiveGesture": 2045
+    }
+  },
+  "gestureOutcomes": [
+    {
+      "gestureId": 1,
+      "start": {
+        "n": 1785,
+        "at": "2026-08-24T02:44:31.154Z",
+        "type": "source-tab-mousedown"
+      },
+      "outcome": "outside commit after active timeout",
+      "timeout": {
+        "n": 1840,
+        "at": "2026-08-24T02:44:31.669Z",
+        "type": "timeout-observed-no-detach"
+      },
+      "commit": {
+        "n": 1898,
+        "at": "2026-08-24T02:44:33.199Z",
+        "type": "DETACH_COMMIT"
+      }
+    },
+    {
+      "gestureId": 2,
+      "start": {
+        "n": 2039,
+        "at": "2026-08-24T02:44:40.112Z",
+        "type": "source-tab-mousedown"
+      },
+      "outcome": "reenter then inside up: no detach",
+      "reentry": {
+        "n": 2128,
+        "at": "2026-08-24T02:44:41.759Z",
+        "type": "reentered-source"
+      },
+      "insideUp": {
+        "n": 2173,
+        "at": "2026-08-24T02:44:43.016Z",
+        "type": "native-up-no-detach"
+      }
+    },
+    {
+      "gestureId": 3,
+      "start": {
+        "n": 2248,
+        "at": "2026-08-24T02:44:47.848Z",
+        "type": "source-tab-mousedown"
+      },
+      "outcome": "re-enter, leave again, re-arm, then outside commit",
+      "reentry": {
+        "n": 2348,
+        "at": "2026-08-24T02:44:49.386Z",
+        "type": "reentered-source"
+      },
+      "rearm": {
+        "n": 2420,
+        "at": "2026-08-24T02:44:50.482Z",
+        "type": "external-candidate-armed"
+      },
+      "commit": {
+        "n": 2445,
+        "at": "2026-08-24T02:44:51.272Z",
+        "type": "DETACH_COMMIT"
+      }
+    },
+    {
+      "gestureId": 4,
+      "start": {
+        "n": 2614,
+        "at": "2026-08-24T02:44:55.469Z",
+        "type": "source-tab-mousedown"
+      },
+      "outcome": "inside-only up: no detach",
+      "insideUp": {
+        "n": 2617,
+        "at": "2026-08-24T02:44:55.920Z",
+        "type": "native-up-no-detach"
+      }
+    },
+    {
+      "gestureId": 5,
+      "start": {
+        "n": 2621,
+        "at": "2026-08-24T02:44:56.294Z",
+        "type": "source-tab-mousedown"
+      },
+      "outcome": "outside commit after active timeout",
+      "timeout": {
+        "n": 2670,
+        "at": "2026-08-24T02:44:56.797Z",
+        "type": "timeout-observed-no-detach"
+      },
+      "commit": {
+        "n": 2696,
+        "at": "2026-08-24T02:44:59.126Z",
+        "type": "DETACH_COMMIT"
+      }
+    },
+    {
+      "gestureId": 6,
+      "start": {
+        "n": 2919,
+        "at": "2026-08-24T02:45:01.702Z",
+        "type": "source-tab-mousedown"
+      },
+      "outcome": "Escape cancels; subsequent trusted outside up ignored with no active gesture",
+      "cancel": {
+        "n": 3012,
+        "at": "2026-08-24T02:45:05.689Z",
+        "type": "cancelled"
+      },
+      "ignoredUp": {
+        "n": 3015,
+        "at": "2026-08-24T02:45:06.552Z",
+        "type": "native-event-ignored-no-active-gesture"
+      }
+    },
+    {
+      "gestureId": 7,
+      "start": {
+        "n": 3262,
+        "at": "2026-08-24T02:45:09.641Z",
+        "type": "source-tab-mousedown"
+      },
+      "outcome": "active blur does not commit; trusted outside up commits after blur",
+      "blur": {
+        "n": 3311,
+        "at": "2026-08-24T02:45:11.921Z",
+        "type": "browser-window-blur-observed-no-detach"
+      },
+      "blurToCommitMs": 2971,
+      "commit": {
+        "n": 3314,
+        "at": "2026-08-24T02:45:14.892Z",
+        "type": "DETACH_COMMIT"
+      }
+    }
+  ],
+  "filtered": {
+    "path": "manual-windows-primary-filtered.jsonl",
+    "lines": 64,
+    "excludesPointerMoves": true
+  }
+}

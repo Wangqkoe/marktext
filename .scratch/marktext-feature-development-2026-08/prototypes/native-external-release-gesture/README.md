@@ -26,23 +26,34 @@ active for 60 minutes (3,600,000 ms) after launch; the automated mode remains 30
 seconds. Closing the probe window or quitting Electron explicitly terminates the
 native helper. The live page and JSONL both expose the state.
 
-## Manual injected-session evidence
+## Accepted Windows physical-input evidence
 
-Summarize a captured raw session without copying its pointer-move stream into the
-repository:
+The accepted Windows single-primary capture is immutable input outside this
+worktree. Reproduce its audit artifacts without copying its pointer-move stream:
 
 ```powershell
-node .scratch\marktext-feature-development-2026-08\prototypes\native-external-release-gesture\summarize-manual-trace.cjs <raw-manual-session.jsonl>
+node .scratch\marktext-feature-development-2026-08\prototypes\native-external-release-gesture\summarize-physical-trace.cjs 'E:\Program Files\Marktext-worktrees\marktext-feature-development-2026-08\.scratch\marktext-feature-development-2026-08\prototypes\native-external-release-gesture\evidence\manual-session.jsonl'
 ```
 
-The supplied human-operated Windows session produced 3,739 native mouse events,
-including 43 button-up events; every one was `injected:true`, with zero trusted
-(`injected:false`) mouse/up events, candidates, or commits. The summarized
-verdict is `Unavailable: human-operated session arrived entirely as injected input`.
-The hook/trust gate therefore failed closed, but this is not proof of a physical
-external release. `injected:false` is an evidence gate only, not a product policy:
-support for remote-control and assistive-input mechanisms requires a separate
-product compatibility decision.
+The script rejects malformed JSON, any non-continuous/duplicate `n`, and any raw
+other than SHA-256 `373fc09c782b140ed3bea7a0f49bf182f0c1851150baaf80be0edbaf3bfbb49d`
+(3,647,637 bytes; 4,772 lines). It writes
+`evidence/manual-windows-primary-summary.json` and a 64-line filtered audit trace.
+The accepted result contains 2,679 physical (`injected:false`) mouse events and
+17 physical ups, 7 gestures, 7 candidate arms, 2 re-entries, 4 commits, 2
+inside-up no-detaches, 1 Escape cancel, 6 timeout observations, and 3 blur
+observations (one while a candidate was active). G7 records an active blur followed
+2,971 ms later by the eligible external release commit. The verdict is
+`Passed: Windows single-primary physical external release contract`.
+
+## Historical injected-session evidence
+
+`summarize-manual-trace.cjs` and the `manual-injected-*` artifacts preserve an
+earlier human-operated session: all 3,739 mouse events and 43 ups were
+`injected:true`, so the trust gate correctly failed closed. That historical failed
+session is not the passing physical evidence above. `injected:false` is a
+prototype evidence threshold only, not a product policy; product support for
+remote-control and assistive input needs its own compatibility decision.
 
 ## Decision boundary
 
@@ -93,6 +104,7 @@ releasing native-up.
    commit.
 
 The helper is deliberately external to production and has no product packaging,
-persistence, or fallback behavior. It is a V1 blocker, not a production
-implementation: without physical mouse evidence and independent review, external
-detach must remain disabled. See `evidence/summary.md` for limitations.
+persistence, or fallback behavior. The accepted proof is limited to the tested
+Windows single-primary environment. V1 must keep external detach disabled on
+multi-display/mixed-DPI Windows and on macOS/Linux until those platforms have their
+own accepted event-level evidence. See `evidence/summary.md` for limitations.
