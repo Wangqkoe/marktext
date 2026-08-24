@@ -365,7 +365,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (source.id === target.id) return this.rejected('view is already in target pane')
     await this.flushPane(source.id)
     const remaining = source.viewIds.filter((id) => id !== viewId)
-    const sourceSnapshot = remaining.length > 0 ? this.snapshotFor(source.id, remaining[0]!) : undefined
+    const movingActiveView = source.activeViewId === viewId
+    const nextSourceActiveId = movingActiveView ? remaining[0] : source.activeViewId
+    const sourceSnapshot = movingActiveView && nextSourceActiveId ? this.snapshotFor(source.id, nextSourceActiveId) : undefined
     if (sourceSnapshot) await this.refreshAdapter(source.id, sourceSnapshot)
     try {
       if (remaining.length === 0) {
@@ -379,6 +381,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
     if (remaining.length > 0) {
       source.viewIds = remaining
+      source.activeViewId = nextSourceActiveId!
       target.viewIds.push(viewId)
       target.activeViewId = viewId
       this.focusedPaneId = target.id
@@ -661,9 +664,6 @@ export class WorkspaceController implements WorkspaceControllerContract {
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
-
-/** Compatibility name for the T01 live-runtime assembly seam. */
-export { WorkspaceController as WorkspaceRuntime }
 
 export function createWorkspaceRuntime(initial: readonly WorkspaceDocumentInput[] = []): WorkspaceController {
   return new WorkspaceController(initial)

@@ -97,6 +97,69 @@ describe('WorkspaceRuntime', () => {
     expect(projection.panes[0]!.tabs.map((tab) => tab.fileKey)).toEqual(['/one.md', '/two.md'])
   })
 
+  it('updates source active state only when a non-collapse move removes its active View', async() => {
+    for (const movingKind of ['active', 'non-active'] as const) {
+      const workspace = createWorkspaceRuntime([
+        { fileKey: '/one.md' },
+        { fileKey: '/two.md' },
+        { fileKey: '/three.md' },
+        { fileKey: '/four.md' }
+      ])
+      await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+      const leftEditor = new MemoryEditor()
+      const rightEditor = new MemoryEditor()
+      const left = await workspace.bindPaneEditor('left', leftEditor)
+      const right = await workspace.bindPaneEditor('right', rightEditor)
+      const source = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
+      const moved = movingKind === 'active' ? source.tabs[0]! : source.tabs[1]!
+      const originalActive = source.activeViewId
+      const originalLease = currentLease(left)
+      const originalRefreshes = leftEditor.snapshots.length
+
+      expect((await workspace.execute({ kind: 'move-view', viewId: moved.viewId, targetPaneId: 'right' })).status).toBe('applied')
+      const leftPane = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
+      const rightPane = workspace.getProjection().panes.find((pane) => pane.paneId === 'right')!
+      expect(leftPane.tabs.map((tab) => tab.fileKey)).toEqual(
+        movingKind === 'active' ? ['/two.md', '/three.md'] : ['/one.md', '/three.md']
+      )
+      const expectedSourceActive = movingKind === 'active' ? leftPane.tabs[0]!.viewId : originalActive
+      expect(leftPane.activeViewId).toBe(expectedSourceActive)
+      expect(leftEditor.active?.viewId).toBe(expectedSourceActive)
+      expect(currentLease(left).viewId).toBe(expectedSourceActive)
+      expect(rightPane.activeViewId).toBe(moved.viewId)
+      expect(rightEditor.active?.viewId).toBe(moved.viewId)
+      expect(currentLease(right).viewId).toBe(moved.viewId)
+      if (movingKind === 'active') expect(currentLease(left)).not.toBe(originalLease)
+      else {
+        expect(currentLease(left)).toBe(originalLease)
+        expect(leftEditor.snapshots).toHaveLength(originalRefreshes)
+      }
+    }
+  })
+
+  it('restores the source active adapter and lease target when non-collapse target refresh fails', async() => {
+    const workspace = createWorkspaceRuntime([
+      { fileKey: '/one.md' },
+      { fileKey: '/two.md' },
+      { fileKey: '/three.md' },
+      { fileKey: '/four.md' }
+    ])
+    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    const leftEditor = new MemoryEditor()
+    const rightEditor = new MemoryEditor()
+    const left = await workspace.bindPaneEditor('left', leftEditor)
+    await workspace.bindPaneEditor('right', rightEditor)
+    const before = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
+    const activeViewId = before.activeViewId
+    rightEditor.failAfterRefresh = true
+    expect((await workspace.execute({ kind: 'move-view', viewId: activeViewId, targetPaneId: 'right' })).status).toBe('failed')
+    const restored = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
+    expect(restored.activeViewId).toBe(activeViewId)
+    expect(restored.tabs.map((tab) => tab.viewId)).toEqual(before.tabs.map((tab) => tab.viewId))
+    expect(leftEditor.active?.viewId).toBe(activeViewId)
+    expect(currentLease(left).viewId).toBe(activeViewId)
+  })
+
   it('keeps the surviving binding continuous across collapse in both directions', async() => {
     for (const direction of ['right-to-left', 'left-to-right'] as const) {
       const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
