@@ -22,7 +22,7 @@ Produce implementation-ready specifications, confirmed interaction prototypes, a
 - [验证标签拖动目的地与脱离原生窗口手势](issues/03-prototype-tab-drag-destinations.md): A — Edge bands 已接受；脱离必须由真实窗口外左键释放提交，Issue 10 已在 Windows 单主屏证实，其他配置按 fallback 禁用。
 - [验证原生窗口外释放手势](issues/10-prove-native-external-release-gesture.md): Windows 单主屏已接受事件级原生 observer/main adapter；未验证平台与 mixed-DPI 下 V1 禁用外拖脱离，不以 crossing、blur 或 timeout 替代释放。
 - [设计 pane-scoped workspace domain model](issues/04-design-pane-scoped-workspace-model.md): WindowWorkspace 以一到两个 Pane 组织窗口本地的 Document、View 与 Tab；焦点路由、隔离编辑器和可恢复的双栏生命周期均已定案。
-- [设计 WorkspaceController 深模块 interface](issues/11-design-workspace-controller-interface.md): 已接受三入口 typed command/projection/lease 契约、原子 revision 与恢复/持久化边界；Issue 09 仍 open 但已解除对 Issue 11 的阻塞。
+- [设计 WorkspaceController 深模块 interface](issues/11-design-workspace-controller-interface.md): 已接受三入口 typed command/projection/lease 契约、原子 revision 与恢复/持久化边界；Issue 09 仍 open，因 Issue 02 与 Issue 11 均已 resolved，现已解除全部前置依赖。
 - [确认 Split 布局、命中区与动效](issues/05-prototype-split-layout-and-motion.md): A — Live divide 与几何/动效约束、菜单简化方案已接受。
 - [确认 details disclosure 视觉与交互](issues/07-prototype-details-disclosure.md): A — Minimal inline row（Obsidian-like）及其原生 summary、源码编辑、动效、主题与导出边界已接受。
 
