@@ -69,6 +69,28 @@ strict: every mouse event used to arm a candidate or commit must have
 This conversion code does not verify mixed-DPI behavior. Mixed DPI remains
 `Unavailable` until a physical-device test covers it.
 
+## Physical validation scenarios
+
+For every scenario, retain the trace's per-event `hitTest` snapshot (event point,
+inside result, DIP/physical bounds, display metadata, and units), and require
+`injected:false` for every mouse move that arms/re-arms a candidate and for the
+releasing native-up.
+
+1. Press the source tab, leave the window, and release outside; only the real
+   outside `WM_LBUTTONUP` may commit.
+2. Leave the window without releasing, then re-enter and release inside; no
+   detach may occur.
+3. Leave, re-enter, leave again, and release outside; the second exit must
+   re-arm and the real up may commit.
+4. Leave the window and wait beyond the timeout; no detach may occur until an
+   eligible real outside up.
+5. Leave the window, press Escape, then release outside; Escape must end the
+   gesture and the up must not commit.
+6. With an active external candidate, keep the left button held, use Alt+Tab to
+   cause a real `BrowserWindow` blur, and wait. Confirm blur itself does not
+   commit; then release outside the window and confirm a real eligible up can
+   commit.
+
 The helper is deliberately external to production and has no product packaging,
 persistence, or fallback behavior. It is a V1 blocker, not a production
 implementation: without physical mouse evidence and independent review, external

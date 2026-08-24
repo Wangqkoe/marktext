@@ -29,9 +29,14 @@ function sourceBounds () {
     units: { dip: 'Electron display-independent pixels', physical: 'Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)' }
   }
 }
-function isInsideSource (x, y) {
-  const b = sourceBounds().physical
-  return x >= b.x && y >= b.y && x < b.x + b.width && y < b.y + b.height
+function hitTestSnapshot (event) {
+  const bounds = sourceBounds()
+  const physical = bounds.physical
+  return {
+    eventPoint: { x: event.x, y: event.y, units: 'Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)' },
+    inside: event.x >= physical.x && event.y >= physical.y && event.x < physical.x + physical.width && event.y < physical.y + physical.height,
+    sourceBounds: bounds
+  }
 }
 function write (type, fields = {}) {
   const entry = { n: ++sequence, at: new Date().toISOString(), scenario, type, state: machine && machine.snapshot() && machine.snapshot().state, ...fields }
@@ -45,8 +50,11 @@ function startGesture (origin) {
   setTimeout(() => machine.timeout(session.id), 500)
 }
 function nativeEvent (event) {
-  write('native-event', { nativeEvent: event })
-  machine.native(event)
+  const nativeEventWithHitTest = event.type === 'native-move' || event.type === 'native-up'
+    ? { ...event, hitTest: hitTestSnapshot(event) }
+    : event
+  write('native-event', { nativeEvent: nativeEventWithHitTest })
+  machine.native(nativeEventWithHitTest)
 }
 function spawnHook () {
   const hookMilliseconds = automated ? 30000 : 600000
@@ -115,7 +123,13 @@ async function runAutomated () {
 
 app.whenReady().then(() => {
   source = new BrowserWindow({ x: 700, y: 300, width: 640, height: 420, show: false, webPreferences: { preload: path.join(root, 'preload.cjs'), contextIsolation: true, nodeIntegration: false } })
-  machine = createGestureState({ isInside: isInsideSource, emit: entry => write(entry.type, entry) })
+  machine = createGestureState({
+    isInside: (x, y) => {
+      const physical = sourceBounds().physical
+      return x >= physical.x && y >= physical.y && x < physical.x + physical.width && y < physical.y + physical.height
+    },
+    emit: entry => write(entry.type, entry)
+  })
   source.loadFile(path.join(root, 'index.html'))
   source.webContents.on('before-input-event', (_event, input) => {
     if (input.type === 'mouseDown' || input.type === 'mouseUp' || input.type === 'keyDown') write('electron-before-input', { inputType: input.type, key: input.key, button: input.button })

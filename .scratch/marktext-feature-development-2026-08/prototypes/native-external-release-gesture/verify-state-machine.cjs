@@ -7,8 +7,15 @@ const source = { x: 700, y: 300, width: 640, height: 420 }
 const inside = (x, y) => x >= source.x && y >= source.y && x < source.x + source.width && y < source.y + source.height
 const external = { x: 620, y: 480 }
 const internal = { x: 800, y: 480 }
-const physical = (type, point) => ({ type, ...point, injected: false })
-const injected = (type, point) => ({ type, ...point, injected: true })
+const sourceBounds = {
+  dip: { ...source },
+  physical: { ...source },
+  display: { id: 1, scaleFactor: 1, bounds: { x: 0, y: 0, width: 2560, height: 1440 }, workArea: { x: 0, y: 0, width: 2560, height: 1392 } },
+  units: { dip: 'Electron display-independent pixels', physical: 'Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)' }
+}
+const hitTest = (point, insideValue = inside(point.x, point.y)) => ({ eventPoint: { ...point, units: sourceBounds.units.physical }, inside: insideValue, sourceBounds })
+const physical = (type, point, insideValue) => ({ type, ...point, injected: false, hitTest: hitTest(point, insideValue) })
+const injected = (type, point, insideValue) => ({ type, ...point, injected: true, hitTest: hitTest(point, insideValue) })
 
 function harness () {
   const log = []
@@ -53,6 +60,25 @@ const results = Object.fromEntries([
   }, 0),
   runCase('injected-up-cannot-commit', (machine, log) => {
     machine.begin('test'); machine.native(physical('native-move', external)); machine.native(injected('native-up', external)); assert.ok(log.some(entry => entry.type === 'native-injected-event-ignored'))
+  }, 0),
+  runCase('hit-test-snapshot-drives-decision-and-is-preserved', (machine, log) => {
+    const move = physical('native-move', internal, false)
+    const up = physical('native-up', internal, false)
+    machine.begin('test'); machine.native(move); machine.native(up)
+    const armed = log.find(entry => entry.type === 'external-candidate-armed')
+    const committed = log.find(entry => entry.type === 'DETACH_COMMIT')
+    assert.strictEqual(armed.nativeEvent.hitTest, move.hitTest)
+    assert.strictEqual(committed.nativeEvent.hitTest, up.hitTest)
+    assert.equal(committed.nativeEvent.hitTest.inside, false)
+  }, 1),
+  runCase('hit-test-snapshot-is-preserved-for-reentry-and-inside-up', (machine, log) => {
+    const leave = physical('native-move', external)
+    const reenter = physical('native-move', internal)
+    const insideUp = physical('native-up', internal)
+    machine.begin('test'); machine.native(leave); machine.native(reenter); machine.native(insideUp)
+    assert.strictEqual(log.find(entry => entry.type === 'external-candidate-armed').nativeEvent.hitTest, leave.hitTest)
+    assert.strictEqual(log.find(entry => entry.type === 'reentered-source').nativeEvent.hitTest, reenter.hitTest)
+    assert.strictEqual(log.find(entry => entry.type === 'native-up-no-detach').nativeEvent.hitTest, insideUp.hitTest)
   }, 0)
 ])
 

@@ -20,7 +20,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -32,7 +74,49 @@
             "type": "native-up",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         }
       ]
@@ -55,7 +139,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         }
       ]
@@ -78,7 +204,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -106,7 +274,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -135,7 +345,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -146,7 +398,49 @@
             "type": "native-move",
             "x": 800,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 800,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": true,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -157,7 +451,49 @@
             "type": "native-up",
             "x": 800,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 800,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": true,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         }
       ]
@@ -180,7 +516,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -197,7 +575,49 @@
             "type": "native-up",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         }
       ]
@@ -220,7 +640,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -231,7 +693,49 @@
             "type": "native-move",
             "x": 800,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 800,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": true,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -242,7 +746,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -254,7 +800,49 @@
             "type": "native-up",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         }
       ]
@@ -295,7 +883,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -307,7 +937,49 @@
             "type": "native-up",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         }
       ]
@@ -330,7 +1002,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": true
+            "injected": true,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -341,7 +1055,49 @@
             "type": "native-up",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         }
       ]
@@ -364,7 +1120,49 @@
             "type": "native-move",
             "x": 620,
             "y": 480,
-            "injected": false
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         },
         {
@@ -375,7 +1173,339 @@
             "type": "native-up",
             "x": 620,
             "y": 480,
-            "injected": true
+            "injected": true,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "hit-test-snapshot-drives-decision-and-is-preserved": {
+      "passed": true,
+      "commits": 1,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 800,
+            "y": 480,
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 800,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "DETACH_COMMIT",
+          "gestureId": 1,
+          "state": "detached",
+          "reason": "native-left-button-release-outside-source",
+          "nativeEvent": {
+            "type": "native-up",
+            "x": 800,
+            "y": 480,
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 800,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "hit-test-snapshot-is-preserved-for-reentry-and-inside-up": {
+      "passed": true,
+      "commits": 0,
+      "log": [
+        {
+          "type": "source-tab-mousedown",
+          "gestureId": 1,
+          "state": "source-pressed",
+          "origin": "test"
+        },
+        {
+          "type": "external-candidate-armed",
+          "gestureId": 1,
+          "state": "external-candidate",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 620,
+            "y": 480,
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 620,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": false,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "reentered-source",
+          "gestureId": 1,
+          "state": "reentered-source",
+          "nativeEvent": {
+            "type": "native-move",
+            "x": 800,
+            "y": 480,
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 800,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": true,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "native-up-no-detach",
+          "gestureId": 1,
+          "state": "reentered-source",
+          "nativeEvent": {
+            "type": "native-up",
+            "x": 800,
+            "y": 480,
+            "injected": false,
+            "hitTest": {
+              "eventPoint": {
+                "x": 800,
+                "y": 480,
+                "units": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+              },
+              "inside": true,
+              "sourceBounds": {
+                "dip": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "physical": {
+                  "x": 700,
+                  "y": 300,
+                  "width": 640,
+                  "height": 420
+                },
+                "display": {
+                  "id": 1,
+                  "scaleFactor": 1,
+                  "bounds": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1440
+                  },
+                  "workArea": {
+                    "x": 0,
+                    "y": 0,
+                    "width": 2560,
+                    "height": 1392
+                  }
+                },
+                "units": {
+                  "dip": "Electron display-independent pixels",
+                  "physical": "Windows physical screen pixels (WH_MOUSE_LL MSLLHOOKSTRUCT.pt)"
+                }
+              }
+            }
           }
         }
       ]

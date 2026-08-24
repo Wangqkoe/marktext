@@ -23,6 +23,11 @@ function createGestureState ({ isInside, emit }) {
     return true
   }
 
+  function eventIsInside (event) {
+    if (typeof event.hitTest?.inside === 'boolean') return event.hitTest.inside
+    return isInside(event.x, event.y)
+  }
+
   function native (event) {
     if (event.type === 'native-escape') return cancel('native-escape')
     if (event.type === 'native-move' || event.type === 'native-up') {
@@ -41,11 +46,11 @@ function createGestureState ({ isInside, emit }) {
     }
     const session = active
     if (event.type === 'native-move') {
-      if (!isInside(event.x, event.y) && !session.candidate) {
+      if (!eventIsInside(event) && !session.candidate) {
         session.candidate = true
         session.state = 'external-candidate'
         record('external-candidate-armed', { nativeEvent: event }, session)
-      } else if (isInside(event.x, event.y) && session.candidate) {
+      } else if (eventIsInside(event) && session.candidate) {
         session.candidate = false
         session.state = 'reentered-source'
         record('reentered-source', { nativeEvent: event }, session)
@@ -53,7 +58,7 @@ function createGestureState ({ isInside, emit }) {
       return false
     }
     if (event.type !== 'native-up') return false
-    const commits = session.candidate && !isInside(event.x, event.y)
+    const commits = session.candidate && !eventIsInside(event)
     if (commits) {
       session.state = 'detached'
       record('DETACH_COMMIT', { reason: 'native-left-button-release-outside-source', nativeEvent: event }, session)

@@ -49,6 +49,14 @@ physical release. `injected:false` is only the physical-evidence gate for this
 prototype, not a product strategy. A future product decision must separately
 address compatible behavior for remote-control and assistive-input methods.
 
+## Preliminary manual behavior and bounds-audit gap
+
+The preliminary human-operated attempt exercised the surface and failed closed:
+injected events did not arm or commit. That is correct behavior, but it is not a
+passing physical-release result. Its raw trace predates per-event dynamic
+hit-test snapshots, so it cannot audit the exact DIP/physical bounds and display
+scale used for every move/up and must not be reused as passing evidence.
+
 ## Strategy / fallback
 
 | Strategy | Review result |
@@ -95,3 +103,8 @@ candidate and the committing native-up must explicitly have `injected:false`.**
 Repeat for re-entry, Escape while outside (the
 keyboard hook must report `native-escape`), multi-display/DPI, and each supported
 OS. Independent review must approve both the adapter boundary and those traces.
+
+Physical scenario 6: while an external candidate is active and the left button is
+still held, Alt+Tab to cause a real `BrowserWindow` blur and wait. Verify blur
+does not detach; then release outside and verify only the eligible real up can
+commit, with the same per-event hit-test snapshot evidence.
