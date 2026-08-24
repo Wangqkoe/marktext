@@ -1,7 +1,9 @@
 # MarkText workspace feature wayfinder
 
 Label: `wayfinder:map`
-Status: `exploring`
+Status: `complete`
+
+Destination: achieved — implementation handoff and acceptance matrix are ready.
 
 ## Destination
 
@@ -24,12 +26,9 @@ Produce implementation-ready specifications, confirmed interaction prototypes, a
 - [设计 pane-scoped workspace domain model](issues/04-design-pane-scoped-workspace-model.md): WindowWorkspace 以一到两个 Pane 组织窗口本地的 Document、View 与 Tab；焦点路由、隔离编辑器和可恢复的双栏生命周期均已定案。
 - [设计 WorkspaceController 深模块 interface](issues/11-design-workspace-controller-interface.md): 已接受三入口 typed command/projection/lease 契约、原子 revision 与恢复/持久化边界。
 - [设计 TabTransfer IPC 与文件所有权契约](issues/09-design-tab-transfer-ipc-contract.md): 已 resolved；Issue 08 的全部前置依赖（02、03、04、05、06、07、09、10、11）均已解除，下一张是 Issue 08。
+- [定义分阶段实现交接与验收矩阵](issues/08-define-staged-handoff-and-acceptance.md): 已 resolved；最终 [V1 Spec](handoff/v1-spec.md)、[implementation tickets](handoff/tickets/) 和 [acceptance matrix](handoff/acceptance-matrix.md) 已交接，按 waves 实施并由矩阵验收。
 - [确认 Split 布局、命中区与动效](issues/05-prototype-split-layout-and-motion.md): A — Live divide 与几何/动效约束、菜单简化方案已接受。
 - [确认 details disclosure 视觉与交互](issues/07-prototype-details-disclosure.md): A — Minimal inline row（Obsidian-like）及其原生 summary、源码编辑、动效、主题与导出边界已接受。
-
-## Not yet specified
-
-- Final implementation-ticket slicing after all decision and prototype gates are resolved.
 
 ## Out of scope
 
