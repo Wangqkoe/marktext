@@ -415,7 +415,12 @@ export const PREVIEW_DOMPURIFY_CONFIG = {
     // `style` is allowed (matching EXPORT_DOMPURIFY_CONFIG) so inline-styled HTML
     // blocks render the same in the editor as on export; DOMPurify still
     // sanitizes the style values themselves.
-    FORBID_ATTR: ['contenteditable'],
+    // `details` itself is in DOMPurify's HTML profile, but keep its editor
+    // contract explicit: the standard `open` attribute is allowed while
+    // disclosure event attributes can never enter the interactive preview.
+    ADD_TAGS: ['details', 'summary'],
+    ADD_ATTR: ['open'],
+    FORBID_ATTR: ['contenteditable', 'ontoggle', 'onbeforetoggle'],
     ALLOW_DATA_ATTR: false,
     USE_PROFILES: {
         html: true,
@@ -426,9 +431,11 @@ export const PREVIEW_DOMPURIFY_CONFIG = {
     RETURN_TRUSTED_TYPE: false,
 };
 export const EXPORT_DOMPURIFY_CONFIG = {
-    FORBID_ATTR: ['contenteditable'],
+    // Export retains standard disclosure markup, never editor behaviour.
+    ADD_TAGS: ['details', 'summary'],
+    ADD_ATTR: ['data-align', 'open'],
+    FORBID_ATTR: ['contenteditable', 'ontoggle', 'onbeforetoggle'],
     ALLOW_DATA_ATTR: false,
-    ADD_ATTR: ['data-align'],
     USE_PROFILES: {
         html: true,
         svg: true,

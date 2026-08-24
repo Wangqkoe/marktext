@@ -11,6 +11,7 @@ const debug = logger('htmlPreview:');
 // Elements whose rendered content comes from attributes (e.g. `src`) rather
 // than child nodes, so an empty tag body must not be treated as an empty block.
 const SELF_CONTAINED_MEDIA = new Set(['video', 'audio']);
+const DETAILS_SOURCE_ACTION = 'mu-details-source-action';
 
 // A single element with an empty body (`<div></div>`), except self-contained
 // media elements whose content lives in attributes (`<video src=...></video>`).
@@ -46,7 +47,20 @@ class HTMLPreview extends Parent {
             contenteditable: 'false',
         };
         this.createDomNode();
+        this._attachDOMEvents();
         this.update();
+    }
+
+    private _attachDOMEvents() {
+        this.muya.eventCenter.attachDOMEvent(this.domNode!, 'click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Element) || !target.closest(`.${DETAILS_SOURCE_ACTION}`))
+                return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            this.parent?.firstContentInDescendant()?.setCursor(0, 0);
+        });
     }
 
     update(html = this._html) {
@@ -74,6 +88,18 @@ class HTMLPreview extends Parent {
 
             this.domNode!.innerHTML
                 = doc.documentElement!.querySelector('body')!.innerHTML;
+
+            // This editor-only control is deliberately appended after the
+            // sanitized document fragment, never inside a native summary. It
+            // therefore cannot affect source serialization or exported HTML.
+            if (!disableHtml && this.domNode!.querySelector('details')) {
+                const sourceAction = document.createElement('button');
+                sourceAction.type = 'button';
+                sourceAction.className = DETAILS_SOURCE_ACTION;
+                sourceAction.textContent = '</>';
+                sourceAction.setAttribute('aria-label', 'Edit raw HTML');
+                this.domNode!.appendChild(sourceAction);
+            }
         }
     }
 

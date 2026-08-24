@@ -1,7 +1,8 @@
 import type { Muya } from '../../../muya';
 import type { IHtmlBlockState } from '../../../state/types';
 import type { TBlockPath } from '../../types';
-import { CLASS_NAMES } from '../../../config';
+import type HTMLPreview from './htmlPreview';
+import { CLASS_NAMES, EVENT_KEYS } from '../../../config';
 import Parent from '../../base/parent';
 import { ScrollPage } from '../../scrollPage';
 
@@ -42,6 +43,22 @@ class HTMLBlock extends Parent {
             this.classList.push(CLASS_NAMES.MU_DISABLE_HTML_RENDER);
 
         this.createDomNode();
+        this._attachDOMEvents();
+    }
+
+    private _attachDOMEvents() {
+        // Bind to this block (rather than document) so a discarded/rebuilt
+        // HTML block cannot retain a live Escape handler. Escape only exits
+        // temporary source editing and rebuilds the preview from raw source.
+        this.muya.eventCenter.attachDOMEvent(this.domNode!, 'keydown', (event) => {
+            if (!(event instanceof KeyboardEvent) || event.key !== EVENT_KEYS.Escape || !this.active)
+                return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            this.active = false;
+            (this.attachments.head as HTMLPreview | null)?.update();
+        });
     }
 
     queryBlock(path: TBlockPath) {

@@ -766,6 +766,84 @@ figure.mu-html-block.mu-disable-html-render .mu-html-preview {
     display: none;
 }
 
+/* Raw HTML disclosure is styled only in the editor preview. The generated
+   affordance leaves the native summary element as the whole hit target and the
+   source action remains a sibling rather than becoming document content. */
+figure.mu-html-block .mu-html-preview details {
+    margin: 0.25em 0;
+}
+
+figure.mu-html-block .mu-html-preview details > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+
+    color: var(--editor-color);
+    cursor: pointer;
+    list-style: none;
+}
+
+figure.mu-html-block .mu-html-preview details > summary::-webkit-details-marker {
+    display: none;
+}
+
+figure.mu-html-block .mu-html-preview details > summary::marker {
+    content: '';
+}
+
+figure.mu-html-block .mu-html-preview details > summary::before {
+    display: inline-block;
+
+    color: var(--editor-color-50);
+    font-size: 0.75em;
+
+    content: '▶';
+    transition: transform 170ms ease;
+}
+
+figure.mu-html-block .mu-html-preview details[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+figure.mu-html-block .mu-html-preview details > summary:hover {
+    color: var(--theme-color);
+}
+
+figure.mu-html-block .mu-html-preview details > summary:focus-visible,
+figure.mu-html-block .mu-html-preview .mu-details-source-action:focus-visible {
+    outline: 2px solid var(--theme-color);
+    outline-offset: 2px;
+}
+
+figure.mu-html-block .mu-html-preview .mu-details-source-action {
+    margin: 0.25em 0 0;
+    padding: 0.1em 0.35em;
+
+    color: var(--editor-color-50);
+    font: inherit;
+    font-family: monospace;
+
+    background: transparent;
+    border: 0;
+    border-radius: 3px;
+    cursor: pointer;
+    opacity: 0;
+
+    transition: color 170ms ease, opacity 170ms ease;
+}
+
+figure.mu-html-block:hover .mu-html-preview .mu-details-source-action,
+figure.mu-html-block .mu-html-preview .mu-details-source-action:focus-visible {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    figure.mu-html-block .mu-html-preview details > summary::before,
+    figure.mu-html-block .mu-html-preview .mu-details-source-action {
+        transition-duration: 0ms;
+    }
+}
+
 /* math block and diagram */
 figure.mu-math-block,
 figure.mu-diagram-block {
