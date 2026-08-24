@@ -9,7 +9,6 @@ import type {
 } from '@shared/workspace'
 import { createWorkspaceRuntime } from '@/workspace'
 
-// prettier-ignore
 class MemoryEditor implements PaneEditorAdapter {
   readonly snapshots: EditorBindingSnapshot[] = []
   readonly reports: EditorReport[] = []
@@ -28,7 +27,29 @@ class MemoryEditor implements PaneEditorAdapter {
   async flush(): Promise<EditorReport> {
     this.flushCount += 1
     await this.flushBarrier
-    return this.reports.shift() ?? {}
+    const report = this.reports.shift() ?? {}
+    const active = this.active
+    if (active) {
+      this.snapshots[this.snapshots.length - 1] = {
+        ...active,
+        document: {
+          ...active.document,
+          ...(report.markdown !== undefined ? { markdown: report.markdown, dirty: true } : {}),
+          ...(report.portableHistory !== undefined
+            ? { portableHistory: report.portableHistory }
+            : {})
+        },
+        view: {
+          ...active.view,
+          ...(report.cursor ? { cursor: report.cursor } : {}),
+          ...(report.selection !== undefined ? { selection: report.selection } : {}),
+          ...(report.scrollTop !== undefined ? { scrollTop: report.scrollTop } : {})
+        },
+        ...(report.toc !== undefined ? { toc: report.toc } : {}),
+        ...(report.status !== undefined ? { status: report.status } : {})
+      }
+    }
+    return report
   }
 
   get active(): EditorBindingSnapshot | undefined {
@@ -36,7 +57,6 @@ class MemoryEditor implements PaneEditorAdapter {
   }
 }
 
-// prettier-ignore
 function deferred(): { readonly promise: Promise<void>; readonly release: () => void } {
   let release!: () => void
   const promise = new Promise<void>((resolve) => {
@@ -45,14 +65,12 @@ function deferred(): { readonly promise: Promise<void>; readonly release: () => 
   return { promise, release }
 }
 
-// prettier-ignore
 function currentLease(binding: PaneEditorBinding): EditorLease {
   const lease = binding.getLease()
   if (!lease) throw new Error('expected a current editor lease')
   return lease
 }
 
-// prettier-ignore
 describe('WorkspaceRuntime', () => {
   it('isolates both panes and flushes/refreshes every active-view transition', async() => {
     const workspace = createWorkspaceRuntime([
@@ -77,7 +95,7 @@ describe('WorkspaceRuntime', () => {
     expect((await workspace.execute({ kind: 'focus-pane', paneId: 'right' })).status).toBe(
       'applied'
     )
-    expect(right.snapshots.length).toBeGreaterThan(rightRefreshes)
+    expect(right.snapshots).toHaveLength(rightRefreshes)
     expect(
       (
         await workspace.execute({
@@ -334,6 +352,7 @@ describe('WorkspaceRuntime', () => {
     closeLeftEditor.reports.push({
       markdown: 'survivor close draft',
       portableHistory: { version: 1, value: ['close history'] },
+      toc: [{ id: 'close-toc', title: 'Close', level: 1 }],
       status: { wordCount: 4 }
     })
     expect(
@@ -351,6 +370,10 @@ describe('WorkspaceRuntime', () => {
     expect(closeLeft.getSnapshot(currentLease(closeLeft))?.document.portableHistory.value).toEqual([
       'close history'
     ])
+    expect(closeLeftEditor.active?.document.markdown).toBe('survivor close draft')
+    expect(closeLeftEditor.active?.document.portableHistory.value).toEqual(['close history'])
+    expect(closeLeftEditor.active?.toc).toEqual([{ id: 'close-toc', title: 'Close', level: 1 }])
+    expect(closeLeftEditor.active?.status).toEqual({ wordCount: 4 })
 
     const focusWorkspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
     await focusWorkspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
@@ -358,6 +381,8 @@ describe('WorkspaceRuntime', () => {
     const focusRightEditor = new MemoryEditor()
     const focusRight = await focusWorkspace.bindPaneEditor('right', focusRightEditor)
     await focusWorkspace.execute({ kind: 'focus-pane', paneId: 'left' })
+    const focusLease = currentLease(focusRight)
+    const focusRefreshes = focusRightEditor.snapshots.length
     focusRightEditor.reports.push({
       markdown: 'focus target draft',
       portableHistory: { version: 1, value: ['focus history'] },
@@ -367,12 +392,18 @@ describe('WorkspaceRuntime', () => {
     expect((await focusWorkspace.execute({ kind: 'focus-pane', paneId: 'right' })).status).toBe(
       'applied'
     )
+    expect(focusRightEditor.snapshots).toHaveLength(focusRefreshes)
+    expect(currentLease(focusRight)).toBe(focusLease)
     expect(focusRight.getSnapshot(currentLease(focusRight))?.document.markdown).toBe(
       'focus target draft'
     )
     expect(focusRight.getSnapshot(currentLease(focusRight))?.document.portableHistory.value).toEqual([
       'focus history'
     ])
+    expect(focusRightEditor.active?.document.markdown).toBe('focus target draft')
+    expect(focusRightEditor.active?.document.portableHistory.value).toEqual(['focus history'])
+    expect(focusRightEditor.active?.toc).toEqual([{ id: 'focus-toc', title: 'Focus', level: 1 }])
+    expect(focusRightEditor.active?.status).toEqual({ wordCount: 7 })
     expect(focusWorkspace.getProjection().toc[0]?.id).toBe('focus-toc')
     expect(focusWorkspace.getProjection().status).toEqual({ wordCount: 7 })
   })
@@ -560,10 +591,11 @@ describe('WorkspaceRuntime', () => {
     const focused = await workspace.execute({ kind: 'focus-pane', paneId: 'right' })
     expect(focused.status).toBe('applied')
     expect(leftEditor.snapshots).toHaveLength(leftRefreshes)
-    expect(rightEditor.snapshots.length).toBeGreaterThan(focusedRightRefreshes)
+    expect(rightEditor.snapshots).toHaveLength(focusedRightRefreshes)
+    expect(currentLease(right)).toBe(rightLease)
     expect(leftEditor.snapshots.at(-1)?.document.markdown).toBe('')
     expect(left.report(currentLeft, { markdown: 'left remains active' }).status).toBe('applied')
-    expect(right.report(rightLease, { markdown: 'stale focus lease' }).status).toBe('rejected')
+    expect(right.report(rightLease, { markdown: 'focus keeps lease active' }).status).toBe('applied')
   })
 
   it('rotates leases on mode handoff and rolls back a staged mode refresh failure', async() => {

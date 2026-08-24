@@ -3,7 +3,6 @@ import { DefaultStartupPolicy, EmergencyRecoveryScanError } from '@shared/worksp
 import type { StartupIntent } from '@shared/workspace'
 import { MemoryCrashDraftRecovery, MemoryMoveRecovery } from '@/workspace'
 
-// prettier-ignore
 function checkpoint(revision: number, markdown = `revision ${revision}`) {
   return {
     documentId: 'document-a',
@@ -15,7 +14,6 @@ function checkpoint(revision: number, markdown = `revision ${revision}`) {
   }
 }
 
-// prettier-ignore
 describe('DefaultStartupPolicy and emergency recovery', () => {
   it('creates exactly one clean New Tab for no target and scans both emergency sources first', async() => {
     const crash = new MemoryCrashDraftRecovery()

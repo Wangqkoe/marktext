@@ -6,7 +6,6 @@ import type {
   WorkspaceSeed
 } from './types'
 
-// prettier-ignore
 export class EmergencyRecoveryScanError extends Error {
   readonly crashDrafts?: unknown
   readonly moves?: unknown
@@ -23,7 +22,6 @@ export class EmergencyRecoveryScanError extends Error {
  * V1 startup has no normal workspace restore branch.  Emergency sources are
  * scanned first and independently, even when explicit files were supplied.
  */
-// prettier-ignore
 export class DefaultStartupPolicy {
   seed(intent: StartupIntent): WorkspaceSeed {
     if (intent.kind === 'explicit-targets') {

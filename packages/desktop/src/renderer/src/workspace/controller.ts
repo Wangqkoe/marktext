@@ -66,12 +66,10 @@ const EMPTY_VIEW: ViewState = {
   mode: 'wysiwyg'
 }
 
-// prettier-ignore
 function clone<T>(value: T): T {
   return structuredClone(value)
 }
 
-// prettier-ignore
 function freeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value)
@@ -84,7 +82,6 @@ function freeze<T>(value: T): T {
  * Renderer-local, deterministic workspace owner.  It intentionally has no
  * persistence/load method: live runtime state begins from an explicit seed.
  */
-// prettier-ignore
 export class WorkspaceController implements WorkspaceControllerContract {
   private readonly documents = new Map<DocumentId, DocumentRecord>()
   private readonly views = new Map<ViewId, ViewRecord>()
@@ -178,11 +175,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
     // Rebinding can reuse the same adapter instance. Capture its live editor
     // state before any refresh replaces that active representation.
     if (previous) await this.flushPane(paneId)
+    const snapshot = this.snapshotFor(paneId, pane.activeViewId)
     if (previous?.lease) this.leases.delete(previous.lease)
     const bound: BoundAdapter = { adapter }
     this.adapters.set(paneId, bound)
     try {
-      await adapter.refresh(this.snapshotFor(paneId, pane.activeViewId))
+      await adapter.refresh(snapshot)
       this.issueLease(bound, paneId, pane.activeViewId, this.view(pane.activeViewId).state.mode)
       return this.createBinding(bound)
     } catch (error) {
@@ -328,7 +326,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     await this.flushPane(paneId)
     const doc = this.makeDocument({})
     const view = this.makeView(doc.id)
-    await this.refreshAdapter(paneId, this.snapshotForRecord(paneId, view, doc), true)
+    await this.refreshAdapter(paneId, this.snapshotForRecord(paneId, view, doc))
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
@@ -355,7 +353,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     await this.flushPane(pane.id)
     const doc = this.makeDocument(input)
     const view = this.makeView(doc.id)
-    await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc), true)
+    await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
@@ -369,7 +367,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (!pane || !pane.viewIds.includes(viewId)) return this.rejected('view is not in pane')
     if (pane.activeViewId !== viewId) {
       await this.flushPane(paneId)
-      await this.refreshAdapter(paneId, this.snapshotFor(paneId, viewId), true)
+      await this.refreshAdapter(paneId, this.snapshotFor(paneId, viewId))
       pane.activeViewId = viewId
     }
     if (focus && this.focusedPaneId !== paneId) await this.focus(paneId, false)
@@ -378,11 +376,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   private async focus(paneId: PaneId, shouldCommit = true): Promise<WorkspaceResult> {
-    const next = this.panes.get(paneId)
-    if (!next) return this.rejected('missing pane')
+    if (!this.panes.has(paneId)) return this.rejected('missing pane')
     if (this.focusedPaneId !== paneId) {
       await this.flushPane(this.focusedPaneId)
-      await this.refreshAdapter(paneId, this.snapshotFor(paneId, next.activeViewId))
+      // Focusing does not replace the target active representation. Flush it
+      // for current TOC/status, but retain its adapter and lease unchanged.
+      await this.flushPane(paneId)
       this.focusedPaneId = paneId
     }
     if (shouldCommit) this.commit()
@@ -401,7 +400,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const moved = this.view(movingId)
     const newSourceActive = remaining[0]!
     const adapterActiveId = targetPaneId === 'left' ? moved.id : newSourceActive
-    await this.refreshAdapter('left', this.snapshotFor('left', adapterActiveId), true)
+    await this.refreshAdapter('left', this.snapshotFor('left', adapterActiveId))
     const sourcePane: PaneRecord = {
       id: sourceId,
       viewIds: remaining,
@@ -429,15 +428,17 @@ export class WorkspaceController implements WorkspaceControllerContract {
       movingActiveView && nextSourceActiveId
         ? this.snapshotFor(source.id, nextSourceActiveId)
         : undefined
-    if (sourceSnapshot) await this.refreshAdapter(source.id, sourceSnapshot, true)
+    if (sourceSnapshot) await this.refreshAdapter(source.id, sourceSnapshot)
     try {
       if (remaining.length === 0) {
         await this.collapse(source.id, [...target.viewIds, viewId], viewId)
       } else {
-        await this.refreshAdapter(target.id, this.snapshotFor(target.id, viewId))
+        await this.flushAndRefresh(target.id, () => this.snapshotFor(target.id, viewId))
       }
     } catch (error) {
-      if (sourceSnapshot) { await this.refreshAdapter(source.id, this.snapshotFor(source.id, source.activeViewId), true) }
+      if (sourceSnapshot) {
+        await this.refreshAdapter(source.id, this.snapshotFor(source.id, source.activeViewId))
+      }
       throw error
     }
     if (remaining.length > 0) {
@@ -477,7 +478,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const remaining = pane.viewIds.filter((id) => id !== viewId)
     if (remaining.length > 0) {
       const nextId = remaining.includes(pane.activeViewId) ? pane.activeViewId : remaining[0]!
-      await this.refreshAdapter(pane.id, this.snapshotFor(pane.id, nextId))
+      if (nextId !== pane.activeViewId) {
+        await this.flushAndRefresh(pane.id, () => this.snapshotFor(pane.id, nextId))
+      }
       pane.viewIds = remaining
       pane.activeViewId = nextId
     } else if (this.panes.size === 2) {
@@ -489,7 +492,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
     } else {
       const clean = this.makeDocument({})
       const replacement = this.makeView(clean.id)
-      await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, replacement, clean))
+      await this.flushAndRefresh(pane.id, () =>
+        this.snapshotForRecord(pane.id, replacement, clean)
+      )
       this.documents.set(clean.id, clean)
       this.views.set(replacement.id, replacement)
       pane.viewIds = [replacement.id]
@@ -508,6 +513,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const survivor = [...this.panes.values()].find((pane) => pane.id !== emptyPaneId)!
     const adapter = this.adapters.get(survivor.id)
     if (adapter) {
+      await this.flushPane(survivor.id)
       const view = this.view(activeViewId)
       const document = this.documents.get(view.documentId)!
       await this.refreshAdapter(survivor.id, this.snapshotForRecord('left', view, document))
@@ -535,12 +541,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
 
   private async refreshAdapter(
     paneId: PaneId,
-    snapshot: EditorBindingSnapshot,
-    alreadyFlushed = false
+    snapshot: EditorBindingSnapshot
   ): Promise<void> {
     const bound = this.adapters.get(paneId)
     if (!bound) return
-    if (!alreadyFlushed) await this.flushPane(paneId)
     const pane = this.panes.get(paneId)
     const previous = pane?.activeViewId ? this.snapshotFor(paneId, pane.activeViewId) : undefined
     try {
@@ -562,6 +566,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
       this.invalidate(bound)
       throw error
     }
+  }
+
+  private async flushAndRefresh(
+    paneId: PaneId,
+    snapshot: () => EditorBindingSnapshot
+  ): Promise<void> {
+    await this.flushPane(paneId)
+    await this.refreshAdapter(paneId, snapshot())
   }
 
   private applyReport(viewId: ViewId, report: EditorReport): boolean {
