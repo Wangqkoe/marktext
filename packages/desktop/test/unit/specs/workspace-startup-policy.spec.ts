@@ -14,6 +14,11 @@ function checkpoint(revision: number, markdown = `revision ${revision}`) {
   }
 }
 
+function expectDefined<T>(value: T | undefined, message = 'expected a defined value'): T {
+  if (value === undefined) throw new Error(message)
+  return value
+}
+
 describe('DefaultStartupPolicy and emergency recovery', () => {
   it('creates exactly one clean New Tab for no target and scans both emergency sources first', async() => {
     const crash = new MemoryCrashDraftRecovery()
@@ -42,8 +47,8 @@ describe('DefaultStartupPolicy and emergency recovery', () => {
       kind: 'explicit-targets',
       targets: [{ fileKey: '/requested.md' }]
     })
-    expect(started.emergency.crashDrafts[0]!.kind).toBe('crash-draft')
-    expect(started.emergency.moves[0]!.kind).toBe('move-recovery')
+    expect(expectDefined(started.emergency.crashDrafts[0]).kind).toBe('crash-draft')
+    expect(expectDefined(started.emergency.moves[0]).kind).toBe('move-recovery')
   })
 
   it('defensively turns a deserialized empty explicit intent into one clean New Tab', () => {
@@ -122,10 +127,11 @@ describe('DefaultStartupPolicy and emergency recovery', () => {
       reason: 'corrupt-latest'
     })
     const recovered = await crash.scan()
-    expect(recovered[0]!.draft.documentId).toBe('document-a')
-    expect(recovered[0]!.draft.documentRevision).toBe(3)
-    expect(recovered[0]!.draft.markdown).toBe('three')
-    expect(recovered[0]!.warning).toContain('last valid')
+    const draft = expectDefined(recovered[0])
+    expect(draft.draft.documentId).toBe('document-a')
+    expect(draft.draft.documentRevision).toBe(3)
+    expect(draft.draft.markdown).toBe('three')
+    expect(draft.warning).toContain('last valid')
     expect(() => crash.beginCheckpoint({ ...checkpoint(4), fileKey: '/other.md' })).toThrow(
       'identity'
     )
@@ -139,7 +145,8 @@ describe('DefaultStartupPolicy and emergency recovery', () => {
       reason: 'interrupted'
     })
     const recovered = await crash.scan()
-    expect(recovered[0]!.draft.documentRevision).toBe(1)
-    expect(recovered[0]!.draft.markdown).toBe('safe')
+    const draft = expectDefined(recovered[0])
+    expect(draft.draft.documentRevision).toBe(1)
+    expect(draft.draft.markdown).toBe('safe')
   })
 })

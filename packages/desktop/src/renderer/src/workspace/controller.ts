@@ -120,8 +120,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
       paneId: pane.id,
       activeViewId: pane.activeViewId,
       tabs: pane.viewIds.map((viewId) => {
-        const view = this.views.get(viewId)!
-        const document = this.documents.get(view.documentId)!
+        const view = this.view(viewId)
+        const document = this.requireDocument(view.documentId)
         return {
           viewId,
           documentId: document.id,
@@ -134,7 +134,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       toc: clone(this.view(pane.activeViewId).toc),
       status: clone(this.view(pane.activeViewId).status)
     }))
-    const focused = this.panes.get(this.focusedPaneId)!
+    const focused = this.requirePane(this.focusedPaneId)
     const focusedView = this.view(focused.activeViewId)
     return freeze({
       workspaceRevision: this.workspaceRevision,
@@ -155,14 +155,6 @@ export class WorkspaceController implements WorkspaceControllerContract {
   /** Assembly-only binding: ordinary callers use the WorkspaceController interface. */
   async bindPaneEditor(paneId: PaneId, adapter: PaneEditorAdapter): Promise<PaneEditorBinding> {
     return this.enqueue(async() => this.bindPaneEditorNow(paneId, adapter))
-  }
-
-  /** Assembly-only JSON warning source for conflict/recovery presentation. */
-  async setWorkspaceWarnings(warnings: readonly WorkspaceWarning[]): Promise<void> {
-    await this.enqueue(async() => {
-      this.warnings = clone([...warnings])
-      this.commit()
-    })
   }
 
   private async bindPaneEditorNow(
@@ -225,7 +217,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
                 this.snapshotForRecord(
                   candidate.paneId,
                   view,
-                  this.documents.get(view.documentId)!,
+                  this.requireDocument(view.documentId),
                   nextState
                 )
               )
@@ -314,6 +306,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
           return await this.close(command.viewId)
         case 'commit-authorized':
           return await this.commitAuthorized(command.capability)
+        case 'replace-warnings':
+          return this.replaceWarnings(command.warnings)
       }
     } catch (error) {
       return this.failed(errorMessage(error))
@@ -342,14 +336,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
         (document) => document.fileKey === input.fileKey
       )
       if (existing) {
-        const existingView = [...this.views.values()].find(
-          (view) => view.documentId === existing.id
-        )!
-        const pane = this.paneForView(existingView.id)!
+        const existingView = this.requireViewForDocument(existing.id)
+        const pane = this.requirePaneForView(existingView.id)
         return this.activate(pane.id, existingView.id, true)
       }
     }
-    const pane = this.panes.get(this.focusedPaneId)!
+    const pane = this.requirePane(this.focusedPaneId)
     await this.flushPane(pane.id)
     const doc = this.makeDocument(input)
     const view = this.makeView(doc.id)
@@ -391,14 +383,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private async split(targetPaneId: PaneId): Promise<WorkspaceResult> {
     if (targetPaneId !== 'left' && targetPaneId !== 'right') return this.rejected('invalid pane')
     if (this.panes.size === 2) return this.rejected('workspace already has two panes')
-    const source = this.panes.get('left')!
+    const source = this.requirePane('left')
     if (source.viewIds.length < 2) return this.rejected('split requires a remaining tab')
     await this.flushPane(source.id)
     const movingId = source.activeViewId
     const remaining = source.viewIds.filter((id) => id !== movingId)
     const sourceId: PaneId = targetPaneId === 'left' ? 'right' : 'left'
     const moved = this.view(movingId)
-    const newSourceActive = remaining[0]!
+    const newSourceActive = this.firstViewId(remaining, 'split source')
     const adapterActiveId = targetPaneId === 'left' ? moved.id : newSourceActive
     await this.refreshAdapter('left', this.snapshotFor('left', adapterActiveId))
     const sourcePane: PaneRecord = {
@@ -423,7 +415,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
     await this.flushPane(source.id)
     const remaining = source.viewIds.filter((id) => id !== viewId)
     const movingActiveView = source.activeViewId === viewId
-    const nextSourceActiveId = movingActiveView ? remaining[0] : source.activeViewId
+    const nextSourceActiveId =
+      movingActiveView && remaining.length > 0
+        ? this.firstViewId(remaining, 'move source')
+        : source.activeViewId
     const sourceSnapshot =
       movingActiveView && nextSourceActiveId
         ? this.snapshotFor(source.id, nextSourceActiveId)
@@ -443,7 +438,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
     if (remaining.length > 0) {
       source.viewIds = remaining
-      source.activeViewId = nextSourceActiveId!
+      source.activeViewId = nextSourceActiveId
       target.viewIds.push(viewId)
       target.activeViewId = viewId
       this.focusedPaneId = target.id
@@ -456,7 +451,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const pane = this.paneForView(viewId)
     if (!pane) return this.rejected('missing view')
     if (pane.activeViewId === viewId) await this.flushPane(pane.id)
-    const document = this.documents.get(this.view(viewId).documentId)!
+    const document = this.requireDocument(this.view(viewId).documentId)
     if (document.dirty) return this.needsCloseCapability(viewId, document)
     return this.removeView(viewId)
   }
@@ -472,19 +467,28 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return result
   }
 
+  private replaceWarnings(warnings: readonly WorkspaceWarning[]): WorkspaceResult {
+    const nextWarnings = clone([...warnings])
+    this.warnings = nextWarnings
+    this.commit()
+    return this.applied()
+  }
+
   private async removeView(viewId: ViewId): Promise<WorkspaceResult> {
     const pane = this.paneForView(viewId)
     if (!pane) return this.rejected('missing view')
     const remaining = pane.viewIds.filter((id) => id !== viewId)
     if (remaining.length > 0) {
-      const nextId = remaining.includes(pane.activeViewId) ? pane.activeViewId : remaining[0]!
+      const nextId = remaining.includes(pane.activeViewId)
+        ? pane.activeViewId
+        : this.firstViewId(remaining, 'remaining pane')
       if (nextId !== pane.activeViewId) {
         await this.flushAndRefresh(pane.id, () => this.snapshotFor(pane.id, nextId))
       }
       pane.viewIds = remaining
       pane.activeViewId = nextId
     } else if (this.panes.size === 2) {
-      const survivor = [...this.panes.values()].find((candidate) => candidate.id !== pane.id)!
+      const survivor = this.otherPane(pane.id)
       await this.collapse(pane.id, survivor.viewIds, survivor.activeViewId)
       this.removeDocumentAndView(viewId)
       this.commit()
@@ -510,12 +514,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
     survivingViewIds: readonly ViewId[],
     activeViewId: ViewId
   ): Promise<void> {
-    const survivor = [...this.panes.values()].find((pane) => pane.id !== emptyPaneId)!
+    const survivor = this.otherPane(emptyPaneId)
     const adapter = this.adapters.get(survivor.id)
     if (adapter) {
       await this.flushPane(survivor.id)
       const view = this.view(activeViewId)
-      const document = this.documents.get(view.documentId)!
+      const document = this.requireDocument(view.documentId)
       await this.refreshAdapter(survivor.id, this.snapshotForRecord('left', view, document))
     }
     for (const bound of this.adapters.values()) {
@@ -532,7 +536,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const bound = this.adapters.get(paneId)
     if (!bound) return
     try {
-      if (this.applyReport(this.panes.get(paneId)!.activeViewId, await bound.adapter.flush())) { this.commit() }
+      if (this.applyReport(this.requirePane(paneId).activeViewId, await bound.adapter.flush())) { this.commit() }
     } catch (error) {
       this.invalidate(bound)
       throw error
@@ -578,7 +582,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
 
   private applyReport(viewId: ViewId, report: EditorReport): boolean {
     const view = this.view(viewId)
-    const document = this.documents.get(view.documentId)!
+    const document = this.requireDocument(view.documentId)
     let changedDocument = false
     if (report.markdown !== undefined && report.markdown !== document.markdown) {
       document.markdown = report.markdown
@@ -616,7 +620,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   // snapshot: refreshing unrelated panes would violate pane isolation.
   private snapshotFor(paneId: PaneId, viewId: ViewId): EditorBindingSnapshot {
     const view = this.view(viewId)
-    const document = this.documents.get(view.documentId)!
+    const document = this.requireDocument(view.documentId)
     return this.snapshotForRecord(paneId, view, document)
   }
 
@@ -690,6 +694,42 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const view = this.views.get(viewId)
     if (!view) throw new Error(`missing view ${viewId}`)
     return view
+  }
+
+  private requireDocument(documentId: DocumentId): DocumentRecord {
+    const document = this.documents.get(documentId)
+    if (!document) throw new Error(`missing document ${documentId}`)
+    return document
+  }
+
+  private requirePane(paneId: PaneId): PaneRecord {
+    const pane = this.panes.get(paneId)
+    if (!pane) throw new Error(`missing pane ${paneId}`)
+    return pane
+  }
+
+  private requireViewForDocument(documentId: DocumentId): ViewRecord {
+    const view = [...this.views.values()].find((candidate) => candidate.documentId === documentId)
+    if (!view) throw new Error(`missing view for document ${documentId}`)
+    return view
+  }
+
+  private requirePaneForView(viewId: ViewId): PaneRecord {
+    const pane = this.paneForView(viewId)
+    if (!pane) throw new Error(`missing pane for view ${viewId}`)
+    return pane
+  }
+
+  private otherPane(paneId: PaneId): PaneRecord {
+    const pane = [...this.panes.values()].find((candidate) => candidate.id !== paneId)
+    if (!pane) throw new Error(`missing pane other than ${paneId}`)
+    return pane
+  }
+
+  private firstViewId(viewIds: readonly ViewId[], context: string): ViewId {
+    const viewId = viewIds[0]
+    if (!viewId) throw new Error(`missing first view for ${context}`)
+    return viewId
   }
 
   private paneForView(viewId: ViewId): PaneRecord | undefined {

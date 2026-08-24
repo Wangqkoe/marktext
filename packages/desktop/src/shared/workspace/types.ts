@@ -142,6 +142,8 @@ export type WorkspaceCommand =
   | { readonly kind: 'move-view'; readonly viewId: ViewId; readonly targetPaneId: PaneId }
   | { readonly kind: 'close-view'; readonly viewId: ViewId }
   | { readonly kind: 'commit-authorized'; readonly capability: WorkspaceCapability }
+  /** Assembly-only JSON warning update for conflict/recovery presentation. */
+  | { readonly kind: 'replace-warnings'; readonly warnings: readonly WorkspaceWarning[] }
 
 export interface WorkspaceCapability {
   readonly action: 'close-view'

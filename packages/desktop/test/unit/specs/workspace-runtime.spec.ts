@@ -5,7 +5,11 @@ import type {
   EditorReport,
   PaneEditorAdapter,
   PaneEditorBinding,
-  WorkspaceCapability
+  PaneId,
+  WorkspaceCapability,
+  WorkspaceProjection,
+  WorkspaceProjectionPane,
+  WorkspaceProjectionTab
 } from '@shared/workspace'
 import { createWorkspaceRuntime } from '@/workspace'
 
@@ -71,6 +75,26 @@ function currentLease(binding: PaneEditorBinding): EditorLease {
   return lease
 }
 
+function expectDefined<T>(value: T | undefined, message = 'expected a defined value'): T {
+  if (value === undefined) throw new Error(message)
+  return value
+}
+
+function paneAt(projection: WorkspaceProjection, index: number): WorkspaceProjectionPane {
+  return expectDefined(projection.panes[index], `expected pane ${index}`)
+}
+
+function paneById(projection: WorkspaceProjection, paneId: PaneId): WorkspaceProjectionPane {
+  return expectDefined(
+    projection.panes.find((pane) => pane.paneId === paneId),
+    `expected ${paneId} pane`
+  )
+}
+
+function tabAt(pane: WorkspaceProjectionPane, index: number): WorkspaceProjectionTab {
+  return expectDefined(pane.tabs[index], `expected tab ${index} in ${pane.paneId}`)
+}
+
 describe('WorkspaceRuntime', () => {
   it('isolates both panes and flushes/refreshes every active-view transition', async() => {
     const workspace = createWorkspaceRuntime([
@@ -82,8 +106,9 @@ describe('WorkspaceRuntime', () => {
     const right = new MemoryEditor()
     await workspace.bindPaneEditor('left', left)
     await workspace.bindPaneEditor('right', right)
-    const [leftView] = workspace.getProjection().panes[0]!.tabs
-    const rightView = workspace.getProjection().panes[1]!.tabs[0]!
+    const projection = workspace.getProjection()
+    const leftView = tabAt(paneAt(projection, 0), 0)
+    const rightView = tabAt(paneAt(projection, 1), 0)
     const leftBinding = await workspace.bindPaneEditor('left', left)
     const leftLease = currentLease(leftBinding)
     left.reports.push({ markdown: 'left edited' })
@@ -136,23 +161,23 @@ describe('WorkspaceRuntime', () => {
       (await workspace.execute({ kind: 'commit-authorized', capability: needsDecision.capability }))
         .status
     ).toBe('rejected')
-    const pane = workspace.getProjection().panes[0]!
+    const pane = paneAt(workspace.getProjection(), 0)
     expect(pane.tabs).toHaveLength(1)
-    expect(pane.tabs[0]!.title).toBe('New Tab')
-    expect(pane.tabs[0]!.dirty).toBe(false)
+    expect(tabAt(pane, 0).title).toBe('New Tab')
+    expect(tabAt(pane, 0).dirty).toBe(false)
   })
 
   it('moves a View rather than its Document and collapses an empty pane', async() => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
     await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
-    const right = workspace.getProjection().panes[1]!.tabs[0]!
+    const right = tabAt(paneAt(workspace.getProjection(), 1), 0)
     expect(
       (await workspace.execute({ kind: 'move-view', viewId: right.viewId, targetPaneId: 'left' }))
         .status
     ).toBe('applied')
     const projection = workspace.getProjection()
     expect(projection.panes).toHaveLength(1)
-    expect(projection.panes[0]!.tabs.map((tab) => tab.fileKey)).toEqual(['/one.md', '/two.md'])
+    expect(paneAt(projection, 0).tabs.map((tab) => tab.fileKey)).toEqual(['/one.md', '/two.md'])
   })
 
   it('updates source active state only when a non-collapse move removes its active View', async() => {
@@ -168,8 +193,8 @@ describe('WorkspaceRuntime', () => {
       const rightEditor = new MemoryEditor()
       const left = await workspace.bindPaneEditor('left', leftEditor)
       const right = await workspace.bindPaneEditor('right', rightEditor)
-      const source = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
-      const moved = movingKind === 'active' ? source.tabs[0]! : source.tabs[1]!
+      const source = paneById(workspace.getProjection(), 'left')
+      const moved = movingKind === 'active' ? tabAt(source, 0) : tabAt(source, 1)
       const originalActive = source.activeViewId
       const originalLease = currentLease(left)
       const originalRefreshes = leftEditor.snapshots.length
@@ -183,13 +208,13 @@ describe('WorkspaceRuntime', () => {
           })
         ).status
       ).toBe('applied')
-      const leftPane = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
-      const rightPane = workspace.getProjection().panes.find((pane) => pane.paneId === 'right')!
+      const leftPane = paneById(workspace.getProjection(), 'left')
+      const rightPane = paneById(workspace.getProjection(), 'right')
       expect(leftPane.tabs.map((tab) => tab.fileKey)).toEqual(
         movingKind === 'active' ? ['/two.md', '/three.md'] : ['/one.md', '/three.md']
       )
       const expectedSourceActive =
-        movingKind === 'active' ? leftPane.tabs[0]!.viewId : originalActive
+        movingKind === 'active' ? tabAt(leftPane, 0).viewId : originalActive
       expect(leftPane.activeViewId).toBe(expectedSourceActive)
       expect(leftEditor.active?.viewId).toBe(expectedSourceActive)
       expect(currentLease(left).viewId).toBe(expectedSourceActive)
@@ -216,14 +241,14 @@ describe('WorkspaceRuntime', () => {
     const rightEditor = new MemoryEditor()
     const left = await workspace.bindPaneEditor('left', leftEditor)
     await workspace.bindPaneEditor('right', rightEditor)
-    const before = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
+    const before = paneById(workspace.getProjection(), 'left')
     const activeViewId = before.activeViewId
     rightEditor.failAfterRefresh = true
     expect(
       (await workspace.execute({ kind: 'move-view', viewId: activeViewId, targetPaneId: 'right' }))
         .status
     ).toBe('failed')
-    const restored = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
+    const restored = paneById(workspace.getProjection(), 'left')
     expect(restored.activeViewId).toBe(activeViewId)
     expect(restored.tabs.map((tab) => tab.viewId)).toEqual(before.tabs.map((tab) => tab.viewId))
     expect(leftEditor.active?.viewId).toBe(activeViewId)
@@ -243,9 +268,9 @@ describe('WorkspaceRuntime', () => {
       const left = await workspace.bindPaneEditor('left', new MemoryEditor())
       const rightEditor = new MemoryEditor()
       const right = await workspace.bindPaneEditor('right', rightEditor)
-      const source = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
+      const source = paneById(workspace.getProjection(), 'left')
       const previousTargetViewId = currentLease(right).viewId
-      const moved = movingKind === 'active' ? source.tabs[0]! : source.tabs[1]!
+      const moved = movingKind === 'active' ? tabAt(source, 0) : tabAt(source, 1)
       rightEditor.reports.push({
         markdown: 'target draft',
         portableHistory: { version: 1, value: ['target history'] },
@@ -267,14 +292,14 @@ describe('WorkspaceRuntime', () => {
         paneId: 'right',
         viewId: previousTargetViewId
       })
-      const preserved = right.getSnapshot(currentLease(right))!
+      const preserved = expectDefined(right.getSnapshot(currentLease(right)))
       expect(preserved.document).toMatchObject({ markdown: 'target draft', documentRevision: 1 })
       expect(preserved.document.portableHistory.value).toEqual(['target history'])
       expect(preserved.toc).toEqual([{ id: 'target-toc', title: 'Target', level: 1 }])
       expect(preserved.status).toEqual({ wordCount: 9 })
       expect(currentLease(left).viewId).toBe(
         movingKind === 'active'
-          ? workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!.activeViewId
+          ? paneById(workspace.getProjection(), 'left').activeViewId
           : source.activeViewId
       )
     }
@@ -291,9 +316,7 @@ describe('WorkspaceRuntime', () => {
     const left = await workspace.bindPaneEditor('left', new MemoryEditor())
     const rightEditor = new MemoryEditor()
     await workspace.bindPaneEditor('right', rightEditor)
-    const moving = workspace
-      .getProjection()
-      .panes.find((pane) => pane.paneId === 'left')!.activeViewId
+    const moving = paneById(workspace.getProjection(), 'left').activeViewId
     rightEditor.reports.push({
       markdown: 'rollback target draft',
       portableHistory: { version: 1, value: ['rollback'] },
@@ -420,8 +443,7 @@ describe('WorkspaceRuntime', () => {
       const targetPane = direction === 'right-to-left' ? 'left' : 'right'
       const survivorBinding = direction === 'right-to-left' ? leftBinding : rightBinding
       const oldLease = currentLease(survivorBinding)
-      const moved = workspace.getProjection().panes.find((pane) => pane.paneId === sourcePane)!
-        .tabs[0]!
+      const moved = tabAt(paneById(workspace.getProjection(), sourcePane), 0)
       expect(
         (
           await workspace.execute({
@@ -447,7 +469,7 @@ describe('WorkspaceRuntime', () => {
     const rightEditor = new MemoryEditor()
     const rightBinding = await workspace.bindPaneEditor('right', rightEditor)
     const revision = workspace.getProjection().workspaceRevision
-    const moved = workspace.getProjection().panes[0]!.tabs[0]!
+    const moved = tabAt(paneAt(workspace.getProjection(), 0), 0)
     rightEditor.reports.push({
       markdown: 'collapse rollback draft',
       toc: [{ id: 'rollback', title: 'Rollback', level: 1 }],
@@ -474,9 +496,7 @@ describe('WorkspaceRuntime', () => {
       const rightBinding = await workspace.bindPaneEditor('right', new MemoryEditor())
       const survivorBinding = closingPane === 'left' ? rightBinding : leftBinding
       const oldLease = currentLease(survivorBinding)
-      const closingView = workspace
-        .getProjection()
-        .panes.find((pane) => pane.paneId === closingPane)!.tabs[0]!
+      const closingView = tabAt(paneById(workspace.getProjection(), closingPane), 0)
       expect(
         (await workspace.execute({ kind: 'close-view', viewId: closingView.viewId })).status
       ).toBe('applied')
@@ -493,7 +513,7 @@ describe('WorkspaceRuntime', () => {
       (await workspace.execute({ kind: 'open-document', document: { fileKey: '/same.md' } })).status
     ).toBe('applied')
     expect(
-      workspace.getProjection().panes[0]!.tabs.filter((tab) => tab.fileKey === '/same.md')
+      paneAt(workspace.getProjection(), 0).tabs.filter((tab) => tab.fileKey === '/same.md')
     ).toHaveLength(1)
   })
 
@@ -623,7 +643,7 @@ describe('WorkspaceRuntime', () => {
     editor.reports.push({ markdown: 'captured before failed transition' })
     editor.failAfterRefresh = true
     expect((await workspace.execute({ kind: 'new-tab' })).status).toBe('failed')
-    expect(workspace.getProjection().panes[0]!.tabs).toHaveLength(1)
+    expect(paneAt(workspace.getProjection(), 0).tabs).toHaveLength(1)
     expect(editor.active?.viewId).toBe(before?.viewId)
     expect(editor.active?.document.markdown).toBe('captured before failed transition')
     expect(workspace.getProjection().workspaceRevision).toBeGreaterThan(beforeRevision)
@@ -709,21 +729,29 @@ describe('WorkspaceRuntime', () => {
       toc: [{ id: 'right-heading', title: 'Right', level: 2 }],
       status: { wordCount: 5 }
     })
-    await workspace.setWorkspaceWarnings([
-      { id: 'conflict-1', kind: 'conflict', message: 'disk changed' }
-    ])
+    const revisionBeforeWarnings = workspace.getProjection().workspaceRevision
+    let warningNotifications = 0
+    workspace.subscribe(() => {
+      warningNotifications += 1
+    })
+    const warningResult = await workspace.execute({
+      kind: 'replace-warnings',
+      warnings: [{ id: 'conflict-1', kind: 'conflict', message: 'disk changed' }]
+    })
+    expect(warningResult.status).toBe('applied')
+    if (warningResult.status !== 'applied') throw new Error('expected warning update to apply')
+    expect(warningResult.workspaceRevision).toBeGreaterThan(revisionBeforeWarnings)
+    expect(warningNotifications).toBe(1)
     const rightProjection = workspace.getProjection()
     expect(rightProjection.toc).toEqual([{ id: 'right-heading', title: 'Right', level: 2 }])
     expect(rightProjection.status).toEqual({ wordCount: 5 })
-    expect(rightProjection.panes.find((pane) => pane.paneId === 'left')!.toc[0]!.id).toBe(
-      'left-heading'
-    )
+    expect(expectDefined(paneById(rightProjection, 'left').toc[0]).id).toBe('left-heading')
     expect(rightProjection.warnings).toEqual([
       { id: 'conflict-1', kind: 'conflict', message: 'disk changed' }
     ])
     expect(Object.isFrozen(rightProjection.warnings)).toBe(true)
     expect(JSON.parse(JSON.stringify(rightProjection)).warnings[0].id).toBe('conflict-1')
     await workspace.execute({ kind: 'focus-pane', paneId: 'left' })
-    expect(workspace.getProjection().toc[0]!.id).toBe('left-heading')
+    expect(expectDefined(workspace.getProjection().toc[0]).id).toBe('left-heading')
   })
 })
