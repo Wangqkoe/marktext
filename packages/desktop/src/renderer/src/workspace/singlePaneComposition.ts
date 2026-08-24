@@ -2,23 +2,32 @@ import type {
   EditorBindingSnapshot,
   EditorReport,
   PaneEditorBinding,
+  PaneId,
   WorkspaceDocumentInput,
   WorkspaceResult
 } from '@shared/workspace'
 import type { IFileState } from '@shared/types/files'
-import { createWorkspaceRuntime } from './controller'
+import { createWorkspaceRuntime, type WorkspaceController } from './controller'
 import {
   PaneEditorLeaseReporter,
   RendererPaneEditorAdapter,
   type PaneEditorEventScope,
   type PaneEditorSurface
 } from './paneEditorAdapter'
+import type { EditorMode } from '@shared/workspace'
 
 export interface LegacyPaneSeed {
   readonly id: string
   readonly markdown: string
   readonly title: string
   readonly fileKey?: string
+  readonly mode?: EditorMode
+}
+
+export interface PaneEditorCompositionOptions {
+  readonly paneId: PaneId
+  /** T03 supplies one controller to independently mounted pane compositions. */
+  readonly controller?: WorkspaceController
 }
 
 /**
@@ -27,29 +36,39 @@ export interface LegacyPaneSeed {
  * T03 replaces this composition with its two-pane assembly without changing
  * editor callbacks or the adapter/lease contract.
  */
-class SinglePaneComposition {
-  private reporter = new PaneEditorLeaseReporter('left')
+export class PaneEditorComposition {
+  private readonly reporter: PaneEditorLeaseReporter
   private surface: PaneEditorSurface | undefined
   private binding: PaneEditorBinding | undefined
-  private runtime: ReturnType<typeof createWorkspaceRuntime> | undefined
+  private runtime: WorkspaceController | undefined
   private sourceReport: { scope: PaneEditorEventScope; report: EditorReport } | undefined
   private sourceHandoffHandler: ((report: EditorReport) => void) | undefined
-  private initialized = false
+  private readonly paneId: PaneId
+
+  constructor(options: PaneEditorCompositionOptions) {
+    this.paneId = options.paneId
+    this.reporter = new PaneEditorLeaseReporter(options.paneId)
+    this.runtime = options.controller
+  }
 
   async mount(surface: PaneEditorSurface, seed: LegacyPaneSeed): Promise<void> {
     this.surface = surface
-    if (this.initialized) return
-    this.initialized = true
-    const input: WorkspaceDocumentInput = {
-      documentId: seed.id,
-      markdown: seed.markdown,
-      title: seed.title,
-      ...(seed.fileKey ? { fileKey: seed.fileKey } : {})
+    if (!this.runtime) {
+      const input: WorkspaceDocumentInput = {
+        documentId: seed.id,
+        markdown: seed.markdown,
+        title: seed.title,
+        ...(seed.fileKey ? { fileKey: seed.fileKey } : {})
+      }
+      this.runtime = createWorkspaceRuntime([input])
     }
-    this.runtime = createWorkspaceRuntime([input])
     const adapter = new RendererPaneEditorAdapter(surface, this.reporter)
-    this.binding = await this.runtime.bindPaneEditor('left', adapter)
+    this.binding = await this.runtime.bindPaneEditor(this.paneId, adapter)
     this.reporter.attach(this.binding)
+    if (seed.mode === 'source') {
+      const lease = this.binding.getLease()
+      if (lease) await this.binding.handoffMode(lease, 'source')
+    }
   }
 
   unmount(surface: PaneEditorSurface): void {
@@ -109,7 +128,7 @@ class SinglePaneComposition {
   }
 
   isMounted(): boolean {
-    return this.initialized && this.surface !== undefined
+    return this.binding !== undefined && this.surface !== undefined
   }
 
   async activateLegacyTab(tab: IFileState): Promise<void> {
@@ -117,7 +136,11 @@ class SinglePaneComposition {
     const projection = this.runtime.getProjection()
     const existing = projection.panes[0]?.tabs.find((candidate) => candidate.documentId === tab.id)
     if (existing) {
-      await this.runtime.execute({ kind: 'activate-view', paneId: 'left', viewId: existing.viewId })
+      await this.runtime.execute({
+        kind: 'activate-view',
+        paneId: this.paneId,
+        viewId: existing.viewId
+      })
     } else {
       await this.runtime.execute({
         kind: 'open-document',
@@ -132,6 +155,12 @@ class SinglePaneComposition {
   }
 }
 
-const singlePaneComposition = new SinglePaneComposition()
+export const createPaneEditorComposition = (
+  options: PaneEditorCompositionOptions
+): PaneEditorComposition => new PaneEditorComposition(options)
 
-export const singlePaneWorkspace = (): SinglePaneComposition => singlePaneComposition
+// The old one-editor shell has no injection point. Keep its explicitly named,
+// bounded fallback here; T03 uses `createPaneEditorComposition` instead.
+const legacySinglePaneFallback = createPaneEditorComposition({ paneId: 'left' })
+
+export const legacyPaneFallback = (): PaneEditorComposition => legacySinglePaneFallback

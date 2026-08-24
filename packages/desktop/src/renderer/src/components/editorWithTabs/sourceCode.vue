@@ -3,7 +3,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable @stylistic/space-before-function-paren */
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
@@ -16,7 +15,7 @@ import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
 import { toCaretPosition } from '@/util/caretPosition'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
-import { singlePaneWorkspace } from '@/workspace'
+import { legacyPaneFallback as singlePaneWorkspace } from '@/workspace'
 
 // CodeMirror 5 ships no first-party types; the wrapper in src/renderer/src/
 // codeMirror/index.ts also keeps the surface intentionally loose.
@@ -382,7 +381,7 @@ onMounted(() => {
     styleActiveLine: true,
     direction: textDirection,
     viewportMargin: Infinity,
-    lineNumberFormatter(line: number) {
+    lineNumberFormatter (line: number) {
       if (line % 10 === 0 || line === 1) {
         return line
       } else {

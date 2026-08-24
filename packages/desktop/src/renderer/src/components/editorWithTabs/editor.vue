@@ -62,7 +62,6 @@
 </template>
 
 <script setup lang="ts">
-/* eslint-disable @stylistic/space-before-function-paren */
 import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import log from 'electron-log'
 import {
@@ -124,7 +123,11 @@ import { useProjectStore } from '@/store/project'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SyntheticHistory, type IFileHistoryLike } from './syntheticHistory'
-import { singlePaneWorkspace, type PaneEditorEventScope, type PaneEditorSurface } from '@/workspace'
+import {
+  legacyPaneFallback as singlePaneWorkspace,
+  type PaneEditorEventScope,
+  type PaneEditorSurface
+} from '@/workspace'
 import type { EditorBindingSnapshot, EditorReport } from '@shared/workspace'
 
 // Importing the engine entrypoint auto-injects its editor CSS (the muya.ts
@@ -467,7 +470,7 @@ class SimpleImageViewer {
   _onMousemove!: (e: MouseEvent) => void
   _onMouseup!: () => void
 
-  constructor(container: HTMLElement, { url }: { url: string }) {
+  constructor (container: HTMLElement, { url }: { url: string }) {
     this.container = container
     this.scale = 1
     this.translateX = 0
@@ -478,7 +481,7 @@ class SimpleImageViewer {
     this._init(url)
   }
 
-  _init(url: string) {
+  _init (url: string) {
     this.container.innerHTML = ''
     this.img = document.createElement('img')
     this.img.src = url
@@ -489,11 +492,11 @@ class SimpleImageViewer {
     this._bindEvents()
   }
 
-  _updateTransform() {
+  _updateTransform () {
     this.img.style.transform = `translate(${this.translateX}px,${this.translateY}px) scale(${this.scale})`
   }
 
-  _bindEvents() {
+  _bindEvents () {
     this._onWheel = (e: WheelEvent) => {
       e.preventDefault()
       const factor = e.deltaY < 0 ? 1.1 : 0.9
@@ -524,7 +527,7 @@ class SimpleImageViewer {
     document.addEventListener('mouseup', this._onMouseup)
   }
 
-  destroy() {
+  destroy () {
     this.container.removeEventListener('wheel', this._onWheel)
     this.container.removeEventListener('mousedown', this._onMousedown)
     document.removeEventListener('mousemove', this._onMousemove)
@@ -1843,7 +1846,7 @@ onMounted(() => {
   editor.value = muya
 
   paneSurface = {
-    async refresh(snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope): Promise<void> {
+    async refresh (snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope): Promise<void> {
       paneScope = scope
       if (!editor.value) return
       handleFileChange({
@@ -1855,7 +1858,7 @@ onMounted(() => {
         sourceHandoff: singlePaneWorkspace().isSourceHandoff(snapshot)
       })
     },
-    async flush(snapshot: EditorBindingSnapshot): Promise<EditorReport> {
+    async flush (snapshot: EditorBindingSnapshot): Promise<EditorReport> {
       const sourceReport = singlePaneWorkspace().sourceReportFor(snapshot)
       if (sourceReport) return sourceReport
       if (!editor.value) return {}
@@ -1889,6 +1892,7 @@ onMounted(() => {
         id: legacyTab.id,
         markdown: legacyTab.markdown,
         title: legacyTab.filename,
+        mode: sourceCode.value ? 'source' : 'wysiwyg',
         ...(legacyTab.pathname ? { fileKey: legacyTab.pathname } : {})
       })
       .catch((error) => {

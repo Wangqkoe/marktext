@@ -15,7 +15,7 @@ import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
 import { useMainStore } from '.'
-import { singlePaneWorkspace } from '@/workspace'
+import { legacyPaneFallback as singlePaneWorkspace } from '@/workspace'
 import { t } from '../i18n'
 import { debouncedSendBufferedState, sendBufferedState } from './bufferedState'
 import type {
