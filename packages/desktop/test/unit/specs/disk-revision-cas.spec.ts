@@ -75,7 +75,7 @@ describe('DiskRevision guarded saves', () => {
   it('rejects an old document revision on the same lease before it can write', async() => {
     const { hub, storage } = createHub()
     const { lease, baseline } = await seed(hub, storage)
-    expect(hub.refreshDocumentRevision(lease, 2)).toBe(true)
+    await expect(hub.refreshDocumentRevision(lease, 2)).resolves.toBe(true)
     expect(hub.currentDocumentRevision(lease)).toBe(2)
     const stale = await hub.save({
       documentId: 'doc',
@@ -92,7 +92,7 @@ describe('DiskRevision guarded saves', () => {
   it('binds an ACK to the current owner lease, revision, and one acceptance', async() => {
     const { hub, storage } = createHub()
     const { lease, baseline } = await seed(hub, storage)
-    expect(hub.refreshDocumentRevision(lease, 4)).toBe(true)
+    await expect(hub.refreshDocumentRevision(lease, 4)).resolves.toBe(true)
     const saved = await hub.save({
       documentId: 'doc',
       documentRevision: 4,
@@ -126,7 +126,7 @@ describe('DiskRevision guarded saves', () => {
         ownerLease: lease
       })
     ).resolves.toBe(false)
-    expect(hub.refreshDocumentRevision(lease, 5)).toBe(true)
+    await expect(hub.refreshDocumentRevision(lease, 5)).resolves.toBe(true)
     const pendingAck = await hub.save({
       documentId: 'doc',
       documentRevision: 5,
@@ -194,7 +194,7 @@ describe('DiskRevision guarded saves', () => {
   it('blocks ordinary conflicts and consumes an exact overwrite token once', async() => {
     const { hub, storage } = createHub()
     const { lease, baseline } = await seed(hub, storage)
-    expect(hub.refreshDocumentRevision(lease, 7)).toBe(true)
+    await expect(hub.refreshDocumentRevision(lease, 7)).resolves.toBe(true)
     const canonical = await hub.canonicalFileKey(fileKey)
     storage.files.set(canonical, Buffer.from('external change'))
     const observed = await hub.getDiskRevision(fileKey)

@@ -82,9 +82,7 @@ describe('FileObservationHub', () => {
       bytes: Buffer.from('saved')
     })
     if (saved.status !== 'saved') throw new Error('expected save')
-    // The storage→hub→watcher composition attaches the actual writeId/hash;
-    // a raw watcher event consumes it without guessing from bytes alone.
-    watchers.emitRaw(direct)
+    watchers.emit(direct)
     await vi.waitFor(() => expect(linkChanges).toHaveLength(1))
     expect(directChanges).toEqual([])
     expect(linkChanges[0]?.kind).toBe('reload')
@@ -168,7 +166,7 @@ describe('FileObservationHub', () => {
       bytes: Buffer.from('same')
     })
     if (first.status !== 'saved') throw new Error('expected first save')
-    expect(hub.refreshDocumentRevision(writer, 2)).toBe(true)
+    await expect(hub.refreshDocumentRevision(writer, 2)).resolves.toBe(true)
     const second = await hub.save({
       documentId: 'writer',
       documentRevision: 2,
@@ -180,15 +178,16 @@ describe('FileObservationHub', () => {
     if (second.status !== 'saved') throw new Error('expected second save')
     expect(await hub.pendingOwnWriteCount(fileKey)).toBe(2)
 
-    watchers.emit(canonical, { writeId: second.writeId, landedHash: second.diskRevision })
+    watchers.emit(canonical)
     await vi.waitFor(() => expect(peerChanges).toHaveLength(1))
     expect(writerChanges).toEqual([])
-    expect(await hub.pendingOwnWriteCount(fileKey)).toBe(1)
-    watchers.emit(canonical, { writeId: first.writeId, landedHash: first.diskRevision })
-    await vi.waitFor(() => expect(peerChanges).toHaveLength(2))
+    expect(await hub.pendingOwnWriteCount(fileKey)).toBe(0)
+    watchers.emit(canonical)
+    await Promise.resolve()
+    expect(peerChanges).toHaveLength(1)
     expect(writerChanges).toEqual([])
 
-    expect(hub.refreshDocumentRevision(writer, 3)).toBe(true)
+    await expect(hub.refreshDocumentRevision(writer, 3)).resolves.toBe(true)
     const third = await hub.save({
       documentId: 'writer',
       documentRevision: 3,
@@ -199,8 +198,8 @@ describe('FileObservationHub', () => {
     })
     if (third.status !== 'saved') throw new Error('expected third save')
     watchers.emit(canonical)
-    await vi.waitFor(() => expect(writerChanges).toHaveLength(1))
-    expect(await hub.pendingOwnWriteCount(fileKey)).toBe(1)
+    await vi.waitFor(async() => expect(await hub.pendingOwnWriteCount(fileKey)).toBe(0))
+    expect(writerChanges).toEqual([])
   })
 
   it('expires and bounds pending suppression entries when watcher events are lost', async() => {
@@ -217,7 +216,7 @@ describe('FileObservationHub', () => {
     let revision = await hub.getDiskRevision(fileKey)
     if (!revision) throw new Error('expected baseline')
     for (let documentRevision = 1; documentRevision <= 3; documentRevision += 1) {
-      expect(hub.refreshDocumentRevision(lease, documentRevision)).toBe(true)
+      await expect(hub.refreshDocumentRevision(lease, documentRevision)).resolves.toBe(true)
       const result = await hub.save({
         documentId: 'writer',
         documentRevision,
