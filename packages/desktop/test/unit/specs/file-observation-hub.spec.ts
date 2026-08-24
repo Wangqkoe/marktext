@@ -10,8 +10,7 @@ import {
   MemoryFileObservationWatchFactory,
   NodeFileObservationStorage,
   type DiskChange,
-  type FileObservationSubscriber,
-  type WriteReceipt
+  type FileObservationSubscriber
 } from 'main_renderer/filesystem/fileObservation'
 import type { FileKey } from '@shared/workspace/fileObservation'
 
@@ -176,7 +175,7 @@ describe('FileObservationHub', () => {
     await expect(resolver.resolve('C:/unknown/123')).resolves.toBe(true)
   })
 
-  it('authenticates and consumes own-write receipts while merged and late raw events are no-ops', async() => {
+  it('internally consumes own-write receipts while merged and late raw events are no-ops', async() => {
     const { hub, storage, watchers } = createHub()
     const fileKey = raw('same-content')
     const canonical = await hub.canonicalFileKey(fileKey)
@@ -197,29 +196,10 @@ describe('FileObservationHub', () => {
       bytes: Buffer.from('same')
     })
     if (first.status !== 'saved') throw new Error('expected first save')
-    expect(first.receipt).toMatchObject({
-      writeId: first.writeId,
-      fileKey: canonical,
-      intendedHash: first.diskRevision,
-      landedHash: first.diskRevision,
-      ownerLease: writer
-    })
+    expect(first).not.toHaveProperty('receipt')
+    expect('observeOwnWriteReceipt' in hub).toBe(false)
     expect(peerChanges).toHaveLength(1)
     expect(writerChanges).toEqual([])
-    await expect(hub.observeOwnWriteReceipt(first.receipt)).resolves.toBe(false)
-    const forgedReceipts: WriteReceipt[] = [
-      Object.freeze({ ...first.receipt, writeId: 'wrong-write-id' }),
-      Object.freeze({ ...first.receipt, fileKey: raw('wrong-file') as never }),
-      Object.freeze({ ...first.receipt, intendedHash: 'wrong-hash' as never }),
-      Object.freeze({ ...first.receipt, landedHash: 'wrong-hash' as never }),
-      Object.freeze({
-        ...first.receipt,
-        ownerLease: Object.freeze({ ...writer, generation: writer.generation + 1 })
-      })
-    ]
-    for (const receipt of forgedReceipts) {
-      await expect(hub.observeOwnWriteReceipt(receipt)).resolves.toBe(false)
-    }
     // An external event with identical bytes has no authority to consume or
     // recreate the receipt, and the writer baseline already makes it a no-op.
     storage.files.set(canonical, Buffer.from('same'))
@@ -295,7 +275,63 @@ describe('FileObservationHub', () => {
     expect(await hub.pendingOwnWriteCount(fileKey)).toBe(0)
   })
 
-  it('keeps production Chokidar raw events untrusted after a receipt-authenticated write', async() => {
+  it('keeps a durable save successful when peer notifications throw', async() => {
+    const { hub, storage, watchers } = createHub()
+    const fileKey = raw('throwing-peer')
+    const canonical = await hub.canonicalFileKey(fileKey)
+    storage.files.set(canonical, Buffer.from('baseline'))
+    const writerChanges: DiskChange[] = []
+    const cleanChanges: DiskChange[] = []
+    const dirtyChanges: DiskChange[] = []
+    const writer = await hub.subscribe(subscriber('writer', fileKey, 'clean', writerChanges))
+    await hub.subscribe({
+      ...subscriber('throwing-clean', fileKey, 'clean', []),
+      onDiskChange: () => {
+        throw new Error('clean peer failed')
+      }
+    })
+    await hub.subscribe({
+      ...subscriber('throwing-dirty', fileKey, 'dirty', []),
+      onDiskChange: () => {
+        throw new Error('dirty peer failed')
+      }
+    })
+    await hub.subscribe(subscriber('clean-peer', fileKey, 'clean', cleanChanges))
+    await hub.subscribe(subscriber('dirty-peer', fileKey, 'dirty', dirtyChanges))
+    const baseline = await hub.getDiskRevision(fileKey)
+    if (!baseline) throw new Error('expected baseline')
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const result = await hub.save({
+        documentId: 'writer',
+        documentRevision: 1,
+        fileKey,
+        observedDiskRevision: baseline,
+        ownerLease: writer,
+        bytes: Buffer.from('saved')
+      })
+      if (result.status !== 'saved') throw new Error('expected save')
+      expect(storage.files.get(canonical)).toEqual(Buffer.from('saved'))
+      expect(writerChanges).toEqual([])
+      expect(cleanChanges).toEqual([{ kind: 'reload', fileKey: canonical, diskRevision: result.diskRevision }])
+      expect(dirtyChanges).toEqual([
+        { kind: 'conflict', fileKey: canonical, diskRevision: result.diskRevision }
+      ])
+      expect(error).toHaveBeenCalledTimes(2)
+
+      // Every slot, including failed callbacks, received the baseline before
+      // notification, so a late raw event cannot retry or duplicate delivery.
+      watchers.emit(canonical)
+      await Promise.resolve()
+      expect(cleanChanges).toHaveLength(1)
+      expect(dirtyChanges).toHaveLength(1)
+      expect(await hub.pendingOwnWriteCount(fileKey)).toBe(1)
+    } finally {
+      error.mockRestore()
+    }
+  })
+
+  it('keeps production Chokidar raw events untrusted after an internally authenticated write', async() => {
     const directory = await mkdtemp(path.join(os.tmpdir(), 'marktext-t04-'))
     const fileKey = path.join(directory, 'note.md') as FileKey
     await writeFile(fileKey, 'baseline')
@@ -341,7 +377,6 @@ describe('FileObservationHub', () => {
       expect(writerChanges[0]?.kind).toBe('reload')
       expect(cleanPeerChanges[1]?.kind).toBe('reload')
       expect(dirtyPeerChanges[1]?.kind).toBe('conflict')
-      await expect(hub.observeOwnWriteReceipt(result.receipt)).resolves.toBe(false)
     } finally {
       hub.close()
       await rm(directory, { recursive: true, force: true })

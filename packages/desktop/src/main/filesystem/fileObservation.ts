@@ -78,7 +78,6 @@ export type GuardedSaveResult =
     readonly documentId: DocumentId
     readonly documentRevision: number
     readonly ownerLease: FileObservationLease
-    readonly receipt: WriteReceipt
   }
   | {
     readonly status: 'conflict'
@@ -95,10 +94,10 @@ interface SubscriberSlot {
 
 /**
  * An opaque, single-use capability for the logical observation created by a
- * successful guarded write. The public fields make the binding auditable; the
- * private WeakMap identity check makes a copied or invented tuple unusable.
+ * successful guarded write. Its fields make the internal binding auditable;
+ * the private WeakMap identity check makes a copied or invented tuple unusable.
  */
-export interface WriteReceipt {
+interface WriteReceipt {
   readonly writeId: string
   readonly fileKey: CanonicalFileKey
   readonly intendedHash: DiskRevision
@@ -116,6 +115,11 @@ interface PendingWriterEvent {
   readonly ownerLease: FileObservationLease
   readonly receipt: WriteReceipt
   consumed: boolean
+}
+
+interface DiskNotification {
+  readonly subscriber: FileObservationSubscriber
+  readonly change: DiskChange
 }
 
 interface FileEntry {
@@ -324,21 +328,21 @@ export class FileObservationHub {
           receipt,
           consumed: false
         })
-        const entry = this.entries.get(fileKey)
-        if (!entry || !this.consumeOwnWriteReceipt(entry, receipt)) {
-          this.removePendingWriterEvent(fileKey, writeId)
-          return { status: 'rejected', reason: 'own-write observation was not authenticated' }
-        }
-        return Object.freeze({
+        const saved = Object.freeze({
           status: 'saved' as const,
           writeId,
           fileKey,
           diskRevision: landedHash,
           documentId: request.documentId,
           documentRevision: request.documentRevision,
-          ownerLease: request.ownerLease,
-          receipt
+          ownerLease: request.ownerLease
         })
+        const entry = this.entries.get(fileKey)
+        if (!entry || !this.consumeOwnWriteReceipt(entry, receipt)) {
+          this.removePendingWriterEvent(fileKey, writeId)
+          return { status: 'rejected', reason: 'own-write observation was not authenticated' }
+        }
+        return saved
       } catch (error) {
         this.removePendingWriterEvent(fileKey, writeId)
         throw error
@@ -374,20 +378,6 @@ export class FileObservationHub {
     if (!entry) return 0
     this.prunePendingWriterEvents(entry)
     return entry.pendingWriterEvents.size
-  }
-
-  /**
-   * Delivers an authenticated logical own-write observation exactly once. This
-   * is intentionally a capability API: raw OS events never call it or supply a
-   * write id, and a structurally identical receipt is not accepted.
-   */
-  async observeOwnWriteReceipt(receipt: WriteReceipt): Promise<boolean> {
-    const pending = this.receipts.get(receipt)
-    if (!pending) return false
-    return this.serialize(pending.fileKey, async() => {
-      const entry = this.entries.get(pending.fileKey)
-      return entry ? this.consumeOwnWriteReceipt(entry, receipt) : false
-    })
   }
 
   close(): void {
@@ -436,11 +426,16 @@ export class FileObservationHub {
       if (!this.isCurrent(slot.lease)) continue
       if (slot.lastObservedDiskRevision === revision) continue
       slot.lastObservedDiskRevision = revision
-      slot.subscriber.onDiskChange({
-        kind: slot.subscriber.getState() === 'clean' ? 'reload' : 'conflict',
-        fileKey,
-        diskRevision: revision
-      })
+      this.notifySubscribers([
+        {
+          subscriber: slot.subscriber,
+          change: {
+            kind: slot.subscriber.getState() === 'clean' ? 'reload' : 'conflict',
+            fileKey,
+            diskRevision: revision
+          }
+        }
+      ])
     }
   }
 
@@ -495,18 +490,33 @@ export class FileObservationHub {
     }
 
     pending.consumed = true
+    const notifications: DiskNotification[] = []
     for (const slot of entry.subscribers.values()) {
       if (!this.isCurrent(slot.lease)) continue
       if (slot.lastObservedDiskRevision === pending.landedHash) continue
       slot.lastObservedDiskRevision = pending.landedHash
       if (slot.lease === pending.ownerLease) continue
-      slot.subscriber.onDiskChange({
-        kind: slot.subscriber.getState() === 'clean' ? 'reload' : 'conflict',
-        fileKey: pending.fileKey,
-        diskRevision: pending.landedHash
+      notifications.push({
+        subscriber: slot.subscriber,
+        change: {
+          kind: slot.subscriber.getState() === 'clean' ? 'reload' : 'conflict',
+          fileKey: pending.fileKey,
+          diskRevision: pending.landedHash
+        }
       })
     }
+    this.notifySubscribers(notifications)
     return true
+  }
+
+  private notifySubscribers(notifications: readonly DiskNotification[]): void {
+    for (const { subscriber, change } of notifications) {
+      try {
+        subscriber.onDiskChange(change)
+      } catch (error) {
+        console.error('Failed to notify file observation subscriber:', error)
+      }
+    }
   }
 
   private removePendingWriterEvent(fileKey: CanonicalFileKey, writeId: string): void {
