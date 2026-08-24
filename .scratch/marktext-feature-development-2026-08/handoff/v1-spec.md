@@ -98,7 +98,9 @@ independent production CrashDraft store, lifecycle, and both-source Electron sca
 T02 is a retained, failed-review intermediate lease migration and is never a
 standalone integration candidate. T02b inherits its commits and binds the
 production `PaneEditorAdapter`, controller composition, one-way projection mirror
-and compatibility facade as one diff from the fixed integration baseline. CrashDraft identity, revision, durable-write,
+and compatibility facade as one diff from fixed integration baseline `7ae5e2f4`
+(which already integrates independently reviewed T04 and releases its typed CAS
+seam). CrashDraft identity, revision, durable-write,
 fallback, conflict, tombstone, and clean-marker rules are normative in
 [Issue 12](../issues/12-define-startup-restore-emergency-recovery-boundary.md#crashdraftrecovery-durability-contract)
 and are accepted through A02/A08/A13/A14. A future NormalWorkspaceRestore may add

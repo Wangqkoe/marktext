@@ -12,8 +12,11 @@ Make WorkspaceController the only runtime truth for document and view state, and
 make the existing Pinia/editor store a one-way, readonly compatibility facade over
 its WorkspaceProjection. This ticket inherits T02's stale lease/generation,
 source-mode and WYSIWYG migration work; it is reviewed as the whole difference
-from fixed integration baseline `28c66b200666e96a28ff0895cee72d96f1c1d272` to
-the final T02b HEAD, never as T02 alone.
+from fixed integration baseline `7ae5e2f416b171e5f44fc32434a65da4892e7e8b` to
+the final T02b HEAD, never as T02 alone. T04 is integrated and independently
+reviewed at that baseline, so its FileObservationHub/FileKey/DiskRevision/CAS
+port is now a consumable seam while it remains sole owner of watcher, hash and
+save I/O.
 
 It blocks T03, T05, T06, T08 and T11 wherever those tickets consume real runtime
 Document/View state. T04 may execute in parallel through the integration seam

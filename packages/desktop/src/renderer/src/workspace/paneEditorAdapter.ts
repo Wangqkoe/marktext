@@ -68,6 +68,7 @@ export interface PaneEditorEventScope {
 class RendererPaneEditorEventScope implements PaneEditorEventScope {
   constructor(
     private readonly reporter: PaneEditorLeaseReporter,
+    readonly snapshot: EditorBindingSnapshot,
     readonly paneId: PaneId,
     readonly viewId: ViewId,
     readonly documentId: string,
@@ -95,6 +96,7 @@ export class PaneEditorLeaseReporter {
 
   attach(binding: PaneEditorBinding | undefined): void {
     this.binding = binding
+    if (!binding) this.activeScope = undefined
   }
 
   getActiveScope(): PaneEditorEventScope | undefined {
@@ -105,8 +107,18 @@ export class PaneEditorLeaseReporter {
     if (snapshot.paneId !== this.paneId) {
       throw new Error('pane adapter received the wrong pane snapshot')
     }
+    if (
+      snapshot.documentId !== snapshot.document.documentId ||
+      snapshot.documentRevision !== snapshot.document.documentRevision ||
+      snapshot.lease.paneId !== snapshot.paneId ||
+      snapshot.lease.viewId !== snapshot.viewId ||
+      snapshot.lease.mode !== snapshot.view.mode
+    ) {
+      throw new Error('pane adapter received an incoherent editor snapshot')
+    }
     return new RendererPaneEditorEventScope(
       this,
+      snapshot,
       snapshot.paneId,
       snapshot.viewId,
       snapshot.document.documentId,
@@ -117,6 +129,9 @@ export class PaneEditorLeaseReporter {
   activate(scope: PaneEditorEventScope): void {
     if (!(scope instanceof RendererPaneEditorEventScope) || scope.paneId !== this.paneId) {
       throw new Error('pane adapter attempted to activate a foreign editor scope')
+    }
+    if (this.binding && !this.binding.isSnapshotCurrent(scope.snapshot)) {
+      throw new Error('pane adapter attempted to activate a stale editor snapshot')
     }
     this.activeScope = scope
   }
@@ -148,6 +163,7 @@ export class PaneEditorLeaseReporter {
   private matchingLease(scope: RendererPaneEditorEventScope): EditorLease | undefined {
     const lease = this.binding?.getLease()
     return this.activeScope === scope &&
+      this.binding?.isSnapshotCurrent(scope.snapshot) &&
       lease?.paneId === this.paneId &&
       lease.viewId === scope.viewId &&
       lease.mode === scope.mode

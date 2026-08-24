@@ -72,7 +72,11 @@ export class PaneEditorComposition {
   }
 
   unmount(surface: PaneEditorSurface): void {
-    if (this.surface === surface) this.surface = undefined
+    if (this.surface !== surface) return
+    this.binding?.dispose()
+    this.binding = undefined
+    this.reporter.attach(undefined)
+    this.surface = undefined
   }
 
   getScope(): PaneEditorEventScope | undefined {

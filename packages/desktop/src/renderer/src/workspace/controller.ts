@@ -1,5 +1,6 @@
 import type {
   DocumentId,
+  DocumentSaveAck,
   EditorBindingSnapshot,
   EditorLease,
   EditorMode,
@@ -30,6 +31,7 @@ interface DocumentRecord {
   revision: number
   history: PortableHistory
   title: string
+  ownerFence: string
 }
 
 interface ViewRecord {
@@ -56,6 +58,7 @@ interface CapabilityRecord {
 interface BoundAdapter {
   readonly adapter: PaneEditorAdapter
   lease?: EditorLease
+  snapshot?: EditorBindingSnapshot
 }
 
 const EMPTY_HISTORY: PortableHistory = { version: 1, value: [] }
@@ -169,21 +172,30 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (previous) await this.flushPane(paneId)
     const snapshot = this.snapshotFor(paneId, pane.activeViewId)
     const bound: BoundAdapter = { adapter }
+    const lease = this.issueLease(bound, paneId, pane.activeViewId, snapshot.view.mode)
+    const current = this.snapshotWithLease(snapshot, lease)
+    bound.snapshot = current
     try {
-      await adapter.refresh(snapshot)
+      await adapter.refresh(current)
     } catch (error) {
-      if (previous?.adapter === adapter) {
+      this.invalidate(bound)
+      // A same-instance refresh can have partially staged its contents. Put
+      // the prior accepted snapshot back; if that compensation also fails the
+      // original binding is no longer trustworthy and must become inert.
+      if (previous?.adapter === adapter && previous.snapshot) {
         try {
-          await adapter.refresh(snapshot)
+          await previous.adapter.refresh(previous.snapshot)
         } catch {
           this.invalidate(previous)
         }
       }
       throw error
     }
+    // The predecessor remains available only while a replacement is staging.
+    // Once the surface accepted its full snapshot, revoke it before exposing
+    // the successor binding to any reporter.
     if (previous) this.invalidate(previous)
     this.adapters.set(paneId, bound)
-    this.issueLease(bound, paneId, pane.activeViewId, this.view(pane.activeViewId).state.mode)
     return this.createBinding(bound)
   }
 
@@ -193,21 +205,22 @@ export class WorkspaceController implements WorkspaceControllerContract {
         return bound.lease
       },
       getLease: () => bound.lease,
-      getSnapshot: (candidate) =>
-        this.validLease(bound, candidate)
-          ? this.snapshotFor(candidate.paneId, candidate.viewId)
-          : undefined,
+      getSnapshot: (candidate) => (this.validLease(bound, candidate) ? bound.snapshot : undefined),
+      isSnapshotCurrent: (snapshot) => this.validSnapshot(bound, snapshot),
       report: (candidate, report) => {
         if (this.pendingOperations > 0) return this.rejected('workspace mutation is in progress')
         if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
-        this.applyReport(candidate.viewId, report)
+        const changed = this.applyReport(candidate.viewId, report)
+        if (changed) this.updateBoundSnapshot(bound)
         this.commit()
         return this.applied()
       },
       flush: async(candidate) =>
         this.enqueue(async() =>
           this.withLease(bound, candidate, async() => {
-            this.applyReport(candidate.viewId, await bound.adapter.flush())
+            if (this.applyReport(candidate.viewId, await bound.adapter.flush())) {
+              this.updateBoundSnapshot(bound)
+            }
           })
         ),
       handoffMode: async(candidate, mode) =>
@@ -215,23 +228,25 @@ export class WorkspaceController implements WorkspaceControllerContract {
           this.withLease(bound, candidate, async() => {
             const view = this.view(candidate.viewId)
             const report = await bound.adapter.flush()
-            if (this.applyReport(candidate.viewId, report)) this.commit()
+            if (this.applyReport(candidate.viewId, report)) {
+              this.updateBoundSnapshot(bound)
+              this.commit()
+            }
             const nextState = { ...view.state, mode }
-            const beforeSnapshot = this.snapshotFor(candidate.paneId, candidate.viewId)
+            const beforeState = view.state
+            view.state = nextState
             try {
-              await bound.adapter.refresh(
-                this.snapshotForRecord(
-                  candidate.paneId,
-                  view,
-                  this.requireDocument(view.documentId),
-                  nextState
-                )
+              await this.refreshAdapter(
+                candidate.paneId,
+                this.snapshotFor(candidate.paneId, candidate.viewId)
               )
-              view.state = nextState
-              this.issueLease(bound, candidate.paneId, candidate.viewId, mode)
             } catch (error) {
+              view.state = beforeState
               try {
-                await bound.adapter.refresh(beforeSnapshot)
+                await this.refreshAdapter(
+                  candidate.paneId,
+                  this.snapshotFor(candidate.paneId, candidate.viewId)
+                )
               } catch {
                 // The lease is still invalidated by withLease; no stale writer remains.
               }
@@ -243,20 +258,17 @@ export class WorkspaceController implements WorkspaceControllerContract {
         this.enqueue(async() =>
           this.withLease(bound, candidate, async() => {
             const report = await bound.adapter.flush()
-            if (this.applyReport(candidate.viewId, report)) this.commit()
-            const beforeSnapshot = this.snapshotFor(candidate.paneId, candidate.viewId)
-            try {
-              await bound.adapter.refresh(this.snapshotFor(candidate.paneId, candidate.viewId))
-            } catch (error) {
-              try {
-                await bound.adapter.refresh(beforeSnapshot)
-              } catch {
-                // withLease invalidates the lease below; the adapter has no writer.
-              }
-              throw error
+            if (this.applyReport(candidate.viewId, report)) {
+              this.updateBoundSnapshot(bound)
+              this.commit()
             }
+            await this.refreshAdapter(
+              candidate.paneId,
+              this.snapshotFor(candidate.paneId, candidate.viewId)
+            )
           })
-        )
+        ),
+      dispose: () => this.disposeBinding(bound)
     }
   }
 
@@ -312,6 +324,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
           return await this.close(command.viewId)
         case 'commit-authorized':
           return await this.commitAuthorized(command.capability)
+        case 'apply-save-ack':
+          return this.applySaveAck(command.ack)
         case 'replace-warnings':
           return this.replaceWarnings(command.warnings)
       }
@@ -464,10 +478,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
 
   private async commitAuthorized(capability: WorkspaceCapability): Promise<WorkspaceResult> {
     const stored = this.capabilities.get(capability)
-    if (!stored || stored.used || capability.action !== 'close-view') { return this.rejected('stale or invalid capability') }
+    if (!stored || stored.used || capability.action !== 'close-view') {
+      return this.rejected('stale or invalid capability')
+    }
     const view = this.views.get(stored.viewId)
     const document = this.documents.get(stored.documentId)
-    if (!view || !document || document.revision !== stored.documentRevision) { return this.rejected('stale capability target') }
+    if (!view || !document || document.revision !== stored.documentRevision) {
+      return this.rejected('stale capability target')
+    }
     const result = await this.removeView(stored.viewId)
     if (result.status === 'applied') stored.used = true
     return result
@@ -476,6 +494,27 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private replaceWarnings(warnings: readonly WorkspaceWarning[]): WorkspaceResult {
     const nextWarnings = clone([...warnings])
     this.warnings = nextWarnings
+    this.commit()
+    return this.applied()
+  }
+
+  /**
+   * T04 remains responsible for I/O and CAS. The controller consumes only a
+   * typed acknowledgement and makes stale identity/revision/file/fence ACKs
+   * inert before changing durable display state.
+   */
+  private applySaveAck(ack: DocumentSaveAck): WorkspaceResult {
+    const document = this.documents.get(ack.documentId)
+    if (
+      !document ||
+      document.revision !== ack.documentRevision ||
+      document.fileKey !== ack.fileKey ||
+      document.ownerFence !== ack.ownerFence
+    ) {
+      return this.rejected('stale document save acknowledgement')
+    }
+    document.observedDiskRevision = ack.diskRevision
+    document.dirty = false
     this.commit()
     return this.applied()
   }
@@ -502,9 +541,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     } else {
       const clean = this.makeDocument({})
       const replacement = this.makeView(clean.id)
-      await this.flushAndRefresh(pane.id, () =>
-        this.snapshotForRecord(pane.id, replacement, clean)
-      )
+      await this.flushAndRefresh(pane.id, () => this.snapshotForRecord(pane.id, replacement, clean))
       this.documents.set(clean.id, clean)
       this.views.set(replacement.id, replacement)
       pane.viewIds = [replacement.id]
@@ -542,17 +579,17 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const bound = this.adapters.get(paneId)
     if (!bound) return
     try {
-      if (this.applyReport(this.requirePane(paneId).activeViewId, await bound.adapter.flush())) { this.commit() }
+      if (this.applyReport(this.requirePane(paneId).activeViewId, await bound.adapter.flush())) {
+        this.updateBoundSnapshot(bound)
+        this.commit()
+      }
     } catch (error) {
       this.invalidate(bound)
       throw error
     }
   }
 
-  private async refreshAdapter(
-    paneId: PaneId,
-    snapshot: EditorBindingSnapshot
-  ): Promise<void> {
+  private async refreshAdapter(paneId: PaneId, snapshot: EditorBindingSnapshot): Promise<void> {
     const bound = this.adapters.get(paneId)
     if (!bound) return
     const pane = this.panes.get(paneId)
@@ -561,14 +598,20 @@ export class WorkspaceController implements WorkspaceControllerContract {
       // A lease names a concrete active pane/view/mode; any controller-driven
       // activation replaces that binding, so the old lease must be inert.
       this.invalidate(bound)
-      await bound.adapter.refresh(snapshot)
-      this.issueLease(bound, snapshot.paneId, snapshot.viewId, snapshot.view.mode)
+      const lease = this.issueLease(bound, snapshot.paneId, snapshot.viewId, snapshot.view.mode)
+      const current = this.snapshotWithLease(snapshot, lease)
+      // Publish this identity before the surface callback can activate it, and
+      // revoke it again on any failed staging path below. A delayed/stale scope
+      // cannot obtain a successor by reconstructing this JSON shape because
+      // both the lease object and this snapshot identity are controller-private.
+      bound.snapshot = current
+      await bound.adapter.refresh(current)
     } catch (error) {
       // An adapter may report failure after it has staged a snapshot. Restore
       // the controller's still-current binding before releasing its lease.
       if (previous) {
         try {
-          await bound.adapter.refresh(previous)
+          await this.restoreAdapterSnapshot(bound, previous)
         } catch {
           // The adapter is no longer trusted either way; its lease stays dead.
         }
@@ -636,15 +679,24 @@ export class WorkspaceController implements WorkspaceControllerContract {
     document: DocumentRecord,
     state = view.state
   ): EditorBindingSnapshot {
+    // This is an internal staging snapshot. refreshAdapter replaces the
+    // detached lease with a current controller-issued generation before the
+    // snapshot can reach a concrete editor surface.
+    const detachedLease = freeze({ paneId, viewId: view.id, mode: state.mode })
     return freeze({
       paneId,
+      documentId: document.id,
       viewId: view.id,
+      lease: detachedLease,
+      documentRevision: document.revision,
+      workspaceRevision: this.workspaceRevision,
       document: {
         documentId: document.id,
         ...(document.fileKey ? { fileKey: document.fileKey } : {}),
         ...(document.observedDiskRevision
           ? { observedDiskRevision: document.observedDiskRevision }
           : {}),
+        ownerFence: document.ownerFence,
         markdown: document.markdown,
         dirty: document.dirty,
         documentRevision: document.revision,
@@ -667,7 +719,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
       dirty: false,
       revision: 0,
       history: clone(input.portableHistory ?? EMPTY_HISTORY),
-      title: input.title ?? input.fileKey?.split(/[\\/]/).pop() ?? 'New Tab'
+      title: input.title ?? input.fileKey?.split(/[\\/]/).pop() ?? 'New Tab',
+      ownerFence: `owner-${id}-${this.nextId++}`
     }
   }
 
@@ -764,9 +817,48 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return bound.lease === lease && this.leases.has(lease)
   }
 
+  private async restoreAdapterSnapshot(
+    bound: BoundAdapter,
+    snapshot: EditorBindingSnapshot
+  ): Promise<void> {
+    this.invalidate(bound)
+    const lease = this.issueLease(bound, snapshot.paneId, snapshot.viewId, snapshot.view.mode)
+    const restored = this.snapshotWithLease(snapshot, lease)
+    bound.snapshot = restored
+    await bound.adapter.refresh(restored)
+  }
+
+  private validSnapshot(bound: BoundAdapter, snapshot: EditorBindingSnapshot): boolean {
+    return (
+      this.validLease(bound, snapshot.lease) &&
+      snapshot.documentId === snapshot.document.documentId &&
+      snapshot.documentRevision === snapshot.document.documentRevision &&
+      snapshot.paneId === snapshot.lease.paneId &&
+      snapshot.viewId === snapshot.lease.viewId &&
+      snapshot.view.mode === snapshot.lease.mode
+    )
+  }
+
+  private updateBoundSnapshot(bound: BoundAdapter): void {
+    const lease = bound.lease
+    if (!lease || !this.validLease(bound, lease)) return
+    bound.snapshot = this.snapshotWithLease(this.snapshotFor(lease.paneId, lease.viewId), lease)
+  }
+
+  private disposeBinding(bound: BoundAdapter): void {
+    for (const [paneId, candidate] of this.adapters) {
+      if (candidate === bound) {
+        this.adapters.delete(paneId)
+        this.invalidate(bound)
+        return
+      }
+    }
+  }
+
   private invalidate(bound: BoundAdapter): void {
     if (bound.lease) this.leases.delete(bound.lease)
     bound.lease = undefined
+    bound.snapshot = undefined
   }
 
   private issueLease(
@@ -780,6 +872,19 @@ export class WorkspaceController implements WorkspaceControllerContract {
     this.leases.add(lease)
     bound.lease = lease
     return lease
+  }
+
+  private snapshotWithLease(
+    snapshot: EditorBindingSnapshot,
+    lease: EditorLease
+  ): EditorBindingSnapshot {
+    return freeze({
+      ...snapshot,
+      documentId: snapshot.document.documentId,
+      lease,
+      documentRevision: snapshot.document.documentRevision,
+      workspaceRevision: this.workspaceRevision
+    })
   }
 
   private commit(): void {

@@ -71,6 +71,16 @@ export interface WorkspaceDocumentInput {
   readonly title?: string
 }
 
+/** Typed renderer acknowledgement consumed from T04's DocumentIO/CAS port. */
+export interface DocumentSaveAck {
+  readonly documentId: DocumentId
+  readonly documentRevision: number
+  readonly fileKey: FileKey
+  readonly diskRevision: DiskRevision
+  /** Controller-owned document/observation handoff fence; never projected. */
+  readonly ownerFence: string
+}
+
 export interface StartupTarget {
   readonly fileKey: FileKey
   readonly title?: string
@@ -142,6 +152,7 @@ export type WorkspaceCommand =
   | { readonly kind: 'move-view'; readonly viewId: ViewId; readonly targetPaneId: PaneId }
   | { readonly kind: 'close-view'; readonly viewId: ViewId }
   | { readonly kind: 'commit-authorized'; readonly capability: WorkspaceCapability }
+  | { readonly kind: 'apply-save-ack'; readonly ack: DocumentSaveAck }
   /** Assembly-only JSON warning update for conflict/recovery presentation. */
   | { readonly kind: 'replace-warnings'; readonly warnings: readonly WorkspaceWarning[] }
 
@@ -185,12 +196,22 @@ export interface WorkspaceProjection {
 }
 
 export interface EditorBindingSnapshot {
+  /**
+   * Complete, controller-issued binding identity.  This is deliberately a
+   * delivery capability rather than projection data: it may only cross the
+   * controller-to-surface boundary.
+   */
   readonly paneId: PaneId
+  readonly documentId: DocumentId
   readonly viewId: ViewId
+  readonly lease: EditorLease
+  readonly documentRevision: number
+  readonly workspaceRevision: number
   readonly document: {
     readonly documentId: DocumentId
     readonly fileKey?: FileKey
     readonly observedDiskRevision?: DiskRevision
+    readonly ownerFence: string
     readonly markdown: string
     readonly dirty: boolean
     readonly documentRevision: number
@@ -230,10 +251,14 @@ export interface PaneEditorBinding {
   readonly lease: EditorLease | undefined
   getLease(): EditorLease | undefined
   getSnapshot(lease: EditorLease): EditorBindingSnapshot | undefined
+  /** Controlled delivery-edge check; never expose this through a projection. */
+  isSnapshotCurrent(snapshot: EditorBindingSnapshot): boolean
   report(lease: EditorLease, report: EditorReport): WorkspaceResult
   flush(lease: EditorLease): Promise<WorkspaceResult>
   handoffMode(lease: EditorLease, mode: EditorMode): Promise<WorkspaceResult>
   refresh(lease: EditorLease): Promise<WorkspaceResult>
+  /** Assembly lifecycle only; revokes the reporter generation synchronously. */
+  dispose(): void
 }
 
 /** The ordinary application-facing surface. Editor binding is assembly-only. */
