@@ -51,6 +51,18 @@ describe('raw HTML details disclosure sanitization', () => {
         expect(html).not.toMatch(/on(?:toggle|beforetoggle|click)/i);
     });
 
+    it('keeps DOMPurify default URL handling for generic raw HTML', () => {
+        const html = sanitize(
+            '<section><a href="javascript:alert(1)">Script</a><a href="file:///C:/secret.txt">File</a><a href="sms:+15551212">SMS</a></section>',
+            PREVIEW_DOMPURIFY_CONFIG,
+            false,
+        ) as string;
+
+        expect(html).not.toContain('javascript:');
+        expect(html).not.toContain('file:///');
+        expect(html).toContain('href="sms:+15551212"');
+    });
+
     it('rebuilds current source through both Preview and Escape', () => {
         const { block, content, figure } = bootDetails(
             '<details><summary>Initial</summary>Body</details>\n',

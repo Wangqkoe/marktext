@@ -28,20 +28,21 @@ test.describe('security / details sanitization', () => {
         expect(href?.toLowerCase() ?? '').not.toContain('javascript:');
     });
 
-    test('sanitizes generic raw HTML without adding disclosure editor controls', async ({ page }) => {
+    test('keeps default URL sanitization for generic raw HTML without disclosure controls', async ({ page }) => {
         await page.evaluate(() => {
             window.muya!.setContent([{
                 name: 'html-block',
-                text: '<section class="note" onclick="window.__pwned = true"><a href="javascript:window.__pwned = true">Body</a></section>',
+                text: '<section class="note" onclick="window.__pwned = true"><a class="script" href="javascript:window.__pwned = true">Script</a><a class="file" href="file:///C:/secret.txt">File</a><a class="sms" href="sms:+15551212">SMS</a></section>',
             }] as TState[]);
         });
 
         const preview = page.locator(editor.htmlPreview);
-        await expect(preview.locator('section.note')).toHaveText('Body');
+        await expect(preview.locator('section.note')).toHaveText('ScriptFileSMS');
         await expect(preview.locator('.mu-details-source-action')).toHaveCount(0);
         const section = preview.locator('section.note');
         await expect(section).not.toHaveAttribute('onclick');
-        const href = await section.locator('a').getAttribute('href');
-        expect(href?.toLowerCase() ?? '').not.toContain('javascript:');
+        await expect(section.locator('a.script')).not.toHaveAttribute('href');
+        await expect(section.locator('a.file')).not.toHaveAttribute('href');
+        await expect(section.locator('a.sms')).toHaveAttribute('href', 'sms:+15551212');
     });
 });
