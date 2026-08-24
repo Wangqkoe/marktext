@@ -36,7 +36,7 @@ export class MemoryCrashDraftRecovery implements CrashDraftRecovery {
 
   beginCheckpoint(checkpoint: CrashDraftCheckpoint, fault?: CrashDraftFault): MemoryCrashDraftWrite {
     const confirmed = this.latestValid(checkpoint.documentId)
-    if (confirmed && checkpoint.documentRevision <= confirmed.documentRevision) {
+    if (confirmed && checkpoint.documentRevision <= confirmed.envelope.documentRevision) {
       throw new Error('document revision must advance monotonically')
     }
     if ((checkpoint.fileKey === undefined) !== (checkpoint.observedDiskRevision === undefined)) {
@@ -66,7 +66,7 @@ export class MemoryCrashDraftRecovery implements CrashDraftRecovery {
     }
     this.pending.delete(write.writeId)
     const latest = this.latestValid(pending.documentId)
-    if (latest && pending.documentRevision <= latest.documentRevision) {
+    if (latest && pending.documentRevision <= latest.envelope.documentRevision) {
       return { durable: false, reason: 'stale acknowledgement' }
     }
     if (pending.fault) {
@@ -87,22 +87,44 @@ export class MemoryCrashDraftRecovery implements CrashDraftRecovery {
 
   async scan(): Promise<readonly CrashDraftRecoveryRecord[]> {
     const records: CrashDraftRecoveryRecord[] = []
-    for (const entries of this.drafts.values()) {
-      const latest = entries.at(-1)
-      const valid = [...entries].reverse().find((entry) => entry.valid && entry.envelope.digest === digest(entry.envelope))
+    for (const [documentId, entries] of this.drafts) {
+      const valid = this.latestValid(documentId)
       if (!valid) continue
+      const latestAttempt = this.highestAttempt(entries)
       records.push({
         kind: 'crash-draft',
         draft: structuredClone(valid.envelope),
-        ...(latest && !latest.valid ? { warning: 'latest crash draft was interrupted or corrupt; recovered last valid revision' } : {})
+        ...(latestAttempt && latestAttempt.envelope.documentRevision > valid.envelope.documentRevision
+          ? { warning: 'latest crash draft was interrupted or corrupt; recovered last valid revision' }
+          : {})
       })
     }
     return records
   }
 
-  private latestValid(documentId: string): CrashDraftEnvelope | undefined {
+  private latestValid(documentId: string): StoredRecord | undefined {
     const records = this.drafts.get(documentId) ?? []
-    return [...records].reverse().find((entry) => entry.valid)?.envelope
+    let latest: StoredRecord | undefined
+    for (const record of records) {
+      if (
+        record.valid &&
+        record.envelope.digest === digest(record.envelope) &&
+        (!latest || record.envelope.documentRevision > latest.envelope.documentRevision)
+      ) {
+        latest = record
+      }
+    }
+    return latest
+  }
+
+  private highestAttempt(records: readonly StoredRecord[]): StoredRecord | undefined {
+    let latest: StoredRecord | undefined
+    for (const record of records) {
+      if (!latest || record.envelope.documentRevision > latest.envelope.documentRevision) {
+        latest = record
+      }
+    }
+    return latest
   }
 }
 

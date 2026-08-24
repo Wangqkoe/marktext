@@ -211,6 +211,51 @@ describe('DefaultStartupPolicy and emergency recovery', () => {
     }
   )
 
+  it.each(['corrupt-latest', 'interrupted'] as const)(
+    'recovers a lower valid revision with a warning when %s is acknowledged first',
+    async(fault) => {
+      const crash = new MemoryCrashDraftRecovery()
+      const newer = crash.beginCheckpoint(checkpoint(2, 'newer'), fault)
+      const older = crash.beginCheckpoint(checkpoint(1, 'older'))
+
+      expect(crash.acknowledge(newer)).toEqual({ durable: false, reason: fault })
+      expect(crash.acknowledge(older)).toEqual({ durable: true })
+
+      const recovered = expectDefined((await crash.scan())[0])
+      expect(recovered.draft.documentRevision).toBe(1)
+      expect(recovered.draft.markdown).toBe('older')
+      expect(recovered.warning).toContain('last valid')
+    }
+  )
+
+  it('does not warn when a higher valid revision covers an earlier fault attempt', async() => {
+    const crash = new MemoryCrashDraftRecovery()
+    const fault = crash.beginCheckpoint(checkpoint(2, 'interrupted'), 'interrupted')
+    expect(crash.acknowledge(fault)).toEqual({ durable: false, reason: 'interrupted' })
+    expect(crash.checkpoint(checkpoint(3, 'durable'))).toEqual({ durable: true })
+
+    const recovered = expectDefined((await crash.scan())[0])
+    expect(recovered.draft.documentRevision).toBe(3)
+    expect(recovered.draft.markdown).toBe('durable')
+    expect(recovered.warning).toBeUndefined()
+  })
+
+  it('selects the highest valid revision across out-of-order attempts', async() => {
+    const crash = new MemoryCrashDraftRecovery()
+    const highestFault = crash.beginCheckpoint(checkpoint(3, 'fault'), 'corrupt-latest')
+    const firstValid = crash.beginCheckpoint(checkpoint(1, 'first'))
+    const secondValid = crash.beginCheckpoint(checkpoint(2, 'second'))
+
+    expect(crash.acknowledge(highestFault)).toEqual({ durable: false, reason: 'corrupt-latest' })
+    expect(crash.acknowledge(firstValid)).toEqual({ durable: true })
+    expect(crash.acknowledge(secondValid)).toEqual({ durable: true })
+
+    const recovered = expectDefined((await crash.scan())[0])
+    expect(recovered.draft.documentRevision).toBe(2)
+    expect(recovered.draft.markdown).toBe('second')
+    expect(recovered.warning).toContain('last valid')
+  })
+
   it('does not advance the durable revision across an interrupted atomic gap', async() => {
     const crash = new MemoryCrashDraftRecovery()
     crash.checkpoint(checkpoint(1, 'safe'))
