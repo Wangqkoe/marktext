@@ -190,7 +190,6 @@ export interface EditorBindingSnapshot {
   readonly view: ViewState
   readonly toc: readonly WorkspaceTocItem[]
   readonly status: WorkspaceStatus
-  readonly workspaceRevision: number
 }
 
 export interface EditorReport {

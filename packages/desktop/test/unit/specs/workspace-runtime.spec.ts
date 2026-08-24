@@ -40,16 +40,6 @@ function currentLease(binding: PaneEditorBinding): EditorLease {
   return lease
 }
 
-function expectActiveRevisionAligned(
-  workspace: ReturnType<typeof createWorkspaceRuntime>,
-  binding: PaneEditorBinding,
-  editor: MemoryEditor
-) {
-  const revision = workspace.getProjection().workspaceRevision
-  expect(editor.active?.workspaceRevision).toBe(revision)
-  expect(binding.getSnapshot(currentLease(binding))?.workspaceRevision).toBe(revision)
-}
-
 describe('WorkspaceRuntime', () => {
   it('isolates both panes and flushes/refreshes every active-view transition', async() => {
     const workspace = createWorkspaceRuntime([
@@ -127,7 +117,6 @@ describe('WorkspaceRuntime', () => {
       expect(nextLease.paneId).toBe('left')
       expect(survivorBinding.getSnapshot(nextLease)?.paneId).toBe('left')
       expect((direction === 'right-to-left' ? leftEditor : rightEditor).active?.paneId).toBe('left')
-      expectActiveRevisionAligned(workspace, survivorBinding, direction === 'right-to-left' ? leftEditor : rightEditor)
     }
   })
 
@@ -144,7 +133,6 @@ describe('WorkspaceRuntime', () => {
     expect(workspace.getProjection().workspaceRevision).toBe(revision)
     expect(workspace.getProjection().panes).toHaveLength(2)
     expect(rightEditor.active?.paneId).toBe('right')
-    expect(rightEditor.active?.workspaceRevision).toBe(revision)
     expect(rightBinding.getLease()).toBeUndefined()
   })
 
@@ -224,31 +212,45 @@ describe('WorkspaceRuntime', () => {
     expect(currentLease(binding).mode).toBe('wysiwyg')
   })
 
-  it('marks new and activate adapter snapshots with the committed workspace revision after a flush', async() => {
-    const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
-    const editor = new MemoryEditor()
-    const binding = await workspace.bindPaneEditor('left', editor)
-    const originalViewId = currentLease(binding).viewId
-    editor.reports.push({ markdown: 'flush commits first' })
-    expect((await workspace.execute({ kind: 'new-tab' })).status).toBe('applied')
-    expectActiveRevisionAligned(workspace, binding, editor)
-    expect((await workspace.execute({ kind: 'activate-view', paneId: 'left', viewId: originalViewId })).status).toBe('applied')
-    expectActiveRevisionAligned(workspace, binding, editor)
-  })
-
-  it('marks non-collapse move and mode handoff adapter snapshots with the committed workspace revision', async() => {
-    const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }, { fileKey: '/three.md' }])
+  it('keeps unaffected pane bindings isolated while global projection revisions remain monotonic', async() => {
+    const workspace = createWorkspaceRuntime([{ fileKey: '/left.md' }, { fileKey: '/right.md' }])
     await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
     const leftEditor = new MemoryEditor()
     const rightEditor = new MemoryEditor()
     const left = await workspace.bindPaneEditor('left', leftEditor)
     const right = await workspace.bindPaneEditor('right', rightEditor)
-    const moving = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!.tabs[0]!
-    expect((await workspace.execute({ kind: 'move-view', viewId: moving.viewId, targetPaneId: 'right' })).status).toBe('applied')
-    expectActiveRevisionAligned(workspace, left, leftEditor)
-    expectActiveRevisionAligned(workspace, right, rightEditor)
-    expect((await right.handoffMode(currentLease(right), 'source')).status).toBe('applied')
-    expectActiveRevisionAligned(workspace, right, rightEditor)
+    const leftLease = currentLease(left)
+    const rightLease = currentLease(right)
+    const rightRefreshes = rightEditor.snapshots.length
+    const rightDocument = rightEditor.active?.document
+    const before = workspace.getProjection().workspaceRevision
+
+    const reported = left.report(leftLease, { markdown: 'left-only', portableHistory: { version: 1, value: ['left'] } })
+    expect(reported.status).toBe('applied')
+    expect(rightEditor.snapshots).toHaveLength(rightRefreshes)
+    expect(currentLease(right)).toBe(rightLease)
+
+    const opened = await workspace.execute({ kind: 'new-tab', paneId: 'left' })
+    expect(opened.status).toBe('applied')
+    if (opened.status !== 'applied') throw new Error('expected applied')
+    expect(opened.workspaceRevision).toBeGreaterThan(before)
+    expect(workspace.getProjection().workspaceRevision).toBe(opened.workspaceRevision)
+    expect(left.report(leftLease, { markdown: 'stale' }).status).toBe('rejected')
+    const currentLeft = currentLease(left)
+    expect(left.getSnapshot(currentLeft)?.document).toMatchObject({ markdown: '', documentRevision: 0 })
+    expect(rightEditor.snapshots).toHaveLength(rightRefreshes)
+    expect(rightEditor.active?.document).toEqual(rightDocument)
+    expect(right.report(rightLease, { markdown: 'right-only' }).status).toBe('applied')
+
+    const leftRefreshes = leftEditor.snapshots.length
+    const focusedRightRefreshes = rightEditor.snapshots.length
+    const focused = await workspace.execute({ kind: 'focus-pane', paneId: 'right' })
+    expect(focused.status).toBe('applied')
+    expect(leftEditor.snapshots).toHaveLength(leftRefreshes)
+    expect(rightEditor.snapshots.length).toBeGreaterThan(focusedRightRefreshes)
+    expect(leftEditor.snapshots.at(-1)?.document.markdown).toBe('')
+    expect(left.report(currentLeft, { markdown: 'left remains active' }).status).toBe('applied')
+    expect(right.report(rightLease, { markdown: 'stale focus lease' }).status).toBe('rejected')
   })
 
   it('rotates leases on mode handoff and rolls back a staged mode refresh failure', async() => {
