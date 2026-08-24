@@ -89,3 +89,8 @@ node --check .scratch\marktext-feature-development-2026-08\prototypes\native-ext
 node .scratch\marktext-feature-development-2026-08\prototypes\native-external-release-gesture\verify-state-machine.cjs
 node .scratch\marktext-feature-development-2026-08\prototypes\native-external-release-gesture\summarize-physical-trace.cjs 'E:\Program Files\Marktext-worktrees\marktext-feature-development-2026-08\.scratch\marktext-feature-development-2026-08\prototypes\native-external-release-gesture\evidence\manual-session.jsonl'
 ```
+
+The raw capture is not committed and was deleted after hash verification. The
+summarizer command therefore documents the historical generation/reproduction
+flow, not a current out-of-the-box command: first complete a new manual capture
+that recreates the same raw path, then run the summarizer against it.

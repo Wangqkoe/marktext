@@ -28,8 +28,12 @@ native helper. The live page and JSONL both expose the state.
 
 ## Accepted Windows physical-input evidence
 
-The accepted Windows single-primary capture is immutable input outside this
-worktree. Reproduce its audit artifacts without copying its pointer-move stream:
+The accepted Windows single-primary capture was immutable input outside this
+worktree and was deleted after its hash was verified. The command below documents
+the historical generation/reproduction flow; it is **not** an out-of-the-box
+command now. To run it again, first complete a new manual capture that writes the
+same raw path, then use the summarizer against that capture without copying its
+pointer-move stream into the repository:
 
 ```powershell
 node .scratch\marktext-feature-development-2026-08\prototypes\native-external-release-gesture\summarize-physical-trace.cjs 'E:\Program Files\Marktext-worktrees\marktext-feature-development-2026-08\.scratch\marktext-feature-development-2026-08\prototypes\native-external-release-gesture\evidence\manual-session.jsonl'
