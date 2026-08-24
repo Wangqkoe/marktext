@@ -1,8 +1,31 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest';
-import { PREVIEW_DOMPURIFY_CONFIG } from '../../../../config';
+import type HTMLBlock from '..';
+import { afterEach, describe, expect, it } from 'vitest';
+import { BLOCK_DOM_PROPERTY, PREVIEW_DOMPURIFY_CONFIG } from '../../../../config';
+import { Muya } from '../../../../muya';
 import { sanitize } from '../../../../utils';
+
+const bootedHosts: HTMLElement[] = [];
+
+afterEach(() => {
+    while (bootedHosts.length)
+        bootedHosts.pop()!.remove();
+});
+
+function bootDetails(source: string) {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const muya = new Muya(host, { markdown: source });
+    muya.init();
+    bootedHosts.push(muya.domNode);
+
+    const figure = muya.domNode.querySelector<HTMLElement>('figure.mu-html-block')!;
+    const block = figure[BLOCK_DOM_PROPERTY] as HTMLBlock;
+    const content = block.firstContentInDescendant()!;
+
+    return { block, content, figure };
+}
 
 describe('raw HTML details disclosure sanitization', () => {
     it('keeps semantic details, summary and source open markup', () => {
@@ -26,5 +49,29 @@ describe('raw HTML details disclosure sanitization', () => {
         expect(html).toContain('<details open="">');
         expect(html).toContain('<summary>More</summary>');
         expect(html).not.toMatch(/on(?:toggle|beforetoggle|click)/i);
+    });
+
+    it('rebuilds current source through both Preview and Escape', () => {
+        const { block, content, figure } = bootDetails(
+            '<details><summary>Initial</summary>Body</details>\n',
+        );
+        const preview = figure.querySelector<HTMLElement>('.mu-html-preview')!;
+
+        content.text = '<details><summary>Preview result</summary>Updated</details>';
+        block.active = true;
+        figure.querySelector<HTMLButtonElement>('.mu-html-preview-action')!
+            .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        expect(preview.querySelector('summary')?.textContent).toBe('Preview result');
+        expect(preview.querySelector('details')?.open).toBe(false);
+
+        content.text = '<details><summary>Escape result</summary>Updated again</details>';
+        block.active = true;
+        content.domNode!.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Escape',
+            bubbles: true,
+            cancelable: true,
+        }));
+        expect(preview.querySelector('summary')?.textContent).toBe('Escape result');
+        expect(preview.querySelector('details')?.open).toBe(false);
     });
 });

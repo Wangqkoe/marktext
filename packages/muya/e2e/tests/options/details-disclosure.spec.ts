@@ -50,9 +50,48 @@ test.describe('options / raw HTML details disclosure', () => {
         await expect(preview).toBeHidden();
 
         await page.keyboard.press('Escape');
-        await expect(wrapper).not.toHaveClass(/mu-active/);
         await expect(preview).toBeVisible();
         await expect(preview.locator('details')).toHaveAttribute('open', '');
+    });
+
+    test('Preview rebuilds edited source and drops transient disclosure state', async ({ page }) => {
+        await page.evaluate((text) => {
+            window.muya!.setContent([{ name: 'html-block', text }] as TState[]);
+        }, source);
+
+        const wrapper = page.locator(editor.htmlBlock);
+        const preview = wrapper.locator(editor.htmlPreview);
+        await preview.locator('.mu-details-source-action').click();
+        const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content');
+        await sourceContent.fill('<details><summary>Updated</summary>Changed body</details>');
+
+        const previewAction = wrapper.locator('.mu-html-preview-action');
+        await expect(previewAction).toBeVisible();
+        await previewAction.focus();
+        await previewAction.press('Enter');
+
+        await expect(preview).toBeVisible();
+        await expect(preview.locator('summary')).toHaveText('Updated');
+        await expect(preview.locator('details')).not.toHaveAttribute('open', '');
+        expect(await getMarkdown(page)).toContain('Changed body');
+    });
+
+    test('Escape rebuilds edited source and drops transient disclosure state', async ({ page }) => {
+        await page.evaluate((text) => {
+            window.muya!.setContent([{ name: 'html-block', text }] as TState[]);
+        }, source);
+
+        const wrapper = page.locator(editor.htmlBlock);
+        const preview = wrapper.locator(editor.htmlPreview);
+        await preview.locator('.mu-details-source-action').click();
+        const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content');
+        await sourceContent.fill('<details><summary>Escaped</summary>New body</details>');
+
+        await page.keyboard.press('Escape');
+        await expect(preview).toBeVisible();
+        await expect(preview.locator('summary')).toHaveText('Escaped');
+        await expect(preview.locator('details')).not.toHaveAttribute('open', '');
+        expect(await getMarkdown(page)).toContain('New body');
     });
 
     test('disableHtml renders escaped source and no native disclosure or source action', async ({ page }) => {

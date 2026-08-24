@@ -5,7 +5,7 @@ import { MarkdownToState } from '../markdownToState';
 import { renderToStaticHTML } from '../renderToStaticHTML';
 import ExportMarkdown from '../stateToMarkdown';
 
-const source = '<details open>\n<summary>More</summary>\n\nBody\n</details>\n';
+const source = '<details open>\n<summary>More</summary>\nBody\n</details>\n';
 
 describe('raw HTML details round-trip', () => {
     it('preserves original details source and open through Markdown state', () => {
@@ -26,6 +26,18 @@ describe('raw HTML details round-trip', () => {
 
         expect(html).toContain('<details open="">');
         expect(html).toContain('<summary>More</summary>');
+        expect(html).not.toContain('mu-details-source-action');
+        expect(html).not.toContain('mu-html-preview');
+    });
+
+    it('keeps generic sanitized raw HTML standard in static export', () => {
+        const html = renderToStaticHTML(
+            '<section class="note" onclick="alert(1)"><a href="javascript:alert(2)">Body</a></section>',
+        );
+
+        expect(html).toContain('<section class="note">');
+        expect(html).toContain('Body');
+        expect(html).not.toMatch(/onclick|javascript:/i);
         expect(html).not.toContain('mu-details-source-action');
         expect(html).not.toContain('mu-html-preview');
     });

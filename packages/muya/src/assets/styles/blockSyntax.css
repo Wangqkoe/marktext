@@ -766,6 +766,45 @@ figure.mu-html-block.mu-disable-html-render .mu-html-preview {
     display: none;
 }
 
+figure.mu-html-block .mu-html-preview-action {
+    display: none;
+}
+
+figure.mu-html-block.mu-active .mu-html-preview-action {
+    display: inline-block;
+    margin: 0.35em 0 0;
+    padding: 0.2em 0.5em;
+
+    color: var(--editor-color);
+    font: inherit;
+
+    background: var(--editor-bg-color);
+    border: 1px solid var(--editor-color-30);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+figure.mu-html-block.mu-active .mu-html-preview-action:hover {
+    border-color: var(--theme-color);
+}
+
+figure.mu-html-block.mu-active .mu-html-preview-action:focus-visible {
+    outline: 2px solid var(--theme-color);
+    outline-offset: 2px;
+}
+
+/* A code content selection remains Muya's active block until another source
+   block is selected. Preview mode is local, non-serializable presentation
+   state that makes an explicit Preview/Escape return stable in that interval. */
+figure.mu-html-block.mu-html-preview-mode .mu-html-container,
+figure.mu-html-block.mu-html-preview-mode .mu-html-preview-action {
+    display: none;
+}
+
+figure.mu-html-block.mu-html-preview-mode .mu-html-preview {
+    display: block;
+}
+
 /* Raw HTML disclosure is styled only in the editor preview. The generated
    affordance leaves the native summary element as the whole hit target and the
    source action remains a sibling rather than becoming document content. */
@@ -829,7 +868,9 @@ figure.mu-html-block .mu-html-preview .mu-details-source-action {
     cursor: pointer;
     opacity: 0;
 
-    transition: color 170ms ease, opacity 170ms ease;
+    transition:
+        color 170ms ease,
+        opacity 170ms ease;
 }
 
 figure.mu-html-block:hover .mu-html-preview .mu-details-source-action,

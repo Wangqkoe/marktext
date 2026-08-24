@@ -429,6 +429,8 @@ export const PREVIEW_DOMPURIFY_CONFIG = {
         mathMl: false,
     },
     RETURN_TRUSTED_TYPE: false,
+    ALLOWED_URI_REGEXP:
+    /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|file):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i,
 };
 export const EXPORT_DOMPURIFY_CONFIG = {
     // Export retains standard disclosure markup, never editor behaviour.

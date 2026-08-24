@@ -25,6 +25,23 @@ test.describe('security / details sanitization', () => {
         expect(unsafeAttributes).toEqual([]);
 
         const href = await details.locator('a').getAttribute('href');
-        expect(href?.toLowerCase()).not.toContain('javascript:');
+        expect(href?.toLowerCase() ?? '').not.toContain('javascript:');
+    });
+
+    test('sanitizes generic raw HTML without adding disclosure editor controls', async ({ page }) => {
+        await page.evaluate(() => {
+            window.muya!.setContent([{
+                name: 'html-block',
+                text: '<section class="note" onclick="window.__pwned = true"><a href="javascript:window.__pwned = true">Body</a></section>',
+            }] as TState[]);
+        });
+
+        const preview = page.locator(editor.htmlPreview);
+        await expect(preview.locator('section.note')).toHaveText('Body');
+        await expect(preview.locator('.mu-details-source-action')).toHaveCount(0);
+        const section = preview.locator('section.note');
+        await expect(section).not.toHaveAttribute('onclick');
+        const href = await section.locator('a').getAttribute('href');
+        expect(href?.toLowerCase() ?? '').not.toContain('javascript:');
     });
 });

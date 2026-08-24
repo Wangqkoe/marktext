@@ -1,3 +1,4 @@
+import type HTMLBlock from '.';
 import type { Muya } from '../../../muya';
 import type { IHtmlBlockState, TState } from '../../../state/types';
 import { CLASS_NAMES, PREVIEW_DOMPURIFY_CONFIG } from '../../../config';
@@ -59,7 +60,22 @@ class HTMLPreview extends Parent {
 
             event.preventDefault();
             event.stopPropagation();
-            this.parent?.firstContentInDescendant()?.setCursor(0, 0);
+            (this.parent as HTMLBlock | null)?.enterSourceEditing();
+        });
+
+        // Keep native summary keyboard activation out of Muya's source-editor
+        // key routing. Do not prevent default: Chromium still owns the actual
+        // Enter/Space disclosure toggle and focus semantics.
+        this.muya.eventCenter.attachDOMEvent(this.domNode!, 'keydown', (event) => {
+            const target = event.target;
+            if (
+                event instanceof KeyboardEvent
+                && (event.key === 'Enter' || event.key === ' ')
+                && target instanceof Element
+                && target.closest('summary')
+            ) {
+                event.stopPropagation();
+            }
         });
     }
 
