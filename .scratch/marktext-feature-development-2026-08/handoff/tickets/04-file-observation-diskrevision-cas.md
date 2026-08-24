@@ -13,7 +13,8 @@ It must not add normal workspace snapshot/load or use a normal session as file o
 emergency-recovery truth.
 
 Inputs: [V1 Spec](../v1-spec.md), [Issue 09](../../issues/09-design-tab-transfer-ipc-contract.md),
-[Issue 11](../../issues/11-design-workspace-controller-interface.md).
+[Issue 11](../../issues/11-design-workspace-controller-interface.md), and
+[Issue 12](../../issues/12-define-startup-restore-emergency-recovery-boundary.md).
 
 ## Ownership and boundary
 
@@ -28,6 +29,8 @@ Require canonical FileKey, persisted-byte SHA-256, one OS watcher per FileKey,
 generation leases, writer-only own-event suppression, CAS expected revision,
 serialized writes, and tokens bound to document revision/FileKey/observed revision/
 purpose. Ensure a clean peer reloads, dirty peer conflicts and ordinary save blocks.
+T06 consumes this canonical FileKey/DiskRevision boundary as the CrashDraft saved-
+document baseline and conflict fence; T04 neither stores nor recovers CrashDrafts.
 
 ## Acceptance and handoff
 

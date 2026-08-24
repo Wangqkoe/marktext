@@ -28,7 +28,12 @@ Main imports shared types only; it must never import renderer. Do not edit exist
 
 NormalWorkspaceRestore's future normal snapshot/store and codec are separate from
 emergency safety truth. T01 defines memory substitutes for CrashDraftRecovery and
-MoveRecovery, but does no production persistence. T02 owns production
+MoveRecovery, but does no production persistence. Its CrashDraft substitute models
+stable Document identity; saved FileKey/DiskRevision baseline; versioned,
+digest-checked envelope; monotonic document revision; durable-ACK-before-advance;
+and interrupted/corrupt-latest fallback to the last valid revision, including stale
+ACK rejection. This is a deterministic atomicity simulation, never filesystem I/O.
+T02 owns production
 PaneEditorAdapter; T04 owns production file observation/save work; T05 owns only
 MoveRecovery; T06 owns production CrashDraftRecovery store/lifecycle, clean-shutdown
 boundary, and both-source Electron scanning.
@@ -42,7 +47,9 @@ Run `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.
 two-pane/path invariants, stale lease/capability rejection, immutable projection,
 no-target clean New Tab, explicit-target-only seed, unified scan of both emergency
 inputs, and no normal snapshot/codec/load call. They distinguish a dirty saved or
-untitled CrashDraft input from a MoveRecovery input.
+untitled CrashDraft input from a MoveRecovery input and prove memory monotonicity,
+atomic durable-ACK behavior, stale-ACK rejection, and corrupt/interrupted latest
+fallback without discarding the last valid draft.
 
 Regression: existing unit suite. Commit only new runtime/shared module/tests.
 Independent terra/high Standards and Spec reviews are required before T02/T05 use

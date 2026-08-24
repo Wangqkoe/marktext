@@ -53,6 +53,34 @@ Legacy normal-session/`editorBufferStore` data is ignored by current no-restore
 startup but is neither deleted nor overwritten. This must be tested after a
 no-restore launch and recorded in integration and Windows-trial evidence.
 
+## CrashDraftRecovery durability contract
+
+Each CrashDraft is bound to stable Document identity. A saved Document additionally
+binds canonical FileKey, the observed DiskRevision at checkpoint, and a monotonic
+documentRevision. Its versioned envelope contains Markdown bytes, only necessary
+minimum View state, and a content digest/checksum.
+
+Updating a draft is durably atomic: retain the last valid record until the newer
+revision has completed temp-write, fsync, atomic replace, and directory fsync (or a
+repository-verified equivalent). Only a durable ACK advances the checkpoint
+revision. Scan validates schema and digest, picks the highest complete monotonic
+revision, and falls back to the last valid revision with a warning when a newer
+write was interrupted or corrupt; it must not discard the entire draft.
+
+Restoring a draft never automatically overwrites disk. If a saved Document's
+current DiskRevision differs from its checkpoint baseline, recover a conflicted
+copy and require user resolution. After normal save, clear a draft only when the
+disk write is durable and its identity/revision ACK still matches; discard clears
+only after explicit decision, while cancel clears nothing. The global clean-shutdown
+marker may become durable only after every Document is resolved and its per-document
+tombstone is durable.
+
+Fault injection must cover every gap around temp write, fsync, replace, directory
+fsync, tombstone, and clean marker, plus stale ACK, disk-revision conflict, and
+corrupt-latest fallback. T01 models monotonic/atomic/fallback behavior in memory;
+T04 provides FileKey/DiskRevision; T06 provides the independent production
+CrashDraft store and lifecycle without touching legacy normal-session storage.
+
 Current V1 implements DefaultStartupPolicy plus typed/in-memory emergency boundaries
 in T01; T05 implements only MoveRecovery; T06 implements CrashDraftRecovery
 production store/lifecycle, clean-shutdown determination and both-source startup

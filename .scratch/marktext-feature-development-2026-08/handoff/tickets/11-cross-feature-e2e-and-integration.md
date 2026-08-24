@@ -20,7 +20,8 @@ production paths or tests owned by T03/T06/T10; T06 owns
 
 Cover Move/Open + dirty/untitled/last-tab/history, split + focused command routing,
 CrashDraftRecovery force-kill/power-loss recovery for dirty saved and untitled
-content, MoveRecovery partial salvage, watcher conflict/CAS observable behavior,
+content, CrashDraft corrupt-latest fallback warning and DiskRevision-conflicted
+recovered copy, MoveRecovery partial salvage, watcher conflict/CAS observable behavior,
 endpoint reload rejection, default-off ordinary restart, explicit-file-only startup
 in parallel with both emergency sources, absent restore setting, unchanged dirty
 save/discard/cancel exit, clean-exit no restore, retained legacy normal snapshot

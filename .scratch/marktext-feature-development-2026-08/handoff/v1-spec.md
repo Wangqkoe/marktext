@@ -24,8 +24,9 @@ that turns a window-boundary crossing, blur, or timeout into detach.
 ## Canonical domain terms and seam
 
 The terms below are normative and come from [Issue 04](../issues/04-design-pane-scoped-workspace-model.md),
-[Issue 09](../issues/09-design-tab-transfer-ipc-contract.md), and
-[Issue 11](../issues/11-design-workspace-controller-interface.md).
+[Issue 09](../issues/09-design-tab-transfer-ipc-contract.md),
+[Issue 11](../issues/11-design-workspace-controller-interface.md), and
+[Issue 12](../issues/12-define-startup-restore-emergency-recovery-boundary.md).
 
 | Term | Meaning |
 | --- | --- |
@@ -55,14 +56,14 @@ Capability tokens bind command kind,
 targets and revisions, are single-use, and atomically reject stale/replayed or
 kind-mismatched operations.
 
-T01 establishes runtime controller ports/interfaces, deterministic memory adapters,
-DefaultStartupPolicy, typed CrashDraftRecovery/MoveRecovery boundaries, and their
-unified emergency scan input. Correct Controller runtime does not load a normal
-workspace session, normal codec, or persistence. T02 binds `PaneEditorAdapter`; T04
-supplies file-observation/save adapter work; T05 owns MoveRecovery only; T06 owns
-production CrashDraftRecovery lifecycle/store and both-source Electron startup
-scan. A future NormalWorkspaceRestore may add a normal snapshot/store and codec
-behind its setting, but is not part of this V1 handoff.
+T01 establishes typed runtime/emergency ports and deterministic memory substitutes;
+T04 supplies `FileKey`/`DiskRevision`; T05 owns MoveRecovery; and T06 owns the
+independent production CrashDraft store, lifecycle, and both-source Electron scan.
+T02 binds `PaneEditorAdapter`. CrashDraft identity, revision, durable-write,
+fallback, conflict, tombstone, and clean-marker rules are normative in
+[Issue 12](../issues/12-define-startup-restore-emergency-recovery-boundary.md#crashdraftrecovery-durability-contract)
+and are accepted through A02/A08/A13/A14. A future NormalWorkspaceRestore may add
+a normal snapshot/store and codec behind its setting, but is not part of this V1.
 
 ## Startup and recovery boundary
 
@@ -75,14 +76,12 @@ its adapter exists. Emergency contents go through a safe recovery window/flow wh
 explicit files still open according to intent; it is deliberately unspecified
 whether they appear in the same window.
 
-Dirty normal-exit save/discard/cancel confirmation is unchanged. Clean shutdown is
-identified by a marker/equivalent finalization boundary; only a completed save or
-discard decision clears the related CrashDraft. Crash/power loss and Move recovery
-are always enabled. Do not make ordinary snapshot data emergency truth, silently
-load normal state while default-off, delete CrashDraft or Move records when removing
-normal restore, suppress emergency recovery for explicit files, or expose an inert
-restore setting. Legacy normal-session/`editorBufferStore` data is ignored but not
-deleted or overwritten. The local reference
+MUST preserve ordinary dirty-exit save/discard/cancel semantics and the Issue 12
+durability contract. NEVER treat an ordinary snapshot as emergency truth, silently
+load normal state while default-off, auto-overwrite disk from a CrashDraft, delete
+either emergency source when removing normal restore, suppress emergency recovery
+for explicit files, or expose an inert restore setting. Legacy normal-session/
+`editorBufferStore` data is ignored but not deleted or overwritten. The local reference
 `codex/workspace-restore-option@7636e01a` is not a merge source; any later adapter
 selectively migrates current compatible material from the then-current integration
 branch.

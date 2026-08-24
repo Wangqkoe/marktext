@@ -47,6 +47,23 @@ exactly one clean New Tab; explicit associated/CLI targets open only those targe
 and suppress normal restore, never emergency. Emergency recovery uses a safe
 recovery window/flow while explicit targets still open; no same-window requirement.
 
+For CrashDraftRecovery, implement the durable contract in
+[Issue 12](../../issues/12-define-startup-restore-emergency-recovery-boundary.md#crashdraftrecovery-durability-contract): each versioned envelope binds stable
+Document identity and, for saved documents, canonical FileKey, observed
+DiskRevision, monotonic documentRevision, Markdown bytes/minimum View, and a
+digest. Retain the last valid record until temp-write, fsync, atomic replace and
+directory fsync (or verified equivalent) complete; only then ACK the checkpoint
+revision. Scan validates schema/digest, selects the highest complete monotonic
+revision and warns while falling back from an interrupted/corrupt latest record.
+Never overwrite disk automatically: a changed current DiskRevision yields a
+conflicted recovered copy for user decision. Clear only after durable matching save
+ACK or explicit durable discard tombstone; cancel clears nothing. Make the global
+clean marker durable only after every document decision and per-document tombstone
+are durable. Inject faults across temp write/fsync/replace/directory-fsync/
+tombstone/marker gaps, stale ACK, disk-revision conflict, and corrupt-latest
+fallback. This production CrashDraft store is independent of legacy normal storage
+and uses T04's FileKey/DiskRevision boundary.
+
 Do not expose a restore preference or invoke normal `editorBufferStore`/normal
 snapshot load, codec, migration, or saved workspace restoration. Legacy normal
 snapshot data is ignored but retained byte-for-byte/no overwrite after a no-restore
@@ -61,8 +78,11 @@ Run `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-core.
 simulate power loss after dirty saved and untitled edits and assert default-off
 CrashDraft recovery; test explicit targets plus concurrent recovery, clean exit
 does not restore old tabs/split, dirty save/discard/cancel lifecycle, no restore UI,
-and legacy normal data retained after launch. Also simulate endpoint reload, forged
-window ID, late ACK, post-authorization restart and target creation failure.
+and legacy normal data retained after launch. CrashDraft tests fault-inject every
+durability gap, reject stale checkpoint ACKs, fall back with a warning from corrupt
+latest state, and recover a changed saved file as a conflicted copy. Also simulate
+endpoint reload, forged window ID, late ACK, post-authorization restart and target
+creation failure.
 
 Manual Move/Open covers saved/dirty/untitled/last tab, target focus, recovery
 warning and real two-window observation reload/conflict. Commit only listed

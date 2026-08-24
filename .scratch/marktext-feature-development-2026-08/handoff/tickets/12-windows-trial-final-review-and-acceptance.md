@@ -31,8 +31,9 @@ dirty normal-exit save/discard/cancel confirmation is unchanged. Under default-o
 force crash/power loss after dirty saved and untitled edits to show CrashDraftRecovery,
 then separately exercise MoveRecovery; explicit targets must not suppress either.
 Verify clean exit does not restore old tabs/split and no-restore launch leaves legacy
-normal `editorBufferStore` data intact. Do not treat ordinary workspace state as
-recovery evidence.
+normal `editorBufferStore` data intact. Record a CrashDraft corrupt-latest fallback
+warning and changed-disk conflicted recovered copy where fault/environment evidence
+permits. Do not treat ordinary workspace state as recovery evidence.
 
 ## Acceptance and handoff
 
