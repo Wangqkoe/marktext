@@ -1,10 +1,7 @@
 # MarkText workspace feature wayfinder
 
 Label: `wayfinder:map`
-Status: `active handoff revision — T02b controller-ownership gate`
-
-Destination: achieved — implementation handoff includes default-off normal startup
-and always-on emergency recovery boundaries.
+Status: `destination achieved — implementation handoff`
 
 ## Destination
 
@@ -31,7 +28,6 @@ emergency recovery. This map does not implement product changes.
 - [设计 WorkspaceController 深模块 interface](issues/11-design-workspace-controller-interface.md): 已接受三入口 typed command/projection/lease 契约、原子 revision 与恢复/持久化边界。
 - [设计 TabTransfer IPC 与文件所有权契约](issues/09-design-tab-transfer-ipc-contract.md): 已 resolved；Issue 08 的全部前置依赖（02、03、04、05、06、07、09、10、11）均已解除，下一张是 Issue 08。
 - [定义分阶段实现交接与验收矩阵](issues/08-define-staged-handoff-and-acceptance.md): 已 resolved；最终 [V1 Spec](handoff/v1-spec.md)、[implementation tickets](handoff/tickets/) 和 [acceptance matrix](handoff/acceptance-matrix.md) 已交接，按 waves 实施并由矩阵验收。
-- T02 独立规格复审未通过：其 lease/generation/source/WYSIWYG 中间迁移保留为 T02b 的输入，但 Pinia/currentFile 与 WorkspaceController 并行保存运行期真值，故它不可单独合入。新增 [T02b — Workspace projection mirror & controller ownership](handoff/tickets/02b-workspace-projection-controller-ownership.md) 以收敛为单一真值；T03/T05/T06/T08/T11 中依赖真实 Document/View 状态的工作均由此阻断，T04 仍可独立并行。
 - [确认 Split 布局、命中区与动效](issues/05-prototype-split-layout-and-motion.md): A — Live divide 与几何/动效约束、菜单简化方案已接受。
 - [确认 details disclosure 视觉与交互](issues/07-prototype-details-disclosure.md): A — Minimal inline row（Obsidian-like）及其原生 summary、源码编辑、动效、主题与导出边界已接受。
 - [定义启动常规恢复与紧急恢复边界](issues/12-define-startup-restore-emergency-recovery-boundary.md): 默认启动不恢复普通工作区；显式文件优先；crash/power-loss/Move 紧急恢复始终运行，未来 normal restore 才由默认关闭的设置控制。

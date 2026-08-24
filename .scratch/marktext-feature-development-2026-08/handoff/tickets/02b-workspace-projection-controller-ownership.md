@@ -32,7 +32,14 @@ file observation/CAS, or a second long-lived dual-write state.
   callbacks or leases.
 - EditorBindingSnapshot is the controlled Controller-to-specific-editor-surface
   delivery of Markdown, portable history and bound View state. It is separate from
-  WorkspaceProjection and cannot become a Pinia backchannel.
+  WorkspaceProjection and cannot become a Pinia backchannel. Every snapshot
+  carries `documentId`, `viewId`, the Controller-created opaque
+  `EditorLease`/generation identity, `documentRevision`, and
+  `workspaceRevision`. The adapter/surface atomically accepts it only while that
+  full identity is still the Controller's current pane/view/binding. Rebind,
+  pane-switch, and mode-handoff revoke the old generation; refresh staging and
+  activation reject an old snapshot, which cannot change the editor, Pinia, or
+  Controller after its successor is current.
 - Pinia/editor store is projection-derived readonly compatibility only. It cannot
   write to the Controller; attempted store/component mutation is inert or rejected
   and cannot become a second truth.
@@ -66,7 +73,7 @@ state only after T02b is integrated and independently reviewed.
 
 Run the following on the final T02b diff, with actual matrix statuses recorded:
 
-1. `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts test/unit/specs/workspace-projection-mirror.spec.ts test/unit/specs/workspace-command-routing.spec.ts` proves Controller two-pane full-field reports, stale generation/lease rejection, deep-frozen projection with no Markdown/history leakage, one-way Controller→Pinia mirror, inert Pinia mutation, and FocusedPane save/rename/options/close revision/capability routing.
+1. `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts test/unit/specs/workspace-projection-mirror.spec.ts test/unit/specs/workspace-command-routing.spec.ts` proves Controller two-pane full-field reports, stale generation/lease rejection, deep-frozen projection with no Markdown/history leakage, one-way Controller→Pinia mirror, inert Pinia mutation, and FocusedPane save/rename/options/close revision/capability routing. It includes the asynchronous refresh race: while A refresh is delayed, B becomes current; A neither activates nor changes the editor, Pinia, or Controller, and B's lease/snapshot remain valid. Cover the same rejection across mode handoff and an old generation.
 2. `pnpm -C packages/desktop exec playwright test test/e2e/tab-switch-cursor.spec.ts test/e2e/split-workspace.spec.ts test/e2e/audit-tabs-restart.spec.ts` proves two simultaneous source/WYSIWYG surfaces isolate cursor, selection, scroll, history, TOC and status, and confirms no-restore startup remains unchanged.
 3. `pnpm -C packages/desktop typecheck`, `pnpm -C packages/desktop build`, `pnpm exec eslint packages/desktop/src/shared/workspace packages/desktop/src/renderer/src/workspace packages/desktop/src/renderer/src/store/editor.ts packages/desktop/src/renderer/src/components/editorWithTabs`, and `git diff --check` pass. Existing T02 editor-store/command/source/tab-switch regression coverage remains required.
 

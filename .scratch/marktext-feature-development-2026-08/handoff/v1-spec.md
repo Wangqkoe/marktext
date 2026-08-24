@@ -37,7 +37,7 @@ The terms below are normative and come from [Issue 04](../issues/04-design-pane-
 | DocumentRecord | Controller-private document truth: Markdown, portable history, dirty/conflict state, canonical FileKey, and save/encoding/line-ending and related document metadata. |
 | ViewRecord | Controller-private per-view truth: cursor, selection, scroll, mode, TOC, status/caret, and necessary view-local UI state. |
 | WorkspaceProjection | Deep-frozen JSON-only display shell derived from the Controller. It contains defensive copies of permitted metadata, never Markdown, history, Muya blocks/DOM, callbacks, or leases. |
-| EditorBindingSnapshot | The controlled Controller-to-editor-surface delivery object for Markdown, portable history, and the bound ViewRecord state. It is not a Pinia state backchannel. |
+| EditorBindingSnapshot | The controlled Controller-to-editor-surface delivery object for Markdown, portable history, and the bound ViewRecord state. Every snapshot carries `documentId`, `viewId`, Controller-created opaque `EditorLease`/generation identity, `documentRevision`, and `workspaceRevision`; it is not a Pinia state backchannel. |
 | StartupIntent | The launch request: no explicit target, or explicit associated/CLI/other file targets. It is not normal workspace state. |
 | DefaultStartupPolicy | Current V1 policy: no explicit target creates one clean New Tab; explicit targets seed/open only themselves. |
 | NormalWorkspaceRestore | Future optional adapter controlled by a default-off setting, and eligible only with no explicit StartupIntent. It is unavailable in current V1. |
@@ -58,6 +58,19 @@ deep-frozen, JSON-only shell/display mirror with defensive copies; it excludes
 Markdown, history, Muya blocks/DOM, callbacks and leases. `EditorBindingSnapshot`
 is the only controlled Controller-to-concrete-editor delivery surface for the
 otherwise non-projectable Markdown/history and bound View state.
+
+Each `EditorBindingSnapshot` binds `documentId`, `viewId`, the opaque
+Controller-created `EditorLease` (or equivalent unforgeable generation identity),
+`documentRevision`, and `workspaceRevision`. The adapter and concrete editor
+surface MUST validate that complete identity atomically against the Controller's
+current pane/view/binding before they submit a report, stage a refresh, activate a
+refresh, or apply its contents. A rebind, pane switch, or mode handoff revokes the
+old generation before exposing its successor. Late snapshots are rejected during
+both refresh staging and activation: an old A snapshot MUST NOT activate or alter
+the editor, Pinia facade, or Controller after B is current, and B's lease and
+snapshot remain valid. This validation remains at the controlled delivery edge;
+`WorkspaceProjection` continues to expose neither Markdown nor history (nor a
+lease or other editor-binding capability).
 
 Pinia/editor store is temporarily a projection-derived readonly compatibility
 facade. Controller subscription is its only data source: a Pinia mutation cannot
