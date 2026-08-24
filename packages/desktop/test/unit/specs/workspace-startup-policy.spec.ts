@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DefaultStartupPolicy } from '@shared/workspace'
+import { DefaultStartupPolicy, EmergencyRecoveryScanError } from '@shared/workspace'
 import { MemoryCrashDraftRecovery, MemoryMoveRecovery } from '@/workspace'
 
 function checkpoint(revision: number, markdown = `revision ${revision}`) {
@@ -34,6 +34,31 @@ describe('DefaultStartupPolicy and emergency recovery', () => {
     expect(started.seed).toEqual({ kind: 'explicit-targets', targets: [{ fileKey: '/requested.md' }] })
     expect(started.emergency.crashDrafts[0]!.kind).toBe('crash-draft')
     expect(started.emergency.moves[0]!.kind).toBe('move-recovery')
+  })
+
+  it.each(['crashDrafts', 'moves'] as const)('scans the other emergency source when %s fails, including explicit startup', async(failing) => {
+    let crashCalls = 0
+    let moveCalls = 0
+    const crashDrafts = {
+      scan: async() => {
+        crashCalls += 1
+        if (failing === 'crashDrafts') throw new Error('crash scan failure')
+        return []
+      }
+    }
+    const moves = {
+      scan: async() => {
+        moveCalls += 1
+        if (failing === 'moves') throw new Error('move scan failure')
+        return []
+      }
+    }
+    await expect(new DefaultStartupPolicy().start(
+      { kind: 'explicit-targets', targets: [{ fileKey: '/requested.md' }] },
+      { crashDrafts, moves }
+    )).rejects.toBeInstanceOf(EmergencyRecoveryScanError)
+    expect(crashCalls).toBe(1)
+    expect(moveCalls).toBe(1)
   })
 
   it('models stable identity, monotonic durable ACK, stale ACK rejection, and corrupt latest fallback', async() => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { EditorBindingSnapshot, EditorReport, PaneEditorAdapter } from '@shared/workspace'
+import type { EditorBindingSnapshot, EditorLease, EditorReport, PaneEditorAdapter, PaneEditorBinding, WorkspaceCapability } from '@shared/workspace'
 import { createWorkspaceRuntime } from '@/workspace'
 
 class MemoryEditor implements PaneEditorAdapter {
@@ -26,6 +26,12 @@ class MemoryEditor implements PaneEditorAdapter {
   }
 }
 
+function currentLease(binding: PaneEditorBinding): EditorLease {
+  const lease = binding.getLease()
+  if (!lease) throw new Error('expected a current editor lease')
+  return lease
+}
+
 describe('WorkspaceRuntime', () => {
   it('isolates both panes and flushes/refreshes every active-view transition', async() => {
     const workspace = createWorkspaceRuntime([
@@ -39,7 +45,8 @@ describe('WorkspaceRuntime', () => {
     await workspace.bindPaneEditor('right', right)
     const [leftView] = workspace.getProjection().panes[0]!.tabs
     const rightView = workspace.getProjection().panes[1]!.tabs[0]!
-    const leftLease = (await workspace.bindPaneEditor('left', left)).lease
+    const leftBinding = await workspace.bindPaneEditor('left', left)
+    const leftLease = currentLease(leftBinding)
     left.reports.push({ markdown: 'left edited' })
     expect((await workspace.execute({ kind: 'new-tab', paneId: 'left' })).status).toBe('applied')
     expect(left.flushCount).toBeGreaterThan(0)
@@ -51,15 +58,16 @@ describe('WorkspaceRuntime', () => {
     expect((await workspace.execute({ kind: 'activate-view', paneId: 'right', viewId: rightView.viewId })).status).toBe('applied')
     expect((await workspace.execute({ kind: 'move-view', viewId: leftView.viewId, targetPaneId: 'right' })).status).toBe('applied')
     expect(workspace.getProjection().panes).toHaveLength(2)
-    expect((await workspace.bindPaneEditor('left', left)).getSnapshot(leftLease)).toBeUndefined()
+    expect(leftBinding.getSnapshot(leftLease)).toBeUndefined()
   })
 
   it('flushes a dirty active tab before close, requires a single-use capability, and leaves a clean New Tab last', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
-    expect(binding.report(binding.lease, { markdown: 'unsaved' }).status).toBe('applied')
-    const needsDecision = await workspace.execute({ kind: 'close-view', viewId: binding.lease.viewId })
+    const lease = currentLease(binding)
+    expect(binding.report(lease, { markdown: 'unsaved' }).status).toBe('applied')
+    const needsDecision = await workspace.execute({ kind: 'close-view', viewId: lease.viewId })
     expect(needsDecision.status).toBe('needs-decision')
     expect(editor.flushCount).toBeGreaterThan(0)
     if (needsDecision.status !== 'needs-decision') throw new Error('expected decision')
@@ -88,25 +96,74 @@ describe('WorkspaceRuntime', () => {
     expect(workspace.getProjection().panes[0]!.tabs.filter((tab) => tab.fileKey === '/same.md')).toHaveLength(1)
   })
 
-  it('rejects stale leases and failed staged refresh leaves controller and adapter aligned', async() => {
+  it('replaces a stale lease through the same binding after a successful controller transition', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
+    const oldLease = currentLease(binding)
+    expect((await workspace.execute({ kind: 'new-tab' })).status).toBe('applied')
+    expect(binding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
+    const nextLease = currentLease(binding)
+    expect(nextLease).not.toBe(oldLease)
+    expect(binding.report(nextLease, { markdown: 'current' }).status).toBe('applied')
+    expect((await binding.flush(nextLease)).status).toBe('applied')
+  })
+
+  it('rotates leases on mode handoff and rolls back a staged mode refresh failure', async() => {
+    const workspace = createWorkspaceRuntime()
+    const editor = new MemoryEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const first = currentLease(binding)
+    expect((await binding.handoffMode(first, 'source')).status).toBe('applied')
+    expect(binding.report(first, { markdown: 'stale mode' }).status).toBe('rejected')
+    const sourceLease = currentLease(binding)
+    expect(sourceLease.mode).toBe('source')
+    editor.failAfterRefresh = true
+    expect((await binding.handoffMode(sourceLease, 'wysiwyg')).status).toBe('failed')
+    expect(editor.active?.view.mode).toBe('source')
+    expect(binding.getLease()).toBeUndefined()
+  })
+
+  it('rejects stale leases and failed staged refresh preserves a flushed edit without exposing a replacement lease', async() => {
+    const workspace = createWorkspaceRuntime()
+    const editor = new MemoryEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const lease = currentLease(binding)
     const before = editor.active
+    const beforeRevision = workspace.getProjection().workspaceRevision
+    editor.reports.push({ markdown: 'captured before failed transition' })
     editor.failAfterRefresh = true
     expect((await workspace.execute({ kind: 'new-tab' })).status).toBe('failed')
     expect(workspace.getProjection().panes[0]!.tabs).toHaveLength(1)
     expect(editor.active?.viewId).toBe(before?.viewId)
-    expect(binding.report(binding.lease, { markdown: 'must not apply' }).status).toBe('rejected')
+    expect(editor.active?.document.markdown).toBe('captured before failed transition')
+    expect(workspace.getProjection().workspaceRevision).toBeGreaterThan(beforeRevision)
+    expect(binding.getLease()).toBeUndefined()
+    expect(binding.report(lease, { markdown: 'must not apply' }).status).toBe('rejected')
   })
 
-  it('atomically rejects stale/replayed capability and isolates subscriber exceptions', async() => {
+  it('atomically rejects forged, kind-mismatched, stale, and replayed capabilities', async() => {
     const workspace = createWorkspaceRuntime()
     const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
-    binding.report(binding.lease, { markdown: 'dirty' })
-    const decision = await workspace.execute({ kind: 'close-view', viewId: binding.lease.viewId })
+    const lease = currentLease(binding)
+    binding.report(lease, { markdown: 'dirty' })
+    const decision = await workspace.execute({ kind: 'close-view', viewId: lease.viewId })
     if (decision.status !== 'needs-decision') throw new Error('expected decision')
-    binding.report(binding.lease, { markdown: 'changed again' })
+    const forged = { ...decision.capability } as WorkspaceCapability
+    expect((await workspace.execute({ kind: 'commit-authorized', capability: forged })).status).toBe('rejected')
+    expect((await workspace.execute({ kind: 'commit-authorized', capability: { action: 'wrong-kind' } as unknown as WorkspaceCapability })).status).toBe('rejected')
+    binding.report(lease, { markdown: 'changed again' })
+    expect((await workspace.execute({ kind: 'commit-authorized', capability: decision.capability })).status).toBe('rejected')
+  })
+
+  it('accepts a genuine capability once, rejects replay, and isolates subscriber exceptions', async() => {
+    const workspace = createWorkspaceRuntime()
+    const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const lease = currentLease(binding)
+    binding.report(lease, { markdown: 'dirty' })
+    const decision = await workspace.execute({ kind: 'close-view', viewId: lease.viewId })
+    if (decision.status !== 'needs-decision') throw new Error('expected decision')
+    expect((await workspace.execute({ kind: 'commit-authorized', capability: decision.capability })).status).toBe('applied')
     expect((await workspace.execute({ kind: 'commit-authorized', capability: decision.capability })).status).toBe('rejected')
     let observed = 0
     workspace.subscribe(() => { throw new Error('subscriber failure') })

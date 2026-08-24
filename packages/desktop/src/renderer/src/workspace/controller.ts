@@ -2,6 +2,7 @@ import type {
   DocumentId,
   EditorBindingSnapshot,
   EditorLease,
+  EditorMode,
   EditorReport,
   PaneEditorAdapter,
   PaneEditorBinding,
@@ -41,7 +42,6 @@ interface PaneRecord {
 }
 
 interface CapabilityRecord {
-  readonly capability: WorkspaceCapability
   readonly viewId: ViewId
   readonly documentId: DocumentId
   readonly documentRevision: number
@@ -83,7 +83,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private readonly panes = new Map<PaneId, PaneRecord>()
   private readonly adapters = new Map<PaneId, BoundAdapter>()
   private readonly leases = new WeakSet<object>()
-  private readonly capabilities = new Map<string, CapabilityRecord>()
+  /** Object identity makes a capability an opaque, controller-issued bearer. */
+  private readonly capabilities = new WeakMap<WorkspaceCapability, CapabilityRecord>()
   private readonly listeners = new Set<(projection: WorkspaceProjection) => void>()
   private focusedPaneId: PaneId = 'left'
   private workspaceRevision = 0
@@ -148,19 +149,18 @@ export class WorkspaceController implements WorkspaceControllerContract {
     this.adapters.set(paneId, bound)
     try {
       await adapter.refresh(this.snapshotFor(paneId, pane.activeViewId))
-      const lease = freeze({ paneId, viewId: pane.activeViewId, mode: this.view(pane.activeViewId).state.mode })
-      this.leases.add(lease)
-      bound.lease = lease
-      return this.createBinding(bound, lease)
+      this.issueLease(bound, paneId, pane.activeViewId, this.view(pane.activeViewId).state.mode)
+      return this.createBinding(bound)
     } catch (error) {
       if (this.adapters.get(paneId) === bound) this.adapters.delete(paneId)
       throw error
     }
   }
 
-  private createBinding(bound: BoundAdapter, lease: EditorLease): PaneEditorBinding {
+  private createBinding(bound: BoundAdapter): PaneEditorBinding {
     return {
-      lease,
+      get lease() { return bound.lease },
+      getLease: () => bound.lease,
       getSnapshot: (candidate) => this.validLease(bound, candidate) ? this.snapshotFor(candidate.paneId, candidate.viewId) : undefined,
       report: (candidate, report) => {
         if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
@@ -173,14 +173,20 @@ export class WorkspaceController implements WorkspaceControllerContract {
       }),
       handoffMode: async(candidate, mode) => this.withLease(bound, candidate, async() => {
         const view = this.view(candidate.viewId)
-        await bound.adapter.flush().then((report) => this.applyReport(candidate.viewId, report))
-        const before = clone(view.state)
-        view.state = { ...view.state, mode }
+        const report = await bound.adapter.flush()
+        if (this.applyReport(candidate.viewId, report)) this.commit()
+        const nextState = { ...view.state, mode }
+        const beforeSnapshot = this.snapshotFor(candidate.paneId, candidate.viewId)
         try {
-          await bound.adapter.refresh(this.snapshotFor(candidate.paneId, candidate.viewId))
-          this.invalidate(bound)
+          await bound.adapter.refresh(this.snapshotForRecord(candidate.paneId, view, this.documents.get(view.documentId)!, nextState))
+          view.state = nextState
+          this.issueLease(bound, candidate.paneId, candidate.viewId, mode)
         } catch (error) {
-          view.state = before
+          try {
+            await bound.adapter.refresh(beforeSnapshot)
+          } catch {
+            // The lease is still invalidated by withLease; no stale writer remains.
+          }
           throw error
         }
       }),
@@ -340,13 +346,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   private async commitAuthorized(capability: WorkspaceCapability): Promise<WorkspaceResult> {
-    const stored = this.capabilities.get(capability.id)
-    if (!stored || stored.used || stored.capability.action !== capability.action) return this.rejected('stale or invalid capability')
+    const stored = this.capabilities.get(capability)
+    if (!stored || stored.used || capability.action !== 'close-view') return this.rejected('stale or invalid capability')
     const view = this.views.get(stored.viewId)
     const document = this.documents.get(stored.documentId)
     if (!view || !document || document.revision !== stored.documentRevision) return this.rejected('stale capability target')
-    stored.used = true
-    return this.removeView(stored.viewId)
+    const result = await this.removeView(stored.viewId)
+    if (result.status === 'applied') stored.used = true
+    return result
   }
 
   private async removeView(viewId: ViewId): Promise<WorkspaceResult> {
@@ -393,7 +400,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const bound = this.adapters.get(paneId)
     if (!bound) return
     try {
-      this.applyReport(this.panes.get(paneId)!.activeViewId, await bound.adapter.flush())
+      if (this.applyReport(this.panes.get(paneId)!.activeViewId, await bound.adapter.flush())) this.commit()
     } catch (error) {
       this.invalidate(bound)
       throw error
@@ -410,6 +417,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       // activation replaces that binding, so the old lease must be inert.
       this.invalidate(bound)
       await bound.adapter.refresh(snapshot)
+      this.issueLease(bound, snapshot.paneId, snapshot.viewId, snapshot.view.mode)
     } catch (error) {
       // An adapter may report failure after it has staged a snapshot. Restore
       // the controller's still-current binding before releasing its lease.
@@ -425,7 +433,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
   }
 
-  private applyReport(viewId: ViewId, report: EditorReport): void {
+  private applyReport(viewId: ViewId, report: EditorReport): boolean {
     const view = this.view(viewId)
     const document = this.documents.get(view.documentId)!
     let changedDocument = false
@@ -439,12 +447,15 @@ export class WorkspaceController implements WorkspaceControllerContract {
       changedDocument = true
     }
     if (changedDocument) document.revision += 1
-    view.state = {
+    const nextState = {
       ...view.state,
       ...(report.cursor ? { cursor: clone(report.cursor) } : {}),
       ...(report.selection !== undefined ? { selection: clone(report.selection) } : {}),
       ...(report.scrollTop !== undefined ? { scrollTop: report.scrollTop } : {})
     }
+    const changedView = JSON.stringify(view.state) !== JSON.stringify(nextState)
+    view.state = nextState
+    return changedDocument || changedView
   }
 
   private snapshotFor(paneId: PaneId, viewId: ViewId): EditorBindingSnapshot {
@@ -453,7 +464,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.snapshotForRecord(paneId, view, document)
   }
 
-  private snapshotForRecord(paneId: PaneId, view: ViewRecord, document: DocumentRecord): EditorBindingSnapshot {
+  private snapshotForRecord(paneId: PaneId, view: ViewRecord, document: DocumentRecord, state = view.state): EditorBindingSnapshot {
     return freeze({
       paneId,
       viewId: view.id,
@@ -466,7 +477,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
         documentRevision: document.revision,
         portableHistory: clone(document.history)
       },
-      view: clone(view.state),
+      view: clone(state),
       workspaceRevision: this.workspaceRevision
     })
   }
@@ -523,9 +534,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   private needsCloseCapability(viewId: ViewId, document: DocumentRecord): WorkspaceResult {
-    const capability: WorkspaceCapability = { id: `capability-${this.nextId++}`, action: 'close-view' }
-    this.capabilities.set(capability.id, {
-      capability,
+    const capability = freeze({ action: 'close-view' as const })
+    this.capabilities.set(capability, {
       viewId,
       documentId: document.id,
       documentRevision: document.revision,
@@ -541,6 +551,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private invalidate(bound: BoundAdapter): void {
     if (bound.lease) this.leases.delete(bound.lease)
     bound.lease = undefined
+  }
+
+  private issueLease(bound: BoundAdapter, paneId: PaneId, viewId: ViewId, mode: EditorMode): EditorLease {
+    this.invalidate(bound)
+    const lease = freeze({ paneId, viewId, mode })
+    this.leases.add(lease)
+    bound.lease = lease
+    return lease
   }
 
   private commit(): void {

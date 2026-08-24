@@ -1,5 +1,17 @@
 import type { EmergencyRecovery, EmergencyScan, StartupIntent, WorkspaceSeed } from './types'
 
+export class EmergencyRecoveryScanError extends Error {
+  readonly crashDrafts?: unknown
+  readonly moves?: unknown
+
+  constructor(crashDrafts?: unknown, moves?: unknown) {
+    super('one or more emergency recovery scans failed')
+    this.name = 'EmergencyRecoveryScanError'
+    this.crashDrafts = crashDrafts
+    this.moves = moves
+  }
+}
+
 /**
  * V1 startup has no normal workspace restore branch.  Emergency sources are
  * scanned first and independently, even when explicit files were supplied.
@@ -16,9 +28,19 @@ export class DefaultStartupPolicy {
     readonly emergency: EmergencyScan
     readonly seed: WorkspaceSeed
   }> {
+    const [crashDrafts, moves] = await Promise.allSettled([
+      emergency.crashDrafts.scan(),
+      emergency.moves.scan()
+    ])
+    if (crashDrafts.status === 'rejected' || moves.status === 'rejected') {
+      throw new EmergencyRecoveryScanError(
+        crashDrafts.status === 'rejected' ? crashDrafts.reason : undefined,
+        moves.status === 'rejected' ? moves.reason : undefined
+      )
+    }
     const emergencyScan: EmergencyScan = {
-      crashDrafts: await emergency.crashDrafts.scan(),
-      moves: await emergency.moves.scan()
+      crashDrafts: crashDrafts.value,
+      moves: moves.value
     }
     return { emergency: emergencyScan, seed: this.seed(intent) }
   }

@@ -116,7 +116,6 @@ export type WorkspaceCommand =
   | { readonly kind: 'commit-authorized'; readonly capability: WorkspaceCapability }
 
 export interface WorkspaceCapability {
-  readonly id: string
   readonly action: 'close-view'
 }
 
@@ -189,7 +188,9 @@ export interface EditorLease {
 }
 
 export interface PaneEditorBinding {
-  readonly lease: EditorLease
+  /** Current lease; undefined only after an adapter failure until a later refresh succeeds. */
+  readonly lease: EditorLease | undefined
+  getLease(): EditorLease | undefined
   getSnapshot(lease: EditorLease): EditorBindingSnapshot | undefined
   report(lease: EditorLease, report: EditorReport): WorkspaceResult
   flush(lease: EditorLease): Promise<WorkspaceResult>
