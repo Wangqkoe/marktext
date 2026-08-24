@@ -11,7 +11,12 @@ import type {
   WorkspaceProjectionPane,
   WorkspaceProjectionTab
 } from '@shared/workspace'
-import { createWorkspaceRuntime } from '@/workspace'
+import {
+  createWorkspaceRuntime,
+  PaneEditorLeaseReporter,
+  RendererPaneEditorAdapter
+} from '@/workspace'
+import type { PaneEditorEventScope, PaneEditorSurface } from '@/workspace'
 
 class MemoryEditor implements PaneEditorAdapter {
   readonly snapshots: EditorBindingSnapshot[] = []
@@ -66,6 +71,22 @@ class MemoryEditor implements PaneEditorAdapter {
   }
 }
 
+class MemoryPaneSurface implements PaneEditorSurface {
+  readonly snapshots: EditorBindingSnapshot[] = []
+  readonly scopes: Array<PaneEditorEventScope | undefined> = []
+  readonly reports: EditorReport[] = []
+
+  async refresh(snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope): Promise<void> {
+    this.snapshots.push(snapshot)
+    this.scopes.push(scope)
+  }
+
+  async flush(snapshot: EditorBindingSnapshot): Promise<EditorReport> {
+    expect(snapshot).toBe(this.snapshots.at(-1))
+    return this.reports.shift() ?? {}
+  }
+}
+
 function deferred(): { readonly promise: Promise<void>; readonly release: () => void } {
   let release!: () => void
   const promise = new Promise<void>((resolve) => {
@@ -101,6 +122,53 @@ function tabAt(pane: WorkspaceProjectionPane, index: number): WorkspaceProjectio
 }
 
 describe('WorkspaceRuntime', () => {
+  it('routes the production pane adapter through its current lease only', async() => {
+    const workspace = createWorkspaceRuntime([{ markdown: 'first' }])
+    const surface = new MemoryPaneSurface()
+    const reporter = new PaneEditorLeaseReporter('left')
+    const binding = await workspace.bindPaneEditor(
+      'left',
+      new RendererPaneEditorAdapter(surface, reporter)
+    )
+    reporter.attach(binding)
+    const firstScope = expectDefined(surface.scopes.at(-1))
+
+    expect(
+      firstScope.report({
+        markdown: 'first edit',
+        cursor: { line: 2, column: 4 },
+        scrollTop: 120,
+        toc: [{ id: 'first-heading', title: 'First', level: 1 }],
+        status: { wordCount: 2, caret: { line: 2, column: 4 } },
+        portableHistory: { version: 1, value: ['first history'] }
+      }).status
+    ).toBe('applied')
+    expect((await firstScope.handoffMode('source')).status).toBe('applied')
+    expect(firstScope.report({ markdown: 'stale' }).status).toBe('rejected')
+
+    const sourceLease = currentLease(binding)
+    expect(sourceLease.mode).toBe('source')
+    const sourceScope = expectDefined(surface.scopes.at(-1))
+    expect(sourceScope.report({ markdown: 'source edit' }).status).toBe('applied')
+    surface.reports.push({ markdown: 'flushed source edit', scrollTop: 240 })
+    expect((await sourceScope.flush()).status).toBe('applied')
+
+    expect((await workspace.execute({ kind: 'new-tab', paneId: 'left' })).status).toBe('applied')
+    expect(sourceScope.report({ markdown: 'late source event' }).status).toBe('rejected')
+    const active = currentLease(binding)
+    expect(binding.getSnapshot(active)?.document.markdown).toBe('')
+    expect(surface.snapshots.at(-1)?.viewId).toBe(active.viewId)
+
+    await workspace.execute({ kind: 'activate-view', paneId: 'left', viewId: firstScope.viewId })
+    const restored = currentLease(binding)
+    expect(binding.getSnapshot(restored)?.document.markdown).toBe('flushed source edit')
+    expect(binding.getSnapshot(restored)?.document.portableHistory.value).toEqual(['first history'])
+    expect(binding.getSnapshot(restored)?.view).toMatchObject({ scrollTop: 240, mode: 'source' })
+    expect(binding.getSnapshot(restored)?.toc).toEqual([
+      { id: 'first-heading', title: 'First', level: 1 }
+    ])
+  })
+
   it('isolates both panes and flushes/refreshes every active-view transition', async() => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'one', fileKey: '/one.md', markdown: 'one' },

@@ -5,8 +5,7 @@ import listToTree, { type ListItem, type TreeNode } from '../util/listToTree'
 import {
   createDocumentState,
   getOptionsFromState,
-  getBlankFileState,
-  defaultFileState
+  getBlankFileState
 } from './help'
 import notice from '../services/notification'
 import {
@@ -43,15 +42,6 @@ interface TocItem extends ListItem {
 }
 
 type TocTreeNode = TreeNode<TocItem>
-
-interface RestoreWarning {
-  tabId?: string | null
-  pathname?: string
-  msg: string
-  showConfirm?: boolean
-  style?: string
-  exclusiveType?: string
-}
 
 interface PushTabNotificationPayload {
   tabId: string
@@ -168,66 +158,19 @@ export const useEditorStore = defineStore('editor', {
       }, {})
     },
 
-    CREATE_BUFFERED_STATE(): ReturnType<typeof createBufferedEditorState> {
-      return createBufferedEditorState(this.$state)
+    CREATE_BUFFERED_STATE(): Record<string, never> | null {
+      // V1 deliberately has no normal workspace persistence. Returning null
+      // makes the legacy writer a no-op, preserving any existing
+      // editor_buffer_store file without deleting or overwriting it.
+      return null
     },
 
-    RESTORE_BUFFERED_STATE(state: unknown): void {
-      const rawState = state as { editor?: unknown; project?: unknown; layout?: unknown } | null
-      const editorInput = rawState?.editor ?? state
-      const bufferedEditorState = createBufferedEditorState(editorInput)
-      if (!bufferedEditorState) {
-        console.error('RESTORE_BUFFERED_STATE: Invalid editor buffer state.')
-        return
-      }
-
-      const oldIdToNewId: Record<string, string> = {}
-      const tabs: IFileState[] = bufferedEditorState.tabs.map((tab) => {
-        const fileState = createDocumentState(tab as unknown as Record<string, unknown>)
-        oldIdToNewId[tab.id] = fileState.id
-        return fileState
-      })
-
-      const currentFileId = bufferedEditorState.currentFileId
-        ? oldIdToNewId[bufferedEditorState.currentFileId]
-        : undefined
-      const currentFile: IFileState | null = tabs.find((tab) => tab.id === currentFileId) ?? null
-
-      const projectStore = useProjectStore()
-      const layoutStore = useLayoutStore()
-
-      projectStore.RESTORE_BUFFERED_STATE(rawState?.project)
-      layoutStore.restoreLayout(rawState?.layout)
-      this.$patch((s) => {
-        s.tabs = tabs
-        s.currentFile = currentFile
-        s.tabIdToIndex = {}
-        s.listToc = []
-        s.toc = []
-      })
-
-      this.updateTabIdToIndex()
-      window.DIRNAME = currentFile?.pathname ? window.path.dirname(currentFile.pathname) : ''
-      this.UPDATE_LINE_ENDING_MENU()
-
-      for (const warning of bufferedEditorState.restoreWarnings) {
-        const restoredTabId = warning.tabId ? oldIdToNewId[warning.tabId] : null
-        const tab = restoredTabId
-          ? this.tabs.find((t) => t.id === restoredTabId)
-          : this.tabs.find((t) =>
-            window.fileUtils.isSamePathSync(t.pathname, warning.pathname ?? '')
-          )
-
-        if (!tab) continue
-
-        this.pushTabNotification({
-          tabId: tab.id,
-          msg: warning.msg,
-          showConfirm: warning.showConfirm,
-          style: warning.style,
-          exclusiveType: warning.exclusiveType
-        })
-      }
+    RESTORE_BUFFERED_STATE(_state: unknown): void {
+      // Old normal-session data is intentionally ignored in V1. Main still
+      // sends the legacy IPC while its startup migration is owned elsewhere;
+      // keep one live clean document so that event cannot leave the renderer
+      // without an editor. Do not read, delete, or rewrite the old snapshot.
+      if (this.tabs.length === 0) this.NEW_UNTITLED_TAB({ selected: true })
     },
 
     /**
@@ -1990,116 +1933,4 @@ export const createSelectionFormatState = (formats: SelectionFormat[]): Record<s
     if (key) state[key] = true
   }
   return state
-}
-
-/*
- * Convert a Pinia Proxy Object to a serializable value by applying JSON stringify and parse.
- */
-function toSerializableValue<T>(value: T | null | undefined, fallback: T): T
-function toSerializableValue<T>(value: T | null | undefined, fallback: null): T | null
-function toSerializableValue<T>(value: T | null | undefined, fallback: T | null = null): T | null {
-  if (value == null) return fallback
-
-  try {
-    return deepClone(value) as T
-  } catch (err) {
-    console.warn('Unable to serialize editor buffer value:', err)
-    return fallback
-  }
-}
-
-interface BufferedTabState {
-  id: string
-  pathname: string
-  filename: string
-  markdown: string
-  isSaved: boolean
-  encoding: IFileState['encoding']
-  lineEnding: IFileState['lineEnding']
-  trimTrailingNewline: number
-  adjustLineEndingOnSave: boolean
-  cursor: unknown
-  wordCount: IFileState['wordCount']
-  muyaIndexCursor: unknown
-  scrollTop: number
-}
-
-const createBufferedTabState = (tab: Partial<IFileState> & { id: string }): BufferedTabState => {
-  return {
-    id: tab.id,
-    pathname: tab.pathname ?? defaultFileState.pathname,
-    filename: tab.filename ?? defaultFileState.filename,
-    markdown: typeof tab.markdown === 'string' ? tab.markdown : defaultFileState.markdown,
-    isSaved: tab.isSaved ?? defaultFileState.isSaved,
-    encoding: toSerializableValue(tab.encoding, defaultFileState.encoding),
-    lineEnding: tab.lineEnding ?? defaultFileState.lineEnding,
-    trimTrailingNewline:
-      typeof tab.trimTrailingNewline === 'number'
-        ? tab.trimTrailingNewline
-        : defaultFileState.trimTrailingNewline,
-    adjustLineEndingOnSave: tab.adjustLineEndingOnSave ?? defaultFileState.adjustLineEndingOnSave,
-    cursor: toSerializableValue(tab.cursor, defaultFileState.cursor),
-    wordCount: toSerializableValue(tab.wordCount, defaultFileState.wordCount),
-    muyaIndexCursor: toSerializableValue(tab.muyaIndexCursor, defaultFileState.muyaIndexCursor),
-    scrollTop: tab.scrollTop ?? defaultFileState.scrollTop
-  }
-}
-
-interface BufferedRestoreWarning {
-  tabId: string | null
-  pathname: string
-  msg: string
-  showConfirm: boolean
-  style: string
-  exclusiveType: string
-}
-
-const createBufferedRestoreWarning = (
-  warning: RestoreWarning | null | undefined
-): BufferedRestoreWarning | null => {
-  if (!warning) return null
-
-  const { tabId, pathname, msg, showConfirm, style, exclusiveType } = warning
-  if (!tabId && !pathname) return null
-  if (!msg) return null
-
-  return {
-    tabId: tabId || null,
-    pathname: pathname || '',
-    msg,
-    showConfirm: !!showConfirm,
-    style: style || 'info',
-    exclusiveType: exclusiveType || ''
-  }
-}
-
-interface BufferedEditorState {
-  currentFileId: string | null
-  tabs: BufferedTabState[]
-  restoreWarnings: BufferedRestoreWarning[]
-}
-
-const createBufferedEditorState = (state: unknown): BufferedEditorState | null => {
-  const s = state as
-    | {
-      tabs?: unknown
-      currentFileId?: string
-      currentFile?: { id?: string } | null
-      restoreWarnings?: unknown
-    }
-    | null
-    | undefined
-  if (!s || !Array.isArray(s.tabs)) {
-    return null
-  }
-
-  return {
-    currentFileId: s.currentFileId || s.currentFile?.id || null,
-    tabs: (s.tabs as Array<Partial<IFileState> & { id: string }>).map(createBufferedTabState),
-    restoreWarnings: Array.isArray(s.restoreWarnings)
-      ? (s.restoreWarnings as RestoreWarning[])
-        .map(createBufferedRestoreWarning)
-        .filter((w): w is BufferedRestoreWarning => w !== null)
-      : []
-  }
 }

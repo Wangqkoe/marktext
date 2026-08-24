@@ -4,7 +4,6 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { createAuditRun } from './audit-fixtures'
 import {
-  clickMenuById,
   enterSourceMode,
   exitSourceMode,
   launchElectron,
@@ -40,12 +39,6 @@ const setSource = async(app: ElectronApplication, page: Page, markdown: string):
   }, markdown)
   await exitSourceMode(page, app)
 }
-
-const menuChecked = (app: ElectronApplication, id: string): Promise<boolean> =>
-  app.evaluate(
-    ({ Menu }, menuId) => !!Menu.getApplicationMenu()?.getMenuItemById(menuId)?.checked,
-    id
-  )
 
 const stubSaveDialog = async(app: ElectronApplication, targetPath: string): Promise<void> => {
   await app.evaluate(async({ dialog }, savePath) => {
@@ -85,7 +78,7 @@ const restartSharedProfile = async(
   return relaunched
 }
 
-test.describe('W2 audit — tabs, unsaved restart recovery and Save As', () => {
+test.describe('W2 audit — tabs, no normal restart restore and Save As', () => {
   test('two F1 tabs keep content, dirty state, caret, scroll and history independent', async() => {
     test.setTimeout(90_000)
     const run = createAuditRun()
@@ -186,7 +179,7 @@ test.describe('W2 audit — tabs, unsaved restart recovery and Save As', () => {
     }
   })
 
-  test('shared restart profile recovers unsaved F1 content and persisted view preferences', async() => {
+  test('shared restart profile ignores legacy normal-session state without overwriting it', async() => {
     test.setTimeout(90_000)
     const run = createAuditRun()
     let app: ElectronApplication | undefined
@@ -200,25 +193,30 @@ test.describe('W2 audit — tabs, unsaved restart recovery and Save As', () => {
       await waitForEditor(page)
       await waitForMenuReady(app)
 
-      await setSource(app, page, 'restart tab A\n\nRESTART-A-UNSAVED\n')
-      await expect.poll(() => isDirty(page)).toBe(true)
-      await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'restart tab B\n')
-      await page.waitForFunction(
-        (selector) => document.querySelectorAll(selector).length === 2,
-        tabSelector
+      const legacyState = {
+        currentFileId: 'legacy-b',
+        tabs: [
+          {
+            id: 'legacy-a',
+            pathname: '',
+            filename: 'New Tab',
+            markdown: 'RESTART-A-UNSAVED\\n',
+            isSaved: false
+          },
+          {
+            id: 'legacy-b',
+            pathname: '',
+            filename: 'New Tab',
+            markdown: 'RESTART-B-UNSAVED\\n',
+            isSaved: false
+          }
+        ],
+        restoreWarnings: []
+      }
+      await page.evaluate(
+        (state) => window.electron.ipcRenderer.invoke('update-buffer-state', state),
+        legacyState
       )
-      await setSource(app, page, 'restart tab B\n\nRESTART-B-UNSAVED\n')
-      await expect.poll(() => isDirty(page)).toBe(true)
-
-      if (await page.locator('.editor-tabs').isVisible()) await clickMenuById(app, 'tabBarMenuItem')
-      await expect(page.locator('.editor-tabs')).toBeHidden()
-      await enterSourceMode(page, app)
-      await page.evaluate(() => {
-        window.electron.ipcRenderer.send('mt::set-user-preference', {
-          sourceCodeModeEnabled: true
-        })
-      })
-      await page.waitForTimeout(1200)
 
       const stateDir = path.join(run.sharedUserDataDir, 'editorStates')
       await expect
@@ -232,22 +230,12 @@ test.describe('W2 audit — tabs, unsaved restart recovery and Save As', () => {
         .readdirSync(stateDir)
         .map((name) => path.join(stateDir, name))
         .find((name) => name.endsWith('_editor_buffer_store.json')) as string
-      const buffer = JSON.parse(fs.readFileSync(bufferPath, 'utf8')) as {
-        tabs: Array<{ markdown: string; isSaved: boolean }>
-      }
-      expect(buffer.tabs).toHaveLength(2)
-      expect(buffer.tabs.map((tab) => tab.markdown).join('\n')).toContain('RESTART-A-UNSAVED')
-      expect(buffer.tabs.map((tab) => tab.markdown).join('\n')).toContain('RESTART-B-UNSAVED')
-      expect(buffer.tabs.every((tab) => !tab.isSaved)).toBe(true)
+      const legacyBytes = fs.readFileSync(bufferPath, 'utf8')
       ;({ app, page } = await restartSharedProfile(app, run.sharedUserDataDir))
-      await expect.poll(() => page.locator(tabSelector).count()).toBe(2)
-      await expect(page.locator('.editor-tabs')).toBeHidden()
-      await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
-      expect(await menuChecked(app, 'tabBarMenuItem')).toBe(false)
-      expect(await menuChecked(app, 'sourceCodeModeMenuItem')).toBe(true)
-      await expect.poll(() => sourceValue(page)).toContain('RESTART-B-UNSAVED')
-      await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
-      await expect.poll(() => sourceValue(page)).toContain('RESTART-A-UNSAVED')
+      await expect.poll(() => page.locator(tabSelector).count()).toBe(1)
+      await expect.poll(() => activeText(page)).not.toContain('RESTART-A-UNSAVED')
+      expect(await activeText(page)).not.toContain('RESTART-B-UNSAVED')
+      expect(fs.readFileSync(bufferPath, 'utf8')).toBe(legacyBytes)
     } finally {
       if (app) await app.close().catch(() => {})
       run.cleanup()
