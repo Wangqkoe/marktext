@@ -1,11 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'fs/promises'
+import os from 'os'
+import path from 'path'
 import {
+  ChokidarFileObservationWatchFactory,
   FileObservationHub,
   CaseSensitivityResolver,
   MemoryFileObservationStorage,
   MemoryFileObservationWatchFactory,
+  NodeFileObservationStorage,
   type DiskChange,
-  type FileObservationSubscriber
+  type FileObservationSubscriber,
+  type WriteReceipt
 } from 'main_renderer/filesystem/fileObservation'
 import type { FileKey } from '@shared/workspace/fileObservation'
 
@@ -170,7 +176,7 @@ describe('FileObservationHub', () => {
     await expect(resolver.resolve('C:/unknown/123')).resolves.toBe(true)
   })
 
-  it('suppresses only a matching full writeId, preserves same-content writes, and does not suppress raw merged events', async() => {
+  it('authenticates and consumes own-write receipts while merged and late raw events are no-ops', async() => {
     const { hub, storage, watchers } = createHub()
     const fileKey = raw('same-content')
     const canonical = await hub.canonicalFileKey(fileKey)
@@ -191,6 +197,36 @@ describe('FileObservationHub', () => {
       bytes: Buffer.from('same')
     })
     if (first.status !== 'saved') throw new Error('expected first save')
+    expect(first.receipt).toMatchObject({
+      writeId: first.writeId,
+      fileKey: canonical,
+      intendedHash: first.diskRevision,
+      landedHash: first.diskRevision,
+      ownerLease: writer
+    })
+    expect(peerChanges).toHaveLength(1)
+    expect(writerChanges).toEqual([])
+    await expect(hub.observeOwnWriteReceipt(first.receipt)).resolves.toBe(false)
+    const forgedReceipts: WriteReceipt[] = [
+      Object.freeze({ ...first.receipt, writeId: 'wrong-write-id' }),
+      Object.freeze({ ...first.receipt, fileKey: raw('wrong-file') as never }),
+      Object.freeze({ ...first.receipt, intendedHash: 'wrong-hash' as never }),
+      Object.freeze({ ...first.receipt, landedHash: 'wrong-hash' as never }),
+      Object.freeze({
+        ...first.receipt,
+        ownerLease: Object.freeze({ ...writer, generation: writer.generation + 1 })
+      })
+    ]
+    for (const receipt of forgedReceipts) {
+      await expect(hub.observeOwnWriteReceipt(receipt)).resolves.toBe(false)
+    }
+    // An external event with identical bytes has no authority to consume or
+    // recreate the receipt, and the writer baseline already makes it a no-op.
+    storage.files.set(canonical, Buffer.from('same'))
+    watchers.emit(canonical)
+    await Promise.resolve()
+    expect(peerChanges).toHaveLength(1)
+    expect(writerChanges).toEqual([])
     await expect(hub.refreshDocumentRevision(writer, 2)).resolves.toBe(true)
     const second = await hub.save({
       documentId: 'writer',
@@ -203,10 +239,11 @@ describe('FileObservationHub', () => {
     if (second.status !== 'saved') throw new Error('expected second save')
     expect(await hub.pendingOwnWriteCount(fileKey)).toBe(2)
 
+    // A merged/reordered raw own event remains origin-free and no-ops by hash.
     watchers.emit(canonical)
     await vi.waitFor(() => expect(peerChanges).toHaveLength(1))
     expect(writerChanges).toEqual([])
-    expect(await hub.pendingOwnWriteCount(fileKey)).toBe(0)
+    expect(await hub.pendingOwnWriteCount(fileKey)).toBe(2)
     watchers.emit(canonical)
     await Promise.resolve()
     expect(peerChanges).toHaveLength(1)
@@ -223,7 +260,7 @@ describe('FileObservationHub', () => {
     })
     if (third.status !== 'saved') throw new Error('expected third save')
     watchers.emit(canonical)
-    await vi.waitFor(async() => expect(await hub.pendingOwnWriteCount(fileKey)).toBe(0))
+    await vi.waitFor(async() => expect(await hub.pendingOwnWriteCount(fileKey)).toBe(3))
     expect(writerChanges).toEqual([])
   })
 
@@ -257,4 +294,57 @@ describe('FileObservationHub', () => {
     now = 11
     expect(await hub.pendingOwnWriteCount(fileKey)).toBe(0)
   })
+
+  it('keeps production Chokidar raw events untrusted after a receipt-authenticated write', async() => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'marktext-t04-'))
+    const fileKey = path.join(directory, 'note.md') as FileKey
+    await writeFile(fileKey, 'baseline')
+    const hub = new FileObservationHub(
+      new NodeFileObservationStorage(),
+      new ChokidarFileObservationWatchFactory()
+    )
+    hubs.push(hub)
+    try {
+      const writerChanges: DiskChange[] = []
+      const cleanPeerChanges: DiskChange[] = []
+      const dirtyPeerChanges: DiskChange[] = []
+      const writer = await hub.subscribe(subscriber('writer', fileKey, 'clean', writerChanges))
+      await hub.subscribe(subscriber('clean-peer', fileKey, 'clean', cleanPeerChanges))
+      await hub.subscribe(subscriber('dirty-peer', fileKey, 'dirty', dirtyPeerChanges))
+      const baseline = await hub.getDiskRevision(fileKey)
+      if (!baseline) throw new Error('expected baseline')
+
+      const result = await hub.save({
+        documentId: 'writer',
+        documentRevision: 1,
+        fileKey,
+        observedDiskRevision: baseline,
+        ownerLease: writer,
+        bytes: Buffer.from('own')
+      })
+      if (result.status !== 'saved') throw new Error('expected save')
+
+      // The authenticated in-process receipt suppresses only its writer; the
+      // production adapter still emits origin-free raw events later.
+      expect(writerChanges).toEqual([])
+      expect(cleanPeerChanges).toHaveLength(1)
+      expect(dirtyPeerChanges).toHaveLength(1)
+      await new Promise((resolve) => setTimeout(resolve, 1200))
+      expect(writerChanges).toEqual([])
+      expect(cleanPeerChanges).toHaveLength(1)
+      expect(dirtyPeerChanges).toHaveLength(1)
+
+      await writeFile(fileKey, 'external')
+      await vi.waitFor(() => expect(writerChanges).toHaveLength(1), { timeout: 4000 })
+      expect(cleanPeerChanges).toHaveLength(2)
+      expect(dirtyPeerChanges).toHaveLength(2)
+      expect(writerChanges[0]?.kind).toBe('reload')
+      expect(cleanPeerChanges[1]?.kind).toBe('reload')
+      expect(dirtyPeerChanges[1]?.kind).toBe('conflict')
+      await expect(hub.observeOwnWriteReceipt(result.receipt)).resolves.toBe(false)
+    } finally {
+      hub.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  }, 10_000)
 })

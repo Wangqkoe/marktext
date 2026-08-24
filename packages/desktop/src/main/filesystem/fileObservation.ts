@@ -78,6 +78,7 @@ export type GuardedSaveResult =
     readonly documentId: DocumentId
     readonly documentRevision: number
     readonly ownerLease: FileObservationLease
+    readonly receipt: WriteReceipt
   }
   | {
     readonly status: 'conflict'
@@ -92,6 +93,19 @@ interface SubscriberSlot {
   lastObservedDiskRevision?: DiskRevision | null
 }
 
+/**
+ * An opaque, single-use capability for the logical observation created by a
+ * successful guarded write. The public fields make the binding auditable; the
+ * private WeakMap identity check makes a copied or invented tuple unusable.
+ */
+export interface WriteReceipt {
+  readonly writeId: string
+  readonly fileKey: CanonicalFileKey
+  readonly intendedHash: DiskRevision
+  readonly landedHash: DiskRevision
+  readonly ownerLease: FileObservationLease
+}
+
 interface PendingWriterEvent {
   readonly writeId: string
   readonly documentId: DocumentId
@@ -99,6 +113,9 @@ interface PendingWriterEvent {
   readonly intendedHash: DiskRevision
   readonly landedHash: DiskRevision
   readonly expiresAt: number
+  readonly ownerLease: FileObservationLease
+  readonly receipt: WriteReceipt
+  consumed: boolean
 }
 
 interface FileEntry {
@@ -138,6 +155,7 @@ export class FileObservationHub {
   private readonly tokenBindings = new WeakMap<OverwriteToken, TokenBinding>()
   private readonly leases = new WeakSet<FileObservationLease>()
   private readonly acknowledgedSaves = new WeakSet<object>()
+  private readonly receipts = new WeakMap<WriteReceipt, PendingWriterEvent>()
   private readonly now: () => number
   private readonly pendingOwnWriteTtlMs: number
   private readonly maxPendingOwnWrites: number
@@ -209,6 +227,7 @@ export class FileObservationHub {
     entry.subscribers.delete(lease.subscriberId)
     if (entry.subscribers.size === 0) {
       entry.closeWatcher()
+      this.clearPendingWriterEvents(entry)
       this.entries.delete(lease.fileKey)
     }
     return true
@@ -287,14 +306,29 @@ export class FileObservationHub {
         if (!this.matchesOwner(request, fileKey)) {
           return { status: 'rejected', reason: 'owner changed before save acknowledgment' }
         }
+        const receipt = Object.freeze({
+          writeId,
+          fileKey,
+          intendedHash,
+          landedHash,
+          ownerLease: request.ownerLease
+        })
         this.recordPendingWriterEvent(fileKey, {
           writeId,
           documentId: request.documentId,
           fileKey,
           intendedHash,
           landedHash,
-          expiresAt: this.now() + this.pendingOwnWriteTtlMs
+          expiresAt: this.now() + this.pendingOwnWriteTtlMs,
+          ownerLease: request.ownerLease,
+          receipt,
+          consumed: false
         })
+        const entry = this.entries.get(fileKey)
+        if (!entry || !this.consumeOwnWriteReceipt(entry, receipt)) {
+          this.removePendingWriterEvent(fileKey, writeId)
+          return { status: 'rejected', reason: 'own-write observation was not authenticated' }
+        }
         return Object.freeze({
           status: 'saved' as const,
           writeId,
@@ -302,7 +336,8 @@ export class FileObservationHub {
           diskRevision: landedHash,
           documentId: request.documentId,
           documentRevision: request.documentRevision,
-          ownerLease: request.ownerLease
+          ownerLease: request.ownerLease,
+          receipt
         })
       } catch (error) {
         this.removePendingWriterEvent(fileKey, writeId)
@@ -341,8 +376,25 @@ export class FileObservationHub {
     return entry.pendingWriterEvents.size
   }
 
+  /**
+   * Delivers an authenticated logical own-write observation exactly once. This
+   * is intentionally a capability API: raw OS events never call it or supply a
+   * write id, and a structurally identical receipt is not accepted.
+   */
+  async observeOwnWriteReceipt(receipt: WriteReceipt): Promise<boolean> {
+    const pending = this.receipts.get(receipt)
+    if (!pending) return false
+    return this.serialize(pending.fileKey, async() => {
+      const entry = this.entries.get(pending.fileKey)
+      return entry ? this.consumeOwnWriteReceipt(entry, receipt) : false
+    })
+  }
+
   close(): void {
-    for (const entry of this.entries.values()) entry.closeWatcher()
+    for (const entry of this.entries.values()) {
+      entry.closeWatcher()
+      this.clearPendingWriterEvents(entry)
+    }
     this.entries.clear()
     this.queues.clear()
   }
@@ -380,12 +432,10 @@ export class FileObservationHub {
     const revision = await this.readRevision(fileKey)
     // An event that began before a handoff/subscriber generation change is inert.
     if (this.entries.get(fileKey) !== entry || entry.epoch !== eventEpoch) return
-    const writers = this.consumePendingWriterEvents(entry, fileKey, revision)
     for (const slot of slots) {
       if (!this.isCurrent(slot.lease)) continue
       if (slot.lastObservedDiskRevision === revision) continue
       slot.lastObservedDiskRevision = revision
-      if (writers.has(slot.subscriber.documentId)) continue
       slot.subscriber.onDiskChange({
         kind: slot.subscriber.getState() === 'clean' ? 'reload' : 'conflict',
         fileKey,
@@ -417,40 +467,67 @@ export class FileObservationHub {
     while (entry.pendingWriterEvents.size >= this.maxPendingOwnWrites) {
       const oldest = entry.pendingWriterEvents.keys().next().value as string | undefined
       if (!oldest) break
-      entry.pendingWriterEvents.delete(oldest)
+      this.removePendingWriterEvent(fileKey, oldest)
     }
     entry.pendingWriterEvents.set(pending.writeId, pending)
+    this.receipts.set(pending.receipt, pending)
   }
 
-  private consumePendingWriterEvents(
-    entry: FileEntry,
-    fileKey: CanonicalFileKey,
-    revision: DiskRevision | null
-  ): Set<DocumentId> {
+  private consumeOwnWriteReceipt(entry: FileEntry, receipt: WriteReceipt): boolean {
     this.prunePendingWriterEvents(entry)
-    const writers = new Set<DocumentId>()
-    for (const [writeId, pending] of entry.pendingWriterEvents) {
-      if (
-        pending.fileKey === fileKey &&
-        pending.intendedHash === pending.landedHash &&
-        pending.landedHash === revision
-      ) {
-        writers.add(pending.documentId)
-        entry.pendingWriterEvents.delete(writeId)
-      }
+    const pending = this.receipts.get(receipt)
+    if (!pending || entry.pendingWriterEvents.get(receipt.writeId) !== pending) return false
+    if (pending.consumed) return false
+    const valid =
+      pending.receipt === receipt &&
+      pending.writeId === receipt.writeId &&
+      pending.fileKey === receipt.fileKey &&
+      pending.intendedHash === receipt.intendedHash &&
+      pending.landedHash === receipt.landedHash &&
+      pending.ownerLease === receipt.ownerLease &&
+      pending.intendedHash === pending.landedHash &&
+      pending.fileKey === receipt.ownerLease.fileKey &&
+      pending.documentId === receipt.ownerLease.subscriberId &&
+      this.isCurrent(receipt.ownerLease)
+    if (!valid) {
+      this.removePendingWriterEvent(pending.fileKey, pending.writeId)
+      return false
     }
-    return writers
+
+    pending.consumed = true
+    for (const slot of entry.subscribers.values()) {
+      if (!this.isCurrent(slot.lease)) continue
+      if (slot.lastObservedDiskRevision === pending.landedHash) continue
+      slot.lastObservedDiskRevision = pending.landedHash
+      if (slot.lease === pending.ownerLease) continue
+      slot.subscriber.onDiskChange({
+        kind: slot.subscriber.getState() === 'clean' ? 'reload' : 'conflict',
+        fileKey: pending.fileKey,
+        diskRevision: pending.landedHash
+      })
+    }
+    return true
   }
 
   private removePendingWriterEvent(fileKey: CanonicalFileKey, writeId: string): void {
+    const pending = this.entries.get(fileKey)?.pendingWriterEvents.get(writeId)
+    if (!pending) return
     this.entries.get(fileKey)?.pendingWriterEvents.delete(writeId)
+    this.receipts.delete(pending.receipt)
   }
 
   private prunePendingWriterEvents(entry: FileEntry): void {
     const now = this.now()
     for (const [writeId, pending] of entry.pendingWriterEvents) {
-      if (pending.expiresAt <= now) entry.pendingWriterEvents.delete(writeId)
+      if (pending.expiresAt <= now) this.removePendingWriterEvent(pending.fileKey, writeId)
     }
+  }
+
+  private clearPendingWriterEvents(entry: FileEntry): void {
+    for (const pending of entry.pendingWriterEvents.values()) {
+      this.receipts.delete(pending.receipt)
+    }
+    entry.pendingWriterEvents.clear()
   }
 
   private consumeValidOverwriteToken(
