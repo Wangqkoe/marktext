@@ -15,6 +15,7 @@ let source
 let machine
 let scenario = null
 let sequence = 0
+let hookChild = null
 const entries = []
 const assertions = []
 
@@ -56,12 +57,19 @@ function nativeEvent (event) {
   write('native-event', { nativeEvent: nativeEventWithHitTest })
   machine.native(nativeEventWithHitTest)
 }
+function stopHook () {
+  const child = hookChild
+  hookChild = null
+  if (child && !child.killed) child.kill()
+}
 function spawnHook () {
-  const hookMilliseconds = automated ? 30000 : 600000
+  const hookMilliseconds = automated ? 30000 : 3600000
   const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'native-mouse-hook.ps1'), '-Milliseconds', String(hookMilliseconds)], { windowsHide: true })
+  hookChild = child
   let resolveReady
   let rejectReady
   const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject })
+  ready.catch(() => {})
   child.stdout.setEncoding('utf8')
   let buffer = ''
   child.stdout.on('data', chunk => {
@@ -77,7 +85,11 @@ function spawnHook () {
     }
   })
   child.stderr.on('data', data => write('hook-stderr', { text: String(data) }))
-  child.on('exit', (code, signal) => { write('hook-exit', { code, signal }); rejectReady(new Error(`native hook exited before ready (${code || signal})`)) })
+  child.on('exit', (code, signal) => {
+    if (hookChild === child) hookChild = null
+    write('hook-exit', { code, signal })
+    rejectReady(new Error(`native hook exited before ready (${code || signal})`))
+  })
   return { child, ready }
 }
 function runDriver (name) {
@@ -114,10 +126,10 @@ async function runAutomated () {
     const summary = { generatedAt: new Date().toISOString(), platform: process.platform, electron: process.versions.electron, automatedInput: 'Win32 SendInput attempted; this controlled session did not expose a source-tab renderer event or event-level native mouse transition', primaryDisplay: display, sourceBounds: sourceBounds(), assertions, passed: false, status: 'Unavailable' }
     fs.writeFileSync(path.join(evidence, 'automated-windows-primary-summary.json'), `${JSON.stringify(summary, null, 2)}\n`)
     write('suite-observation', { status: summary.status })
-    setTimeout(() => { hook.child.kill(); app.quit() }, 600)
+    setTimeout(() => { stopHook(); app.quit() }, 600)
   } catch (error) {
     write('suite-error', { message: error.message })
-    hook.child.kill(); app.quit()
+    stopHook(); app.quit()
   }
 }
 
@@ -135,6 +147,7 @@ app.whenReady().then(() => {
     if (input.type === 'mouseDown' || input.type === 'mouseUp' || input.type === 'keyDown') write('electron-before-input', { inputType: input.type, key: input.key, button: input.button })
   })
   source.on('blur', () => machine.blur())
+  source.on('closed', stopHook)
   ipcMain.on('gesture:begin', () => startGesture('renderer-source-tab-mousedown'))
   ipcMain.on('gesture:cancel', (_event, reason) => machine.cancel(reason))
   ipcMain.on('gesture:renderer-event', (_event, name) => write(name))
@@ -146,3 +159,4 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => app.quit())
+app.on('before-quit', stopHook)

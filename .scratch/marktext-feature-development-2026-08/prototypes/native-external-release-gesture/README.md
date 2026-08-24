@@ -22,8 +22,9 @@ evidence rather than a passing gesture result. It writes a JSONL event trace and
 `evidence/automated-windows-primary-summary.json`.
 For a manual pass, omit `--automated`, drag the blue source tab beyond the window
 edge, then release on the desktop. The manual probe window and native hook remain
-active for 10 minutes (600,000 ms) after launch; the automated mode remains 30
-seconds. The live page and JSONL both expose the state.
+active for 60 minutes (3,600,000 ms) after launch; the automated mode remains 30
+seconds. Closing the probe window or quitting Electron explicitly terminates the
+native helper. The live page and JSONL both expose the state.
 
 ## Manual injected-session evidence
 
