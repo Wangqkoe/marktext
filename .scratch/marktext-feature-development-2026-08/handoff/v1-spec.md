@@ -29,7 +29,8 @@ The terms below are normative and come from [Issue 04](../issues/04-design-pane-
 | Document | Window-local editable buffer: canonical saved path or stable untitled identity, Markdown, save/conflict state, and portable history. |
 | View / Tab / Pane | A View owns cursor/selection/scroll/mode; a Tab orders one View in a Pane; a Pane owns ordered tabs, its active tab, and one editor adapter. |
 | WindowWorkspace | One or two panes, focused pane, and split ratio. A saved path is unique within it; a View moves but does not duplicate a Document. |
-| WorkspaceController | Deep owner of registry, reducer, routing and codec. Its ordinary public surface is `execute`, `getProjection`, and `subscribe`; assembly alone may `bindPaneEditor`. |
+| WorkspaceController | Deep renderer-side owner of registry, reducer and focus routing. Its ordinary public surface is `execute`, `getProjection`, and `subscribe`; assembly alone may `bindPaneEditor`. |
+| WorkspaceSessionCodec | The single pure, cross-process V1/V2 parser, validator, migrator and recovery-summary codec. It and domain/session types live in `packages/desktop/src/shared/workspace/`; main and renderer import it, neither imports the other. |
 | EditorLease | Unforgeable pane/view/mode binding. All report/flush/handoff operations validate it atomically; a stale lease is inert. |
 | DiskRevision / FileKey | Canonical file key plus SHA-256 of persisted bytes. mtime/size are hints only. |
 | TabTransfer / capsule | Deep main-process Move transaction. A capsule is durable serialized portable state, addressed by digest; it never carries DOM, Muya instances, callbacks, or leases. |
@@ -38,8 +39,11 @@ The terms below are normative and come from [Issue 04](../issues/04-design-pane-
 `FocusedPane` and no operation reads or writes ambient `currentFile`.
 `WorkspaceProjection` is immutable, JSON-only metadata/TOC/status/warnings, not
 Markdown, history, DOM, callbacks, or leases. Public results are `applied`,
-`needs-decision`, `rejected`, and `failed`; a post-authorization transfer reports
-`recovering` until it becomes `applied`. Capability tokens bind command kind,
+`needs-decision`, `rejected`, and `failed`—there is no fifth public result.
+After `commit-authorized`, `TabTransfer` may be internally recovering and the
+projection may show a recovery warning, but `execute` remains pending until
+recovery, activation, focus and checkpoint finish, then returns `applied`.
+Capability tokens bind command kind,
 targets and revisions, are single-use, and atomically reject stale/replayed or
 kind-mismatched operations.
 

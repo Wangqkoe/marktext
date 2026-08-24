@@ -1,11 +1,11 @@
-# T12 — Windows trial, final independent review, and user acceptance
+# T12 — Windows trial and readiness evidence
 
 Wave: 7 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T11
 
 ## Result
 
-Produce final acceptance evidence from a clean integrated Windows build and obtain
-the two distinct final gates: independent Standards + Spec review, then user
+Produce clean-build and Windows-trial readiness evidence for the coordination
+task. It neither organizes independent review nor requests or announces user
 Acceptance. This ticket changes only evidence/checklists; it does not fix code.
 
 Inputs: [V1 Spec](../v1-spec.md), [acceptance matrix](../acceptance-matrix.md), all
@@ -27,8 +27,10 @@ keyboard/theme/reduced motion/disableHtml/round-trip/export.
 
 ## Acceptance and handoff
 
-On the coordination branch run matrix A01–A14 commands, `git diff --check`, and
-clean status. Final review must be independent terra/high and explicitly report
-Standards and Spec outcomes. All critical defects must be zero; `Untested` cannot
-pass a required gate. Request user Acceptance only after review passes. Commit only
+On the coordination branch run the exact A14 commands and all applicable prior
+matrix commands, `git diff --check`, and clean status. Submit the recorded evidence
+and readiness/defect list to the coordination task. The coordinator creates the
+independent terra/high Standards + Spec reviews, routes every defect, requests user
+Acceptance after the reviews pass, and alone declares the stage complete. All
+critical defects must be zero; `Untested` cannot pass a required gate. Commit only
 evidence/matrix changes, with no push.

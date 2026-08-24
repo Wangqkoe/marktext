@@ -24,9 +24,9 @@ which tests use deterministic adapters versus real Electron.
 
 ## Acceptance and handoff
 
-Run `pnpm --filter marktext test:unit`, `pnpm --filter marktext test:e2e`,
-`pnpm --filter marktext typecheck`, `pnpm lint`, and desktop build smoke if the
-environment can build. Record each matrix status/evidence; no test skips without
+Run `pnpm -C packages/desktop exec playwright test test/e2e/workspace-transfer.spec.ts test/e2e/workspace-details-composition.spec.ts`,
+`pnpm -C packages/desktop test:unit`, `pnpm -C packages/desktop typecheck`,
+`pnpm lint`, and `pnpm -C packages/desktop build` when the environment can build. Record each matrix status/evidence; no test skips without
 reason. Manual composed workflow checks two panes plus Move/Open/details. Commit
 only E2E/evidence. Independent terra/high Standards + Spec reviews classify every
 failure and confirm integration did not weaken ownership/recovery behavior.

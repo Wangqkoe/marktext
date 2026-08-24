@@ -14,10 +14,13 @@ Inputs: [V1 Spec](../v1-spec.md); [Issue 02](../../issues/02-define-cross-window
 
 ## Ownership and boundary
 
-Create new `packages/desktop/src/main/tabTransfer/` and tests only under existing
-`packages/desktop/test/unit/specs/` (for example `tab-transfer-*.spec.ts`). Do
-not edit `main/ipc/*`, `main/windows/*`, `preload`, renderer, filesystem watcher,
-menus or E2E tests. T04 supplies file observation boundary rather than being copied.
+Create new `packages/desktop/src/main/tabTransfer/`, exact unit tests
+`packages/desktop/test/unit/specs/{tab-transfer-core,tab-transfer-recovery,tab-transfer-session-recovery}.spec.ts`,
+and, if transfer IPC types are necessary, only new
+`packages/desktop/src/shared/workspace/transfer.ts`. Main imports shared session
+types/codec from `src/shared/workspace/`, never renderer. Do not edit `main/ipc/*`,
+`main/windows/*`, preload, renderer, filesystem watcher, menus or E2E tests. T04
+supplies the FileObservation boundary rather than being copied.
 
 Implement `run(intent)`/`recover`, capsule schema+stream digest, sealed revision
 fence, request/transfer idempotency, authenticated epoch capabilities, requested →
@@ -25,10 +28,14 @@ completed WAL, separate fsynced intent/observed, exact pre/post authorization ru
 15s/5s timeouts, session owner migration/recovery window record, tombstone/GC and
 history/capsule corruption behavior. The memory TransferTransport must schedule
 ACK loss, duplicate/reorder, kill/restart and late events deterministically.
+`recovering` is internal TabTransfer/journal state and a projection warning only;
+the controller has no fifth public result and its `execute` promise remains pending
+until recovery completes and the final result is `applied`.
 
 ## Acceptance and handoff
 
-Run focused transfer tests plus `pnpm --filter marktext typecheck` and diff check.
+Run `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-recovery.spec.ts test/unit/specs/tab-transfer-session-recovery.spec.ts`,
+`pnpm -C packages/desktop typecheck`, and diff check.
 The suite kills/restarts at each phase and between intent/command/ACK/observed;
 checks source revision fence, history encoding/corruption, digest/tombstone,
 journal-owner migration, recovered last tab and no duplicate ownership. Manual

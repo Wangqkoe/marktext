@@ -21,6 +21,10 @@ Own existing `packages/desktop/src/renderer/src/store/editor.ts`,
 and focused unit tests. Do not edit `tabs.vue`, `editorWithTabs/index.vue`, tab
 context menu, main, preload, or Muya source. Coordinate no overlapping writes.
 
+The owned renderer glue may import `packages/desktop/src/shared/workspace/` but
+must not move, fork or redefine its session/domain types or codec. T02 completes
+and releases `editor.vue` before T03 mounts panes or T10 adds details integration.
+
 Migrate callers from ambient `currentFile`/unscoped bus callbacks within these
 files; retain compatibility only at bounded adapter edges until its callers move.
 Do not layer a second global store or retain an old event that can mutate without a
@@ -28,8 +32,9 @@ lease.
 
 ## Acceptance and handoff
 
-Run focused Vitest, `pnpm --filter marktext typecheck`, and affected Electron E2E
-(`tab-switch-cursor`, existing tabs/restart coverage). Manually alternate source
+Run `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-controller.spec.ts`,
+`pnpm -C packages/desktop exec playwright test test/e2e/tab-switch-cursor.spec.ts test/e2e/audit-tabs-restart.spec.ts`,
+and `pnpm -C packages/desktop typecheck`. Manually alternate source
 and WYSIWYG editing in two logical panes and prove cursor/scroll/history do not
 leak. Regression: editor-store, commands that consume its state, source mode and
 tab recovery. Commit only owned renderer files/tests. Require independent

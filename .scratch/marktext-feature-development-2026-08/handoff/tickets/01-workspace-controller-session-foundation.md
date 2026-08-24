@@ -4,9 +4,10 @@ Wave: 1 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: V1 Spec
 
 ## Result
 
-Create the deep, deterministic `WorkspaceController`, its typed command/result/
-projection/EditorLease contract, production+memory `WorkspacePersistence`,
-`DocumentIO`, `PaneEditorAdapter`, and pure `WorkspaceSessionCodec`. It must
+Create the deep, deterministic renderer `WorkspaceController`, its typed command/
+result/projection/EditorLease contract, production+memory `WorkspacePersistence`,
+`DocumentIO`, `PaneEditorAdapter`, and the pure cross-process `WorkspaceSessionCodec`.
+It must
 enforce V1 window/pane/document invariants, immutable JSON projection, atomic
 revision updates, V1 legacy migration, V2 validation and partial salvage. It does
 not wire existing Vue editor/global store, filesystem observation, IPC, menus or
@@ -17,11 +18,13 @@ Inputs: [V1 Spec](../v1-spec.md); [Issue 04](../../issues/04-design-pane-scoped-
 
 ## Ownership and boundary
 
-Create only new files below the existing `packages/desktop/src/renderer/src/`
-and `packages/desktop/test/unit/` roots: `workspace/` (controller, types,
-sessionCodec, adapters) and `test/unit/specs/workspace-*.spec.ts`. This ticket
-must not edit existing `store/editor.ts`, `components/editorWithTabs/*`,
-`src/main/*`, or `src/preload/*`; those belong to later tickets.
+Create `packages/desktop/src/shared/workspace/{types.ts,sessionCodec.ts,index.ts}`
+for all cross-process domain/session types and the sole pure codec. Create renderer-
+only `packages/desktop/src/renderer/src/workspace/` for controller and adapters,
+and exact tests `packages/desktop/test/unit/specs/workspace-controller.spec.ts` and
+`workspace-session-codec.spec.ts`. Main imports only `src/shared/workspace/`; it
+must never import renderer. Do not edit existing `store/editor.ts`,
+`components/editorWithTabs/*`, `src/main/*`, or `src/preload/*`.
 
 Implement exact controller surface and closed commands, lease atomicity, no
 ambient-current-file access, serializable projection, session V1→V2 migration,
@@ -30,8 +33,8 @@ transfer transport or persist Muya/DOM/callback objects.
 
 ## Acceptance and handoff
 
-Run `pnpm --filter marktext test:unit -- workspace` (or the precise Vitest file
-invocation), `pnpm --filter marktext typecheck`, and `git diff --check`. Tests
+Run `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-controller.spec.ts test/unit/specs/workspace-session-codec.spec.ts`,
+`pnpm -C packages/desktop typecheck`, and `git diff --check`. Tests
 cover two-pane/path uniqueness, move/collapse/last-tab, stale lease, capability
 replay, atomic rejection, immutable projection, migration, corruption and history
 salvage. Manual check: inspect a projection JSON round-trip.

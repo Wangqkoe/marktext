@@ -25,8 +25,9 @@ T09-owned HTML/PDF export still uses standard details markup and no editor-only 
 
 ## Acceptance and handoff
 
-Run `pnpm --filter marktext test:e2e -- details-disclosure`, targeted export tests,
-typecheck and diff check. Electron manual: light/dark, mouse, Enter/Space,
+Run `pnpm -C packages/desktop exec playwright test test/e2e/details-disclosure.spec.ts`,
+`pnpm -C packages/desktop exec vitest run test/unit/specs/exportHtml.spec.ts`,
+`pnpm -C packages/desktop typecheck`, and diff check. Electron manual: light/dark, mouse, Enter/Space,
 focus-visible, source button/Escape/Preview, disableHtml, reduced motion, screen
 reader spot check, HTML/PDF inspection. Regression: html-block input/export and
 theme styles. Commit only listed desktop source/test files; independent reviewer

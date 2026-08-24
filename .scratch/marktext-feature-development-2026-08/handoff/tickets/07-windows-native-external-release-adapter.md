@@ -14,22 +14,31 @@ Inputs: [V1 Spec](../v1-spec.md), [Issue 03](../../issues/03-prototype-tab-drag-
 
 ## Ownership and boundary
 
-Create new `packages/desktop/src/main/nativeGesture/` and its unit/integration
-tests beneath `packages/desktop/test/unit/specs/`; edit only the T06 transport
-registration seam if required. No renderer tab implementation, transfer WAL,
-menu/locales or prototype files may change.
+Create new `packages/desktop/src/main/nativeGesture/` and exact
+`packages/desktop/test/unit/specs/native-gesture.spec.ts`; edit only the T06
+transport registration seam if required. If a production native helper/module is
+needed, this ticket may also own its isolated source/resource directory,
+`packages/desktop/package.json`, the matching `pnpm-lock.yaml` entries, and
+`packages/desktop/electron-builder.yml` only for declared packaged resources.
+If no dependency/resource is needed, do not touch manifests. No renderer tab
+implementation, transfer WAL, menu/locales or prototype files may change; never
+copy the PowerShell/Add-Type prototype helper into production.
 
 Implement trusted left-down session creation, native move/up/Escape input,
 per-event DIP→physical hit-test snapshot, re-entry/re-arm, Escape cancel, endpoint
-epoch validation and supported capability gate. Never filter remote/assistive input
-using prototype injected flags. Enable only Windows single-primary proven shape;
+epoch validation and supported capability gate. Assert that the product never
+filters on an injected flag: for the same trusted gesture session, an eligible
+outside left-up commits for both remote/assistive flag values; inside-up, re-entry,
+Escape and old epoch never commit. Enable only Windows single-primary proven shape;
 mixed-DPI/multi-display/macOS/Linux must reject external detach while Move remains.
 
 ## Acceptance and handoff
 
-Run adapter state tests, typecheck and diff check. Windows manual physical smoke
+Run `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts`,
+`pnpm -C packages/desktop typecheck`, and diff check. Windows manual physical smoke
 records OS/Electron/display/scale, real cross-boundary release, inside-up, re-entry,
-Escape, blur and timeout; include remote/assistive compatibility check. The absent
-platform matrix records `Unavailable` plus verified disablement. Commit only owned
-adapter/tests. Independent terra/high Standards + Spec review verifies no crossing/
-blur/timeout bypass and reviews native resource shutdown.
+Escape, blur and timeout; real remote/assistive smoke may be `Unavailable`, but
+both automatic flag cases and disablement fallback must be Passed. Commit only
+owned adapter/package/resource/tests. Independent terra/high Standards + Spec
+review verifies no crossing/blur/timeout bypass, helper signing/packaging, resource
+cleanup, process exit, and fault-default-disable behavior.

@@ -13,10 +13,18 @@ Inputs: [V1 Spec](../v1-spec.md); [Issue 06](../../issues/06-research-current-ht
 
 ## Ownership and boundary
 
-Own existing `packages/muya/src/block/commonMark/html/{index.ts,htmlPreview.ts,htmlContainer.ts}`,
-`packages/muya/src/assets/styles/blockSyntax.css`, relevant config/sanitize/export
-files identified by source inspection, and Muya unit/e2e tests. Do not edit desktop
-renderer components/styles, export settings UI, menu/locales, or any workspace files.
+Own only the necessary subset of these already-inspected paths, with a pre-commit
+ownership check: `packages/muya/src/block/commonMark/html/{index.ts,htmlPreview.ts,htmlContainer.ts}`,
+`packages/muya/src/assets/styles/blockSyntax.css`, `packages/muya/src/config/index.ts`
+(preview/export DOMPurify config), `packages/muya/src/utils/index.ts` (only if
+`sanitize` behavior changes), `packages/muya/src/state/stateToMarkdown.ts`, and
+the affected `packages/muya/src/state/{renderToStaticHTML.ts,markdownToHtml.ts}`
+round-trip/export seams. Own exact tests
+`src/block/commonMark/html/__tests__/detailsDisclosure.spec.ts`,
+`src/state/__tests__/detailsRoundTrip.spec.ts`, and e2e
+`packages/muya/e2e/tests/{options/details-disclosure,security/details-sanitize}.spec.ts`.
+Do not edit desktop renderer components/styles, export settings UI, menu/locales,
+or workspace files, and do not open additional ownership merely by re-inspection.
 
 Implement Minimal inline row in inactive sanitized preview only: native summary
 semantics and focus, `</>` action outside summary, rebuild behavior, temporary
@@ -27,9 +35,12 @@ through double click.
 
 ## Acceptance and handoff
 
-Run Muya unit tests and its existing browser E2E environment (including disable-html
-and sanitization), plus typecheck/diff check. Verify `details`, `summary`, `open`,
+Run `pnpm -C packages/muya exec vitest run src/block/commonMark/html/__tests__/detailsDisclosure.spec.ts src/state/__tests__/detailsRoundTrip.spec.ts src/state/__tests__/renderToStaticHTML.spec.ts`,
+`pnpm -C packages/muya lint:types`, `pnpm -C packages/muya lint`, and
+`pnpm -C packages/muya/e2e e2e -- tests/options/details-disclosure.spec.ts tests/security/details-sanitize.spec.ts`.
+Verify `details`, `summary`, `open`,
 unsafe attributes, source↔preview, Enter/Space and round-trip. Manual browser
 check confirms native semantic tree/focus. Regression: generic html blocks,
-sanitize and export. Commit only Muya source/tests. Independent review verifies
+sanitize and export. Before commit verify `git diff --name-only` is only the
+declared necessary subset and tests. Independent review verifies
 that active source mode and standard export markup remain intact.
