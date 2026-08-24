@@ -11,7 +11,13 @@ export type ViewId = string
 export type FileKey = string
 export type DiskRevision = string
 
-export type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue }
+export type JsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | JsonValue[]
+  | { [key: string]: JsonValue }
 
 export interface CursorPosition {
   readonly line: number
@@ -70,15 +76,16 @@ export interface StartupTarget {
   readonly title?: string
 }
 
+export type NonEmptyReadonlyArray<T> = readonly [T, ...T[]]
+
 /** Explicit targets always win over ordinary (future) workspace restore. */
 export type StartupIntent =
   | { readonly kind: 'no-target' }
-  | { readonly kind: 'explicit-targets'; readonly targets: readonly StartupTarget[] }
+  | { readonly kind: 'explicit-targets'; readonly targets: NonEmptyReadonlyArray<StartupTarget> }
 
-export interface WorkspaceSeed {
-  readonly kind: 'clean-new-tab' | 'explicit-targets'
-  readonly targets: readonly StartupTarget[]
-}
+export type WorkspaceSeed =
+  | { readonly kind: 'clean-new-tab'; readonly targets: readonly [] }
+  | { readonly kind: 'explicit-targets'; readonly targets: NonEmptyReadonlyArray<StartupTarget> }
 
 export interface CrashDraftCheckpoint {
   readonly documentId: DocumentId

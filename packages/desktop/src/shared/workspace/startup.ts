@@ -1,5 +1,12 @@
-import type { EmergencyRecovery, EmergencyScan, StartupIntent, WorkspaceSeed } from './types'
+import type {
+  EmergencyRecovery,
+  EmergencyScan,
+  NonEmptyReadonlyArray,
+  StartupIntent,
+  WorkspaceSeed
+} from './types'
 
+// prettier-ignore
 export class EmergencyRecoveryScanError extends Error {
   readonly crashDrafts?: unknown
   readonly moves?: unknown
@@ -16,18 +23,27 @@ export class EmergencyRecoveryScanError extends Error {
  * V1 startup has no normal workspace restore branch.  Emergency sources are
  * scanned first and independently, even when explicit files were supplied.
  */
+// prettier-ignore
 export class DefaultStartupPolicy {
   seed(intent: StartupIntent): WorkspaceSeed {
     if (intent.kind === 'explicit-targets') {
-      return { kind: 'explicit-targets', targets: [...intent.targets] }
+      if (intent.targets.length > 0) {
+        return {
+          kind: 'explicit-targets',
+          targets: [...intent.targets] as NonEmptyReadonlyArray<(typeof intent.targets)[number]>
+        }
+      }
     }
     return { kind: 'clean-new-tab', targets: [] }
   }
 
-  async start(intent: StartupIntent, emergency: EmergencyRecovery): Promise<{
-    readonly emergency: EmergencyScan
-    readonly seed: WorkspaceSeed
-  }> {
+  async start(
+    intent: StartupIntent,
+    emergency: EmergencyRecovery
+  ): Promise<{
+      readonly emergency: EmergencyScan
+      readonly seed: WorkspaceSeed
+    }> {
     const [crashDrafts, moves] = await Promise.allSettled([
       Promise.resolve().then(() => emergency.crashDrafts.scan()),
       Promise.resolve().then(() => emergency.moves.scan())

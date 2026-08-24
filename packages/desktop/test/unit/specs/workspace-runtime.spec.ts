@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type { EditorBindingSnapshot, EditorLease, EditorReport, PaneEditorAdapter, PaneEditorBinding, WorkspaceCapability } from '@shared/workspace'
+import type {
+  EditorBindingSnapshot,
+  EditorLease,
+  EditorReport,
+  PaneEditorAdapter,
+  PaneEditorBinding,
+  WorkspaceCapability
+} from '@shared/workspace'
 import { createWorkspaceRuntime } from '@/workspace'
 
+// prettier-ignore
 class MemoryEditor implements PaneEditorAdapter {
   readonly snapshots: EditorBindingSnapshot[] = []
   readonly reports: EditorReport[] = []
@@ -28,18 +36,23 @@ class MemoryEditor implements PaneEditorAdapter {
   }
 }
 
+// prettier-ignore
 function deferred(): { readonly promise: Promise<void>; readonly release: () => void } {
   let release!: () => void
-  const promise = new Promise<void>((resolve) => { release = resolve })
+  const promise = new Promise<void>((resolve) => {
+    release = resolve
+  })
   return { promise, release }
 }
 
+// prettier-ignore
 function currentLease(binding: PaneEditorBinding): EditorLease {
   const lease = binding.getLease()
   if (!lease) throw new Error('expected a current editor lease')
   return lease
 }
 
+// prettier-ignore
 describe('WorkspaceRuntime', () => {
   it('isolates both panes and flushes/refreshes every active-view transition', async() => {
     const workspace = createWorkspaceRuntime([
@@ -61,10 +74,28 @@ describe('WorkspaceRuntime', () => {
     expect(left.active?.document.markdown).toBe('')
     expect(right.active?.document.markdown).toBe('two')
     const rightRefreshes = right.snapshots.length
-    expect((await workspace.execute({ kind: 'focus-pane', paneId: 'right' })).status).toBe('applied')
+    expect((await workspace.execute({ kind: 'focus-pane', paneId: 'right' })).status).toBe(
+      'applied'
+    )
     expect(right.snapshots.length).toBeGreaterThan(rightRefreshes)
-    expect((await workspace.execute({ kind: 'activate-view', paneId: 'right', viewId: rightView.viewId })).status).toBe('applied')
-    expect((await workspace.execute({ kind: 'move-view', viewId: leftView.viewId, targetPaneId: 'right' })).status).toBe('applied')
+    expect(
+      (
+        await workspace.execute({
+          kind: 'activate-view',
+          paneId: 'right',
+          viewId: rightView.viewId
+        })
+      ).status
+    ).toBe('applied')
+    expect(
+      (
+        await workspace.execute({
+          kind: 'move-view',
+          viewId: leftView.viewId,
+          targetPaneId: 'right'
+        })
+      ).status
+    ).toBe('applied')
     expect(workspace.getProjection().panes).toHaveLength(2)
     expect(leftBinding.getSnapshot(leftLease)).toBeUndefined()
   })
@@ -79,8 +110,14 @@ describe('WorkspaceRuntime', () => {
     expect(needsDecision.status).toBe('needs-decision')
     expect(editor.flushCount).toBeGreaterThan(0)
     if (needsDecision.status !== 'needs-decision') throw new Error('expected decision')
-    expect((await workspace.execute({ kind: 'commit-authorized', capability: needsDecision.capability })).status).toBe('applied')
-    expect((await workspace.execute({ kind: 'commit-authorized', capability: needsDecision.capability })).status).toBe('rejected')
+    expect(
+      (await workspace.execute({ kind: 'commit-authorized', capability: needsDecision.capability }))
+        .status
+    ).toBe('applied')
+    expect(
+      (await workspace.execute({ kind: 'commit-authorized', capability: needsDecision.capability }))
+        .status
+    ).toBe('rejected')
     const pane = workspace.getProjection().panes[0]!
     expect(pane.tabs).toHaveLength(1)
     expect(pane.tabs[0]!.title).toBe('New Tab')
@@ -91,7 +128,10 @@ describe('WorkspaceRuntime', () => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
     await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
     const right = workspace.getProjection().panes[1]!.tabs[0]!
-    expect((await workspace.execute({ kind: 'move-view', viewId: right.viewId, targetPaneId: 'left' })).status).toBe('applied')
+    expect(
+      (await workspace.execute({ kind: 'move-view', viewId: right.viewId, targetPaneId: 'left' }))
+        .status
+    ).toBe('applied')
     const projection = workspace.getProjection()
     expect(projection.panes).toHaveLength(1)
     expect(projection.panes[0]!.tabs.map((tab) => tab.fileKey)).toEqual(['/one.md', '/two.md'])
@@ -116,13 +156,22 @@ describe('WorkspaceRuntime', () => {
       const originalLease = currentLease(left)
       const originalRefreshes = leftEditor.snapshots.length
 
-      expect((await workspace.execute({ kind: 'move-view', viewId: moved.viewId, targetPaneId: 'right' })).status).toBe('applied')
+      expect(
+        (
+          await workspace.execute({
+            kind: 'move-view',
+            viewId: moved.viewId,
+            targetPaneId: 'right'
+          })
+        ).status
+      ).toBe('applied')
       const leftPane = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
       const rightPane = workspace.getProjection().panes.find((pane) => pane.paneId === 'right')!
       expect(leftPane.tabs.map((tab) => tab.fileKey)).toEqual(
         movingKind === 'active' ? ['/two.md', '/three.md'] : ['/one.md', '/three.md']
       )
-      const expectedSourceActive = movingKind === 'active' ? leftPane.tabs[0]!.viewId : originalActive
+      const expectedSourceActive =
+        movingKind === 'active' ? leftPane.tabs[0]!.viewId : originalActive
       expect(leftPane.activeViewId).toBe(expectedSourceActive)
       expect(leftEditor.active?.viewId).toBe(expectedSourceActive)
       expect(currentLease(left).viewId).toBe(expectedSourceActive)
@@ -152,12 +201,180 @@ describe('WorkspaceRuntime', () => {
     const before = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
     const activeViewId = before.activeViewId
     rightEditor.failAfterRefresh = true
-    expect((await workspace.execute({ kind: 'move-view', viewId: activeViewId, targetPaneId: 'right' })).status).toBe('failed')
+    expect(
+      (await workspace.execute({ kind: 'move-view', viewId: activeViewId, targetPaneId: 'right' }))
+        .status
+    ).toBe('failed')
     const restored = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
     expect(restored.activeViewId).toBe(activeViewId)
     expect(restored.tabs.map((tab) => tab.viewId)).toEqual(before.tabs.map((tab) => tab.viewId))
     expect(leftEditor.active?.viewId).toBe(activeViewId)
     expect(currentLease(left).viewId).toBe(activeViewId)
+  })
+
+  it.each(['active', 'non-active'] as const)(
+    'flushes and preserves target edits before a non-collapse %s move',
+    async(movingKind) => {
+      const workspace = createWorkspaceRuntime([
+        { fileKey: '/one.md' },
+        { fileKey: '/two.md' },
+        { fileKey: '/three.md' },
+        { fileKey: '/four.md' }
+      ])
+      await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+      const left = await workspace.bindPaneEditor('left', new MemoryEditor())
+      const rightEditor = new MemoryEditor()
+      const right = await workspace.bindPaneEditor('right', rightEditor)
+      const source = workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!
+      const previousTargetViewId = currentLease(right).viewId
+      const moved = movingKind === 'active' ? source.tabs[0]! : source.tabs[1]!
+      rightEditor.reports.push({
+        markdown: 'target draft',
+        portableHistory: { version: 1, value: ['target history'] },
+        toc: [{ id: 'target-toc', title: 'Target', level: 1 }],
+        status: { wordCount: 9 }
+      })
+      expect(
+        (
+          await workspace.execute({
+            kind: 'move-view',
+            viewId: moved.viewId,
+            targetPaneId: 'right'
+          })
+        ).status
+      ).toBe('applied')
+      expect(currentLease(right).viewId).toBe(moved.viewId)
+      await workspace.execute({
+        kind: 'activate-view',
+        paneId: 'right',
+        viewId: previousTargetViewId
+      })
+      const preserved = right.getSnapshot(currentLease(right))!
+      expect(preserved.document).toMatchObject({ markdown: 'target draft', documentRevision: 1 })
+      expect(preserved.document.portableHistory.value).toEqual(['target history'])
+      expect(preserved.toc).toEqual([{ id: 'target-toc', title: 'Target', level: 1 }])
+      expect(preserved.status).toEqual({ wordCount: 9 })
+      expect(currentLease(left).viewId).toBe(
+        movingKind === 'active'
+          ? workspace.getProjection().panes.find((pane) => pane.paneId === 'left')!.activeViewId
+          : source.activeViewId
+      )
+    }
+  )
+
+  it('retains flushed target edits in the adapter rollback snapshot when non-collapse move refresh fails', async() => {
+    const workspace = createWorkspaceRuntime([
+      { fileKey: '/one.md' },
+      { fileKey: '/two.md' },
+      { fileKey: '/three.md' },
+      { fileKey: '/four.md' }
+    ])
+    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    const left = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const rightEditor = new MemoryEditor()
+    await workspace.bindPaneEditor('right', rightEditor)
+    const moving = workspace
+      .getProjection()
+      .panes.find((pane) => pane.paneId === 'left')!.activeViewId
+    rightEditor.reports.push({
+      markdown: 'rollback target draft',
+      portableHistory: { version: 1, value: ['rollback'] },
+      toc: [{ id: 'rollback-toc', title: 'Rollback', level: 1 }],
+      status: { wordCount: 10 }
+    })
+    rightEditor.failAfterRefresh = true
+    expect(
+      (await workspace.execute({ kind: 'move-view', viewId: moving, targetPaneId: 'right' })).status
+    ).toBe('failed')
+    expect(rightEditor.active?.document).toMatchObject({
+      markdown: 'rollback target draft',
+      documentRevision: 1
+    })
+    expect(rightEditor.active?.document.portableHistory.value).toEqual(['rollback'])
+    expect(rightEditor.active?.toc).toEqual([{ id: 'rollback-toc', title: 'Rollback', level: 1 }])
+    expect(rightEditor.active?.status).toEqual({ wordCount: 10 })
+    expect(currentLease(left).viewId).toBe(moving)
+  })
+
+  it('flushes survivor edits before move/close collapse and target edits before focus refresh', async() => {
+    const moveWorkspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
+    await moveWorkspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    const moveLeftEditor = new MemoryEditor()
+    const moveLeft = await moveWorkspace.bindPaneEditor('left', moveLeftEditor)
+    const moveRight = await moveWorkspace.bindPaneEditor('right', new MemoryEditor())
+    const survivorViewId = currentLease(moveLeft).viewId
+    moveLeftEditor.reports.push({
+      markdown: 'survivor move draft',
+      portableHistory: { version: 1, value: ['move history'] },
+      toc: [{ id: 'move-toc', title: 'Move', level: 1 }]
+    })
+    expect(
+      (
+        await moveWorkspace.execute({
+          kind: 'move-view',
+          viewId: currentLease(moveRight).viewId,
+          targetPaneId: 'left'
+        })
+      ).status
+    ).toBe('applied')
+    await moveWorkspace.execute({ kind: 'activate-view', paneId: 'left', viewId: survivorViewId })
+    expect(moveLeft.getSnapshot(currentLease(moveLeft))?.document.markdown).toBe(
+      'survivor move draft'
+    )
+    expect(moveLeft.getSnapshot(currentLease(moveLeft))?.toc[0]?.id).toBe('move-toc')
+    expect(moveLeft.getSnapshot(currentLease(moveLeft))?.document.portableHistory.value).toEqual([
+      'move history'
+    ])
+
+    const closeWorkspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
+    await closeWorkspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    const closeLeftEditor = new MemoryEditor()
+    const closeLeft = await closeWorkspace.bindPaneEditor('left', closeLeftEditor)
+    const closeRight = await closeWorkspace.bindPaneEditor('right', new MemoryEditor())
+    closeLeftEditor.reports.push({
+      markdown: 'survivor close draft',
+      portableHistory: { version: 1, value: ['close history'] },
+      status: { wordCount: 4 }
+    })
+    expect(
+      (
+        await closeWorkspace.execute({
+          kind: 'close-view',
+          viewId: currentLease(closeRight).viewId
+        })
+      ).status
+    ).toBe('applied')
+    expect(closeLeft.getSnapshot(currentLease(closeLeft))?.document.markdown).toBe(
+      'survivor close draft'
+    )
+    expect(closeLeft.getSnapshot(currentLease(closeLeft))?.status).toEqual({ wordCount: 4 })
+    expect(closeLeft.getSnapshot(currentLease(closeLeft))?.document.portableHistory.value).toEqual([
+      'close history'
+    ])
+
+    const focusWorkspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
+    await focusWorkspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await focusWorkspace.bindPaneEditor('left', new MemoryEditor())
+    const focusRightEditor = new MemoryEditor()
+    const focusRight = await focusWorkspace.bindPaneEditor('right', focusRightEditor)
+    await focusWorkspace.execute({ kind: 'focus-pane', paneId: 'left' })
+    focusRightEditor.reports.push({
+      markdown: 'focus target draft',
+      portableHistory: { version: 1, value: ['focus history'] },
+      toc: [{ id: 'focus-toc', title: 'Focus', level: 1 }],
+      status: { wordCount: 7 }
+    })
+    expect((await focusWorkspace.execute({ kind: 'focus-pane', paneId: 'right' })).status).toBe(
+      'applied'
+    )
+    expect(focusRight.getSnapshot(currentLease(focusRight))?.document.markdown).toBe(
+      'focus target draft'
+    )
+    expect(focusRight.getSnapshot(currentLease(focusRight))?.document.portableHistory.value).toEqual([
+      'focus history'
+    ])
+    expect(focusWorkspace.getProjection().toc[0]?.id).toBe('focus-toc')
+    expect(focusWorkspace.getProjection().status).toEqual({ wordCount: 7 })
   })
 
   it('keeps the surviving binding continuous across collapse in both directions', async() => {
@@ -172,8 +389,17 @@ describe('WorkspaceRuntime', () => {
       const targetPane = direction === 'right-to-left' ? 'left' : 'right'
       const survivorBinding = direction === 'right-to-left' ? leftBinding : rightBinding
       const oldLease = currentLease(survivorBinding)
-      const moved = workspace.getProjection().panes.find((pane) => pane.paneId === sourcePane)!.tabs[0]!
-      expect((await workspace.execute({ kind: 'move-view', viewId: moved.viewId, targetPaneId: targetPane })).status).toBe('applied')
+      const moved = workspace.getProjection().panes.find((pane) => pane.paneId === sourcePane)!
+        .tabs[0]!
+      expect(
+        (
+          await workspace.execute({
+            kind: 'move-view',
+            viewId: moved.viewId,
+            targetPaneId: targetPane
+          })
+        ).status
+      ).toBe('applied')
       expect(workspace.getProjection().panes).toHaveLength(1)
       expect(survivorBinding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
       const nextLease = currentLease(survivorBinding)
@@ -191,11 +417,21 @@ describe('WorkspaceRuntime', () => {
     const rightBinding = await workspace.bindPaneEditor('right', rightEditor)
     const revision = workspace.getProjection().workspaceRevision
     const moved = workspace.getProjection().panes[0]!.tabs[0]!
+    rightEditor.reports.push({
+      markdown: 'collapse rollback draft',
+      toc: [{ id: 'rollback', title: 'Rollback', level: 1 }],
+      status: { wordCount: 6 }
+    })
     rightEditor.failAfterRefresh = true
-    expect((await workspace.execute({ kind: 'move-view', viewId: moved.viewId, targetPaneId: 'right' })).status).toBe('failed')
-    expect(workspace.getProjection().workspaceRevision).toBe(revision)
+    expect(
+      (await workspace.execute({ kind: 'move-view', viewId: moved.viewId, targetPaneId: 'right' }))
+        .status
+    ).toBe('failed')
+    expect(workspace.getProjection().workspaceRevision).toBeGreaterThan(revision)
     expect(workspace.getProjection().panes).toHaveLength(2)
     expect(rightEditor.active?.paneId).toBe('right')
+    expect(rightEditor.active?.document.markdown).toBe('collapse rollback draft')
+    expect(rightEditor.active?.toc[0]?.id).toBe('rollback')
     expect(rightBinding.getLease()).toBeUndefined()
   })
 
@@ -207,8 +443,12 @@ describe('WorkspaceRuntime', () => {
       const rightBinding = await workspace.bindPaneEditor('right', new MemoryEditor())
       const survivorBinding = closingPane === 'left' ? rightBinding : leftBinding
       const oldLease = currentLease(survivorBinding)
-      const closingView = workspace.getProjection().panes.find((pane) => pane.paneId === closingPane)!.tabs[0]!
-      expect((await workspace.execute({ kind: 'close-view', viewId: closingView.viewId })).status).toBe('applied')
+      const closingView = workspace
+        .getProjection()
+        .panes.find((pane) => pane.paneId === closingPane)!.tabs[0]!
+      expect(
+        (await workspace.execute({ kind: 'close-view', viewId: closingView.viewId })).status
+      ).toBe('applied')
       expect(workspace.getProjection().panes).toHaveLength(1)
       expect(survivorBinding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
       expect(currentLease(survivorBinding).paneId).toBe('left')
@@ -218,8 +458,12 @@ describe('WorkspaceRuntime', () => {
   it('focuses an existing FileKey rather than creating a second Document', async() => {
     const workspace = createWorkspaceRuntime([{ documentId: 'saved', fileKey: '/same.md' }])
     await workspace.execute({ kind: 'new-tab' })
-    expect((await workspace.execute({ kind: 'open-document', document: { fileKey: '/same.md' } })).status).toBe('applied')
-    expect(workspace.getProjection().panes[0]!.tabs.filter((tab) => tab.fileKey === '/same.md')).toHaveLength(1)
+    expect(
+      (await workspace.execute({ kind: 'open-document', document: { fileKey: '/same.md' } })).status
+    ).toBe('applied')
+    expect(
+      workspace.getProjection().panes[0]!.tabs.filter((tab) => tab.fileKey === '/same.md')
+    ).toHaveLength(1)
   })
 
   it('replaces a stale lease through the same binding after a successful controller transition', async() => {
@@ -288,7 +532,10 @@ describe('WorkspaceRuntime', () => {
     const rightDocument = rightEditor.active?.document
     const before = workspace.getProjection().workspaceRevision
 
-    const reported = left.report(leftLease, { markdown: 'left-only', portableHistory: { version: 1, value: ['left'] } })
+    const reported = left.report(leftLease, {
+      markdown: 'left-only',
+      portableHistory: { version: 1, value: ['left'] }
+    })
     expect(reported.status).toBe('applied')
     expect(rightEditor.snapshots).toHaveLength(rightRefreshes)
     expect(currentLease(right)).toBe(rightLease)
@@ -300,7 +547,10 @@ describe('WorkspaceRuntime', () => {
     expect(workspace.getProjection().workspaceRevision).toBe(opened.workspaceRevision)
     expect(left.report(leftLease, { markdown: 'stale' }).status).toBe('rejected')
     const currentLeft = currentLease(left)
-    expect(left.getSnapshot(currentLeft)?.document).toMatchObject({ markdown: '', documentRevision: 0 })
+    expect(left.getSnapshot(currentLeft)?.document).toMatchObject({
+      markdown: '',
+      documentRevision: 0
+    })
     expect(rightEditor.snapshots).toHaveLength(rightRefreshes)
     expect(rightEditor.active?.document).toEqual(rightDocument)
     expect(right.report(rightLease, { markdown: 'right-only' }).status).toBe('applied')
@@ -357,10 +607,22 @@ describe('WorkspaceRuntime', () => {
     const decision = await workspace.execute({ kind: 'close-view', viewId: lease.viewId })
     if (decision.status !== 'needs-decision') throw new Error('expected decision')
     const forged = { ...decision.capability } as WorkspaceCapability
-    expect((await workspace.execute({ kind: 'commit-authorized', capability: forged })).status).toBe('rejected')
-    expect((await workspace.execute({ kind: 'commit-authorized', capability: { action: 'wrong-kind' } as unknown as WorkspaceCapability })).status).toBe('rejected')
+    expect(
+      (await workspace.execute({ kind: 'commit-authorized', capability: forged })).status
+    ).toBe('rejected')
+    expect(
+      (
+        await workspace.execute({
+          kind: 'commit-authorized',
+          capability: { action: 'wrong-kind' } as unknown as WorkspaceCapability
+        })
+      ).status
+    ).toBe('rejected')
     binding.report(lease, { markdown: 'changed again' })
-    expect((await workspace.execute({ kind: 'commit-authorized', capability: decision.capability })).status).toBe('rejected')
+    expect(
+      (await workspace.execute({ kind: 'commit-authorized', capability: decision.capability }))
+        .status
+    ).toBe('rejected')
   })
 
   it('accepts a genuine capability once, rejects replay, and isolates subscriber exceptions', async() => {
@@ -370,21 +632,35 @@ describe('WorkspaceRuntime', () => {
     binding.report(lease, { markdown: 'dirty' })
     const decision = await workspace.execute({ kind: 'close-view', viewId: lease.viewId })
     if (decision.status !== 'needs-decision') throw new Error('expected decision')
-    expect((await workspace.execute({ kind: 'commit-authorized', capability: decision.capability })).status).toBe('applied')
-    expect((await workspace.execute({ kind: 'commit-authorized', capability: decision.capability })).status).toBe('rejected')
+    expect(
+      (await workspace.execute({ kind: 'commit-authorized', capability: decision.capability }))
+        .status
+    ).toBe('applied')
+    expect(
+      (await workspace.execute({ kind: 'commit-authorized', capability: decision.capability }))
+        .status
+    ).toBe('rejected')
     let observed = 0
-    workspace.subscribe(() => { throw new Error('subscriber failure') })
-    workspace.subscribe(() => { observed += 1 })
+    workspace.subscribe(() => {
+      throw new Error('subscriber failure')
+    })
+    workspace.subscribe(() => {
+      observed += 1
+    })
     await workspace.execute({ kind: 'new-tab' })
     expect(observed).toBe(1)
   })
 
   it('returns an immutable, JSON-only projection', () => {
-    const workspace = createWorkspaceRuntime([{ markdown: 'secret markdown', portableHistory: { version: 1, value: ['secret'] } }])
+    const workspace = createWorkspaceRuntime([
+      { markdown: 'secret markdown', portableHistory: { version: 1, value: ['secret'] } }
+    ])
     const projection = workspace.getProjection()
     expect(Object.isFrozen(projection)).toBe(true)
     expect(JSON.stringify(projection)).not.toContain('secret')
-    expect(() => { (projection.panes as unknown as unknown[]).push('mutate') }).toThrow()
+    expect(() => {
+      ;(projection.panes as unknown as unknown[]).push('mutate')
+    }).toThrow()
   })
 
   it('routes JSON-only TOC/status through the focused pane and exposes assembly warnings immutably', async() => {
@@ -401,12 +677,18 @@ describe('WorkspaceRuntime', () => {
       toc: [{ id: 'right-heading', title: 'Right', level: 2 }],
       status: { wordCount: 5 }
     })
-    await workspace.setWorkspaceWarnings([{ id: 'conflict-1', kind: 'conflict', message: 'disk changed' }])
+    await workspace.setWorkspaceWarnings([
+      { id: 'conflict-1', kind: 'conflict', message: 'disk changed' }
+    ])
     const rightProjection = workspace.getProjection()
     expect(rightProjection.toc).toEqual([{ id: 'right-heading', title: 'Right', level: 2 }])
     expect(rightProjection.status).toEqual({ wordCount: 5 })
-    expect(rightProjection.panes.find((pane) => pane.paneId === 'left')!.toc[0]!.id).toBe('left-heading')
-    expect(rightProjection.warnings).toEqual([{ id: 'conflict-1', kind: 'conflict', message: 'disk changed' }])
+    expect(rightProjection.panes.find((pane) => pane.paneId === 'left')!.toc[0]!.id).toBe(
+      'left-heading'
+    )
+    expect(rightProjection.warnings).toEqual([
+      { id: 'conflict-1', kind: 'conflict', message: 'disk changed' }
+    ])
     expect(Object.isFrozen(rightProjection.warnings)).toBe(true)
     expect(JSON.parse(JSON.stringify(rightProjection)).warnings[0].id).toBe('conflict-1')
     await workspace.execute({ kind: 'focus-pane', paneId: 'left' })
