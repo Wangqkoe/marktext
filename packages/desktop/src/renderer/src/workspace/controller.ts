@@ -201,7 +201,13 @@ export class WorkspaceController implements WorkspaceControllerContract {
         const nextState = { ...view.state, mode }
         const beforeSnapshot = this.snapshotFor(candidate.paneId, candidate.viewId)
         try {
-          await bound.adapter.refresh(this.snapshotForRecord(candidate.paneId, view, this.documents.get(view.documentId)!, nextState))
+          await bound.adapter.refresh(this.snapshotForRecord(
+            candidate.paneId,
+            view,
+            this.documents.get(view.documentId)!,
+            nextState,
+            this.nextWorkspaceRevision()
+          ))
           view.state = nextState
           this.issueLease(bound, candidate.paneId, candidate.viewId, mode)
         } catch (error) {
@@ -214,7 +220,17 @@ export class WorkspaceController implements WorkspaceControllerContract {
         }
       })),
       refresh: async(candidate) => this.enqueue(async() => this.withLease(bound, candidate, async() => {
-        await bound.adapter.refresh(this.snapshotFor(candidate.paneId, candidate.viewId))
+        const beforeSnapshot = this.snapshotFor(candidate.paneId, candidate.viewId)
+        try {
+          await bound.adapter.refresh(this.snapshotFor(candidate.paneId, candidate.viewId, this.nextWorkspaceRevision()))
+        } catch (error) {
+          try {
+            await bound.adapter.refresh(beforeSnapshot)
+          } catch {
+            // withLease invalidates the lease below; the adapter has no writer.
+          }
+          throw error
+        }
       }))
     }
   }
@@ -268,7 +284,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     await this.flushPane(paneId)
     const doc = this.makeDocument({})
     const view = this.makeView(doc.id)
-    await this.refreshAdapter(paneId, this.snapshotForRecord(paneId, view, doc))
+    await this.refreshAdapter(paneId, this.snapshotForRecord(paneId, view, doc, view.state, this.nextWorkspaceRevision()))
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
@@ -291,7 +307,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     await this.flushPane(pane.id)
     const doc = this.makeDocument(input)
     const view = this.makeView(doc.id)
-    await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
+    await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc, view.state, this.nextWorkspaceRevision()))
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
@@ -305,7 +321,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (!pane || !pane.viewIds.includes(viewId)) return this.rejected('view is not in pane')
     if (pane.activeViewId !== viewId) {
       await this.flushPane(paneId)
-      await this.refreshAdapter(paneId, this.snapshotFor(paneId, viewId))
+      await this.refreshAdapter(paneId, this.snapshotFor(paneId, viewId, this.nextWorkspaceRevision()))
       pane.activeViewId = viewId
     }
     if (focus && this.focusedPaneId !== paneId) await this.focus(paneId, false)
@@ -318,7 +334,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (!next) return this.rejected('missing pane')
     if (this.focusedPaneId !== paneId) {
       await this.flushPane(this.focusedPaneId)
-      await this.refreshAdapter(paneId, this.snapshotFor(paneId, next.activeViewId))
+      await this.refreshAdapter(paneId, this.snapshotFor(paneId, next.activeViewId, this.nextWorkspaceRevision()))
       this.focusedPaneId = paneId
     }
     if (shouldCommit) this.commit()
@@ -337,7 +353,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const moved = this.view(movingId)
     const newSourceActive = remaining[0]!
     const adapterActiveId = targetPaneId === 'left' ? moved.id : newSourceActive
-    await this.refreshAdapter('left', this.snapshotFor('left', adapterActiveId))
+    await this.refreshAdapter('left', this.snapshotFor('left', adapterActiveId, this.nextWorkspaceRevision()))
     const sourcePane: PaneRecord = { id: sourceId, viewIds: remaining, activeViewId: newSourceActive }
     const targetPane: PaneRecord = { id: targetPaneId, viewIds: [moved.id], activeViewId: moved.id }
     this.panes.clear()
@@ -355,13 +371,13 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (source.id === target.id) return this.rejected('view is already in target pane')
     await this.flushPane(source.id)
     const remaining = source.viewIds.filter((id) => id !== viewId)
-    const sourceSnapshot = remaining.length > 0 ? this.snapshotFor(source.id, remaining[0]!) : undefined
+    const sourceSnapshot = remaining.length > 0 ? this.snapshotFor(source.id, remaining[0]!, this.nextWorkspaceRevision()) : undefined
     if (sourceSnapshot) await this.refreshAdapter(source.id, sourceSnapshot)
     try {
       if (remaining.length === 0) {
         await this.collapse(source.id, [...target.viewIds, viewId], viewId)
       } else {
-        await this.refreshAdapter(target.id, this.snapshotFor(target.id, viewId))
+        await this.refreshAdapter(target.id, this.snapshotFor(target.id, viewId, this.nextWorkspaceRevision()))
       }
     } catch (error) {
       if (sourceSnapshot) await this.refreshAdapter(source.id, this.snapshotFor(source.id, source.activeViewId))
@@ -403,7 +419,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const remaining = pane.viewIds.filter((id) => id !== viewId)
     if (remaining.length > 0) {
       const nextId = remaining.includes(pane.activeViewId) ? pane.activeViewId : remaining[0]!
-      await this.refreshAdapter(pane.id, this.snapshotFor(pane.id, nextId))
+      await this.refreshAdapter(pane.id, this.snapshotFor(pane.id, nextId, this.nextWorkspaceRevision()))
       pane.viewIds = remaining
       pane.activeViewId = nextId
     } else if (this.panes.size === 2) {
@@ -415,7 +431,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     } else {
       const clean = this.makeDocument({})
       const replacement = this.makeView(clean.id)
-      await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, replacement, clean))
+      await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, replacement, clean, replacement.state, this.nextWorkspaceRevision()))
       this.documents.set(clean.id, clean)
       this.views.set(replacement.id, replacement)
       pane.viewIds = [replacement.id]
@@ -432,7 +448,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (adapter) {
       const view = this.view(activeViewId)
       const document = this.documents.get(view.documentId)!
-      await this.refreshAdapter(survivor.id, this.snapshotForRecord('left', view, document))
+      await this.refreshAdapter(survivor.id, this.snapshotForRecord('left', view, document, view.state, this.nextWorkspaceRevision()))
     }
     for (const bound of this.adapters.values()) {
       if (bound !== adapter) this.invalidate(bound)
@@ -517,13 +533,13 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return changedDocument || changedView || changedAuxiliary
   }
 
-  private snapshotFor(paneId: PaneId, viewId: ViewId): EditorBindingSnapshot {
+  private snapshotFor(paneId: PaneId, viewId: ViewId, workspaceRevision = this.workspaceRevision): EditorBindingSnapshot {
     const view = this.view(viewId)
     const document = this.documents.get(view.documentId)!
-    return this.snapshotForRecord(paneId, view, document)
+    return this.snapshotForRecord(paneId, view, document, view.state, workspaceRevision)
   }
 
-  private snapshotForRecord(paneId: PaneId, view: ViewRecord, document: DocumentRecord, state = view.state): EditorBindingSnapshot {
+  private snapshotForRecord(paneId: PaneId, view: ViewRecord, document: DocumentRecord, state = view.state, workspaceRevision = this.workspaceRevision): EditorBindingSnapshot {
     return freeze({
       paneId,
       viewId: view.id,
@@ -539,7 +555,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       view: clone(state),
       toc: clone(view.toc),
       status: clone(view.status),
-      workspaceRevision: this.workspaceRevision
+      workspaceRevision
     })
   }
 
@@ -620,6 +636,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
     this.leases.add(lease)
     bound.lease = lease
     return lease
+  }
+
+  private nextWorkspaceRevision(): number {
+    return this.workspaceRevision + 1
   }
 
   private commit(): void {

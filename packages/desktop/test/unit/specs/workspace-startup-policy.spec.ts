@@ -61,6 +61,29 @@ describe('DefaultStartupPolicy and emergency recovery', () => {
     expect(moveCalls).toBe(1)
   })
 
+  it.each([
+    { failing: 'crashDrafts' as const, failure: 'sync' as const },
+    { failing: 'moves' as const, failure: 'async' as const }
+  ])('starts both sources when $failing has a $failure failure', async({ failing, failure }) => {
+    let crashCalls = 0
+    let moveCalls = 0
+    const scan = (source: 'crashDrafts' | 'moves') => () => {
+      if (source === 'crashDrafts') crashCalls += 1
+      else moveCalls += 1
+      if (source === failing) {
+        if (failure === 'sync') throw new Error(`${source} synchronous failure`)
+        return Promise.reject(new Error(`${source} asynchronous failure`))
+      }
+      return Promise.resolve([])
+    }
+    await expect(new DefaultStartupPolicy().start(
+      { kind: 'explicit-targets', targets: [{ fileKey: '/requested.md' }] },
+      { crashDrafts: { scan: scan('crashDrafts') }, moves: { scan: scan('moves') } }
+    )).rejects.toBeInstanceOf(EmergencyRecoveryScanError)
+    expect(crashCalls).toBe(1)
+    expect(moveCalls).toBe(1)
+  })
+
   it('models stable identity, monotonic durable ACK, stale ACK rejection, and corrupt latest fallback', async() => {
     const crash = new MemoryCrashDraftRecovery()
     const first = crash.beginCheckpoint(checkpoint(1, 'one'))

@@ -29,8 +29,8 @@ export class DefaultStartupPolicy {
     readonly seed: WorkspaceSeed
   }> {
     const [crashDrafts, moves] = await Promise.allSettled([
-      emergency.crashDrafts.scan(),
-      emergency.moves.scan()
+      Promise.resolve().then(() => emergency.crashDrafts.scan()),
+      Promise.resolve().then(() => emergency.moves.scan())
     ])
     if (crashDrafts.status === 'rejected' || moves.status === 'rejected') {
       throw new EmergencyRecoveryScanError(
