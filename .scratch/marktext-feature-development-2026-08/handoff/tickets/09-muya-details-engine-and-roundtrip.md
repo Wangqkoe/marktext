@@ -37,7 +37,7 @@ through double click.
 
 Run `pnpm -C packages/muya exec vitest run src/block/commonMark/html/__tests__/detailsDisclosure.spec.ts src/state/__tests__/detailsRoundTrip.spec.ts src/state/__tests__/renderToStaticHTML.spec.ts`,
 `pnpm -C packages/muya lint:types`, `pnpm -C packages/muya lint`, and
-`pnpm -C packages/muya/e2e e2e -- tests/options/details-disclosure.spec.ts tests/security/details-sanitize.spec.ts`.
+`pnpm -C packages/muya/e2e exec playwright test tests/options/details-disclosure.spec.ts tests/security/details-sanitize.spec.ts`.
 Verify `details`, `summary`, `open`,
 unsafe attributes, source↔preview, Enter/Space and round-trip. Manual browser
 check confirms native semantic tree/focus. Regression: generic html blocks,

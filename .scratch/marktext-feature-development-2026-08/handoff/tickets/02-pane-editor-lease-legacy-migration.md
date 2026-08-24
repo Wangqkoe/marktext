@@ -10,6 +10,9 @@ mode handoff is pane-local, stale events are inert, and focused-pane routes
 commands/status/TOC/title. This ticket does not render the split layout, implement
 drag destinations, file CAS, or transfer.
 
+This ticket supplies the production `PaneEditorAdapter` behind the T01 port while
+moving legacy editor ownership; it does not claim production persistence or I/O.
+
 Inputs: [V1 Spec](../v1-spec.md), [Issue 04](../../issues/04-design-pane-scoped-workspace-model.md),
 [Issue 11](../../issues/11-design-workspace-controller-interface.md).
 

@@ -47,6 +47,14 @@ Capability tokens bind command kind,
 targets and revisions, are single-use, and atomically reject stale/replayed or
 kind-mismatched operations.
 
+T01 establishes these ports/interfaces, deterministic memory adapters and the
+pure shared codec/controller. The required production implementations are phased:
+T02 binds `PaneEditorAdapter`; T04 supplies file-observation/save adapter work;
+T06 supplies Electron-backed `WorkspacePersistence`/session and remaining
+DocumentIO bridge work. This retains Issue 11's required production+memory seams
+without claiming an adapter is production-complete before its effect boundary is
+available.
+
 ## Two-pane workspace behavior
 
 Split has at most left and right panes. A broad 31% edge band previews the chosen

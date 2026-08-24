@@ -5,9 +5,9 @@ Wave: 1 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: V1 Spec
 ## Result
 
 Create the deep, deterministic renderer `WorkspaceController`, its typed command/
-result/projection/EditorLease contract, production+memory `WorkspacePersistence`,
-`DocumentIO`, `PaneEditorAdapter`, and the pure cross-process `WorkspaceSessionCodec`.
-It must
+result/projection/EditorLease contract, ports/interfaces for `WorkspacePersistence`,
+`DocumentIO` and `PaneEditorAdapter`, deterministic memory adapters, and the pure
+cross-process `WorkspaceSessionCodec`. It must
 enforce V1 window/pane/document invariants, immutable JSON projection, atomic
 revision updates, V1 legacy migration, V2 validation and partial salvage. It does
 not wire existing Vue editor/global store, filesystem observation, IPC, menus or
@@ -20,7 +20,8 @@ Inputs: [V1 Spec](../v1-spec.md); [Issue 04](../../issues/04-design-pane-scoped-
 
 Create `packages/desktop/src/shared/workspace/{types.ts,sessionCodec.ts,index.ts}`
 for all cross-process domain/session types and the sole pure codec. Create renderer-
-only `packages/desktop/src/renderer/src/workspace/` for controller and adapters,
+only `packages/desktop/src/renderer/src/workspace/` for controller, ports and
+memory adapters,
 and exact tests `packages/desktop/test/unit/specs/workspace-controller.spec.ts` and
 `workspace-session-codec.spec.ts`. Main imports only `src/shared/workspace/`; it
 must never import renderer. Do not edit existing `store/editor.ts`,
@@ -29,7 +30,9 @@ must never import renderer. Do not edit existing `store/editor.ts`,
 Implement exact controller surface and closed commands, lease atomicity, no
 ambient-current-file access, serializable projection, session V1→V2 migration,
 partial salvage, history-warning behavior, and memory adapters. Do not introduce
-transfer transport or persist Muya/DOM/callback objects.
+transfer transport or persist Muya/DOM/callback objects. T02 owns the production
+PaneEditorAdapter; T04 owns production file-observation/save work; T06 owns
+production WorkspacePersistence/session/Electron and remaining DocumentIO bridge.
 
 ## Acceptance and handoff
 

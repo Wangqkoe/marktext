@@ -1,13 +1,14 @@
 # T06 — Electron transport, windows, and session integration
 
-Wave: 4 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T02, T04, T05
+Wave: 4 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T02, T03, T04, T05
 
 ## Result
 
 Attach proven controller/transfer modules to Electron's authenticated endpoints,
 window creation, hidden target staging, focus, session checkpoint/restore, and
-preload contracts. It does not implement native external-release capture, menus,
-or details UI.
+preload contracts. Complete the production `WorkspacePersistence`/session and
+remaining DocumentIO/Electron bridge behind T01 ports. It does not implement
+native external-release capture, menus, or details UI.
 
 Inputs: [V1 Spec](../v1-spec.md), [Issue 02](../../issues/02-define-cross-window-transfer-contract.md),
 [Issue 09](../../issues/09-design-tab-transfer-ipc-contract.md).

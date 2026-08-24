@@ -6,17 +6,18 @@ This is the execution order for the tickets; normative behavior remains in the
 
 | Wave | Tickets that may run together | Integration frontier / gate |
 | --- | --- | --- |
-| 1 | [T01](tickets/01-workspace-controller-session-foundation.md) | memory controller/codec contract and independent terra/high review pass |
-| 2 | [T02](tickets/02-pane-editor-lease-legacy-migration.md), [T04](tickets/04-file-observation-diskrevision-cas.md), [T09](tickets/09-muya-details-engine-and-roundtrip.md) | disjoint ownership permits parallel work; each prerequisite review/test passes |
+| 1 | [T01](tickets/01-workspace-controller-session-foundation.md) | controller ports, memory adapters and shared codec contract pass; no production adapter is claimed yet |
+| 2 | [T02](tickets/02-pane-editor-lease-legacy-migration.md), [T04](tickets/04-file-observation-diskrevision-cas.md), [T09](tickets/09-muya-details-engine-and-roundtrip.md) | T02 delivers production PaneEditorAdapter; T04 delivers production file/save adapter work; disjoint ownership permits parallel work |
 | 3 | [T03](tickets/03-split-workspace-and-tab-drag-ui.md), [T05](tickets/05-tab-transfer-wal-recovery-core.md), [T10](tickets/10-desktop-details-theme-export-integration.md) | T02 has released `editor.vue` before T10 and `index.vue`/app assembly before T03; pane/editor isolation, all WAL intent/observed crash gaps, and details desktop semantics pass |
-| 4 | [T06](tickets/06-electron-transfer-transport-window-session.md) | Electron endpoint/session transport and independent terra/high review pass |
+| 4 | [T06](tickets/06-electron-transfer-transport-window-session.md) | after T02/T03/T04/T05, Electron endpoint/session transport, production persistence/DocumentIO bridge and independent terra/high review pass |
 | 5 | [T07](tickets/07-windows-native-external-release-adapter.md), [T08](tickets/08-menus-localization-and-command-routing.md) | supported external-release proof or disabled fallback; command surface passes |
 | 6 | [T11](tickets/11-cross-feature-e2e-and-integration.md) | coordination-branch integration reruns proportional matrix checks and rejects feature fixes into new owner tickets |
 | 7 | [T12](tickets/12-windows-trial-final-review-and-acceptance.md) | T12 gives clean-build/Windows-trial readiness evidence to the coordination task. The coordinator creates independent terra/high Standards + Spec reviews, routes defects, requests user Acceptance, and alone declares completion. |
 
 The only shared foundational directories are new `src/shared/workspace/` and
-renderer `src/renderer/src/workspace/`: T01 creates the former codec/types and the
-latter controller/adapters; T02 changes only its assigned renderer adapter glue
+renderer `src/renderer/src/workspace/`: T01 creates the former codec/types and
+controller ports/memory adapters; T02 changes only its assigned renderer production
+PaneEditorAdapter glue
 after T01 integrates. T03 owns `editorWithTabs/index.vue` and the optional narrow
 `pages/app.vue` assembly seam only after T02 releases its editor binding; T10 then
 owns `editor.vue` after T02. T06 may add its separate renderer endpoint adapter
