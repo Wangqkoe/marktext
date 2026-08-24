@@ -114,6 +114,40 @@ describe('DefaultStartupPolicy and emergency recovery', () => {
     expect(moveCalls).toBe(1)
   })
 
+  it('allows a later durable checkpoint to update its disk baseline', async() => {
+    const crash = new MemoryCrashDraftRecovery()
+    expect(crash.checkpoint(checkpoint(1, 'disk-a'))).toEqual({ durable: true })
+    expect(
+      crash.checkpoint({ ...checkpoint(2, 'disk-b'), observedDiskRevision: 'disk-b' })
+    ).toEqual({ durable: true })
+
+    const recovered = expectDefined((await crash.scan())[0])
+    expect(recovered.draft.documentRevision).toBe(2)
+    expect(recovered.draft.fileKey).toBe('/a.md')
+    expect(recovered.draft.observedDiskRevision).toBe('disk-b')
+  })
+
+  it('allows untitled documents to become saved and Save As to establish a new baseline', async() => {
+    const crash = new MemoryCrashDraftRecovery()
+    expect(
+      crash.checkpoint({
+        documentId: 'document-a',
+        documentRevision: 1,
+        markdown: 'untitled',
+        view: { cursor: { line: 0, column: 0 }, selection: null }
+      })
+    ).toEqual({ durable: true })
+    expect(crash.checkpoint(checkpoint(2, 'saved-a'))).toEqual({ durable: true })
+    expect(
+      crash.checkpoint({ ...checkpoint(3, 'saved-b'), fileKey: '/b.md', observedDiskRevision: 'disk-b' })
+    ).toEqual({ durable: true })
+
+    const recovered = expectDefined((await crash.scan())[0])
+    expect(recovered.draft.documentRevision).toBe(3)
+    expect(recovered.draft.fileKey).toBe('/b.md')
+    expect(recovered.draft.observedDiskRevision).toBe('disk-b')
+  })
+
   it('models stable identity, monotonic durable ACK, stale ACK rejection, and corrupt latest fallback', async() => {
     const crash = new MemoryCrashDraftRecovery()
     const first = crash.beginCheckpoint(checkpoint(1, 'one'))
@@ -132,10 +166,50 @@ describe('DefaultStartupPolicy and emergency recovery', () => {
     expect(draft.draft.documentRevision).toBe(3)
     expect(draft.draft.markdown).toBe('three')
     expect(draft.warning).toContain('last valid')
-    expect(() => crash.beginCheckpoint({ ...checkpoint(4), fileKey: '/other.md' })).toThrow(
-      'identity'
+    expect(() => crash.beginCheckpoint({ ...checkpoint(5), observedDiskRevision: undefined })).toThrow(
+      'both FileKey and DiskRevision'
     )
   })
+
+  it('rejects a late old-baseline acknowledgement after a newer baseline is durable', async() => {
+    const crash = new MemoryCrashDraftRecovery()
+    const oldBaseline = crash.beginCheckpoint(checkpoint(1, 'old'))
+    const newBaseline = crash.beginCheckpoint({
+      ...checkpoint(2, 'new'),
+      fileKey: '/b.md',
+      observedDiskRevision: 'disk-b'
+    })
+    expect(crash.acknowledge(newBaseline)).toEqual({ durable: true })
+    expect(crash.acknowledge(oldBaseline)).toEqual({
+      durable: false,
+      reason: 'stale acknowledgement'
+    })
+
+    const recovered = expectDefined((await crash.scan())[0])
+    expect(recovered.draft.documentRevision).toBe(2)
+    expect(recovered.draft.fileKey).toBe('/b.md')
+    expect(recovered.draft.observedDiskRevision).toBe('disk-b')
+  })
+
+  it.each(['corrupt-latest', 'interrupted'] as const)(
+    'falls back to the old baseline when a %s newer checkpoint is invalid',
+    async(fault) => {
+      const crash = new MemoryCrashDraftRecovery()
+      crash.checkpoint(checkpoint(1, 'old baseline'))
+      expect(
+        crash.checkpoint(
+          { ...checkpoint(2, 'new baseline'), fileKey: '/b.md', observedDiskRevision: 'disk-b' },
+          fault
+        )
+      ).toEqual({ durable: false, reason: fault })
+
+      const recovered = expectDefined((await crash.scan())[0])
+      expect(recovered.draft.documentRevision).toBe(1)
+      expect(recovered.draft.fileKey).toBe('/a.md')
+      expect(recovered.draft.observedDiskRevision).toBe('disk-a')
+      expect(recovered.warning).toContain('last valid')
+    }
+  )
 
   it('does not advance the durable revision across an interrupted atomic gap', async() => {
     const crash = new MemoryCrashDraftRecovery()

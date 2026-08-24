@@ -39,9 +39,6 @@ export class MemoryCrashDraftRecovery implements CrashDraftRecovery {
     if (confirmed && checkpoint.documentRevision <= confirmed.documentRevision) {
       throw new Error('document revision must advance monotonically')
     }
-    if (confirmed && (confirmed.fileKey !== checkpoint.fileKey || confirmed.observedDiskRevision !== checkpoint.observedDiskRevision)) {
-      throw new Error('saved document identity or disk baseline changed')
-    }
     if ((checkpoint.fileKey === undefined) !== (checkpoint.observedDiskRevision === undefined)) {
       throw new Error('saved crash draft requires both FileKey and DiskRevision')
     }
