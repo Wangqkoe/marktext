@@ -30,6 +30,27 @@ export interface ViewState {
   readonly mode: EditorMode
 }
 
+/** JSON-only outline data for one active View. */
+export interface WorkspaceTocItem {
+  readonly id: string
+  readonly title: string
+  readonly level: number
+}
+
+/** JSON-only editor status; calculations remain owned by the editor adapter. */
+export interface WorkspaceStatus {
+  readonly wordCount?: number
+  readonly characterCount?: number
+  readonly lineCount?: number
+  readonly caret?: CursorPosition
+}
+
+export interface WorkspaceWarning {
+  readonly id: string
+  readonly kind: 'conflict' | 'recovery'
+  readonly message: string
+}
+
 export interface PortableHistory {
   readonly version: number
   readonly value: JsonValue
@@ -138,6 +159,8 @@ export interface WorkspaceProjectionPane {
   readonly paneId: PaneId
   readonly activeViewId: ViewId
   readonly tabs: readonly WorkspaceProjectionTab[]
+  readonly toc: readonly WorkspaceTocItem[]
+  readonly status: WorkspaceStatus
 }
 
 /** Metadata only: never Markdown, history, editor instances, callbacks, or leases. */
@@ -146,7 +169,10 @@ export interface WorkspaceProjection {
   readonly focusedPaneId: PaneId
   readonly splitRatio: number | null
   readonly panes: readonly WorkspaceProjectionPane[]
-  readonly warnings: readonly string[]
+  /** The focused pane's active View. */
+  readonly toc: readonly WorkspaceTocItem[]
+  readonly status: WorkspaceStatus
+  readonly warnings: readonly WorkspaceWarning[]
 }
 
 export interface EditorBindingSnapshot {
@@ -162,6 +188,8 @@ export interface EditorBindingSnapshot {
     readonly portableHistory: PortableHistory
   }
   readonly view: ViewState
+  readonly toc: readonly WorkspaceTocItem[]
+  readonly status: WorkspaceStatus
   readonly workspaceRevision: number
 }
 
@@ -171,6 +199,8 @@ export interface EditorReport {
   readonly cursor?: CursorPosition
   readonly selection?: SelectionRange | null
   readonly scrollTop?: number
+  readonly toc?: readonly WorkspaceTocItem[]
+  readonly status?: WorkspaceStatus
 }
 
 export interface PaneEditorAdapter {

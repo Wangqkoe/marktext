@@ -7,6 +7,7 @@ class MemoryEditor implements PaneEditorAdapter {
   readonly reports: EditorReport[] = []
   flushCount = 0
   failAfterRefresh = false
+  flushBarrier?: Promise<void>
 
   async refresh(snapshot: EditorBindingSnapshot): Promise<void> {
     this.snapshots.push(snapshot)
@@ -18,12 +19,19 @@ class MemoryEditor implements PaneEditorAdapter {
 
   async flush(): Promise<EditorReport> {
     this.flushCount += 1
+    await this.flushBarrier
     return this.reports.shift() ?? {}
   }
 
   get active(): EditorBindingSnapshot | undefined {
     return this.snapshots.at(-1)
   }
+}
+
+function deferred(): { readonly promise: Promise<void>; readonly release: () => void } {
+  let release!: () => void
+  const promise = new Promise<void>((resolve) => { release = resolve })
+  return { promise, release }
 }
 
 function currentLease(binding: PaneEditorBinding): EditorLease {
@@ -89,6 +97,61 @@ describe('WorkspaceRuntime', () => {
     expect(projection.panes[0]!.tabs.map((tab) => tab.fileKey)).toEqual(['/one.md', '/two.md'])
   })
 
+  it('keeps the surviving binding continuous across collapse in both directions', async() => {
+    for (const direction of ['right-to-left', 'left-to-right'] as const) {
+      const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
+      await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+      const leftEditor = new MemoryEditor()
+      const rightEditor = new MemoryEditor()
+      const leftBinding = await workspace.bindPaneEditor('left', leftEditor)
+      const rightBinding = await workspace.bindPaneEditor('right', rightEditor)
+      const sourcePane = direction === 'right-to-left' ? 'right' : 'left'
+      const targetPane = direction === 'right-to-left' ? 'left' : 'right'
+      const survivorBinding = direction === 'right-to-left' ? leftBinding : rightBinding
+      const oldLease = currentLease(survivorBinding)
+      const moved = workspace.getProjection().panes.find((pane) => pane.paneId === sourcePane)!.tabs[0]!
+      expect((await workspace.execute({ kind: 'move-view', viewId: moved.viewId, targetPaneId: targetPane })).status).toBe('applied')
+      expect(workspace.getProjection().panes).toHaveLength(1)
+      expect(survivorBinding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
+      const nextLease = currentLease(survivorBinding)
+      expect(nextLease.paneId).toBe('left')
+      expect(survivorBinding.getSnapshot(nextLease)?.paneId).toBe('left')
+      expect((direction === 'right-to-left' ? leftEditor : rightEditor).active?.paneId).toBe('left')
+    }
+  })
+
+  it('keeps controller and adapter aligned when a collapse refresh fails', async() => {
+    const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
+    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.bindPaneEditor('left', new MemoryEditor())
+    const rightEditor = new MemoryEditor()
+    const rightBinding = await workspace.bindPaneEditor('right', rightEditor)
+    const revision = workspace.getProjection().workspaceRevision
+    const moved = workspace.getProjection().panes[0]!.tabs[0]!
+    rightEditor.failAfterRefresh = true
+    expect((await workspace.execute({ kind: 'move-view', viewId: moved.viewId, targetPaneId: 'right' })).status).toBe('failed')
+    expect(workspace.getProjection().workspaceRevision).toBe(revision)
+    expect(workspace.getProjection().panes).toHaveLength(2)
+    expect(rightEditor.active?.paneId).toBe('right')
+    expect(rightBinding.getLease()).toBeUndefined()
+  })
+
+  it('keeps the survivor binding usable after closing the last tab in either pane', async() => {
+    for (const closingPane of ['left', 'right'] as const) {
+      const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
+      await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+      const leftBinding = await workspace.bindPaneEditor('left', new MemoryEditor())
+      const rightBinding = await workspace.bindPaneEditor('right', new MemoryEditor())
+      const survivorBinding = closingPane === 'left' ? rightBinding : leftBinding
+      const oldLease = currentLease(survivorBinding)
+      const closingView = workspace.getProjection().panes.find((pane) => pane.paneId === closingPane)!.tabs[0]!
+      expect((await workspace.execute({ kind: 'close-view', viewId: closingView.viewId })).status).toBe('applied')
+      expect(workspace.getProjection().panes).toHaveLength(1)
+      expect(survivorBinding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
+      expect(currentLease(survivorBinding).paneId).toBe('left')
+    }
+  })
+
   it('focuses an existing FileKey rather than creating a second Document', async() => {
     const workspace = createWorkspaceRuntime([{ documentId: 'saved', fileKey: '/same.md' }])
     await workspace.execute({ kind: 'new-tab' })
@@ -107,6 +170,46 @@ describe('WorkspaceRuntime', () => {
     expect(nextLease).not.toBe(oldLease)
     expect(binding.report(nextLease, { markdown: 'current' }).status).toBe('applied')
     expect((await binding.flush(nextLease)).status).toBe('applied')
+  })
+
+  it('serializes a suspended flush before a transition and rejects an interleaved report', async() => {
+    const workspace = createWorkspaceRuntime()
+    const editor = new MemoryEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const oldLease = currentLease(binding)
+    const barrier = deferred()
+    editor.flushBarrier = barrier.promise
+    editor.reports.push({ markdown: 'late old view edit' })
+    const pendingFlush = binding.flush(oldLease)
+    await Promise.resolve()
+    const pendingTransition = workspace.execute({ kind: 'new-tab' })
+    expect(binding.report(oldLease, { markdown: 'interleaved' }).status).toBe('rejected')
+    barrier.release()
+    expect((await pendingFlush).status).toBe('applied')
+    expect((await pendingTransition).status).toBe('applied')
+    expect(binding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
+    const newLease = currentLease(binding)
+    expect(binding.getSnapshot(newLease)?.document.markdown).toBe('')
+    await workspace.execute({ kind: 'activate-view', paneId: 'left', viewId: oldLease.viewId })
+    expect(binding.getSnapshot(currentLease(binding))?.document.markdown).toBe('late old view edit')
+  })
+
+  it('serializes a suspended mode handoff and never resurrects its old lease', async() => {
+    const workspace = createWorkspaceRuntime()
+    const editor = new MemoryEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const oldLease = currentLease(binding)
+    const barrier = deferred()
+    editor.flushBarrier = barrier.promise
+    const pendingHandoff = binding.handoffMode(oldLease, 'source')
+    await Promise.resolve()
+    const pendingTransition = workspace.execute({ kind: 'new-tab' })
+    expect(binding.report(oldLease, { markdown: 'interleaved' }).status).toBe('rejected')
+    barrier.release()
+    expect((await pendingHandoff).status).toBe('applied')
+    expect((await pendingTransition).status).toBe('applied')
+    expect(binding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
+    expect(currentLease(binding).mode).toBe('wysiwyg')
   })
 
   it('rotates leases on mode handoff and rolls back a staged mode refresh failure', async() => {
@@ -178,5 +281,31 @@ describe('WorkspaceRuntime', () => {
     expect(Object.isFrozen(projection)).toBe(true)
     expect(JSON.stringify(projection)).not.toContain('secret')
     expect(() => { (projection.panes as unknown as unknown[]).push('mutate') }).toThrow()
+  })
+
+  it('routes JSON-only TOC/status through the focused pane and exposes assembly warnings immutably', async() => {
+    const workspace = createWorkspaceRuntime([{ fileKey: '/left.md' }, { fileKey: '/right.md' }])
+    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    const left = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const right = await workspace.bindPaneEditor('right', new MemoryEditor())
+    left.report(currentLease(left), {
+      toc: [{ id: 'left-heading', title: 'Left', level: 1 }],
+      status: { wordCount: 2, caret: { line: 1, column: 2 } }
+    })
+    await workspace.execute({ kind: 'focus-pane', paneId: 'right' })
+    right.report(currentLease(right), {
+      toc: [{ id: 'right-heading', title: 'Right', level: 2 }],
+      status: { wordCount: 5 }
+    })
+    await workspace.setWorkspaceWarnings([{ id: 'conflict-1', kind: 'conflict', message: 'disk changed' }])
+    const rightProjection = workspace.getProjection()
+    expect(rightProjection.toc).toEqual([{ id: 'right-heading', title: 'Right', level: 2 }])
+    expect(rightProjection.status).toEqual({ wordCount: 5 })
+    expect(rightProjection.panes.find((pane) => pane.paneId === 'left')!.toc[0]!.id).toBe('left-heading')
+    expect(rightProjection.warnings).toEqual([{ id: 'conflict-1', kind: 'conflict', message: 'disk changed' }])
+    expect(Object.isFrozen(rightProjection.warnings)).toBe(true)
+    expect(JSON.parse(JSON.stringify(rightProjection)).warnings[0].id).toBe('conflict-1')
+    await workspace.execute({ kind: 'focus-pane', paneId: 'left' })
+    expect(workspace.getProjection().toc[0]!.id).toBe('left-heading')
   })
 })
