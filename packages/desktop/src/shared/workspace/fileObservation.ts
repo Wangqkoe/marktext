@@ -6,6 +6,11 @@ import type { DiskRevision, DocumentId, FileKey } from './types'
 
 export type { DiskRevision, DocumentId, FileKey }
 
+declare const canonicalFileKey: unique symbol
+
+/** A FileKey produced by the main-process canonicalization boundary. */
+export type CanonicalFileKey = FileKey & { readonly [canonicalFileKey]: true }
+
 export type FileObservationPurpose = 'save' | 'overwrite' | 'save-as-overwrite'
 
 export interface FileObservationIdentity {
