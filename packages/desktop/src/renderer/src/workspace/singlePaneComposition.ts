@@ -131,6 +131,18 @@ export class PaneEditorComposition {
     return this.binding !== undefined && this.surface !== undefined
   }
 
+  getFocusedDocumentId(): string | undefined {
+    const projection = this.runtime?.getProjection()
+    const pane = projection?.panes.find(
+      (candidate) => candidate.paneId === projection.focusedPaneId
+    )
+    return pane?.tabs.find((tab) => tab.viewId === pane.activeViewId)?.documentId
+  }
+
+  subscribeProjection(listener: () => void): () => void {
+    return this.runtime?.subscribe(() => listener()) ?? (() => undefined)
+  }
+
   async activateLegacyTab(tab: IFileState): Promise<void> {
     if (!this.runtime || !this.binding) return
     const projection = this.runtime.getProjection()

@@ -28,21 +28,35 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import { Close } from '@element-plus/icons-vue'
 import { t } from '../../i18n'
+import { legacyPaneFallback } from '@/workspace'
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
 
-const { currentFile } = storeToRefs(editorStore)
 const { effectiveSidebarWidth } = storeToRefs(layoutStore)
+const focusedDocumentId = ref<string | undefined>(legacyPaneFallback().getFocusedDocumentId())
+let stopProjectionMirror: (() => void) | undefined
+
+onMounted(() => {
+  stopProjectionMirror = legacyPaneFallback().subscribeProjection(() => {
+    focusedDocumentId.value = legacyPaneFallback().getFocusedDocumentId()
+  })
+})
+
+onBeforeUnmount(() => stopProjectionMirror?.())
+
+const focusedFile = computed(() =>
+  editorStore.tabs.find((tab) => tab.id === focusedDocumentId.value)
+)
 
 const currentNotification = computed(() => {
-  const notifications = currentFile.value?.notifications
+  const notifications = focusedFile.value?.notifications
   if (!notifications || notifications.length === 0) {
     return null
   }
@@ -50,7 +64,7 @@ const currentNotification = computed(() => {
 })
 
 const handleClick = (status: boolean) => {
-  const notifications = currentFile.value?.notifications
+  const notifications = focusedFile.value?.notifications
   if (!notifications || notifications.length === 0) {
     console.error(t('editor.notifications.notificationNotFound'))
     return

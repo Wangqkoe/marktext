@@ -295,6 +295,9 @@ let imageViewer: SimpleImageViewer | null = null
 let scrollHandler: ((e: Event) => void) | null = null
 let paneScope: PaneEditorEventScope | undefined
 let paneSurface: PaneEditorSurface | undefined
+let rebindPaneGeneration: ((scope: PaneEditorEventScope) => void) | undefined
+let jsonChangeListener: (() => void) | undefined
+let selectionChangeListener: ((changes: MuyaChange) => void) | undefined
 
 // The engine's undo/redo history (`getHistory()`) has a different shape than
 // the desktop store's `tab.history` (which drives the save/dirty tracking and
@@ -1848,6 +1851,7 @@ onMounted(() => {
   paneSurface = {
     async refresh (snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope): Promise<void> {
       paneScope = scope
+      if (scope) rebindPaneGeneration?.(scope)
       if (!editor.value) return
       handleFileChange({
         id: snapshot.document.documentId,
@@ -1965,48 +1969,63 @@ onMounted(() => {
   bus.on('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)
   bus.on('replace-misspelling', replaceMisspelling)
 
-  // The engine emits a low-level `json-change` ({ op, source, prevDoc, doc })
-  // on every document mutation; the desktop's content-change pipeline wants the
-  // derived document snapshot (markdown / word count / cursor / history / TOC /
-  // block AST), so we compute it here — mirroring the legacy engine's
-  // `dispatchChange` payload.
-  editor.value.on('json-change', () => {
-    // There is a chance that this event is fired AFTER the tab is switched. If we purely rely on this.currentFile later on
-    // it can cause invalid updates. Hence, we need the id to identify changes as part of each tab
-    if (!currentFile.value || !editor.value) return
-    const { id } = currentFile.value
-    if (!id) return
-    const markdown = editor.value.getMarkdown()
-    // Stash the real engine history for in-session tab-switch restoration. The
-    // synthetic save-tracking id is derived from the live document content (a
-    // monotonic, never-reused id — see `syntheticHistory.ts`), NOT the engine
-    // undo-stack depth, which is reused and falsely showed a divergently
-    // re-edited tab as clean (Phase G — G6).
-    const engineHistory = editor.value.getHistory()
-    engineHistoryByTab.set(id, engineHistory)
-    if (!paneScope || paneScope.documentId !== id) return
-    const toc = editor.value.getTOC()
-    editorStore.LISTEN_FOR_CONTENT_CHANGE({
-      id,
-      markdown,
-      wordCount: muyaWordCount(markdown),
-      cursor: serializeCursor(editor.value.getSelection()),
-      // Synthetic, desktop-shaped history so the store's save/dirty tracking
-      // keeps working (the engine history shape is incompatible).
-      history: makeSyntheticHistory(id, markdown),
-      toc,
-      blocks: editor.value.getState()
-    })
-  })
+  const installGenerationCallbacks = (scope: PaneEditorEventScope) => {
+    if (!editor.value) return
+    if (jsonChangeListener) editor.value.off('json-change', jsonChangeListener)
+    if (selectionChangeListener) editor.value.off('selection-change', selectionChangeListener)
+    if (scrollHandler) container.removeEventListener('scroll', scrollHandler)
 
-  // The engine does not emit `scroll`; listen on the scroll container directly
-  // so the desktop can persist each tab's scroll position.
-  scrollHandler = () => {
-    if (currentFile.value) {
-      editorStore.updateScrollPosition(currentFile.value.id, container.scrollTop)
+    jsonChangeListener = () => {
+      if (!editor.value) return
+      const markdown = editor.value.getMarkdown()
+      const toc = editor.value.getTOC()
+      const wordCount = muyaWordCount(markdown)
+      // A callback only owns the scope captured when this listener was
+      // installed. A rejected old generation performs no renderer-side mirror
+      // writes and cannot impersonate the newly active pane.
+      if (
+        scope.report({
+          markdown,
+          toc: toc.map((item: { slug?: string; content?: string; lvl?: number }) => ({
+            id: item.slug ?? item.content ?? '',
+            title: item.content ?? '',
+            level: item.lvl ?? 0
+          })),
+          status: { wordCount: wordCount.word }
+        }).status !== 'applied'
+      ) return
+      engineHistoryByTab.set(scope.documentId, editor.value.getHistory())
+      editorStore.LISTEN_FOR_CONTENT_CHANGE({
+        id: scope.documentId,
+        markdown,
+        wordCount,
+        cursor: serializeCursor(editor.value.getSelection()),
+        history: makeSyntheticHistory(scope.documentId, markdown),
+        toc,
+        blocks: editor.value.getState()
+      })
     }
+
+    scrollHandler = () => {
+      if (scope.report({ scrollTop: container.scrollTop }).status !== 'applied') return
+      editorStore.updateScrollPosition(scope.documentId, container.scrollTop)
+    }
+    selectionChangeListener = (changes: MuyaChange) => {
+      if (!editor.value) return
+      const cursor = serializeCursor(editor.value.getSelection())
+      if (scope.report({ status: { wordCount: muyaWordCount(editor.value.getMarkdown()).word } }).status !== 'applied') return
+      engineCursorByView.set(scope.viewId, cursor)
+      editorStore.PERSIST_CURSOR(scope.documentId, cursor)
+      selectionChange.value = changes
+      if (!sourceCode.value) caretReporter.request(props.caretSession)
+      pushSelectionMenuState(changes)
+    }
+    container.addEventListener('scroll', scrollHandler, { passive: true })
+    editor.value.on('json-change', jsonChangeListener)
+    editor.value.on('selection-change', selectionChangeListener)
   }
-  container.addEventListener('scroll', scrollHandler, { passive: true })
+  rebindPaneGeneration = installGenerationCallbacks
+  if (paneScope) installGenerationCallbacks(paneScope)
 
   // Clicking the hover-to-copy affordance on a heading emits `heading-copy-link`
   // with the heading's stable slug; copy the matching GitHub anchor to the
@@ -2046,7 +2065,8 @@ onMounted(() => {
     }
   })
 
-  editor.value.on('selection-change', (changes: MuyaChange) => {
+  /* editor selection is installed by installGenerationCallbacks */
+  /* editor.value.on('selection-change', (changes: MuyaChange) => {
     if (!sourceCode.value) caretReporter.request(props.caretSession)
     const y = (changes.cursorCoords?.y ?? null) as number | null
     if (y != null) {
@@ -2085,7 +2105,7 @@ onMounted(() => {
       editorStore.PERSIST_CURSOR(currentFile.value.id, cursor)
     }
     pushSelectionMenuState(changes)
-  })
+  }) */
 
   document.addEventListener('keyup', keyup)
 
@@ -2148,6 +2168,11 @@ onBeforeUnmount(() => {
   if (editor.value) {
     if (paneSurface) singlePaneWorkspace().unmount(paneSurface)
     singlePaneWorkspace().setSourceHandoffHandler(undefined)
+    if (jsonChangeListener) editor.value.off('json-change', jsonChangeListener)
+    if (selectionChangeListener) editor.value.off('selection-change', selectionChangeListener)
+    rebindPaneGeneration = undefined
+    jsonChangeListener = undefined
+    selectionChangeListener = undefined
     paneScope = undefined
     paneSurface = undefined
     editor.value.destroy()
