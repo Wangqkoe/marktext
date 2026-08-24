@@ -1,10 +1,19 @@
-# T02 — Pane editor bindings and legacy current-file migration
+# T02 — Pane editor bindings and legacy current-file migration (retained intermediate)
 
-Wave: 2 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T01
+Status: failed independent spec review; not eligible for standalone integration.
+
+Wave: superseded by T02b · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T01
 
 ## Result
 
-Replace the single-editor ambient-state path with Pane-scoped bindings to T01.
+This branch is a retained intermediate migration, not a releasable ticket result.
+It established the lease/generation/source/WYSIWYG direction below, but review
+found Pinia/currentFile and WorkspaceController still concurrently holding
+runtime truth. Its commits are inherited and reviewed only as part of the fixed
+integration-baseline → T02b-final diff in
+[T02b](02b-workspace-projection-controller-ownership.md); do not merge T02 alone.
+
+The retained target was to replace the single-editor ambient-state path with Pane-scoped bindings to T01.
 Each live editor gets an EditorLease; tab switch/flush/report/selection/scroll/
 mode handoff is pane-local, stale events are inert, and focused-pane routes
 commands/status/TOC/title. This ticket does not render the split layout, implement
@@ -18,24 +27,27 @@ Inputs: [V1 Spec](../v1-spec.md), [Issue 04](../../issues/04-design-pane-scoped-
 
 ## Ownership and boundary
 
-Own existing `packages/desktop/src/renderer/src/store/editor.ts`,
+The original ownership was existing `packages/desktop/src/renderer/src/store/editor.ts`,
 `components/editorWithTabs/editor.vue`, `sourceCode.vue`, `notifications.vue`,
 `syntheticHistory.ts`, plus new adapter glue under the T01 `workspace/` directory
 and focused unit tests. Do not edit `tabs.vue`, `editorWithTabs/index.vue`, tab
 context menu, main, preload, or Muya source. Coordinate no overlapping writes.
 
 The owned renderer glue may import `packages/desktop/src/shared/workspace/` but
-must not move, fork or redefine its session/domain types or codec. T02 completes
-and releases `editor.vue` before T03 mounts panes or T10 adds details integration.
+must not move, fork or redefine its session/domain types or codec. The intermediate
+T02 release assertion is void: T02b, after independent review, releases the
+controller injection/editor seam before T03 mounts panes or T10 adds details
+integration.
 
 Migrate callers from ambient `currentFile`/unscoped bus callbacks within these
 files; retain compatibility only at bounded adapter edges until its callers move.
 Do not layer a second global store or retain an old event that can mutate without a
 lease.
 
-## Acceptance and handoff
+## Retained acceptance and handoff obligations
 
-Run `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts`,
+T02b retains these requirements and evidence, in addition to its controller-
+ownership checks: run `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts`,
 `pnpm -C packages/desktop exec playwright test test/e2e/tab-switch-cursor.spec.ts test/e2e/audit-tabs-restart.spec.ts`,
 and `pnpm -C packages/desktop typecheck`. Manually alternate source
 and WYSIWYG editing in two logical panes and prove cursor/scroll/history do not

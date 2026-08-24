@@ -12,6 +12,14 @@ not complete Electron renderer/session bridge, transfer ownership or UI decision
 It must not add normal workspace snapshot/load or use a normal session as file or
 emergency-recovery truth.
 
+T04 and T02b integrate only at an explicit seam. T04 solely defines/implements
+the FileKey/DiskRevision transport types, DocumentIO/CAS port and ACK payloads;
+T02b consumes them through WorkspaceCommand/port/result and never duplicates file
+I/O, watcher or CAS logic. Acknowledgement is controller-gated by document
+identity, document revision, FileKey/DiskRevision and ownership/generation fence.
+T04 may proceed in parallel with T02b, but its production renderer connection is
+not claimed until T02b's single-controller authority is integrated.
+
 Inputs: [V1 Spec](../v1-spec.md), [Issue 09](../../issues/09-design-tab-transfer-ipc-contract.md),
 [Issue 11](../../issues/11-design-workspace-controller-interface.md), and
 [Issue 12](../../issues/12-define-startup-restore-emergency-recovery-boundary.md).

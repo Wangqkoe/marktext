@@ -1,6 +1,6 @@
 # T05 — TabTransfer WAL, capsule, and recovery core
 
-Wave: 3 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T01, T04
+Wave: after T02b/T04 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T01, T02b, T04
 
 ## Result
 
@@ -22,7 +22,9 @@ Create new `packages/desktop/src/main/tabTransfer/`, exact unit tests
 and, if transfer IPC types are necessary, only new
 `packages/desktop/src/shared/workspace/transfer.ts`. Main imports shared runtime
 and emergency-transfer types from `src/shared/workspace/`, never renderer and
-never a normal session codec. Do not edit `main/ipc/*`,
+never a normal session codec. T02b supplies the Controller-exclusive real
+Document/View and revision/capability command seam; T05 must not wire a competing
+renderer truth. Do not edit `main/ipc/*`,
 `main/windows/*`, preload, renderer, filesystem watcher, menus or E2E tests. T04
 supplies the FileObservation boundary rather than being copied.
 

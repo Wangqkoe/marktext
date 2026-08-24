@@ -1,6 +1,6 @@
 # T10 — Desktop details theme, interaction, and export integration
 
-Wave: 3 · Risk/model: medium — `gpt-5.6-terra` / `medium` · Depends on: T02, T09
+Wave: after T02b/T09 · Risk/model: medium — `gpt-5.6-terra` / `medium` · Depends on: T02b, T09
 
 ## Result
 

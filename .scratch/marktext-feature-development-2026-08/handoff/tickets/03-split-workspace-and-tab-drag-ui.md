@@ -1,6 +1,6 @@
 # T03 — Two-pane shell, divider, and in-window tab destinations
 
-Wave: 3 · Risk/model: medium — `gpt-5.6-terra` / `medium` · Depends on: T01, T02
+Wave: after T02b · Risk/model: medium — `gpt-5.6-terra` / `medium` · Depends on: T01, T02b
 
 ## Result
 
@@ -20,8 +20,10 @@ directory, and, only if needed to attach the two-pane root, own the narrow
 `packages/desktop/src/renderer/src/pages/app.vue` assembly seam. Own colocated
 styles and new `packages/desktop/test/e2e/split-workspace.spec.ts`. Do not edit
 `editor.vue`, `store/editor.ts`, context-menu files, main/preload, or existing E2E
-files. T02 must be integrated first; T03 owns the multi-pane mount that a fixed
+files. T02b must be independently reviewed and integrated first; T03 owns the multi-pane mount that a fixed
 single Tabs/Editor/SourceCode `index.vue` cannot provide.
+It injects the same WorkspaceController into each pane composition and must not
+use global-bus routing for the formal two-pane mount.
 
 Implement 31% bands, live prospective 50/50, commit on release, Escape/re-entry,
 320px pane min, 720px no-split, divider drag/double-click reset, 180/0ms motion,

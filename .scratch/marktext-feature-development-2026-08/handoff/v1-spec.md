@@ -34,6 +34,10 @@ The terms below are normative and come from [Issue 04](../issues/04-design-pane-
 | View / Tab / Pane | A View owns cursor/selection/scroll/mode; a Tab orders one View in a Pane; a Pane owns ordered tabs, its active tab, and one editor adapter. |
 | WindowWorkspace | One or two panes, focused pane, and split ratio. A saved path is unique within it; a View moves but does not duplicate a Document. |
 | WorkspaceController | Deep renderer-side owner of registry, reducer and focus routing. Its ordinary public surface is `execute`, `getProjection`, and `subscribe`; assembly alone may `bindPaneEditor`. |
+| DocumentRecord | Controller-private document truth: Markdown, portable history, dirty/conflict state, canonical FileKey, and save/encoding/line-ending and related document metadata. |
+| ViewRecord | Controller-private per-view truth: cursor, selection, scroll, mode, TOC, status/caret, and necessary view-local UI state. |
+| WorkspaceProjection | Deep-frozen JSON-only display shell derived from the Controller. It contains defensive copies of permitted metadata, never Markdown, history, Muya blocks/DOM, callbacks, or leases. |
+| EditorBindingSnapshot | The controlled Controller-to-editor-surface delivery object for Markdown, portable history, and the bound ViewRecord state. It is not a Pinia state backchannel. |
 | StartupIntent | The launch request: no explicit target, or explicit associated/CLI/other file targets. It is not normal workspace state. |
 | DefaultStartupPolicy | Current V1 policy: no explicit target creates one clean New Tab; explicit targets seed/open only themselves. |
 | NormalWorkspaceRestore | Future optional adapter controlled by a default-off setting, and eligible only with no explicit StartupIntent. It is unavailable in current V1. |
@@ -45,9 +49,28 @@ The terms below are normative and come from [Issue 04](../issues/04-design-pane-
 | TabTransfer / capsule | Deep main-process Move transaction. A capsule is durable serialized portable state, addressed by digest; it never carries DOM, Muya instances, callbacks, or leases. |
 
 `WorkspaceCommand` is a closed typed union; every menu/shortcut targets
-`FocusedPane` and no operation reads or writes ambient `currentFile`.
-`WorkspaceProjection` is immutable, JSON-only metadata/TOC/status/warnings, not
-Markdown, history, DOM, callbacks, or leases. Public results are `applied`,
+`FocusedPane` and no operation reads or writes ambient `currentFile`. The
+WorkspaceController/DocumentRecord exclusively own Markdown, portable history,
+dirty/conflict state, canonical FileKey, and save/encoding/line-ending/document
+metadata. ViewRecord exclusively owns cursor, selection, scroll, mode, TOC,
+status/caret and required view-local UI state. `WorkspaceProjection` is a
+deep-frozen, JSON-only shell/display mirror with defensive copies; it excludes
+Markdown, history, Muya blocks/DOM, callbacks and leases. `EditorBindingSnapshot`
+is the only controlled Controller-to-concrete-editor delivery surface for the
+otherwise non-projectable Markdown/history and bound View state.
+
+Pinia/editor store is temporarily a projection-derived readonly compatibility
+facade. Controller subscription is its only data source: a Pinia mutation cannot
+write back to or change Controller truth, and no component may use it as a second
+runtime owner. Legacy direct `IFileState` mutations must be replaced at their
+consumer boundary. Save, rename, encoding, line-ending, close and command routes
+go through `WorkspaceCommand` → controller port → typed result; they do not mutate
+projection/Pinia data. T04 supplies DocumentIO/CAS through a separate port and
+ACK command/result seam; an ACK applies only while its document identity,
+document revision, FileKey/DiskRevision and ownership fence remain current.
+Every pane composition receives the same controller instance. A global bus is
+allowed only as a destructible legacy-fallback edge; T03's formal two-pane mount
+MUST NOT use it. Public results are `applied`,
 `needs-decision`, `rejected`, and `failed`—there is no fifth public result.
 After `commit-authorized`, `TabTransfer` may be internally recovering and the
 projection may show a recovery warning, but `execute` remains pending until
@@ -59,7 +82,10 @@ kind-mismatched operations.
 T01 establishes typed runtime/emergency ports and deterministic memory substitutes;
 T04 supplies `FileKey`/`DiskRevision`; T05 owns MoveRecovery; and T06 owns the
 independent production CrashDraft store, lifecycle, and both-source Electron scan.
-T02 binds `PaneEditorAdapter`. CrashDraft identity, revision, durable-write,
+T02 is a retained, failed-review intermediate lease migration and is never a
+standalone integration candidate. T02b inherits its commits and binds the
+production `PaneEditorAdapter`, controller composition, one-way projection mirror
+and compatibility facade as one diff from the fixed integration baseline. CrashDraft identity, revision, durable-write,
 fallback, conflict, tombstone, and clean-marker rules are normative in
 [Issue 12](../issues/12-define-startup-restore-emergency-recovery-boundary.md#crashdraftrecovery-durability-contract)
 and are accepted through A02/A08/A13/A14. A future NormalWorkspaceRestore may add
@@ -209,11 +235,21 @@ does not turn a browser inference into accepted runtime evidence.
 
 Do not copy prototypes into production. Build/test pure deep modules and memory
 adapters first; only then attach Electron, renderer UI or native hooks. Pane
-persistence, shared editor state, filesystem/CAS, WAL/recovery, IPC/endpoint and
-native gesture changes are high risk: implementation and independent Standards +
+persistence, shared editor state, projection/controller ownership, filesystem/CAS,
+WAL/recovery, IPC/endpoint and native gesture changes are high risk: implementation and independent Standards +
 Spec review must use `gpt-5.6-terra` / `high`. Other implementation uses
 `gpt-5.6-terra` / `medium`. Every integration happens on the coordination branch,
 re-runs proportional checks, and updates the frontier.
+
+The T02b cutover is incremental but has explicit rollback boundaries: first make
+the Controller authoritative and export projection/snapshots, then replace each
+direct Pinia/IFileState consumer with the readonly facade or command/port result,
+then mount both panes with the shared controller, and finally delete each bounded
+legacy bridge once its consumers have moved. Revert a completed boundary by
+restoring that consumer to the prior adapter edge, never by retaining a long-lived
+dual-write/dual-truth state. Preserve data-safe save/close behavior and T04's
+DocumentIO ACK fence throughout; do not use global bus routing in the formal
+two-pane mount.
 
 Before `commit-authorized`, an operation may abort and remove its staged target;
 after it, rollback means journal-driven forward recovery only. Never ship a data

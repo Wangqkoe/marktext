@@ -33,8 +33,8 @@ stable Document identity; saved FileKey/DiskRevision baseline; versioned,
 digest-checked envelope; monotonic document revision; durable-ACK-before-advance;
 and interrupted/corrupt-latest fallback to the last valid revision, including stale
 ACK rejection. This is a deterministic atomicity simulation, never filesystem I/O.
-T02 owns production
-PaneEditorAdapter; T04 owns production file observation/save work; T05 owns only
+T02 is retained only as an intermediate migration; T02b owns production
+PaneEditorAdapter, controller composition and the one-way projection mirror. T04 owns production file observation/save work; T05 owns only
 MoveRecovery; T06 owns production CrashDraftRecovery store/lifecycle, clean-shutdown
 boundary, and both-source Electron scanning.
 Do not resurrect normal restore from `codex/workspace-restore-option@7636e01a` or
@@ -52,5 +52,5 @@ atomic durable-ACK behavior, stale-ACK rejection, and corrupt/interrupted latest
 fallback without discarding the last valid draft.
 
 Regression: existing unit suite. Commit only new runtime/shared module/tests.
-Independent terra/high Standards and Spec reviews are required before T02/T05 use
+Independent terra/high Standards and Spec reviews are required before T02b/T05 use
 the interface; reviewers verify no ambient global-state or implicit normal restore.

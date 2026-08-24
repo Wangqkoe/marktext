@@ -1,6 +1,6 @@
 # T08 — Menus, localization, and focused-pane commands
 
-Wave: 5 · Risk/model: medium — `gpt-5.6-terra` / `medium` · Depends on: T02, T03, T06
+Wave: after T02b/T03/T06 · Risk/model: medium — `gpt-5.6-terra` / `medium` · Depends on: T02b, T03, T06
 
 ## Result
 

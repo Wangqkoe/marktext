@@ -1,6 +1,6 @@
 # T06 — Electron transfer, startup, and emergency recovery integration
 
-Wave: 4 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T02, T03, T04, T05
+Wave: after T02b/T03/T04/T05 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T02b, T03, T04, T05
 
 ## Result
 
@@ -28,7 +28,7 @@ assembly glue under `renderer/src/workspace/`, and exact Electron tests
 `test/e2e/{workspace-transfer-electron,workspace-startup-policy}.spec.ts` plus
 `test/unit/specs/crash-draft-recovery.spec.ts`.
 
-T06 runs after T02/T03 integrate, adds only a narrow endpoint assembly file, and
+T06 runs after T02b/T03 integrate, adds only a narrow endpoint assembly file, and
 does not overwrite their controller/pane bindings. Renderer glue sees only
 commands/projection/endpoint messages, never Move WAL/capsules, CrashDraft store,
 or watcher leases. T05 remains the sole MoveRecovery owner. Never introduce a

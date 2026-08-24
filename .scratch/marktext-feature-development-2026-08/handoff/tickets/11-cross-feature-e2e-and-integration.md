@@ -1,12 +1,14 @@
 # T11 — Cross-feature E2E and coordination-branch integration
 
-Wave: 6 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T03–T10
+Wave: 6 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T02b, T03–T10
 
 ## Result
 
 Add only end-to-end/integration evidence that exercises the composed product and
 re-run proportional checks after every coordination-branch merge. No production
-feature fixes belong here; failures return to their owner ticket.
+feature fixes belong here; failures return to their owner ticket. It cannot test
+or integrate real Document/View behavior until T02b's controller-ownership gate
+has independently passed and been integrated.
 
 Inputs: [V1 Spec](../v1-spec.md), [acceptance matrix](../acceptance-matrix.md).
 
