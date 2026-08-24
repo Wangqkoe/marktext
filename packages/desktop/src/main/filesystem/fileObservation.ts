@@ -497,6 +497,66 @@ export interface FileKeyCasePolicy {
   readonly caseSensitive?: boolean
 }
 
+export interface CaseSensitivityProbe {
+  realpath(pathname: string): Promise<string>
+  stat(pathname: string): Promise<{ readonly dev: number; readonly ino: number }>
+}
+
+/** Non-destructive, per-device case probe using only existing path components. */
+export class CaseSensitivityResolver {
+  private readonly cache = new Map<number, boolean>()
+
+  constructor(private readonly probe: CaseSensitivityProbe = fsPromises) {}
+
+  async resolve(existingPath: string): Promise<boolean> {
+    try {
+      const resolved = await this.probe.realpath(existingPath)
+      const identity = await this.probe.stat(resolved)
+      const cached = this.cache.get(identity.dev)
+      if (cached !== undefined) return cached
+      const result = await this.probeExistingComponent(resolved, identity)
+      this.cache.set(identity.dev, result)
+      return result
+    } catch {
+      // Unknown/permission-denied is conservative: never merge differently cased paths.
+      return true
+    }
+  }
+
+  private async probeExistingComponent(
+    resolved: string,
+    identity: { readonly dev: number; readonly ino: number }
+  ): Promise<boolean> {
+    let candidate = resolved
+    for (;;) {
+      const name = path.basename(candidate)
+      const toggled = toggleCase(name)
+      if (toggled) {
+        const alternate = path.join(path.dirname(candidate), toggled)
+        try {
+          const alternateResolved = await this.probe.realpath(alternate)
+          const alternateIdentity = await this.probe.stat(alternateResolved)
+          return !(alternateIdentity.dev === identity.dev && alternateIdentity.ino === identity.ino)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return true
+          return true
+        }
+      }
+      const parent = path.dirname(candidate)
+      if (parent === candidate) return true
+      candidate = parent
+    }
+  }
+}
+
+const toggleCase = (value: string): string | undefined => {
+  const index = value.search(/[A-Za-z]/)
+  if (index < 0) return undefined
+  const char = value[index]
+  const toggled = char === char.toLowerCase() ? char.toUpperCase() : char.toLowerCase()
+  return `${value.slice(0, index)}${toggled}${value.slice(index + 1)}`
+}
+
 const normalizePath = (pathname: string, caseSensitive: boolean): string => {
   const normalized = path.normalize(path.resolve(pathname))
   return caseSensitive ? normalized : normalized.toLocaleLowerCase()
@@ -504,12 +564,12 @@ const normalizePath = (pathname: string, caseSensitive: boolean): string => {
 
 /** Resolves existing ancestors so a new child below a symlink gets its canonical parent key. */
 export class NodeFileObservationStorage implements FileObservationStorage {
-  private readonly caseSensitive: boolean
+  private readonly policy: FileKeyCasePolicy
+  private readonly resolver: CaseSensitivityResolver
 
-  constructor(policy: FileKeyCasePolicy = {}) {
-    // macOS commonly mounts case-insensitive volumes; callers can opt into a
-    // case-sensitive volume explicitly rather than relying on process.platform.
-    this.caseSensitive = policy.caseSensitive ?? process.platform === 'linux'
+  constructor(policy: FileKeyCasePolicy = {}, resolver = new CaseSensitivityResolver()) {
+    this.policy = policy
+    this.resolver = resolver
   }
 
   async canonicalize(pathname: string): Promise<CanonicalFileKey> {
@@ -518,12 +578,13 @@ export class NodeFileObservationStorage implements FileObservationStorage {
     for (;;) {
       try {
         const resolved = await fsPromises.realpath(candidate)
-        return normalizePath(path.join(resolved, ...suffix), this.caseSensitive) as CanonicalFileKey
+        const caseSensitive = this.policy.caseSensitive ?? (await this.resolver.resolve(resolved))
+        return normalizePath(path.join(resolved, ...suffix), caseSensitive) as CanonicalFileKey
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
         const parent = path.dirname(candidate)
         if (parent === candidate) {
-          return normalizePath(path.resolve(pathname), this.caseSensitive) as CanonicalFileKey
+          return normalizePath(path.resolve(pathname), true) as CanonicalFileKey
         }
         suffix.unshift(path.basename(candidate))
         candidate = parent

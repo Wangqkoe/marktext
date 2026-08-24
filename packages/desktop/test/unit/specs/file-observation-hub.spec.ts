@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   FileObservationHub,
+  CaseSensitivityResolver,
   MemoryFileObservationStorage,
   MemoryFileObservationWatchFactory,
   type DiskChange,
@@ -143,6 +144,30 @@ describe('FileObservationHub', () => {
     await expect(sensitive.canonicalize('C:/workspace/Foo.md')).resolves.not.toBe(
       await sensitive.canonicalize('C:/workspace/foo.md')
     )
+  })
+
+  it('probes existing components per device, caches results, and falls back to sensitive on unknown paths', async() => {
+    const calls: string[] = []
+    const resolver = new CaseSensitivityResolver({
+      async realpath(pathname) {
+        calls.push(pathname)
+        if (pathname.endsWith('foo.md') || pathname.endsWith('Foo.md')) return 'C:/volume/Foo.md'
+        if (pathname.endsWith('Bar.md')) return 'D:/volume/Bar.md'
+        const error = Object.assign(new Error('missing'), { code: 'ENOENT' })
+        throw error
+      },
+      async stat(pathname) {
+        if (pathname.endsWith('Foo.md')) return { dev: 1, ino: 10 }
+        if (pathname.endsWith('Bar.md')) return { dev: 2, ino: 20 }
+        return { dev: 1, ino: 10 }
+      }
+    })
+    await expect(resolver.resolve('C:/volume/Foo.md')).resolves.toBe(false)
+    const afterFirst = calls.length
+    await expect(resolver.resolve('C:/volume/foo.md')).resolves.toBe(false)
+    expect(calls).toHaveLength(afterFirst + 1) // Only realpath runs; device probe is cached.
+    await expect(resolver.resolve('D:/volume/Bar.md')).resolves.toBe(true)
+    await expect(resolver.resolve('C:/unknown/123')).resolves.toBe(true)
   })
 
   it('suppresses only a matching full writeId, preserves same-content writes, and does not suppress raw merged events', async() => {
