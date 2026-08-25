@@ -295,7 +295,7 @@ let imageViewer: SimpleImageViewer | null = null
 let scrollHandler: ((e: Event) => void) | null = null
 let paneScope: PaneEditorEventScope | undefined
 let paneSurface: PaneEditorSurface | undefined
-let rebindPaneGeneration: ((scope: PaneEditorEventScope) => void) | undefined
+let rebindPaneGeneration: ((scope: PaneEditorEventScope | undefined) => void) | undefined
 let jsonChangeListener: (() => void) | undefined
 let selectionChangeListener: ((changes: MuyaChange) => void) | undefined
 
@@ -1850,10 +1850,12 @@ onMounted(() => {
 
   paneSurface = {
     async stage (snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope) {
+      const previousScope = paneScope
+      let committed = false
       return {
         commit: () => {
           paneScope = scope
-          if (scope) rebindPaneGeneration?.(scope)
+          rebindPaneGeneration?.(scope)
           if (!editor.value) return
           handleFileChange({
             id: snapshot.document.documentId,
@@ -1863,8 +1865,13 @@ onMounted(() => {
             workspaceRefresh: true,
             sourceHandoff: singlePaneWorkspace().isSourceHandoff(snapshot)
           })
+          committed = true
         },
-        cancel: () => undefined
+        cancel: () => {
+          if (!committed && paneScope !== scope) return
+          paneScope = previousScope
+          rebindPaneGeneration?.(previousScope)
+        }
       }
     },
     async flush (snapshot: EditorBindingSnapshot): Promise<EditorReport> {
@@ -1974,11 +1981,15 @@ onMounted(() => {
   bus.on('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)
   bus.on('replace-misspelling', replaceMisspelling)
 
-  const installGenerationCallbacks = (scope: PaneEditorEventScope) => {
+  const installGenerationCallbacks = (scope: PaneEditorEventScope | undefined) => {
     if (!editor.value) return
     if (jsonChangeListener) editor.value.off('json-change', jsonChangeListener)
     if (selectionChangeListener) editor.value.off('selection-change', selectionChangeListener)
     if (scrollHandler) container.removeEventListener('scroll', scrollHandler)
+    jsonChangeListener = undefined
+    selectionChangeListener = undefined
+    scrollHandler = null
+    if (!scope) return
 
     jsonChangeListener = () => {
       if (!editor.value) return

@@ -15,7 +15,7 @@ class MemoryAdapter implements PaneEditorAdapter {
 }
 
 describe('Workspace command routing', () => {
-  it('routes focused close through a revision-fenced, single-use controller capability', async () => {
+  it('routes focused close through a revision-fenced, single-use controller capability', async() => {
     const controller = createWorkspaceRuntime([{ documentId: 'draft', markdown: 'draft' }])
 
     // A clean close is immediate. Dirty close and authorization are covered by
@@ -25,7 +25,7 @@ describe('Workspace command routing', () => {
     expect(controller.getProjection().panes[0]?.tabs[0]?.title).toBe('New Tab')
   })
 
-  it('does not expose editor-private payloads through focused-pane projection', async () => {
+  it('does not expose editor-private payloads through focused-pane projection', async() => {
     const controller = createWorkspaceRuntime([{ markdown: 'controller private history' }])
     await controller.execute({ kind: 'focus-pane', paneId: 'left' })
     const serialized = JSON.stringify(controller.getProjection())
@@ -34,7 +34,7 @@ describe('Workspace command routing', () => {
     expect(serialized).not.toContain('lease')
   })
 
-  it('routes save, rename and document options through typed requests and fences their ACKs', async () => {
+  it('routes save, rename and document options through typed requests and fences their ACKs', async() => {
     const controller = createWorkspaceRuntime([{ fileKey: '/note.md', markdown: 'one' }])
     const adapter = new MemoryAdapter()
     const binding = await controller.bindPaneEditor('left', adapter)
@@ -45,15 +45,17 @@ describe('Workspace command routing', () => {
     if (!snapshot) throw new Error('missing current snapshot')
 
     const save = await controller.execute({ kind: 'save' })
-    if (save.status !== 'applied' || !save.documentIoRequest)
+    if (save.status !== 'applied' || !save.documentIoRequest) {
       throw new Error('missing save request')
+    }
     const request = save.documentIoRequest
     expect(request).toMatchObject({
       operation: 'save',
       documentId: snapshot.documentId,
       documentRevision: snapshot.documentRevision,
       fileKey: '/note.md',
-      markdown: 'two'
+      markdown: 'two',
+      observedDiskRevision: null
     })
     expect(Object.isFrozen(request)).toBe(true)
 
@@ -64,7 +66,8 @@ describe('Workspace command routing', () => {
           ack: {
             ...request,
             documentRevision: request.documentRevision - 1,
-            diskRevision: 'stale'
+            outcome: 'durable-success',
+            landedDiskRevision: 'stale'
           }
         })
       ).status
@@ -75,7 +78,34 @@ describe('Workspace command routing', () => {
           kind: 'apply-save-ack',
           ack: {
             ...request,
-            diskRevision: 'landed'
+            fileKey: '/forged.md',
+            outcome: 'durable-success',
+            landedDiskRevision: 'forged-key'
+          }
+        })
+      ).status
+    ).toBe('rejected')
+    expect(
+      (
+        await controller.execute({
+          kind: 'apply-save-ack',
+          ack: {
+            ...request,
+            ownerFence: 'forged-owner',
+            outcome: 'durable-success',
+            landedDiskRevision: 'forged-owner'
+          }
+        })
+      ).status
+    ).toBe('rejected')
+    expect(
+      (
+        await controller.execute({
+          kind: 'apply-save-ack',
+          ack: {
+            ...request,
+            outcome: 'durable-success',
+            landedDiskRevision: 'landed'
           }
         })
       ).status
@@ -110,8 +140,9 @@ describe('Workspace command routing', () => {
       fileKey: '/renamed.md',
       title: 'renamed'
     })
-    if (rename.status !== 'applied' || !rename.documentIoRequest)
+    if (rename.status !== 'applied' || !rename.documentIoRequest) {
       throw new Error('missing rename request')
+    }
     expect(rename.documentIoRequest).toMatchObject({
       operation: 'rename',
       fileKey: '/renamed.md',
@@ -124,7 +155,11 @@ describe('Workspace command routing', () => {
       (
         await controller.execute({
           kind: 'apply-save-ack',
-          ack: { ...rename.documentIoRequest, diskRevision: 'renamed-landed' }
+          ack: {
+            ...rename.documentIoRequest,
+            outcome: 'durable-success',
+            landedDiskRevision: 'renamed-landed'
+          }
         })
       ).status
     ).toBe('applied')
@@ -137,9 +172,104 @@ describe('Workspace command routing', () => {
       (
         await controller.execute({
           kind: 'apply-save-ack',
-          ack: { ...rename.documentIoRequest, diskRevision: 'replay' }
+          ack: {
+            ...rename.documentIoRequest,
+            outcome: 'durable-success',
+            landedDiskRevision: 'replay'
+          }
         })
       ).status
     ).toBe('rejected')
+  })
+
+  it('reserves FileKeys, supersedes same-document requests, and requires a durable matching ACK', async() => {
+    const controller = createWorkspaceRuntime([
+      { documentId: 'one', fileKey: '/one.md', observedDiskRevision: 'one-base' },
+      { documentId: 'two', fileKey: '/two.md', observedDiskRevision: 'two-base' }
+    ])
+    const panes = controller.getProjection().panes[0]
+    if (!panes) throw new Error('missing pane')
+    const one = panes.tabs.find((tab) => tab.documentId === 'one')
+    const two = panes.tabs.find((tab) => tab.documentId === 'two')
+    if (!one || !two) throw new Error('missing seeded tabs')
+
+    await controller.execute({ kind: 'activate-view', paneId: 'left', viewId: one.viewId })
+    expect((await controller.execute({ kind: 'save-as', fileKey: '/two.md' })).status).toBe(
+      'rejected'
+    )
+    const first = await controller.execute({ kind: 'save-as', fileKey: '/reserved.md' })
+    if (first.status !== 'applied' || !first.documentIoRequest) { throw new Error('missing first request') }
+    const firstRequest = first.documentIoRequest
+
+    const replacement = await controller.execute({ kind: 'save-as', fileKey: '/replacement.md' })
+    if (replacement.status !== 'applied' || !replacement.documentIoRequest) {
+      throw new Error('missing replacement request')
+    }
+    const replacementRequest = replacement.documentIoRequest
+    expect(
+      (
+        await controller.execute({
+          kind: 'apply-save-ack',
+          ack: {
+            ...firstRequest,
+            outcome: 'durable-success',
+            landedDiskRevision: 'must-stay-inert'
+          }
+        })
+      ).status
+    ).toBe('rejected')
+
+    await controller.execute({ kind: 'activate-view', paneId: 'left', viewId: two.viewId })
+    expect((await controller.execute({ kind: 'save-as', fileKey: '/replacement.md' })).status).toBe(
+      'rejected'
+    )
+    await controller.execute({ kind: 'set-line-ending', lineEnding: 'crlf' })
+    const twoSave = await controller.execute({ kind: 'save' })
+    if (twoSave.status !== 'applied' || !twoSave.documentIoRequest) throw new Error('missing save')
+    expect(twoSave.documentIoRequest.observedDiskRevision).toBe('two-base')
+    expect(
+      (
+        await controller.execute({
+          kind: 'apply-save-ack',
+          ack: {
+            ...twoSave.documentIoRequest,
+            observedDiskRevision: 'forged-base',
+            outcome: 'durable-success',
+            landedDiskRevision: 'forged-landed'
+          }
+        })
+      ).status
+    ).toBe('rejected')
+    expect(
+      (
+        await controller.execute({
+          kind: 'apply-save-ack',
+          ack: { ...twoSave.documentIoRequest, outcome: 'not-durable' }
+        })
+      ).status
+    ).toBe('failed')
+    expect(
+      controller.getProjection().panes[0]?.tabs.find((tab) => tab.documentId === 'two')?.dirty
+    ).toBe(true)
+
+    await controller.execute({ kind: 'activate-view', paneId: 'left', viewId: one.viewId })
+    expect(
+      (
+        await controller.execute({
+          kind: 'apply-save-ack',
+          ack: {
+            ...replacementRequest,
+            outcome: 'durable-success',
+            landedDiskRevision: 'replacement-landed'
+          }
+        })
+      ).status
+    ).toBe('applied')
+    expect(
+      controller.getProjection().panes[0]?.tabs.find((tab) => tab.documentId === 'one')
+    ).toMatchObject({
+      fileKey: '/replacement.md',
+      dirty: false
+    })
   })
 })

@@ -118,6 +118,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private nextDocumentIoRequest = 1
   private operationTail: Promise<void> = Promise.resolve()
   private pendingOperations = 0
+  private disposed = false
 
   constructor(initial: readonly WorkspaceDocumentInput[] = []) {
     const first = this.createPane('left')
@@ -133,6 +134,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   execute(command: WorkspaceCommand): Promise<WorkspaceResult> {
+    if (this.disposed) return Promise.resolve(this.rejected('workspace controller is disposed'))
     return this.enqueue(async() => this.apply(command))
   }
 
@@ -170,12 +172,27 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   subscribe(listener: (projection: WorkspaceProjection) => void): () => void {
+    if (this.disposed) return () => undefined
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
 
+  /** Assembly lifecycle only: every controller-issued capability becomes inert. */
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    for (const bound of this.adapters.values()) {
+      this.invalidate(bound)
+      bound.adapter.dispose?.()
+    }
+    this.adapters.clear()
+    this.pendingDocumentIo.clear()
+    this.listeners.clear()
+  }
+
   /** Assembly-only binding: ordinary callers use the WorkspaceController interface. */
   async bindPaneEditor(paneId: PaneId, adapter: PaneEditorAdapter): Promise<PaneEditorBinding> {
+    if (this.disposed) throw new Error('workspace controller is disposed')
     return this.enqueue(async() => this.bindPaneEditorNow(paneId, adapter))
   }
 
@@ -230,6 +247,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       getSnapshot: (candidate) => (this.validLease(bound, candidate) ? bound.snapshot : undefined),
       isSnapshotCurrent: (snapshot) => this.validSnapshot(bound, snapshot),
       report: (candidate, report) => {
+        if (this.disposed) return this.rejected('workspace controller is disposed')
         if (this.pendingOperations > 0) return this.rejected('workspace mutation is in progress')
         if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
         const changed = this.applyReport(candidate.viewId, report)
@@ -299,6 +317,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     lease: EditorLease,
     work: () => Promise<void>
   ): Promise<WorkspaceResult> {
+    if (this.disposed) return this.rejected('workspace controller is disposed')
     if (!this.validLease(bound, lease)) return this.rejected('stale editor lease')
     try {
       await work()
@@ -328,6 +347,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   private async apply(command: WorkspaceCommand): Promise<WorkspaceResult> {
+    if (this.disposed) return this.rejected('workspace controller is disposed')
     try {
       switch (command.kind) {
         case 'new-tab':
@@ -576,6 +596,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       pending.request.documentId !== ack.documentId ||
       pending.request.documentRevision !== ack.documentRevision ||
       pending.request.fileKey !== ack.fileKey ||
+      pending.request.observedDiskRevision !== ack.observedDiskRevision ||
       pending.request.ownerFence !== ack.ownerFence ||
       !document ||
       document.revision !== ack.documentRevision ||
@@ -585,11 +606,17 @@ export class WorkspaceController implements WorkspaceControllerContract {
       return this.rejected('stale document save acknowledgement')
     }
     this.pendingDocumentIo.delete(ack.requestId)
+    if (ack.outcome !== 'durable-success') {
+      return this.failed('document I/O did not durably complete')
+    }
+    if (!this.isFileKeyAvailable(ack.fileKey, document.id, ack.requestId)) {
+      return this.rejected('document file key is no longer available')
+    }
     if (ack.operation !== 'save') {
       document.fileKey = ack.fileKey
       document.title = pending.request.title
     }
-    document.observedDiskRevision = ack.diskRevision
+    document.observedDiskRevision = ack.landedDiskRevision
     document.dirty = false
     document.conflict = false
     this.commit()
@@ -622,6 +649,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
     title = document.title
   ): WorkspaceResult {
     if (document.conflict) return this.rejected('document conflict requires a decision')
+    if (!this.isFileKeyAvailable(fileKey, document.id)) {
+      return this.rejected('document file key is already in use')
+    }
     for (const [requestId, pending] of this.pendingDocumentIo) {
       if (pending.request.documentId === document.id) this.pendingDocumentIo.delete(requestId)
     }
@@ -631,9 +661,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       documentId: document.id,
       documentRevision: document.revision,
       fileKey,
-      ...(document.observedDiskRevision
-        ? { observedDiskRevision: document.observedDiskRevision }
-        : {}),
+      observedDiskRevision: document.observedDiskRevision ?? null,
       ownerFence: document.ownerFence,
       markdown: document.markdown,
       title,
@@ -666,6 +694,23 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private documentForPane(paneId: PaneId): DocumentRecord | undefined {
     const pane = this.panes.get(paneId)
     return pane ? this.documents.get(this.view(pane.activeViewId).documentId) : undefined
+  }
+
+  /** A FileKey belongs to at most one Document and one current request. */
+  private isFileKeyAvailable(fileKey: string, documentId: DocumentId, exceptRequestId?: string): boolean {
+    if (
+      [...this.documents.values()].some(
+        (candidate) => candidate.id !== documentId && candidate.fileKey === fileKey
+      )
+    ) {
+      return false
+    }
+    return ![...this.pendingDocumentIo].some(
+      ([requestId, pending]) =>
+        requestId !== exceptRequestId &&
+        pending.request.documentId !== documentId &&
+        pending.request.fileKey === fileKey
+    )
   }
 
   private async removeView(viewId: ViewId): Promise<WorkspaceResult> {
@@ -958,6 +1003,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private removeDocumentAndView(viewId: ViewId): void {
     const view = this.views.get(viewId)
     if (!view) return
+    for (const [requestId, pending] of this.pendingDocumentIo) {
+      if (pending.request.documentId === view.documentId) this.pendingDocumentIo.delete(requestId)
+    }
     this.views.delete(viewId)
     this.documents.delete(view.documentId)
   }
@@ -1019,6 +1067,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       if (candidate === bound) {
         this.adapters.delete(paneId)
         this.invalidate(bound)
+        bound.adapter.dispose?.()
         return
       }
     }

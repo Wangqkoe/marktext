@@ -50,15 +50,22 @@ export class RendererPaneEditorAdapter implements PaneEditorAdapter {
 
   async refresh(snapshot: EditorBindingSnapshot): Promise<void> {
     const generation = ++this.generation
+    const previousScope = this.reporter?.getActiveScope()
     const scope = this.reporter?.stage(snapshot)
     const staged = await this.surface.stage(snapshot, scope)
     if (generation !== this.generation || !this.isCurrent(snapshot)) {
-      staged.cancel()
+      this.cancel(staged)
       return
     }
-    staged.commit()
-    this.current = snapshot
-    if (scope && this.reporter) this.reporter.activate(scope)
+    try {
+      staged.commit()
+      if (scope && this.reporter) this.reporter.activate(scope)
+      this.current = snapshot
+    } catch (error) {
+      this.cancel(staged)
+      this.reporter?.restoreActiveScope(previousScope)
+      throw error
+    }
   }
 
   async flush(): Promise<EditorReport> {
@@ -66,8 +73,23 @@ export class RendererPaneEditorAdapter implements PaneEditorAdapter {
     return snapshot ? this.surface.flush(snapshot) : {}
   }
 
+  dispose(): void {
+    this.generation += 1
+    this.current = undefined
+    this.reporter?.attach(undefined)
+  }
+
   private isCurrent(snapshot: EditorBindingSnapshot): boolean {
     return !this.reporter || this.reporter.isSnapshotCurrent(snapshot)
+  }
+
+  /** Best-effort cleanup must never replace the originating refresh error. */
+  private cancel(staged: PaneEditorSurfaceStage): void {
+    try {
+      staged.cancel()
+    } catch {
+      // A failed cleanup cannot safely revive a stale staged generation.
+    }
   }
 }
 
@@ -129,6 +151,11 @@ export class PaneEditorLeaseReporter {
   attach(binding: PaneEditorBinding | undefined): void {
     this.binding = binding
     if (!binding) this.activeScope = undefined
+  }
+
+  /** Restores the pre-refresh scope when commit/activation compensation runs. */
+  restoreActiveScope(scope: PaneEditorEventScope | undefined): void {
+    this.activeScope = scope instanceof RendererPaneEditorEventScope ? scope : undefined
   }
 
   isSnapshotCurrent(snapshot: EditorBindingSnapshot): boolean {

@@ -93,7 +93,8 @@ export interface DocumentIoRequest {
   readonly documentId: DocumentId
   readonly documentRevision: number
   readonly fileKey: FileKey
-  readonly observedDiskRevision?: DiskRevision
+  /** The exact T04 CAS baseline, including an untitled/no-disk baseline. */
+  readonly observedDiskRevision: DiskRevision | null
   readonly ownerFence: string
   readonly markdown: string
   readonly title: string
@@ -104,16 +105,30 @@ export interface DocumentIoRequest {
 }
 
 /** Typed renderer acknowledgement consumed from T04's DocumentIO/CAS port. */
-export interface DocumentSaveAck {
+interface DocumentIoAckIdentity {
   readonly requestId: string
   readonly operation: DocumentIoOperation
   readonly documentId: DocumentId
   readonly documentRevision: number
   readonly fileKey: FileKey
-  readonly diskRevision: DiskRevision
+  /** Must echo the request's CAS baseline exactly. */
+  readonly observedDiskRevision: DiskRevision | null
   /** Controller-owned document/observation handoff fence; never projected. */
   readonly ownerFence: string
 }
+
+export interface DurableDocumentSaveAck extends DocumentIoAckIdentity {
+  readonly outcome: 'durable-success'
+  /** Hash of the bytes durably landed by T04. */
+  readonly landedDiskRevision: DiskRevision
+}
+
+/** A failed/non-durable response consumes its request but cannot mutate document truth. */
+export interface NonDurableDocumentSaveAck extends DocumentIoAckIdentity {
+  readonly outcome: 'failed' | 'not-durable'
+}
+
+export type DocumentSaveAck = DurableDocumentSaveAck | NonDurableDocumentSaveAck
 
 export interface StartupTarget {
   readonly fileKey: FileKey
@@ -313,6 +328,8 @@ export interface PaneEditorAdapter {
   refresh(snapshot: EditorBindingSnapshot): Promise<void>
   /** Returns the latest in-editor edits before the active View is replaced. */
   flush(): Promise<EditorReport>
+  /** Optional assembly lifecycle hook; the controller invokes it on release. */
+  dispose?(): void
 }
 
 /** Opaque at runtime: only a WorkspaceController-created value is accepted. */
@@ -342,4 +359,6 @@ export interface WorkspaceController {
   execute(command: WorkspaceCommand): Promise<WorkspaceResult>
   getProjection(): WorkspaceProjection
   subscribe(listener: (projection: WorkspaceProjection) => void): () => void
+  /** Assembly lifecycle only; releases all bindings and makes future commands inert. */
+  dispose(): void
 }

@@ -128,6 +128,33 @@ class DeferredPaneSurface implements PaneEditorSurface {
   }
 }
 
+class FaultPaneSurface implements PaneEditorSurface {
+  current: EditorBindingSnapshot | undefined
+  readonly cancelled: EditorBindingSnapshot[] = []
+  commitError: Error | undefined
+  cancelError: Error | undefined
+
+  async stage(snapshot: EditorBindingSnapshot) {
+    const previous = this.current
+    return {
+      commit: () => {
+        if (this.commitError) throw this.commitError
+        this.current = snapshot
+      },
+      cancel: () => {
+        this.current = previous
+        this.cancelled.push(snapshot)
+        if (this.cancelError) throw this.cancelError
+      }
+    }
+  }
+
+  async flush(snapshot: EditorBindingSnapshot): Promise<EditorReport> {
+    expect(snapshot).toBe(this.current)
+    return {}
+  }
+}
+
 function deferred(): { readonly promise: Promise<void>; readonly release: () => void } {
   let release!: () => void
   const promise = new Promise<void>((resolve) => {
@@ -315,6 +342,81 @@ describe('WorkspaceRuntime', () => {
 
     expect((await binding.handoffMode(lease, 'source')).status).toBe('applied')
     expect(binding.isSnapshotCurrent(current)).toBe(false)
+  })
+
+  it('cancels a throwing commit, retains the prior current surface, and allows a later refresh', async () => {
+    const workspace = createWorkspaceRuntime([{ markdown: 'A' }])
+    const surface = new FaultPaneSurface()
+    const reporter = new PaneEditorLeaseReporter('left')
+    const adapter = new RendererPaneEditorAdapter(surface, reporter)
+    const binding = await workspace.bindPaneEditor('left', adapter)
+    reporter.attach(binding)
+    const first = expectDefined(binding.getSnapshot(currentLease(binding)))
+    expect(surface.current).toBe(first)
+    expect(binding.report(currentLease(binding), { markdown: 'B' }).status).toBe('applied')
+    const second = expectDefined(binding.getSnapshot(currentLease(binding)))
+    surface.commitError = new Error('commit failed')
+    surface.cancelError = new Error('cancel also failed')
+
+    await expect(adapter.refresh(second)).rejects.toThrow('commit failed')
+    expect(surface.current).toBe(first)
+    expect(surface.cancelled).toEqual([second])
+    surface.commitError = undefined
+    surface.cancelError = undefined
+    await adapter.refresh(second)
+    expect(surface.current).toBe(second)
+  })
+
+  it('cancels and restores the previous reporter scope when activation throws', async () => {
+    const workspace = createWorkspaceRuntime([{ markdown: 'A' }])
+    const surface = new FaultPaneSurface()
+    const reporter = new PaneEditorLeaseReporter('left')
+    const adapter = new RendererPaneEditorAdapter(surface, reporter)
+    const binding = await workspace.bindPaneEditor('left', adapter)
+    reporter.attach(binding)
+    const firstScope = reporter.getActiveScope()
+    const first = expectDefined(binding.getSnapshot(currentLease(binding)))
+    expect(binding.report(currentLease(binding), { markdown: 'B' }).status).toBe('applied')
+    const second = expectDefined(binding.getSnapshot(currentLease(binding)))
+    const activate = reporter.activate.bind(reporter)
+    reporter.activate = () => {
+      throw new Error('activate failed')
+    }
+
+    await expect(adapter.refresh(second)).rejects.toThrow('activate failed')
+    expect(surface.current).toBe(first)
+    expect(surface.cancelled).toEqual([second])
+    expect(reporter.getActiveScope()).toBe(firstScope)
+    reporter.activate = activate
+    await adapter.refresh(second)
+    expect(surface.current).toBe(second)
+  })
+
+  it('releases binding, adapter and controller resources idempotently', async () => {
+    const workspace = createWorkspaceRuntime()
+    const surface = new MemoryPaneSurface()
+    const reporter = new PaneEditorLeaseReporter('left')
+    const adapter = new RendererPaneEditorAdapter(surface, reporter)
+    const binding = await workspace.bindPaneEditor('left', adapter)
+    reporter.attach(binding)
+    const lease = currentLease(binding)
+    const snapshot = expectDefined(binding.getSnapshot(lease))
+    expect(reporter.getActiveScope()).toBeDefined()
+
+    binding.dispose()
+    binding.dispose()
+    expect(binding.getLease()).toBeUndefined()
+    expect(binding.getSnapshot(lease)).toBeUndefined()
+    expect(binding.isSnapshotCurrent(snapshot)).toBe(false)
+    expect(binding.report(lease, { markdown: 'inert' }).status).toBe('rejected')
+    expect((await binding.flush(lease)).status).toBe('rejected')
+    expect((await binding.handoffMode(lease, 'source')).status).toBe('rejected')
+    expect(reporter.getActiveScope()).toBeUndefined()
+
+    workspace.dispose()
+    workspace.dispose()
+    expect((await workspace.execute({ kind: 'new-tab' })).status).toBe('rejected')
+    await expect(workspace.bindPaneEditor('left', new MemoryEditor())).rejects.toThrow('disposed')
   })
 
   it('isolates both panes and flushes/refreshes every active-view transition', async () => {
