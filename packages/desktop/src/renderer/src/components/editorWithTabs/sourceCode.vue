@@ -87,7 +87,12 @@ watch(
   () => props.markdown,
   (markdown) => {
     const scope = props.composition.getScope()
-    if (scope?.mode === 'source' && editor.value && typeof markdown === 'string') {
+    if (
+      scope?.mode === 'source' &&
+      editor.value &&
+      typeof markdown === 'string' &&
+      markdown !== editor.value.getValue()
+    ) {
       editor.value.setValue(markdown)
     }
   }
@@ -134,10 +139,10 @@ const getMarkdownAndCursor = (cm: CMInstance) => {
 const prepareTabSwitch = () => {
   if (commitTimer.value) clearTimeout(commitTimer.value)
   if (tabId.value) {
-    const { markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+    const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(editor.value)
     const scope = sourceEventScope
     if (scope?.documentId === tabId.value) {
-      props.composition.reportSource(scope, { markdown: newMarkdown })
+      props.composition.reportSource(scope, { markdown: newMarkdown, cursor })
     }
     tabId.value = null
   }
@@ -315,7 +320,7 @@ const handleImageAction = (payload: unknown) => {
 }
 
 const saveContent = (cm: CMInstance, scope = sourceEventScope) => {
-  const { markdown: newMarkdown } = getMarkdownAndCursor(cm)
+  const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(cm)
   // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
   const wordCount = getWordCount(newMarkdown)
   // See "beforeDestroy" note
@@ -324,6 +329,7 @@ const saveContent = (cm: CMInstance, scope = sourceEventScope) => {
       if (scope?.documentId === tabId.value) {
         props.composition.reportSource(scope, {
           markdown: newMarkdown,
+          cursor,
           status: { wordCount: wordCount.word }
         })
       }
@@ -442,9 +448,10 @@ onBeforeUnmount(() => {
   const scope = sourceEventScope
   const id = tabId.value
   if (id && scope?.mode === 'source' && scope.documentId === id) {
-    const { markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+    const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(editor.value)
     props.composition.reportSource(scope, {
       markdown: newMarkdown,
+      cursor,
       status: { wordCount: getWordCount(newMarkdown).word }
     })
     props.composition.handoffSource(scope)

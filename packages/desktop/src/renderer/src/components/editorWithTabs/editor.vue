@@ -563,7 +563,7 @@ watch(focus, (value) => {
 // state for the CURRENT cursor context (a code block/table still disables some
 // items) rather than blanket-enabling everything (#3531).
 watch(sourceCode, (isSource) => {
-  if (paneScope && isSource) {
+  if (isSource) {
     props.composition.handoffMode('source').catch((error) => {
       console.error('Failed to hand off pane editor mode:', error)
     })
@@ -1876,6 +1876,7 @@ onMounted(() => {
             id: snapshot.document.documentId,
             markdown: snapshot.document.markdown,
             cursor: isEngineCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
+            muyaIndexCursor: isIndexCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
             history: engineHistoryFrom(snapshot.document.portableHistory),
             scrollTop: snapshot.view.scrollTop,
             workspaceRefresh: true,
@@ -1915,6 +1916,7 @@ onMounted(() => {
   props.composition.setSourceHandoffHandler((report) => {
     handleFileChange({
       markdown: report.markdown,
+      muyaIndexCursor: isIndexCursor(report.cursor) ? report.cursor : undefined,
       workspaceRefresh: true,
       sourceHandoff: true
     })

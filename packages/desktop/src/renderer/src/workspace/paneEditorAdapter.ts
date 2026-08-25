@@ -229,12 +229,21 @@ export class PaneEditorLeaseReporter {
 
   private matchingLease(scope: RendererPaneEditorEventScope): EditorLease | undefined {
     const lease = this.binding?.getLease()
-    return this.activeScope === scope &&
-      this.binding?.isSnapshotCurrent(scope.snapshot) &&
-      lease?.paneId === this.paneId &&
-      lease.viewId === scope.viewId &&
-      lease.mode === scope.mode
-      ? lease
-      : undefined
+    if (
+      this.activeScope !== scope ||
+      !lease ||
+      scope.snapshot.lease !== lease ||
+      lease.paneId !== this.paneId ||
+      lease.viewId !== scope.viewId ||
+      lease.mode !== scope.mode
+    ) return undefined
+    // Controller-only metadata changes (for example a DocumentIO owner-fence
+    // acknowledgement) refresh the binding snapshot without issuing a new
+    // lease. Keep this active scope on that same lease current; a successor
+    // lease can never be adopted here because its object identity differs.
+    const snapshot = this.binding?.getSnapshot(lease)
+    if (!snapshot) return undefined
+    scope.replaceSnapshot(snapshot)
+    return lease
   }
 }

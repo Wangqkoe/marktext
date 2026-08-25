@@ -26,6 +26,10 @@ const redo = async(app: Parameters<typeof sendIpcToRenderer>[0]): Promise<void> 
   await sendIpcToRenderer(app, 'mt::editor-edit-action', 'redo')
 }
 
+const save = async(app: Parameters<typeof sendIpcToRenderer>[0]): Promise<void> => {
+  await sendIpcToRenderer(app, 'mt::editor-ask-file-save')
+}
+
 test.describe('Parity PG2 — WYSIWYG caret restored after a source-mode edit', () => {
   // handleFileChange now maps the saved `muyaIndexCursor` ({line, ch}) onto a
   // block-key cursor via the engine's `setCursorByOffset`, so the source-mode
@@ -174,17 +178,12 @@ test.describe('Parity PG15 — undo back to on-disk content restores the saved i
     const { app, page } = await launchWithMarkdown('A\n')
     await waitForMenuReady(app)
 
-    // Edit to A + B, then mark the tab saved at this state (same IPC channel the
-    // main process sends after a real save: records the current synthetic id as
-    // `lastSavedHistoryId` and clears the dirty flag).
+    // Edit to A + B, then save through the same renderer command the File menu
+    // uses. The Controller accepts only the DocumentIO durable ACK as saved.
     await placeCaretInEditor(page)
     await typeIntoEditor(page, ' B')
     await page.waitForTimeout(500)
-    const tabId = await page.evaluate(
-      () => document.querySelector('.editor-tabs li.active')?.getAttribute('data-id') ?? null
-    )
-    expect(tabId).toBeTruthy()
-    await sendIpcToRenderer(app, 'mt::tab-saved', tabId)
+    await save(app)
     await expect
       .poll(() => page.evaluate(() => !!document.querySelector('.editor-tabs li.unsaved')))
       .toBe(false)
@@ -210,11 +209,6 @@ test.describe('Parity PG15 — undo back to on-disk content restores the saved i
 
 const isTabDirty = (page: Page): Promise<boolean> =>
   page.evaluate(() => !!document.querySelector('.editor-tabs li.unsaved'))
-
-const activeTabId = (page: Page): Promise<string | null> =>
-  page.evaluate(
-    () => document.querySelector('.editor-tabs li.active')?.getAttribute('data-id') ?? null
-  )
 
 // Read the live WYSIWYG document text WITHOUT toggling source mode. Toggling
 // into/out of source mode (as getMarkdownContent does) pushes extra
@@ -323,11 +317,9 @@ test.describe('Item 256 — save -> clean -> edit -> dirty -> undo-to-saved cycl
     // engine's exact rendered form.
     const savedText = await wysiwygText(page)
 
-    // 2) Real save (same IPC the main process sends after writing to disk):
-    //    records the current synthetic id as lastSavedHistoryId and clears dirty.
-    const tabId = await activeTabId(page)
-    expect(tabId).toBeTruthy()
-    await sendIpcToRenderer(app, 'mt::tab-saved', tabId)
+    // 2) Real save: the Controller accepts the DocumentIO durable ACK and
+    //    projects the resulting clean state into the readonly tab facade.
+    await save(app)
     await expect.poll(() => isTabDirty(page)).toBe(false)
 
     // 3) A fresh edit past the saved state re-marks the tab dirty.
