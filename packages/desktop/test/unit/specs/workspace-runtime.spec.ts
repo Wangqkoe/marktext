@@ -652,6 +652,21 @@ describe('WorkspaceRuntime', () => {
     expect(paneAt(projection, 0).tabs.map((tab) => tab.fileKey)).toEqual(['/one.md', '/two.md'])
   })
 
+  it('reorders a View within its pane without changing the active View', async () => {
+    const workspace = createWorkspaceRuntime([
+      { fileKey: '/one.md' },
+      { fileKey: '/two.md' },
+      { fileKey: '/three.md' }
+    ])
+    const before = paneAt(workspace.getProjection(), 0)
+    const moved = tabAt(before, 0)
+    const active = before.activeViewId
+    expect((await workspace.execute({ kind: 'reorder-view', paneId: 'left', viewId: moved.viewId })).status).toBe('applied')
+    const after = paneAt(workspace.getProjection(), 0)
+    expect(after.tabs.map((tab) => tab.fileKey)).toEqual(['/two.md', '/three.md', '/one.md'])
+    expect(after.activeViewId).toBe(active)
+  })
+
   it('updates source active state only when a non-collapse move removes its active View', async () => {
     for (const movingKind of ['active', 'non-active'] as const) {
       const workspace = createWorkspaceRuntime([

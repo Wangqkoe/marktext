@@ -3,7 +3,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { findMarkdownHeadingLine, scrollSourceEditorToLine } from '@/util/sourceModeToc'
@@ -16,6 +16,7 @@ import { oneDarkThemes, railscastsThemes } from '@/config'
 import { toCaretPosition } from '@/util/caretPosition'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import type { PaneEditorComposition, PaneEditorEventScope } from '@/workspace'
+import type { IFileState } from '@shared/types/files'
 
 // CodeMirror 5 ships no first-party types; the wrapper in src/renderer/src/
 // codeMirror/index.ts also keeps the surface intentionally loose.
@@ -33,6 +34,8 @@ const props = defineProps<{
   caretSession: CaretSession
   textDirection: string
   composition: PaneEditorComposition
+  activeFile?: IFileState
+  focused?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -49,9 +52,21 @@ const commitTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const viewDestroyed = ref(false)
 const tabId = ref<string | null>(null)
 let sourceEventScope: PaneEditorEventScope | undefined
+const focusedBusHandlers = new Map<string, (...args: any[]) => void>()
+const onFocused = (event: string, handler: (...args: any[]) => void): void => {
+  const guarded = (...args: any[]) => { if (props.focused !== false) handler(...args) }
+  focusedBusHandlers.set(event, guarded)
+  bus.on(event, guarded)
+}
+const offFocused = (event: string): void => {
+  const handler = focusedBusHandlers.get(event)
+  if (handler) bus.off(event, handler)
+  focusedBusHandlers.delete(event)
+}
 
 const { theme, sourceCode } = storeToRefs(preferencesStore)
-const { currentFile: currentTab } = storeToRefs(editorStore)
+const { currentFile: legacyCurrentTab } = storeToRefs(editorStore)
+const currentTab = computed(() => props.activeFile ?? legacyCurrentTab.value)
 
 const reportCaretPosition = (cm: CMInstance, session: CaretSession): void => {
   emit('caret-position', {
@@ -389,14 +404,14 @@ onMounted(async () => {
     codeMirrorConfig.theme = 'one-dark'
   }
 
-  bus.on('file-loaded', handleFileChange)
-  bus.on('invalidate-image-cache', handleInvalidateImageCache)
-  bus.on('file-changed', handleFileChange)
-  bus.on('selectAll', handleSelectAll)
-  bus.on('undo', handleUndo)
-  bus.on('redo', handleRedo)
-  bus.on('image-action', handleImageAction)
-  bus.on('scroll-to-header', handleScrollToHeader)
+  onFocused('file-loaded', handleFileChange)
+  onFocused('invalidate-image-cache', handleInvalidateImageCache)
+  onFocused('file-changed', handleFileChange)
+  onFocused('selectAll', handleSelectAll)
+  onFocused('undo', handleUndo)
+  onFocused('redo', handleRedo)
+  onFocused('image-action', handleImageAction)
+  onFocused('scroll-to-header', handleScrollToHeader)
 
   // For some reason, code mirror does not seem to play well with Vue's refs if we reference editor.value directly.
   // See https://github.com/codemirror/codemirror5/issues/6886 - hence, we need to use a local variable first.
@@ -436,14 +451,14 @@ onBeforeUnmount(() => {
   viewDestroyed.value = true
   if (commitTimer.value) clearTimeout(commitTimer.value)
 
-  bus.off('file-loaded', handleFileChange)
-  bus.off('invalidate-image-cache', handleInvalidateImageCache)
-  bus.off('file-changed', handleFileChange)
-  bus.off('selectAll', handleSelectAll)
-  bus.off('undo', handleUndo)
-  bus.off('redo', handleRedo)
-  bus.off('image-action', handleImageAction)
-  bus.off('scroll-to-header', handleScrollToHeader)
+  offFocused('file-loaded')
+  offFocused('invalidate-image-cache')
+  offFocused('file-changed')
+  offFocused('selectAll')
+  offFocused('undo')
+  offFocused('redo')
+  offFocused('image-action')
+  offFocused('scroll-to-header')
 
   const scope = sourceEventScope
   const id = tabId.value

@@ -62,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
+import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw, computed } from 'vue'
 import log from 'electron-log'
 import {
   Muya,
@@ -138,6 +138,7 @@ import '@muyajs/core'
 import '@/assets/themes/codemirror/one-dark.css'
 import { Close as CloseIcon } from '@element-plus/icons-vue'
 import { type InputNumberInstance } from 'element-plus'
+import type { IFileState } from '@shared/types/files'
 
 const { t } = useI18n()
 const STANDAR_Y = 320
@@ -197,6 +198,10 @@ const props = defineProps<{
   textDirection: string
   platform?: string
   composition: PaneEditorComposition
+  /** T03: the controller-derived active document for this mounted pane. */
+  activeFile?: IFileState
+  paneTabs?: readonly IFileState[]
+  focused?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -257,7 +262,9 @@ const {
 } = storeToRefs(preferencesStore)
 
 // Editor store refs
-const { currentFile, tabs } = storeToRefs(editorStore)
+const { currentFile: legacyCurrentFile, tabs: legacyTabs } = storeToRefs(editorStore)
+const currentFile = computed(() => props.activeFile ?? legacyCurrentFile.value)
+const tabs = computed(() => props.paneTabs ?? legacyTabs.value)
 
 // Project store refs
 const { projectTree } = storeToRefs(projectStore)
@@ -299,6 +306,17 @@ let paneSurface: PaneEditorSurface | undefined
 let rebindPaneGeneration: ((scope: PaneEditorEventScope | undefined) => void) | undefined
 let jsonChangeListener: (() => void) | undefined
 let selectionChangeListener: ((changes: MuyaChange) => void) | undefined
+const focusedBusHandlers = new Map<string, (...args: any[]) => void>()
+const onFocused = (event: string, handler: (...args: any[]) => void): void => {
+  const guarded = (...args: any[]) => { if (props.focused !== false) handler(...args) }
+  focusedBusHandlers.set(event, guarded)
+  bus.on(event, guarded)
+}
+const offFocused = (event: string): void => {
+  const handler = focusedBusHandlers.get(event)
+  if (handler) bus.off(event, handler)
+  focusedBusHandlers.delete(event)
+}
 
 // The WYSIWYG caret captured the instant the user switches INTO source mode.
 // Focus moves to CodeMirror while source mode is up, so by the time the tab is
@@ -1932,8 +1950,6 @@ onMounted(() => {
         ...(legacyTab.pathname ? { fileKey: legacyTab.pathname } : {})
       })
       .then(() => {
-        const controller = props.composition.getController()
-        if (controller) editorStore.ATTACH_WORKSPACE_FACADE(controller)
       })
       .catch((error) => {
         console.error('Failed to bind the pane editor:', error)
@@ -1958,7 +1974,7 @@ onMounted(() => {
   const container = getScrollContainer()!
 
   // Listen for language changes and update the engine locale.
-  bus.on('language-changed', handleLanguageChanged)
+  onFocused('language-changed', handleLanguageChanged)
 
   // Create spell check wrapper and enable spell checking if preferred.
   spellchecker = new SpellChecker(spellcheckerEnabled.value, spellcheckerLanguage.value)
@@ -1972,38 +1988,38 @@ onMounted(() => {
   }
 
   // listen for bus events.
-  bus.on('file-loaded', setMarkdownToEditor)
-  bus.on('invalidate-image-cache', handleInvalidateImageCache)
-  bus.on('undo', handleUndo)
-  bus.on('redo', handleRedo)
-  bus.on('selectAll', handleSelectAll)
-  bus.on('export', handleExport)
-  bus.on('print-service-clearup', handlePrintServiceClearup)
-  bus.on('paragraph', handleEditParagraph)
-  bus.on('format', handleInlineFormat)
-  bus.on('searchValue', handleSearch)
-  bus.on('replaceValue', handReplace)
-  bus.on('find-action', handleFindAction)
-  bus.on('insert-image', insertImage)
-  bus.on('image-uploaded', handleUploadedImage)
-  bus.on('file-changed', handleFileChange)
-  bus.on('flush-active-editor', flushActiveEditor)
-  bus.on('editor-blur', blurEditor)
-  bus.on('editor-focus', focusEditor)
-  bus.on('copyAsRich', handleCopyPaste)
-  bus.on('copyAsHtml', handleCopyPaste)
-  bus.on('pasteAsPlainText', handleCopyPaste)
-  bus.on('duplicate', handleParagraph)
-  bus.on('createParagraph', handleParagraph)
-  bus.on('deleteParagraph', handleParagraph)
-  bus.on('insertParagraph', handleInsertParagraph)
-  bus.on('scroll-to-header', scrollToHeader)
-  bus.on('scroll-to-anchor-element', scrollToAnchorElement)
-  bus.on('screenshot-captured', handleScreenShot)
-  bus.on('show-command-palette', handleModalOpening)
-  bus.on('switch-spellchecker-language', switchSpellcheckLanguage)
-  bus.on('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)
-  bus.on('replace-misspelling', replaceMisspelling)
+  onFocused('file-loaded', setMarkdownToEditor)
+  onFocused('invalidate-image-cache', handleInvalidateImageCache)
+  onFocused('undo', handleUndo)
+  onFocused('redo', handleRedo)
+  onFocused('selectAll', handleSelectAll)
+  onFocused('export', handleExport)
+  onFocused('print-service-clearup', handlePrintServiceClearup)
+  onFocused('paragraph', handleEditParagraph)
+  onFocused('format', handleInlineFormat)
+  onFocused('searchValue', handleSearch)
+  onFocused('replaceValue', handReplace)
+  onFocused('find-action', handleFindAction)
+  onFocused('insert-image', insertImage)
+  onFocused('image-uploaded', handleUploadedImage)
+  onFocused('file-changed', handleFileChange)
+  onFocused('flush-active-editor', flushActiveEditor)
+  onFocused('editor-blur', blurEditor)
+  onFocused('editor-focus', focusEditor)
+  onFocused('copyAsRich', handleCopyPaste)
+  onFocused('copyAsHtml', handleCopyPaste)
+  onFocused('pasteAsPlainText', handleCopyPaste)
+  onFocused('duplicate', handleParagraph)
+  onFocused('createParagraph', handleParagraph)
+  onFocused('deleteParagraph', handleParagraph)
+  onFocused('insertParagraph', handleInsertParagraph)
+  onFocused('scroll-to-header', scrollToHeader)
+  onFocused('scroll-to-anchor-element', scrollToAnchorElement)
+  onFocused('screenshot-captured', handleScreenShot)
+  onFocused('show-command-palette', handleModalOpening)
+  onFocused('switch-spellchecker-language', switchSpellcheckLanguage)
+  onFocused('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)
+  onFocused('replace-misspelling', replaceMisspelling)
 
   const installGenerationCallbacks = (scope: PaneEditorEventScope | undefined) => {
     if (!editor.value) return
@@ -2156,39 +2172,39 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   caretReporter.cancel()
-  bus.off('file-loaded', setMarkdownToEditor)
-  bus.off('invalidate-image-cache', handleInvalidateImageCache)
-  bus.off('undo', handleUndo)
-  bus.off('redo', handleRedo)
-  bus.off('selectAll', handleSelectAll)
-  bus.off('export', handleExport)
-  bus.off('print-service-clearup', handlePrintServiceClearup)
-  bus.off('paragraph', handleEditParagraph)
-  bus.off('format', handleInlineFormat)
-  bus.off('searchValue', handleSearch)
-  bus.off('replaceValue', handReplace)
-  bus.off('find-action', handleFindAction)
-  bus.off('insert-image', insertImage)
-  bus.off('image-uploaded', handleUploadedImage)
-  bus.off('file-changed', handleFileChange)
-  bus.off('flush-active-editor', flushActiveEditor)
-  bus.off('editor-blur', blurEditor)
-  bus.off('editor-focus', focusEditor)
-  bus.off('copyAsRich', handleCopyPaste)
-  bus.off('copyAsHtml', handleCopyPaste)
-  bus.off('pasteAsPlainText', handleCopyPaste)
-  bus.off('duplicate', handleParagraph)
-  bus.off('createParagraph', handleParagraph)
-  bus.off('deleteParagraph', handleParagraph)
-  bus.off('insertParagraph', handleInsertParagraph)
-  bus.off('scroll-to-header', scrollToHeader)
-  bus.off('scroll-to-anchor-element', scrollToAnchorElement)
-  bus.off('screenshot-captured', handleScreenShot)
-  bus.off('show-command-palette', handleModalOpening)
-  bus.off('switch-spellchecker-language', switchSpellcheckLanguage)
-  bus.off('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)
-  bus.off('replace-misspelling', replaceMisspelling)
-  bus.off('language-changed', handleLanguageChanged)
+  offFocused('file-loaded')
+  offFocused('invalidate-image-cache')
+  offFocused('undo')
+  offFocused('redo')
+  offFocused('selectAll')
+  offFocused('export')
+  offFocused('print-service-clearup')
+  offFocused('paragraph')
+  offFocused('format')
+  offFocused('searchValue')
+  offFocused('replaceValue')
+  offFocused('find-action')
+  offFocused('insert-image')
+  offFocused('image-uploaded')
+  offFocused('file-changed')
+  offFocused('flush-active-editor')
+  offFocused('editor-blur')
+  offFocused('editor-focus')
+  offFocused('copyAsRich')
+  offFocused('copyAsHtml')
+  offFocused('pasteAsPlainText')
+  offFocused('duplicate')
+  offFocused('createParagraph')
+  offFocused('deleteParagraph')
+  offFocused('insertParagraph')
+  offFocused('scroll-to-header')
+  offFocused('scroll-to-anchor-element')
+  offFocused('screenshot-captured')
+  offFocused('show-command-palette')
+  offFocused('switch-spellchecker-language')
+  offFocused('open-command-spellchecker-switch-language')
+  offFocused('replace-misspelling')
+  offFocused('language-changed')
 
   document.removeEventListener('keyup', keyup)
 

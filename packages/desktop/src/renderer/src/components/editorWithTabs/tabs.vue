@@ -61,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
@@ -72,10 +72,27 @@ import bus from '../../bus'
 import type { IFileState } from '@shared/types/files'
 import type { PaneEditorComposition } from '@/workspace'
 
-const props = defineProps<{ composition: PaneEditorComposition }>()
+type TabRow = IFileState & { viewId?: string }
+
+const props = defineProps<{
+  composition: PaneEditorComposition
+  pane?: import('@shared/workspace').WorkspaceProjectionPane
+  workspaceWidth?: number
+}>()
+const emit = defineEmits<{ 'preview-split': [candidate: 'left' | 'right' | null] }>()
 
 const editorStore = useEditorStore()
-const { currentFile, tabs } = storeToRefs(editorStore)
+const { currentFile: legacyCurrentFile, tabs: legacyTabs } = storeToRefs(editorStore)
+const tabs = computed<TabRow[]>(() => props.pane ? props.pane.tabs.map((tab) => ({
+  id: tab.documentId,
+  viewId: tab.viewId,
+  filename: tab.title,
+  pathname: tab.fileKey ?? '',
+  isSaved: !tab.dirty
+} as unknown as TabRow)) : legacyTabs.value)
+const currentFile = computed(() => props.pane
+  ? tabs.value.find((tab) => tab.viewId === props.pane!.activeViewId) ?? null
+  : legacyCurrentFile.value)
 
 interface AutoScroller {
   readonly down: boolean
@@ -86,11 +103,18 @@ const tabContainer = ref<HTMLElement | null>(null)
 const tabDropContainer = ref<HTMLElement | null>(null)
 let autoScroller: AutoScroller | null = null
 let drake: dragula.Drake | null = null
+let edgeCandidate: 'left' | 'right' | null = null
+let draggedViewId: string | undefined
 
 // Computed properties
 
 // Methods incorporated from tabsMixins
 const selectFile = (file: IFileState) => {
+  if (props.pane) {
+    const tab = props.pane.tabs.find((candidate) => candidate.documentId === file.id)
+    if (tab) void props.composition.execute({ kind: 'activate-view', paneId: props.pane.paneId, viewId: tab.viewId })
+    return
+  }
   if (file.id !== currentFile.value?.id) {
     props.composition.activateLegacyTab(file).catch((error) => {
       console.error('Failed to activate workspace pane tab:', error)
@@ -240,6 +264,8 @@ onMounted(() => {
     revertOnSpill: true,
     mirrorContainer: tabDropContainer.value,
     ignoreInputTextSelection: false
+  }).on('drag', (el) => {
+    draggedViewId = props.pane?.tabs.find((tab) => tab.documentId === el?.getAttribute('data-id'))?.viewId
   }).on('drop', (el, _target, _source, sibling) => {
     // Current tab that was dropped and need to be reordered.
     const droppedId = el?.getAttribute('data-id')
@@ -252,9 +278,25 @@ onMounted(() => {
       return
     }
 
-    // Controller has no tab-order command yet. T03 owns reorder presentation;
-    // reject this legacy drag edge rather than mutating the projection facade.
-    console.warn('Workspace tab reorder is unavailable until T03.', { droppedId, nextTabId, isLastTab })
+    if (props.pane) {
+      const viewId = props.pane.tabs.find((tab) => tab.documentId === droppedId)?.viewId
+      if (edgeCandidate && draggedViewId) {
+        const projection = props.composition.getController()?.getProjection()
+        if (projection?.panes.length === 1) {
+          void props.composition.execute({ kind: 'activate-view', paneId: props.pane.paneId, viewId: draggedViewId })
+            .then(() => props.composition.execute({ kind: 'split-pane', targetPaneId: edgeCandidate! }))
+        } else {
+          void props.composition.execute({ kind: 'move-view', viewId: draggedViewId, targetPaneId: edgeCandidate })
+        }
+      } else if (viewId) {
+        const beforeViewId = isLastTab ? undefined : props.pane.tabs.find((tab) => tab.documentId === nextTabId)?.viewId
+        void props.composition.execute({ kind: 'reorder-view', paneId: props.pane.paneId, viewId, ...(beforeViewId ? { beforeViewId } : {}) })
+      }
+      edgeCandidate = null
+      emit('preview-split', null)
+      return
+    }
+    console.warn('Tab reorder is unavailable outside the workspace shell.', { droppedId, nextTabId, isLastTab })
   })
 
   // Scroll when dragging a tab to the beginning or end of the tab container.
@@ -265,6 +307,17 @@ onMounted(() => {
     autoScroll: () => {
       return autoScroller!.down && drake?.dragging
     }
+  })
+  const updateCandidate = (event: PointerEvent) => {
+    if (!drake?.dragging || !props.pane || (props.workspaceWidth ?? 0) < 720) return
+    const rect = tabsEl.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const candidate = x <= rect.width * 0.31 ? 'left' : x >= rect.width * 0.69 ? 'right' : null
+    if (candidate !== edgeCandidate) { edgeCandidate = candidate; emit('preview-split', candidate) }
+  }
+  window.addEventListener('pointermove', updateCandidate)
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && edgeCandidate) { edgeCandidate = null; emit('preview-split', null); drake?.cancel(true) }
   })
 })
 

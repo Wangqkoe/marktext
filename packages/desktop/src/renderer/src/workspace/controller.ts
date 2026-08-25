@@ -400,6 +400,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
           return await this.split(command.targetPaneId)
         case 'move-view':
           return await this.move(command.viewId, command.targetPaneId)
+        case 'reorder-view':
+          return this.reorder(command.paneId, command.viewId, command.beforeViewId)
         case 'close-view':
           return await this.close(command.viewId)
         case 'close-focused-view':
@@ -578,6 +580,19 @@ export class WorkspaceController implements WorkspaceControllerContract {
       target.activeViewId = viewId
       this.focusedPaneId = target.id
     }
+    this.commit()
+    return this.applied()
+  }
+
+  private reorder(paneId: PaneId, viewId: ViewId, beforeViewId?: ViewId): WorkspaceResult {
+    const pane = this.panes.get(paneId)
+    if (!pane || !pane.viewIds.includes(viewId)) return this.rejected('view is not in pane')
+    if (beforeViewId && !pane.viewIds.includes(beforeViewId)) return this.rejected('before view is not in pane')
+    if (viewId === beforeViewId) return this.applied()
+    const order = pane.viewIds.filter((id) => id !== viewId)
+    const index = beforeViewId ? order.indexOf(beforeViewId) : order.length
+    order.splice(index, 0, viewId)
+    pane.viewIds = order
     this.commit()
     return this.applied()
   }
