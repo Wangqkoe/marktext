@@ -157,6 +157,7 @@ export type WorkspaceCommand =
   | { readonly kind: 'activate-view'; readonly paneId: PaneId; readonly viewId: ViewId }
   | { readonly kind: 'focus-pane'; readonly paneId: PaneId }
   | { readonly kind: 'split-pane'; readonly targetPaneId: PaneId }
+  | { readonly kind: 'set-split-ratio'; readonly ratio: number }
   | { readonly kind: 'move-view'; readonly viewId: ViewId; readonly targetPaneId: PaneId }
   /** Reorders a View within its existing pane. `beforeViewId` appends when omitted. */
   | { readonly kind: 'reorder-view'; readonly paneId: PaneId; readonly viewId: ViewId; readonly beforeViewId?: ViewId }

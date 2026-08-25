@@ -15,7 +15,7 @@
       @caret-position="$emit('caret-position', $event)"
       @preview-split="setPreview"
     />
-    <div v-if="panes.length === 2" class="workspace-divider" title="Reset split" @pointerdown="startDivider" @dblclick="ratio = 0.5" />
+    <div v-if="panes.length === 2" class="workspace-divider" title="Reset split" @pointerdown="startDivider" @dblclick="controller.execute({ kind: 'set-split-ratio', ratio: 0.5 })" />
   </div>
 </template>
 
@@ -35,7 +35,7 @@ const left = createPaneEditorComposition({ paneId: 'left', controller })
 const right = createPaneEditorComposition({ paneId: 'right', controller })
 const root = ref<HTMLElement | null>(null)
 const workspaceWidth = ref(0)
-const ratio = ref(0.5)
+const ratio = computed(() => snapshot.value.projection.splitRatio ?? 0.5)
 const splitPreview = ref<'left' | 'right' | null>(null)
 const snapshot = ref(controller.getFacadeSnapshot())
 const panes = computed(() => snapshot.value.projection.panes)
@@ -44,7 +44,7 @@ const setPreview = (candidate: 'left' | 'right' | null) => { splitPreview.value 
 const updateWidth = () => { workspaceWidth.value = root.value?.clientWidth ?? 0 }
 let observer: ResizeObserver | undefined
 let dividerPointer: number | undefined
-const moveDivider = (event: PointerEvent) => { if (dividerPointer !== event.pointerId || !root.value) return; const width = root.value.clientWidth; ratio.value = Math.max(320 / width, Math.min(1 - 320 / width, event.clientX / width)) }
+const moveDivider = (event: PointerEvent) => { if (dividerPointer !== event.pointerId || !root.value) return; const width = root.value.clientWidth; void controller.execute({ kind: 'set-split-ratio', ratio: Math.max(320 / width, Math.min(1 - 320 / width, event.clientX / width)) }) }
 const endDivider = (event: PointerEvent) => { if (dividerPointer !== event.pointerId) return; dividerPointer = undefined; window.removeEventListener('pointermove', moveDivider); window.removeEventListener('pointerup', endDivider) }
 const startDivider = (event: PointerEvent) => { dividerPointer = event.pointerId; window.addEventListener('pointermove', moveDivider); window.addEventListener('pointerup', endDivider) }
 const unsubscribe = controller.subscribe(() => { snapshot.value = controller.getFacadeSnapshot() })

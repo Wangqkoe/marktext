@@ -115,6 +115,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private readonly listeners = new Set<(projection: WorkspaceProjection) => void>()
   private warnings: WorkspaceWarning[] = []
   private focusedPaneId: PaneId = 'left'
+  private splitRatio = 0.5
   private workspaceRevision = 0
   private nextId = 1
   private nextDocumentIoRequest = 1
@@ -166,7 +167,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return freeze({
       workspaceRevision: this.workspaceRevision,
       focusedPaneId: this.focusedPaneId,
-      splitRatio: this.panes.size === 2 ? 0.5 : null,
+      splitRatio: this.panes.size === 2 ? this.splitRatio : null,
       panes,
       toc: clone(focusedView.toc),
       status: clone(focusedView.status),
@@ -398,6 +399,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
           return await this.focus(command.paneId)
         case 'split-pane':
           return await this.split(command.targetPaneId)
+        case 'set-split-ratio':
+          return this.setSplitRatio(command.ratio)
         case 'move-view':
           return await this.move(command.viewId, command.targetPaneId)
         case 'reorder-view':
@@ -540,6 +543,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     this.panes.set('left', targetPaneId === 'left' ? targetPane : sourcePane)
     this.panes.set('right', targetPaneId === 'right' ? targetPane : sourcePane)
     this.focusedPaneId = targetPaneId
+    this.splitRatio = 0.5
     this.commit()
     return this.applied()
   }
@@ -580,6 +584,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
       target.activeViewId = viewId
       this.focusedPaneId = target.id
     }
+    this.commit()
+    return this.applied()
+  }
+
+  private setSplitRatio(ratio: number): WorkspaceResult {
+    if (this.panes.size !== 2) return this.rejected('workspace is not split')
+    if (!Number.isFinite(ratio) || ratio <= 0 || ratio >= 1) return this.rejected('invalid split ratio')
+    this.splitRatio = ratio
     this.commit()
     return this.applied()
   }
