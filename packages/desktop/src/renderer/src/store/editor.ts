@@ -1348,7 +1348,7 @@ export const useEditorStore = defineStore('editor', {
         selected = true
       }
       if (singlePaneWorkspace().isMounted()) {
-        void singlePaneWorkspace().execute({ kind: 'new-tab' })
+        void singlePaneWorkspace().execute({ kind: 'new-tab', ...(markdownString ? { markdown: markdownString } : {}) })
         return
       }
 

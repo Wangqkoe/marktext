@@ -30,6 +30,7 @@ interface DocumentRecord {
   id: DocumentId
   fileKey?: string
   markdown: string
+  savedMarkdown: string
   dirty: boolean
   conflict: boolean
   revision: number
@@ -388,7 +389,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     try {
       switch (command.kind) {
         case 'new-tab':
-          return await this.newTab(command.paneId ?? this.focusedPaneId)
+          return await this.newTab(command.paneId ?? this.focusedPaneId, command.markdown)
         case 'open-document':
           return await this.openDocument(command.document)
         case 'activate-view':
@@ -447,11 +448,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
   }
 
-  private async newTab(paneId: PaneId): Promise<WorkspaceResult> {
+  private async newTab(paneId: PaneId, markdown?: string): Promise<WorkspaceResult> {
     const pane = this.panes.get(paneId)
     if (!pane) return this.rejected('missing pane')
     await this.flushPane(paneId)
-    const doc = this.makeDocument({})
+    const doc = this.makeDocument({ markdown })
     const view = this.makeView(doc.id)
     await this.refreshAdapter(paneId, this.snapshotForRecord(paneId, view, doc))
     this.documents.set(doc.id, doc)
@@ -711,6 +712,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       document.title = pending.targetTitle
     }
     document.dirty = false
+    document.savedMarkdown = document.markdown
     document.conflict = false
     this.commit()
     return this.applied()
@@ -925,7 +927,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     let changedDocument = false
     if (report.markdown !== undefined && report.markdown !== document.markdown) {
       document.markdown = report.markdown
-      document.dirty = true
+      document.dirty = document.markdown !== document.savedMarkdown
       changedDocument = true
     }
     if (report.portableHistory !== undefined) {
@@ -1008,6 +1010,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       id,
       ...(input.fileKey ? { fileKey: input.fileKey } : {}),
       markdown: input.markdown ?? '',
+      savedMarkdown: input.markdown ?? '',
       dirty: false,
       conflict: input.conflict ?? false,
       revision: 0,
