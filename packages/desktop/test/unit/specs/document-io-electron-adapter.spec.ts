@@ -177,7 +177,7 @@ describe('DocumentIO Electron adapter', () => {
         if (request.kind === 'bind' && request.requestId === 'late-bind') {
           return new Promise<DocumentSaveAck>((resolve) => { resolveBind = resolve })
         }
-        if (request.kind === 'save') {
+        if (request.kind === 'save' || request.kind === 'save-as') {
           return new Promise<DocumentSaveAck>((resolve) => { resolveSave = resolve })
         }
         if (request.kind === 'bind') {
@@ -215,6 +215,20 @@ describe('DocumentIO Electron adapter', () => {
     })
     await pendingSave
     expect(lateSave.getBinding(bound.ownerFence)).toBeUndefined()
+
+    const lateUnboundSave = new RendererDocumentIoAdapter(port, () => {})
+    const pendingUnboundSave = lateUnboundSave.save({
+      kind: 'save-as', requestId: 'late-unbound-save', documentId: 'untitled', documentRevision: 1,
+      markdown: 'saved', options, targetPathname: 'C:/workspace/untitled.md'
+    })
+    await lateUnboundSave.dispose()
+    resolveSave({
+      status: 'durable-success', requestId: 'late-unbound-save', documentId: 'untitled', documentRevision: 1,
+      ownerFence: 'late-unbound-fence'
+    })
+    await expect(pendingUnboundSave).resolves.toMatchObject({ status: 'rejected' })
+    expect(lateUnboundSave.getBinding('late-unbound-fence')).toBeUndefined()
+    expect(calls.at(-1)).toMatchObject({ kind: 'unbind', ownerFence: 'late-unbound-fence' })
   })
 
   it('does not publish a bind when navigation interrupts deferred canonicalization', async() => {

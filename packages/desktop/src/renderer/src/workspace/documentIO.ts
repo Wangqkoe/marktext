@@ -71,12 +71,22 @@ export class RendererDocumentIoAdapter {
     if (request.kind === 'save-as' && request.ownerFence === undefined) {
       if (this.disposed) return this.rejected(request, 'renderer adapter is disposed')
       const ack = await this.port.request(request)
+      if (this.disposed) {
+        if (ack.status === 'durable-success') {
+          await this.port.request({
+            kind: 'unbind',
+            requestId: `late-dispose:${ack.ownerFence}`,
+            documentId: ack.documentId,
+            ownerFence: ack.ownerFence
+          })
+        }
+        return this.rejected(request, 'renderer adapter was disposed before Save As acknowledgment')
+      }
       if (
         ack.status === 'durable-success' &&
         ack.requestId === request.requestId &&
         ack.documentId === request.documentId &&
         ack.documentRevision === request.documentRevision &&
-        !this.disposed &&
         !this.acceptedRequestIds.has(request.requestId)
       ) {
         this.acceptedRequestIds.add(request.requestId)
