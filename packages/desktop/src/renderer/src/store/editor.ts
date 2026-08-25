@@ -141,6 +141,7 @@ export interface EditorState {
   listToc: TocItem[]
   toc: TocTreeNode[]
   workspaceProjection: WorkspaceProjection | null
+  workspaceFacade: unknown
 }
 
 const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -149,9 +150,19 @@ const controllerFacadeFields = [
   'encoding', 'lineEnding', 'adjustLineEndingOnSave', 'trimTrailingNewline'
 ] as const
 
+const freezeFacadeValue = <T>(value: T): T => {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value
+  for (const child of Object.values(value as Record<string, unknown>)) freezeFacadeValue(child)
+  return Object.freeze(value)
+}
+
 const inertControllerFacadeFile = (file: IFileState): IFileState => {
   for (const key of controllerFacadeFields) {
-    Object.defineProperty(file, key, { value: file[key], enumerable: true, writable: false })
+    Object.defineProperty(file, key, {
+      value: freezeFacadeValue(deepClone(file[key])),
+      enumerable: true,
+      writable: false
+    })
   }
   return file
 }
@@ -168,7 +179,8 @@ export const useEditorStore = defineStore('editor', {
     tabIdToIndex: {},
     listToc: [], // Used for equal check and for searching for the correct github-slug to jump to
     toc: [],
-    workspaceProjection: null
+    workspaceProjection: null,
+    workspaceFacade: null
   }),
 
   actions: {
@@ -186,15 +198,18 @@ export const useEditorStore = defineStore('editor', {
       binding.mirror.dispose()
       workspaceFacadeBindings.delete(this)
       this.workspaceProjection = null
+      this.workspaceFacade = null
     },
 
     /** Controller projection is the only writer of these compatibility fields. */
     APPLY_WORKSPACE_PROJECTION(snapshot: WorkspaceFacadeSnapshot): void {
-      const { projection } = snapshot
+      const facade = freezeFacadeValue(deepClone(snapshot)) as WorkspaceFacadeSnapshot
+      this.workspaceFacade = facade
+      const { projection } = facade
       this.workspaceProjection = projection
       const pane = projection.panes.find((candidate) => candidate.paneId === projection.focusedPaneId)
       if (!pane) return
-      const documentsByView = new Map(snapshot.documents.map((document) => [document.viewId, document]))
+      const documentsByView = new Map(facade.documents.map((document) => [document.viewId, document]))
       const existing = new Map(this.tabs.map((tab) => [tab.id, tab]))
       this.tabs = Object.freeze(pane.tabs.map((tab) => {
         const previous = existing.get(tab.documentId)
@@ -1030,7 +1045,7 @@ export const useEditorStore = defineStore('editor', {
         const workspace = singlePaneWorkspace()
         const close = await workspace.execute({ kind: 'close-view', viewId: view.viewId })
         if (close.status !== 'needs-decision') return
-        const decision = await workspace.confirmClose()
+        const decision = await workspace.confirmClose(view.viewId)
         if (decision === 'cancel') return
         if (decision === 'discard') {
           await workspace.execute({ kind: 'commit-authorized', capability: close.capability })
@@ -1042,7 +1057,7 @@ export const useEditorStore = defineStore('editor', {
         const save = target.pathname
           ? await workspace.execute({ kind: 'save' })
           : await (async() => {
-              const pathname = await workspace.chooseSaveTarget()
+              const pathname = await workspace.chooseSaveTarget(view.viewId)
               return pathname
                 ? workspace.execute({ kind: 'save-as', fileKey: pathname, title: window.path.basename(pathname) })
                 : undefined

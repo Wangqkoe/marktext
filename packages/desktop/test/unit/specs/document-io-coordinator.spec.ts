@@ -107,6 +107,33 @@ describe('DocumentIOCoordinator', () => {
     expect(watchers.activeWatchers.size).toBe(1)
   })
 
+  it('keeps an untitled Save As provisional until the guarded write is durable', async() => {
+    const { coordinator, hub, storage, watchers } = setup()
+    const target = 'C:/workspace/untitled.md'
+    const targetKey = await hub.canonicalFileKey(target)
+    const unbound = (requestId: string): DocumentIoSaveRequest => ({
+      kind: 'save-as', requestId, documentId: 'untitled', documentRevision: 0,
+      markdown: 'draft', options, targetPathname: target
+    })
+    storage.onWrite = () => { throw new Error('disk full') }
+    const failed = await coordinator.request('sender-a', unbound('untitled:failed'))
+    expect(failed).toMatchObject({ status: 'not-durable', ownerFence: undefined })
+    expect(watchers.activeWatchers.size).toBe(0)
+    storage.onWrite = undefined
+    // The memory hook throws after its write; model a real failed durable
+    // write by removing that test-double artifact before retrying.
+    storage.files.delete(targetKey)
+    const durable = await coordinator.request('sender-a', unbound('untitled:durable'))
+    expect(durable).toMatchObject({ status: 'durable-success', documentId: 'untitled' })
+    expect((await storage.read(targetKey))?.toString()).toBe('draft')
+    expect(watchers.activeWatchers.size).toBe(1)
+    if (durable.status !== 'durable-success') throw new Error('expected durable Save As')
+    await expect(coordinator.request('sender-a', {
+      kind: 'unbind', requestId: 'untitled:close', documentId: 'untitled', ownerFence: durable.ownerFence
+    })).resolves.toMatchObject({ status: 'unbound' })
+    expect(watchers.activeWatchers.size).toBe(0)
+  })
+
   it('makes late saves and observers inert after rebind and endpoint revocation', async() => {
     const { coordinator, hub, storage, watchers, endpoint, observations } = setup()
     const canonical = await hub.canonicalFileKey(file)

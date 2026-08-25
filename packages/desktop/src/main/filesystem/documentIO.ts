@@ -71,6 +71,10 @@ export class DocumentIOCoordinator {
     const endpoint = this.endpoints.get(senderId)
     if (!endpoint) return rejected(request, 'unknown or revoked sender')
     if (request.kind === 'bind') return this.bind(endpoint, request)
+    if (request.kind === 'save-as' && request.ownerFence === undefined) {
+      return this.saveUnbound(endpoint, request)
+    }
+    if (!request.ownerFence) return rejected(request, 'missing owner fence')
     const binding = this.bindings.get(request.ownerFence)
     if (!binding || !this.isCurrentBinding(binding, endpoint, request.documentId)) {
       return rejected(request, 'stale or mismatched owner fence')
@@ -196,6 +200,94 @@ export class DocumentIOCoordinator {
     const targetKey = await this.hub.canonicalFileKey(target)
     if (targetKey === binding.fileKey) return this.saveBound(binding, request)
     return this.saveAndRebind(binding, request, targetKey)
+  }
+
+  /**
+   * An untitled Save As has no public binding yet.  Keep its target lease and
+   * reservation in main until the guarded write is durably acknowledged; a
+   * failed/cancelled/stale request therefore cannot change renderer truth.
+   */
+  private async saveUnbound(
+    endpoint: DocumentIoEndpoint,
+    request: DocumentIoSaveRequest
+  ): Promise<DocumentSaveAck> {
+    const target = request.targetPathname
+    if (!target) return rejected(request, 'Save As requires a target path')
+    const reservation = this.reserve(endpoint, request.documentId, request.documentRevision)
+    if (!reservation) return rejected(request, 'stale document revision')
+    let lease: FileObservationLease | undefined
+    try {
+      const fileKey = await this.hub.canonicalFileKey(target)
+      if (!this.isCurrentReservation(reservation)) return rejected(request, 'stale Save As')
+      const provisionalId = `${request.documentId}:save-as:${randomUUID()}`
+      lease = await this.hub.subscribe({
+        documentId: provisionalId,
+        documentRevision: request.documentRevision,
+        fileKey,
+        getState: () => 'dirty',
+        onDiskChange: () => undefined
+      })
+      const result = await this.hub.save({
+        documentId: provisionalId,
+        documentRevision: request.documentRevision,
+        fileKey,
+        observedDiskRevision: null,
+        ownerLease: lease,
+        bytes: encodeMarkdown(request.markdown, request.options),
+        purpose: 'save',
+        canWrite: () => this.isCurrentReservation(reservation) && this.hub.isCurrent(lease!)
+      })
+      if (result.status === 'conflict') return this.conflictForUnbound(request)
+      if (result.status !== 'saved') return this.notDurable(request, result.reason)
+      if (!(await this.hub.acceptsSaveAck(result, {
+        documentId: provisionalId,
+        documentRevision: request.documentRevision,
+        fileKey,
+        ownerLease: lease
+      }))) {
+        return this.notDurable(request, 'save acknowledgment was stale')
+      }
+      if (!this.isCurrentReservation(reservation)) {
+        return this.notDurable(request, 'Save As was superseded before durable acknowledgment')
+      }
+      const ownerFence = randomUUID()
+      let binding!: Binding
+      const successor = await this.hub.subscribe({
+        documentId: request.documentId,
+        documentRevision: request.documentRevision,
+        fileKey,
+        getState: () => (binding.dirty ? 'dirty' : 'clean'),
+        onDiskChange: (change) => this.notify(binding, change)
+      })
+      binding = {
+        endpoint,
+        documentId: request.documentId,
+        ownerFence,
+        fileKey,
+        observedDiskRevision: result.diskRevision,
+        documentRevision: request.documentRevision,
+        dirty: false,
+        lease: successor,
+        saveAcks: new Map([[request.requestId, {
+          status: 'durable-success',
+          requestId: request.requestId,
+          documentId: request.documentId,
+          documentRevision: request.documentRevision,
+          ownerFence
+        }]])
+      }
+      if (!this.isCurrentReservation(reservation)) {
+        this.hub.release(successor)
+        return this.notDurable(request, 'Save As was superseded before binding publish')
+      }
+      this.bindings.set(ownerFence, binding)
+      return this.durable(request, binding, result.diskRevision)
+    } catch (error) {
+      return this.notDurable(request, error instanceof Error ? error.message : String(error))
+    } finally {
+      if (lease && this.hub.isCurrent(lease)) this.hub.release(lease)
+      this.clearReservation(reservation)
+    }
   }
 
   private async saveBound(binding: Binding, request: DocumentIoSaveRequest): Promise<DocumentSaveAck> {
@@ -407,6 +499,14 @@ export class DocumentIOCoordinator {
       requestId: request.requestId,
       documentId: binding.documentId,
       ownerFence: binding.ownerFence
+    }
+  }
+
+  private conflictForUnbound(request: DocumentIoSaveRequest): DocumentSaveAck {
+    return {
+      status: 'conflict',
+      requestId: request.requestId,
+      documentId: request.documentId
     }
   }
 

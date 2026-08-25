@@ -68,6 +68,29 @@ export class RendererDocumentIoAdapter {
   }
 
   async save(request: DocumentIoSaveRequest): Promise<DocumentSaveAck> {
+    if (request.kind === 'save-as' && request.ownerFence === undefined) {
+      if (this.disposed) return this.rejected(request, 'renderer adapter is disposed')
+      const ack = await this.port.request(request)
+      if (
+        ack.status === 'durable-success' &&
+        ack.requestId === request.requestId &&
+        ack.documentId === request.documentId &&
+        ack.documentRevision === request.documentRevision &&
+        !this.disposed &&
+        !this.acceptedRequestIds.has(request.requestId)
+      ) {
+        this.acceptedRequestIds.add(request.requestId)
+        this.bindings.set(ack.ownerFence, {
+          documentId: ack.documentId,
+          ownerFence: ack.ownerFence,
+          pathname: request.targetPathname ?? '',
+          documentRevision: request.documentRevision,
+          dirty: false
+        })
+      }
+      return ack
+    }
+    if (!request.ownerFence) return this.rejected(request, 'missing renderer owner fence')
     const binding = this.bindings.get(request.ownerFence)
     if (
       this.disposed ||

@@ -33,7 +33,8 @@ export interface DocumentIoSaveRequest {
   readonly requestId: string
   readonly documentId: DocumentId
   readonly documentRevision: number
-  readonly ownerFence: string
+  /** Omitted only for an unbound Save As. Main keeps its provisional lease private. */
+  readonly ownerFence?: string
   readonly markdown: string
   readonly options: DocumentIoWriteOptions
   /** Save uses the current binding; Save As/rename supply the proposed path. */
@@ -73,7 +74,8 @@ export type DocumentSaveAck =
     readonly status: 'conflict'
     readonly requestId: string
     readonly documentId: DocumentId
-    readonly ownerFence: string
+    /** Omitted when an unbound Save As never reached a public binding. */
+    readonly ownerFence?: string
   }
   | {
     readonly status: 'not-durable' | 'rejected' | 'unbound'

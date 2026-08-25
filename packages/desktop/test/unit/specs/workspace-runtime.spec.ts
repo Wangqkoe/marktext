@@ -119,7 +119,7 @@ class RecordingDocumentIoPort implements DocumentIoPort {
           requestId: request.requestId,
           documentId: request.documentId,
           documentRevision: request.documentRevision,
-          ownerFence: request.ownerFence
+          ownerFence: request.ownerFence ?? 'main-owner-fence'
         }
       case 'sync':
         return {

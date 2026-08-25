@@ -53,4 +53,20 @@ describe('WorkspaceProjectionMirror', () => {
     expect(store.tabs.map((tab) => tab.filename)).toEqual(['note.md', 'New Tab'])
     store.DETACH_WORKSPACE_FACADE()
   })
+
+  it('keeps nested controller facade values independent and deeply frozen', async () => {
+    const controller = createWorkspaceRuntime([{ markdown: 'one', title: 'note' }])
+    const store = useEditorStore()
+    store.ATTACH_WORKSPACE_FACADE(controller)
+    const facade = store.workspaceFacade as ReturnType<typeof controller.getFacadeSnapshot>
+    const document = facade.documents[0]!
+    expect(Object.isFrozen(document.portableHistory)).toBe(true)
+    expect(Object.isFrozen(document.cursor)).toBe(true)
+    expect(Object.isFrozen(document.encoding)).toBe(true)
+    expect(Object.isFrozen(document.toc)).toBe(true)
+    expect(Object.isFrozen(document.status)).toBe(true)
+    expect(() => { (document.encoding as { encoding: string }).encoding = 'forged' }).toThrow()
+    expect(controller.getFacadeSnapshot().documents[0]?.encoding.encoding).toBe('utf8')
+    store.DETACH_WORKSPACE_FACADE()
+  })
 })

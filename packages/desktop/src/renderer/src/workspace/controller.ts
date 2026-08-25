@@ -674,7 +674,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
 
   /** T04b owns CAS and landed revisions; renderer accepts only its current ACK once. */
   private applySaveAck(ack: DocumentSaveAck): WorkspaceResult {
-    if (ack.status === 'bound' || ack.status === 'unbound' || ack.ownerFence === undefined) {
+    if (ack.status === 'bound' || ack.status === 'unbound') {
       return this.rejected('stale document save acknowledgement')
     }
     const pending = this.pendingDocumentIo.get(ack.requestId)
@@ -682,9 +682,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (
       !pending ||
       pending.request.documentId !== ack.documentId ||
-      pending.request.ownerFence !== ack.ownerFence ||
+      (pending.request.ownerFence !== undefined && pending.request.ownerFence !== ack.ownerFence) ||
       !document ||
-      document.ownerFence !== ack.ownerFence
+      (pending.request.ownerFence !== undefined && document.ownerFence !== ack.ownerFence) ||
+      (ack.status === 'durable-success' && ack.ownerFence === undefined)
     ) {
       return this.rejected('stale document save acknowledgement')
     }
@@ -711,6 +712,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       document.fileKey = pending.targetFileKey
       document.title = pending.targetTitle
     }
+    if (pending.request.ownerFence === undefined) document.ownerFence = ack.ownerFence!
     document.dirty = false
     document.savedMarkdown = document.markdown
     document.conflict = false
@@ -755,7 +757,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       kind: operation,
       documentId: document.id,
       documentRevision: document.revision,
-      ownerFence: document.ownerFence,
+      ...(operation === 'save-as' && !document.fileKey ? {} : { ownerFence: document.ownerFence }),
       markdown: document.markdown,
       options: {
         encoding: clone(document.encoding),

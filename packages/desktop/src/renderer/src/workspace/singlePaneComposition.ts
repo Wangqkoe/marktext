@@ -323,57 +323,32 @@ export class PaneEditorComposition {
     return this.runtime
   }
 
-  async chooseSaveTarget(): Promise<string | undefined> {
-    const binding = this.binding
-    const lease = binding?.getLease()
-    const snapshot = lease ? binding?.getSnapshot(lease) : undefined
-    if (!snapshot) return undefined
+  async chooseSaveTarget(viewId?: string): Promise<string | undefined> {
+    const document = this.documentForView(viewId)
+    if (!document) return undefined
     const selection = await this.documentIo?.chooseSaveTarget({
-      documentId: snapshot.documentId,
-      title: snapshot.document.title,
-      ...(snapshot.document.fileKey ? { suggestedPath: snapshot.document.fileKey } : {})
+      documentId: document.documentId,
+      title: document.title,
+      ...(document.fileKey ? { suggestedPath: document.fileKey } : {})
     })
     return selection?.status === 'selected' ? selection.pathname : undefined
   }
 
-  async confirmClose(): Promise<'save' | 'discard' | 'cancel'> {
-    const binding = this.binding
-    const lease = binding?.getLease()
-    const snapshot = lease ? binding?.getSnapshot(lease) : undefined
-    if (!snapshot) return 'cancel'
+  async confirmClose(viewId: string): Promise<'save' | 'discard' | 'cancel'> {
+    const document = this.documentForView(viewId)
+    if (!document) return 'cancel'
     return this.documentIo?.confirmClose({
-      documentId: snapshot.documentId,
-      title: snapshot.document.title
+      documentId: document.documentId,
+      title: document.title
     }) ?? 'cancel'
   }
 
-  private async ensureSaveBinding(targetPathname: string): Promise<WorkspaceResult | undefined> {
-    const runtime = this.runtime
-    const binding = this.binding
-    const documentIo = this.documentIo
-    const lease = binding?.getLease()
-    const snapshot = lease ? binding?.getSnapshot(lease) : undefined
-    if (!runtime || !binding || !documentIo || !snapshot) return undefined
-    const document = snapshot.document
-    if (documentIo.getBinding(document.ownerFence)) return undefined
-    const ack = await documentIo.bind({
-      kind: 'bind',
-      requestId: `bind:save-as:${document.documentId}:${document.documentRevision}`,
-      documentId: document.documentId,
-      documentRevision: document.documentRevision,
-      pathname: targetPathname,
-      dirty: document.dirty
-    })
-    if (ack.status !== 'bound') return { status: 'failed', reason: 'document I/O bind did not complete' }
-    const result = await runtime.execute({
-      kind: 'apply-document-io-bind',
-      documentId: document.documentId,
-      documentRevision: document.documentRevision,
-      previousOwnerFence: document.ownerFence,
-      ownerFence: ack.ownerFence
-    })
-    if (result.status === 'applied') this.boundDocumentFences.set(document.documentId, ack.ownerFence)
-    return result
+  private documentForView(viewId?: string) {
+    const facade = this.runtime?.getFacadeSnapshot()
+    if (!facade) return undefined
+    if (viewId) return facade.documents.find((document) => document.viewId === viewId)
+    const pane = facade.projection.panes.find((candidate) => candidate.paneId === facade.projection.focusedPaneId)
+    return facade.documents.find((document) => document.viewId === pane?.activeViewId)
   }
 
   /**
@@ -383,10 +358,6 @@ export class PaneEditorComposition {
    */
   async execute(command: WorkspaceCommand): Promise<WorkspaceResult> {
     if (!this.runtime) return { status: 'rejected', reason: 'workspace is not mounted' }
-    if (command.kind === 'save-as') {
-      const bound = await this.ensureSaveBinding(command.fileKey)
-      if (bound && bound.status !== 'applied') return bound
-    }
     const result = await this.runtime.execute(command)
     if (result.status !== 'applied' || !result.documentIoRequest) return result
     const request = result.documentIoRequest
@@ -395,7 +366,11 @@ export class PaneEditorComposition {
     }
     const ack = await this.documentIo?.save(request)
     if (!ack) return { status: 'failed', reason: 'document I/O adapter is not mounted' }
-    return this.runtime.execute({ kind: 'apply-save-ack', ack })
+    const applied = await this.runtime.execute({ kind: 'apply-save-ack', ack })
+    if (applied.status === 'applied' && ack.status === 'durable-success') {
+      this.boundDocumentFences.set(ack.documentId, ack.ownerFence)
+    }
+    return applied
   }
 }
 

@@ -20,7 +20,7 @@ const durable = (request: DocumentIoSaveRequest): Extract<DocumentSaveAck, { sta
   requestId: request.requestId,
   documentId: request.documentId,
   documentRevision: request.documentRevision,
-  ownerFence: request.ownerFence
+  ownerFence: request.ownerFence ?? 'unbound-save-as-fence'
 })
 
 describe('Workspace command routing', () => {
