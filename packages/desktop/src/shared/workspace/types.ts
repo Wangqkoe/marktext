@@ -29,6 +29,9 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue }
 
+/** A surface-specific, JSON-safe cursor payload owned by a View. */
+export type EditorCursor = CursorPosition | JsonValue
+
 export interface CursorPosition {
   readonly line: number
   readonly column: number
@@ -40,7 +43,7 @@ export interface SelectionRange {
 }
 
 export interface ViewState {
-  readonly cursor: CursorPosition
+  readonly cursor: EditorCursor
   readonly selection: SelectionRange | null
   readonly scrollTop: number
   readonly mode: EditorMode
@@ -263,7 +266,7 @@ export interface WorkspaceFacadeDocument {
   readonly lineEnding: DocumentLineEnding
   readonly adjustLineEndingOnSave: boolean
   readonly trailingNewline: TrailingNewlinePolicy
-  readonly cursor: CursorPosition
+  readonly cursor: EditorCursor
   readonly selection: SelectionRange | null
   readonly scrollTop: number
   readonly mode: EditorMode
@@ -312,7 +315,7 @@ export interface EditorBindingSnapshot {
 export interface EditorReport {
   readonly markdown?: string
   readonly portableHistory?: PortableHistory
-  readonly cursor?: CursorPosition
+  readonly cursor?: EditorCursor
   readonly selection?: SelectionRange | null
   readonly scrollTop?: number
   readonly toc?: readonly WorkspaceTocItem[]

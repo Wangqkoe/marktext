@@ -309,7 +309,7 @@ describe('WorkspaceRuntime', () => {
     expect(paneById(projection, 'right').status).toMatchObject({})
   })
 
-  it('commits a fresh close capability after an untitled Save As fence rotation', async () => {
+  it('commits a fresh close capability after an untitled Save As fence rotation', async() => {
     const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'one', title: 'note' }])
     const port = new RecordingDocumentIoPort()
     const composition = createPaneEditorComposition({ paneId: 'left', controller: workspace, documentIoPort: port })

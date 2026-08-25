@@ -128,7 +128,7 @@ import {
   type PaneEditorEventScope,
   type PaneEditorSurface
 } from '@/workspace'
-import type { EditorBindingSnapshot, EditorReport } from '@shared/workspace'
+import type { EditorBindingSnapshot, EditorReport, JsonValue, PortableHistory } from '@shared/workspace'
 
 // Importing the engine entrypoint auto-injects its editor CSS (the muya.ts
 // module imports its stylesheets at load time). Desktop themes still target the
@@ -300,16 +300,6 @@ let rebindPaneGeneration: ((scope: PaneEditorEventScope | undefined) => void) | 
 let jsonChangeListener: (() => void) | undefined
 let selectionChangeListener: ((changes: MuyaChange) => void) | undefined
 
-// The engine's undo/redo history (`getHistory()`) has a different shape than
-// the desktop store's `tab.history` (which drives the save/dirty tracking and
-// is migrated separately). We therefore keep the real engine history in a
-// per-tab map here for restoration across in-session tab switches, and feed the
-// store a SYNTHETIC desktop-shaped history.
-const engineHistoryByTab = new Map<string, unknown>()
-// Cursor serialisations remain renderer-only, but they are keyed by the
-// controller view identity rather than the ambient selected tab.
-const engineCursorByView = new Map<string, unknown>()
-
 // The WYSIWYG caret captured the instant the user switches INTO source mode.
 // Focus moves to CodeMirror while source mode is up, so by the time the tab is
 // handed back (`replaceContent`) the live DOM selection no longer points into
@@ -348,9 +338,6 @@ const makeSyntheticHistory = (id: string, content: string): IFileHistoryLike => 
 // each `SyntheticHistory` holds) would grow unbounded as tabs are opened and
 // closed. Driven by a watcher on the store's live tab id set.
 const pruneClosedTabState = (liveTabIds: Set<string>): void => {
-  for (const id of engineHistoryByTab.keys()) {
-    if (!liveTabIds.has(id)) engineHistoryByTab.delete(id)
-  }
   for (const id of syntheticHistoryByTab.keys()) {
     if (!liveTabIds.has(id)) syntheticHistoryByTab.delete(id)
   }
@@ -459,6 +446,14 @@ const serializeCursor = (
     focusPath: selection.focus?.path
   }
 }
+
+const controllerCursor = (): JsonValue | undefined => {
+  const cursor = serializeCursor(editor.value?.getSelection() ?? null)
+  return cursor ? JSON.parse(JSON.stringify(cursor)) as JsonValue : undefined
+}
+
+const isEngineCursor = (cursor: unknown): cursor is JsonValue =>
+  !!cursor && typeof cursor === 'object' && 'anchorPath' in cursor && 'focusPath' in cursor
 
 class SimpleImageViewer {
   container: HTMLElement
@@ -1494,6 +1489,25 @@ interface FileLoadedPayload {
   workspaceRefresh?: boolean
 }
 
+const portableEngineHistory = (): PortableHistory | undefined => {
+  if (!editor.value) return undefined
+  try {
+    return {
+      version: 1,
+      value: JSON.parse(JSON.stringify(editor.value.getHistory())) as JsonValue
+    }
+  } catch {
+    return undefined
+  }
+}
+
+const engineHistoryFrom = (history: PortableHistory): unknown | undefined => {
+  const value = history.value
+  return value && typeof value === 'object' && !Array.isArray(value) && 'stack' in value
+    ? value
+    : undefined
+}
+
 // listen for `open-single-file` event, it will call this method only when open a new file.
 const setMarkdownToEditor = (payload: unknown) => {
   // The workspace composition owns mounted-pane refreshes. A legacy
@@ -1638,7 +1652,9 @@ const handleFileChange = (payload: unknown) => {
         // history after.
         editor.value.setCursorByOffset(muyaIndexCursor)
       }
-      const savedEngineHistory = id ? engineHistoryByTab.get(id) : undefined
+      const savedEngineHistory = payloadHistory && typeof payloadHistory === 'object'
+        ? payloadHistory
+        : undefined
       if (savedEngineHistory) {
         editor.value.setHistory(savedEngineHistory)
       }
@@ -1859,7 +1875,8 @@ onMounted(() => {
           handleFileChange({
             id: snapshot.document.documentId,
             markdown: snapshot.document.markdown,
-            cursor: engineCursorByView.get(snapshot.viewId),
+            cursor: isEngineCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
+            history: engineHistoryFrom(snapshot.document.portableHistory),
             scrollTop: snapshot.view.scrollTop,
             workspaceRefresh: true,
             sourceHandoff: props.composition.isSourceHandoff(snapshot)
@@ -1887,6 +1904,8 @@ onMounted(() => {
         }))
       return {
         markdown,
+        ...(controllerCursor() ? { cursor: controllerCursor() } : {}),
+        ...(portableEngineHistory() ? { portableHistory: portableEngineHistory() } : {}),
         scrollTop: getScrollContainer()?.scrollTop ?? 0,
         toc,
         status: { wordCount: muyaWordCount(markdown).word }
@@ -2005,6 +2024,8 @@ onMounted(() => {
       if (
         scope.report({
           markdown,
+          ...(controllerCursor() ? { cursor: controllerCursor() } : {}),
+          ...(portableEngineHistory() ? { portableHistory: portableEngineHistory() } : {}),
           toc: toc.map((item: { slug?: string; content?: string; lvl?: number }) => ({
             id: item.slug ?? item.content ?? '',
             title: item.content ?? '',
@@ -2013,7 +2034,6 @@ onMounted(() => {
           status: { wordCount: wordCount.word }
         }).status !== 'applied'
       ) { return }
-      engineHistoryByTab.set(scope.documentId, editor.value.getHistory())
       editorStore.LISTEN_FOR_CONTENT_CHANGE({
         id: scope.documentId,
         markdown,
@@ -2031,12 +2051,14 @@ onMounted(() => {
     }
     selectionChangeListener = (changes: MuyaChange) => {
       if (!editor.value) return
-      const cursor = serializeCursor(editor.value.getSelection())
+      const cursor = controllerCursor()
       if (
-        scope.report({ status: { wordCount: muyaWordCount(editor.value.getMarkdown()).word } })
+        scope.report({
+          ...(cursor ? { cursor } : {}),
+          status: { wordCount: muyaWordCount(editor.value.getMarkdown()).word }
+        })
           .status !== 'applied'
       ) { return }
-      engineCursorByView.set(scope.viewId, cursor)
       editorStore.PERSIST_CURSOR(scope.documentId, cursor)
       selectionChange.value = changes
       if (!sourceCode.value) caretReporter.request(props.caretSession)
@@ -2120,10 +2142,6 @@ onMounted(() => {
     // `handleFileChange` replays on re-activation. Cheap: serialized caret only.
     if (currentFile.value?.id && editor.value) {
       const cursor = serializeCursor(editor.value.getSelection())
-      const scope = paneScope
-      if (scope?.documentId === currentFile.value.id) {
-        engineCursorByView.set(scope.viewId, cursor)
-      }
       editorStore.PERSIST_CURSOR(currentFile.value.id, cursor)
     }
     pushSelectionMenuState(changes)

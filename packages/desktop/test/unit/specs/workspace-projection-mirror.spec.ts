@@ -58,7 +58,7 @@ describe('WorkspaceProjectionMirror', () => {
     store.DETACH_WORKSPACE_FACADE()
   })
 
-  it('routes mounted compatibility actions through the injected composition without writing the facade', async () => {
+  it('routes mounted compatibility actions through the injected composition without writing the facade', async() => {
     const controller = createWorkspaceRuntime([
       { documentId: 'note', markdown: 'controller-only', title: 'note.md', fileKey: '/note.md' }
     ])
@@ -81,7 +81,7 @@ describe('WorkspaceProjectionMirror', () => {
     store.DETACH_WORKSPACE_COMPOSITION()
   })
 
-  it('routes legacy tab cycle and bulk-close actions through the injected controller edge', async () => {
+  it('routes legacy tab cycle and bulk-close actions through the injected controller edge', async() => {
     const controller = createWorkspaceRuntime([
       { documentId: 'one', markdown: 'one', title: 'one.md' },
       { documentId: 'two', markdown: 'two', title: 'two.md' }
