@@ -8,8 +8,9 @@ test.describe('Split workspace', () => {
 
   test.beforeAll(async() => {
     ({ app, page } = await launchWithMarkdown('# Split workspace\n'))
-    await page.waitForSelector('.tabs-container')
+    await page.waitForSelector('.tabs-container', { state: 'attached' })
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, '')
+    await expect(page.locator('.tabs-container')).toBeVisible()
     await expect(page.locator('.tabs-container > li')).toHaveCount(2)
   })
   test.afterAll(async() => { await app?.close() })

@@ -99,17 +99,23 @@ class MemoryPaneSurface implements PaneEditorSurface {
 
 class RecordingDocumentIoPort implements DocumentIoPort {
   readonly requests: DocumentIoRequest[] = []
-  private observationListener: ((observation: DocumentIoObservation) => void) | undefined
+  private readonly observationListeners = new Set<(observation: DocumentIoObservation) => void>()
+  private nextOwnerFence = 0
+  readonly ownerFences = new Map<string, string>()
 
   async request(request: DocumentIoRequest): Promise<DocumentSaveAck> {
     this.requests.push(request)
     switch (request.kind) {
       case 'bind':
+        {
+          const ownerFence = `main-owner-fence:${++this.nextOwnerFence}`
+          this.ownerFences.set(request.documentId, ownerFence)
         return {
           status: 'bound',
           requestId: request.requestId,
           documentId: request.documentId,
-          ownerFence: 'main-owner-fence'
+          ownerFence
+        }
         }
       case 'save':
       case 'save-as':
@@ -139,14 +145,14 @@ class RecordingDocumentIoPort implements DocumentIoPort {
   }
 
   subscribe(listener: (observation: DocumentIoObservation) => void): () => void {
-    this.observationListener = listener
+    this.observationListeners.add(listener)
     return () => {
-      this.observationListener = undefined
+      this.observationListeners.delete(listener)
     }
   }
 
   observe(observation: DocumentIoObservation): void {
-    this.observationListener?.(observation)
+    for (const listener of this.observationListeners) listener(observation)
   }
 
   async chooseSaveTarget() {
@@ -273,7 +279,11 @@ describe('WorkspaceRuntime', () => {
     expect(port.requests.some((request) => request.kind === 'save')).toBe(true)
     expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(false)
 
-    port.observe({ documentId: 'note', ownerFence: 'main-owner-fence', kind: 'conflict' })
+    port.observe({
+      documentId: 'note',
+      ownerFence: expectDefined(port.ownerFences.get('note')),
+      kind: 'conflict'
+    })
     await vi.waitFor(() =>
       expect(workspace.getProjection().warnings).toContainEqual(
         expect.objectContaining({ kind: 'conflict', message: 'File changed on disk' })
@@ -283,6 +293,82 @@ describe('WorkspaceRuntime', () => {
     await workspace.execute({ kind: 'close-focused-view' })
     await vi.waitFor(() => expect(port.requests.some((request) => request.kind === 'unbind')).toBe(true))
     composition.unmount(surface)
+  })
+
+  it('uses accepted canonical surface markdown for clean and durable-save baselines', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'note', fileKey: '/note.md', markdown: 'disk form\n', title: 'note.md' }
+    ])
+    const editor = new MemoryEditor()
+    // Muya may normalize the disk/input representation as it mounts.
+    editor.reports.push({ markdown: 'canonical form' })
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const initial = expectDefined(workspace.getFacadeSnapshot().documents[0])
+    expect(initial.markdown).toBe('canonical form')
+    expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(false)
+
+    const lease = currentLease(binding)
+    expect(binding.report(lease, { markdown: 'edited form' }).status).toBe('applied')
+    expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(true)
+
+    // A save must flush the active surface before freezing the DocumentIO request.
+    editor.reports.push({ markdown: 'written canonical form' })
+    const save = await workspace.execute({ kind: 'save' })
+    if (save.status !== 'applied' || save.documentIoRequest?.kind !== 'save') {
+      throw new Error('expected save request')
+    }
+    const saveRequest = save.documentIoRequest
+    expect(saveRequest.markdown).toBe('written canonical form')
+    expect((await workspace.execute({
+      kind: 'apply-save-ack',
+      ack: {
+        status: 'durable-success',
+        requestId: saveRequest.requestId,
+        documentId: 'note',
+        documentRevision: saveRequest.documentRevision,
+        ownerFence: expectDefined(saveRequest.ownerFence)
+      }
+    })).status).toBe('applied')
+    expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(false)
+
+    // A stale acknowledgement has no request to authorize and cannot move the
+    // durable baseline.
+    expect((await workspace.execute({
+      kind: 'apply-save-ack',
+      ack: {
+        status: 'durable-success',
+        requestId: 'stale-request',
+        documentId: 'note',
+        documentRevision: saveRequest.documentRevision,
+        ownerFence: expectDefined(saveRequest.ownerFence)
+      }
+    })).status).toBe('rejected')
+    expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(false)
+
+    // Undoing exactly to the acknowledged canonical write is clean; a divergent
+    // re-edit at the same history depth is still dirty because the Controller
+    // compares canonical markdown, never a renderer-side history flag.
+    expect(binding.report(lease, { markdown: 'divergent form' }).status).toBe('applied')
+    expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(true)
+    expect(binding.report(lease, { markdown: 'written canonical form' }).status).toBe('applied')
+    expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(false)
+
+    expect(binding.report(lease, { markdown: 'conflicting write' }).status).toBe('applied')
+    const conflictSave = await workspace.execute({ kind: 'save' })
+    if (conflictSave.status !== 'applied' || conflictSave.documentIoRequest?.kind !== 'save') {
+      throw new Error('expected conflict save request')
+    }
+    const conflictSaveRequest = conflictSave.documentIoRequest
+    expect((await workspace.execute({
+      kind: 'apply-save-ack',
+      ack: {
+        status: 'conflict',
+        requestId: conflictSaveRequest.requestId,
+        documentId: 'note',
+        ownerFence: expectDefined(conflictSaveRequest.ownerFence)
+      }
+    })).status).toBe('failed')
+    expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(true)
   })
 
   it('binds independently created pane compositions to one controller', async () => {
@@ -307,6 +393,47 @@ describe('WorkspaceRuntime', () => {
     const projection = workspace.getProjection()
     expect(paneById(projection, 'right').tabs[0]?.title).toBe('right')
     expect(paneById(projection, 'right').status).toMatchObject({})
+  })
+
+  it('hands a file-backed View between mounted compositions with one active DocumentIO fence', async () => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'left-doc', fileKey: '/left.md', markdown: 'left', title: 'left' },
+      { documentId: 'right-doc', fileKey: '/right.md', markdown: 'right', title: 'right' }
+    ])
+    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    const port = new RecordingDocumentIoPort()
+    const left = createPaneEditorComposition({ paneId: 'left', controller: workspace, documentIoPort: port })
+    const right = createPaneEditorComposition({ paneId: 'right', controller: workspace, documentIoPort: port })
+    const leftSurface = new MemoryPaneSurface()
+    const rightSurface = new MemoryPaneSurface()
+    await left.mount(leftSurface, { id: 'left-doc', fileKey: '/left.md', markdown: 'left', title: 'left' })
+    await right.mount(rightSurface, { id: 'right-doc', fileKey: '/right.md', markdown: 'right', title: 'right' })
+    await vi.waitFor(() => expect(port.ownerFences.size).toBe(2))
+    const oldRightScope = expectDefined(rightSurface.scopes.at(-1))
+    const oldRightFence = expectDefined(port.ownerFences.get('right-doc'))
+    const rightView = paneById(workspace.getProjection(), 'right').activeViewId
+
+    expect((await workspace.execute({ kind: 'move-view', viewId: rightView, targetPaneId: 'left' })).status).toBe('applied')
+    await vi.waitFor(() => expect(port.requests).toContainEqual(expect.objectContaining({
+      kind: 'unbind', documentId: 'right-doc', ownerFence: oldRightFence
+    })))
+    await vi.waitFor(() => expect(port.ownerFences.get('right-doc')).not.toBe(oldRightFence))
+    const activeFence = expectDefined(port.ownerFences.get('right-doc'))
+    expect(workspace.getProjection().panes).toHaveLength(1)
+    expect(oldRightScope.report({ markdown: 'stale editor write' }).status).toBe('rejected')
+
+    const savesBefore = port.requests.filter((request) => request.kind === 'save').length
+    expect(await right.execute({ kind: 'save' })).not.toMatchObject({ status: 'applied' })
+    expect(port.requests.filter((request) => request.kind === 'save')).toHaveLength(savesBefore)
+    const warningsBefore = workspace.getProjection().warnings
+    port.observe({ documentId: 'right-doc', ownerFence: oldRightFence, kind: 'conflict' })
+    expect(workspace.getProjection().warnings).toEqual(warningsBefore)
+
+    left.unmount(leftSurface)
+    right.unmount(rightSurface)
+    await vi.waitFor(() => expect(port.requests).toContainEqual(expect.objectContaining({
+      kind: 'unbind', documentId: 'right-doc', ownerFence: activeFence
+    })))
   })
 
   it('commits a fresh close capability after an untitled Save As fence rotation', async() => {

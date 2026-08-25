@@ -4,8 +4,8 @@
       v-show="tabBarVisible"
       :composition="composition"
       :pane="pane"
-      :workspace-width="workspaceWidth"
-      @preview-split="$emit('preview-split', $event)"
+      :focused="focused"
+      @tab-drag="$emit('tab-drag', $event)"
     />
     <div v-if="activeFile" class="container">
       <editor
@@ -21,7 +21,7 @@
         @caret-position="$emit('caret-position', $event)"
       />
       <source-code
-        v-if="activeMode === 'source'"
+        v-if="activeMode === 'source' && (!focused || sourceCode)"
         :markdown="activeFile.markdown"
         :muya-index-cursor="activeFile.muyaIndexCursor"
         :caret-session="caretSession"
@@ -52,39 +52,48 @@ const props = defineProps<{
   documents: readonly WorkspaceFacadeDocument[]
   composition: PaneEditorComposition
   focused: boolean
-  workspaceWidth: number
+  /** Legacy global mode is only allowed to hide the focused source surface. */
+  sourceCode: boolean
   caretSession: CaretSession
   tabBarVisible: boolean
   textDirection: string
   platform: string
 }>()
-const emit = defineEmits<{
+defineEmits<{
   'caret-position': [update: CaretPositionUpdate]
-  'preview-split': [candidate: 'left' | 'right' | null]
+  'tab-drag': [event: {
+    phase: 'start' | 'move' | 'end' | 'cancel'
+    viewId?: string
+    beforeViewId?: string
+    x?: number
+    y?: number
+  }]
 }>()
 
 const paneFiles = computed(() => props.pane.tabs.flatMap((tab) => {
   const document = props.documents.find((candidate) => candidate.viewId === tab.viewId)
-  return document ? [{
-    id: tab.documentId,
-    filename: tab.title,
-    pathname: tab.fileKey ?? '',
-    markdown: document.markdown,
-    cursor: document.cursor,
-    muyaIndexCursor: document.cursor,
-    scrollTop: document.scrollTop,
-    isSaved: !tab.dirty,
-    history: document.portableHistory,
-    encoding: document.encoding,
-    lineEnding: document.lineEnding,
-    adjustLineEndingOnSave: document.adjustLineEndingOnSave,
-    trimTrailingNewline: document.trailingNewline === 'ensure-one' ? 1 : 0
-  } as unknown as IFileState] : []
+  return document
+    ? [{
+        id: tab.documentId,
+        filename: tab.title,
+        pathname: tab.fileKey ?? '',
+        markdown: document.markdown,
+        cursor: document.cursor,
+        muyaIndexCursor: document.cursor,
+        scrollTop: document.scrollTop,
+        isSaved: !tab.dirty,
+        history: document.portableHistory,
+        encoding: document.encoding,
+        lineEnding: document.lineEnding,
+        adjustLineEndingOnSave: document.adjustLineEndingOnSave,
+        trimTrailingNewline: document.trailingNewline === 'ensure-one' ? 1 : 0
+      } as unknown as IFileState]
+    : []
 }))
 const activeFile = computed(() => paneFiles.value[props.pane.tabs.findIndex((tab) => tab.viewId === props.pane.activeViewId)])
 const activeMode = computed(() => props.pane.tabs.find((tab) => tab.viewId === props.pane.activeViewId)?.mode)
 const focusPane = () => {
-  if (!props.focused) void props.composition.execute({ kind: 'focus-pane', paneId: props.pane.paneId })
+  if (!props.focused) props.composition.execute({ kind: 'focus-pane', paneId: props.pane.paneId })
 }
 </script>
 

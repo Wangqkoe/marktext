@@ -77,25 +77,38 @@ type TabRow = IFileState & { viewId?: string }
 const props = defineProps<{
   composition: PaneEditorComposition
   pane?: import('@shared/workspace').WorkspaceProjectionPane
-  workspaceWidth?: number
+  focused?: boolean
 }>()
 const emit = defineEmits<{
-  'preview-split': [candidate: 'left' | 'right' | null]
-  'tab-drag': [event: { phase: 'start' | 'move' | 'end' | 'cancel'; viewId?: string; x?: number; y?: number }]
+  'tab-drag': [event: {
+    phase: 'start' | 'move' | 'end' | 'cancel'
+    viewId?: string
+    beforeViewId?: string
+    x?: number
+    y?: number
+  }]
 }>()
 
 const editorStore = useEditorStore()
 const { currentFile: legacyCurrentFile, tabs: legacyTabs } = storeToRefs(editorStore)
-const tabs = computed<TabRow[]>(() => props.pane ? props.pane.tabs.map((tab) => ({
-  id: tab.documentId,
-  viewId: tab.viewId,
-  filename: tab.title,
-  pathname: tab.fileKey ?? '',
-  isSaved: !tab.dirty
-} as unknown as TabRow)) : legacyTabs.value)
-const currentFile = computed(() => props.pane
-  ? tabs.value.find((tab) => tab.viewId === props.pane!.activeViewId) ?? null
-  : legacyCurrentFile.value)
+const tabs = computed<TabRow[]>(() => {
+  if (props.pane) {
+    return props.pane.tabs.map((tab) => ({
+      id: tab.documentId,
+      viewId: tab.viewId,
+      filename: tab.title,
+      pathname: tab.fileKey ?? '',
+      isSaved: !tab.dirty
+    } as unknown as TabRow))
+  }
+  return legacyTabs.value
+})
+const currentFile = computed(() => {
+  if (props.pane) {
+    return tabs.value.find((tab) => tab.viewId === props.pane!.activeViewId) ?? null
+  }
+  return legacyCurrentFile.value
+})
 
 interface AutoScroller {
   readonly down: boolean
@@ -106,9 +119,8 @@ const tabContainer = ref<HTMLElement | null>(null)
 const tabDropContainer = ref<HTMLElement | null>(null)
 let autoScroller: AutoScroller | null = null
 let drake: dragula.Drake | null = null
-let edgeCandidate: 'left' | 'right' | null = null
 let draggedViewId: string | undefined
-let updateCandidate: ((event: PointerEvent) => void) | undefined
+let relayDragMove: ((event: PointerEvent) => void) | undefined
 let cancelDrag: ((event: KeyboardEvent) => void) | undefined
 
 // Computed properties
@@ -117,7 +129,7 @@ let cancelDrag: ((event: KeyboardEvent) => void) | undefined
 const selectFile = (file: IFileState) => {
   if (props.pane) {
     const tab = props.pane.tabs.find((candidate) => candidate.documentId === file.id)
-    if (tab) void props.composition.execute({ kind: 'activate-view', paneId: props.pane.paneId, viewId: tab.viewId })
+    if (tab) props.composition.execute({ kind: 'activate-view', paneId: props.pane.paneId, viewId: tab.viewId })
     return
   }
   if (file.id !== currentFile.value?.id) {
@@ -214,6 +226,16 @@ const closeAll = () => {
   })
 }
 
+// TABS remains a legacy global ingress. Every mounted tab bar receives it, so
+// only the Controller-projected focused pane may act on it.
+const closeThisWhenFocused = (tabId: unknown) => { if (props.focused !== false) closeTab(tabId) }
+const closeOthersWhenFocused = (tabId: unknown) => { if (props.focused !== false) closeOthers(tabId) }
+const closeSavedWhenFocused = () => { if (props.focused !== false) closeSaved() }
+const closeAllWhenFocused = () => { if (props.focused !== false) closeAll() }
+const renameWhenFocused = (tabId: unknown) => { if (props.focused !== false) rename(tabId) }
+const copyPathWhenFocused = (tabId: unknown) => { if (props.focused !== false) copyPath(tabId) }
+const showInFolderWhenFocused = (tabId: unknown) => { if (props.focused !== false) showInFolder(tabId) }
+
 const rename = (tabId: unknown) => {
   const tab = tabs.value.find((f) => f.id === tabId)
   if (tab && tab.pathname) {
@@ -249,13 +271,13 @@ watch(
 )
 
 onMounted(() => {
-  bus.on('TABS::close-this', closeTab)
-  bus.on('TABS::close-others', closeOthers)
-  bus.on('TABS::close-saved', closeSaved)
-  bus.on('TABS::close-all', closeAll)
-  bus.on('TABS::rename', rename)
-  bus.on('TABS::copy-path', copyPath)
-  bus.on('TABS::show-in-folder', showInFolder)
+  bus.on('TABS::close-this', closeThisWhenFocused)
+  bus.on('TABS::close-others', closeOthersWhenFocused)
+  bus.on('TABS::close-saved', closeSavedWhenFocused)
+  bus.on('TABS::close-all', closeAllWhenFocused)
+  bus.on('TABS::rename', renameWhenFocused)
+  bus.on('TABS::copy-path', copyPathWhenFocused)
+  bus.on('TABS::show-in-folder', showInFolderWhenFocused)
 
   const tabsEl = tabContainer.value
   if (!tabsEl || !tabDropContainer.value) return
@@ -286,21 +308,12 @@ onMounted(() => {
 
     if (props.pane) {
       const viewId = props.pane.tabs.find((tab) => tab.documentId === droppedId)?.viewId
-      if (edgeCandidate && draggedViewId) {
-        const projection = props.composition.getController()?.getProjection()
-        if (projection?.panes.length === 1) {
-          void props.composition.execute({ kind: 'activate-view', paneId: props.pane.paneId, viewId: draggedViewId })
-            .then(() => props.composition.execute({ kind: 'split-pane', targetPaneId: edgeCandidate! }))
-        } else {
-          void props.composition.execute({ kind: 'move-view', viewId: draggedViewId, targetPaneId: edgeCandidate })
-        }
-      } else if (viewId) {
-        const beforeViewId = isLastTab ? undefined : props.pane.tabs.find((tab) => tab.documentId === nextTabId)?.viewId
-        void props.composition.execute({ kind: 'reorder-view', paneId: props.pane.paneId, viewId, ...(beforeViewId ? { beforeViewId } : {}) })
-      }
-      edgeCandidate = null
-      emit('preview-split', null)
-      emit('tab-drag', { phase: 'end' })
+      const beforeViewId = isLastTab ? undefined : props.pane.tabs.find((tab) => tab.documentId === nextTabId)?.viewId
+      // The root owns all drop commits. Keeping Dragula here strictly as DOM
+      // ordering input prevents a tabbar edge drop from racing the workspace
+      // release path (and preserves spill handling outside the tabbar).
+      emit('tab-drag', { phase: 'end', viewId, ...(beforeViewId ? { beforeViewId } : {}) })
+      draggedViewId = undefined
       return
     }
     console.warn('Tab reorder is unavailable outside the workspace shell.', { droppedId, nextTabId, isLastTab })
@@ -315,17 +328,18 @@ onMounted(() => {
       return autoScroller!.down && drake?.dragging
     }
   })
-  updateCandidate = (event: PointerEvent) => {
-    if (drake?.dragging) emit('tab-drag', { phase: 'move', viewId: draggedViewId, x: event.clientX, y: event.clientY })
-    if (!drake?.dragging || !props.pane || (props.workspaceWidth ?? 0) < 720) return
-    const rect = tabsEl.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const candidate = x <= rect.width * 0.31 ? 'left' : x >= rect.width * 0.69 ? 'right' : null
-    if (candidate !== edgeCandidate) { edgeCandidate = candidate; emit('preview-split', candidate) }
+  relayDragMove = (event: PointerEvent) => {
+    if (drake?.dragging) {
+      emit('tab-drag', { phase: 'move', viewId: draggedViewId, x: event.clientX, y: event.clientY })
+    }
   }
-  window.addEventListener('pointermove', updateCandidate)
+  window.addEventListener('pointermove', relayDragMove)
   cancelDrag = (event: KeyboardEvent) => {
-    if (event.key === 'Escape' && drake?.dragging) { edgeCandidate = null; emit('preview-split', null); emit('tab-drag', { phase: 'cancel' }); drake.cancel(true) }
+    if (event.key === 'Escape' && drake?.dragging) {
+      emit('tab-drag', { phase: 'cancel', viewId: draggedViewId })
+      draggedViewId = undefined
+      drake.cancel(true)
+    }
   }
   window.addEventListener('keydown', cancelDrag)
 })
@@ -343,17 +357,17 @@ onBeforeUnmount(() => {
   if (drake) {
     drake.destroy()
   }
-  if (updateCandidate) window.removeEventListener('pointermove', updateCandidate)
+  if (relayDragMove) window.removeEventListener('pointermove', relayDragMove)
   if (cancelDrag) window.removeEventListener('keydown', cancelDrag)
 
   // Remove event listeners
-  bus.off('TABS::close-this', closeTab)
-  bus.off('TABS::close-others', closeOthers)
-  bus.off('TABS::close-saved', closeSaved)
-  bus.off('TABS::close-all', closeAll)
-  bus.off('TABS::rename', rename)
-  bus.off('TABS::copy-path', copyPath)
-  bus.off('TABS::show-in-folder', showInFolder)
+  bus.off('TABS::close-this', closeThisWhenFocused)
+  bus.off('TABS::close-others', closeOthersWhenFocused)
+  bus.off('TABS::close-saved', closeSavedWhenFocused)
+  bus.off('TABS::close-all', closeAllWhenFocused)
+  bus.off('TABS::rename', renameWhenFocused)
+  bus.off('TABS::copy-path', copyPathWhenFocused)
+  bus.off('TABS::show-in-folder', showInFolderWhenFocused)
 })
 </script>
 

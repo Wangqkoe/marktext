@@ -581,7 +581,8 @@ watch(focus, (value) => {
 // state for the CURRENT cursor context (a code block/table still disables some
 // items) rather than blanket-enabling everything (#3531).
 watch(sourceCode, (isSource) => {
-  if (isSource) {
+  if (!props.focused) return
+  if (isSource && props.composition.getScope()?.mode !== 'source') {
     props.composition.handoffMode('source').catch((error) => {
       console.error('Failed to hand off pane editor mode:', error)
     })
@@ -869,6 +870,7 @@ watch(
 watch(
   sourceCode,
   (value, oldValue) => {
+    if (!props.focused) return
     if (value && value !== oldValue) {
       caretReporter.cancel()
       if (editor.value) {
@@ -1884,6 +1886,7 @@ onMounted(() => {
   paneSurface = {
     async stage (snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope) {
       const previousScope = paneScope
+      const focusReplacement = props.focused && previousScope !== undefined && previousScope.viewId !== scope?.viewId
       let committed = false
       return {
         commit: () => {
@@ -1900,6 +1903,7 @@ onMounted(() => {
             workspaceRefresh: true,
             sourceHandoff: props.composition.isSourceHandoff(snapshot)
           })
+          if (focusReplacement) nextTick(focusFreshEditor)
           committed = true
         },
         cancel: () => {
@@ -2225,7 +2229,6 @@ onBeforeUnmount(() => {
 
   if (editor.value) {
     if (paneSurface) props.composition.unmount(paneSurface)
-    editorStore.DETACH_WORKSPACE_FACADE()
     props.composition.setSourceHandoffHandler(undefined)
     if (jsonChangeListener) editor.value.off('json-change', jsonChangeListener)
     if (selectionChangeListener) editor.value.off('selection-change', selectionChangeListener)

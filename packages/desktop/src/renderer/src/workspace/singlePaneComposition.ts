@@ -114,7 +114,7 @@ export class PaneEditorComposition {
     this.stopDocumentIoSync = undefined
     this.pendingDocumentIoBinds.clear()
     this.boundDocumentFences.clear()
-    void this.documentIo?.dispose()
+    this.documentIo?.dispose()
     this.documentIo = undefined
     this.surface = undefined
   }
@@ -220,20 +220,24 @@ export class PaneEditorComposition {
     const snapshot = lease ? binding?.getSnapshot(lease) : undefined
     if (!runtime || !binding || !documentIo) return
 
-    const liveIds = new Set(runtime.getProjection().panes.flatMap((pane) => pane.tabs.map((tab) => tab.documentId)))
+    // A composition owns the DocumentIO binding only while its mounted surface
+    // presents that document. A View move/collapse must revoke the old surface
+    // before the successor composition acquires its own observer/save fence.
+    const activeDocumentId = snapshot?.documentId
     for (const [documentId, ownerFence] of this.boundDocumentFences) {
-      if (!liveIds.has(documentId)) {
+      if (documentId !== activeDocumentId) {
         this.boundDocumentFences.delete(documentId)
-        void documentIo.unbind(documentId, ownerFence)
+        documentIo.unbind(documentId, ownerFence)
       }
     }
 
-    if (!snapshot || !snapshot.document.fileKey) return
+    if (!snapshot) return
 
     const document = snapshot.document
+    if (!document.fileKey) return
     const existing = documentIo.getBinding(document.ownerFence)
     if (existing) {
-      void documentIo.sync({
+      documentIo.sync({
         kind: 'sync',
         requestId: `sync:${document.documentId}:${document.documentRevision}`,
         documentId: document.documentId,
@@ -246,13 +250,13 @@ export class PaneEditorComposition {
     if (this.pendingDocumentIoBinds.has(document.documentId)) return
     this.pendingDocumentIoBinds.add(document.documentId)
     const previousOwnerFence = document.ownerFence
-    void documentIo
+    documentIo
       .bind({
         kind: 'bind',
         requestId: `bind:${document.documentId}:${document.documentRevision}`,
         documentId: document.documentId,
         documentRevision: document.documentRevision,
-        pathname: document.fileKey!,
+        pathname: document.fileKey,
         dirty: document.dirty
       })
       .then(async(ack) => {
@@ -264,7 +268,13 @@ export class PaneEditorComposition {
           previousOwnerFence,
           ownerFence: ack.ownerFence
         })
-        if (result.status === 'applied') this.boundDocumentFences.set(document.documentId, ack.ownerFence)
+        if (result.status === 'applied') {
+          this.boundDocumentFences.set(document.documentId, ack.ownerFence)
+          // The bind command may itself have moved focus/ownership while this
+          // async acknowledgement was pending. Reconcile after recording the
+          // fence so an old mounted composition releases it immediately.
+          this.syncDocumentIo()
+        }
       })
       .finally(() => this.pendingDocumentIoBinds.delete(document.documentId))
   }
@@ -272,7 +282,7 @@ export class PaneEditorComposition {
   private routeDocumentIoObservation(observation: DocumentIoObservation): void {
     if (!this.runtime || !this.binding) return
     if (observation.kind === 'conflict') {
-      void this.runtime.execute({
+      this.runtime.execute({
         kind: 'replace-warnings',
         warnings: [{ id: `document-io:${observation.documentId}`, kind: 'conflict', message: 'File changed on disk' }]
       })
@@ -280,7 +290,7 @@ export class PaneEditorComposition {
     const lease = this.binding.getLease()
     const snapshot = lease ? this.binding.getSnapshot(lease) : undefined
     if (snapshot?.documentId === observation.documentId && lease) {
-      void this.binding.refresh(lease)
+      this.binding.refresh(lease)
     }
   }
 

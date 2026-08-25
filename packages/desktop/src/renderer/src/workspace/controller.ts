@@ -77,6 +77,13 @@ interface BoundAdapter {
   snapshot?: EditorBindingSnapshot
 }
 
+// Muya may vary only terminal line breaks while round-tripping source mode or
+// rebuilding undo state. The legacy save tracker treats those as the same
+// document; Controller keeps the exact markdown for DocumentIO but owns this
+// canonical dirty comparison.
+const sameDirtyContent = (left: string, right: string): boolean =>
+  left.replace(/[\r\n]+$/, '') === right.replace(/[\r\n]+$/, '')
+
 const EMPTY_HISTORY: PortableHistory = { version: 1, value: [] }
 const DEFAULT_ENCODING: DocumentEncoding = { encoding: 'utf8', isBom: false }
 const EMPTY_VIEW: ViewState = {
@@ -266,6 +273,19 @@ export class WorkspaceController implements WorkspaceControllerContract {
     // Once the surface accepted its full snapshot, revoke it before exposing
     // the successor binding to any reporter.
     this.adapters.set(paneId, bound)
+    // The editor surface owns canonical markdown serialization.  A pristine
+    // input may differ from that serialization (for example trailing newline
+    // normalization), so establish the clean baseline from the first accepted
+    // surface report rather than comparing later edits to raw input bytes.
+    const document = this.documentForPane(paneId)
+    const wasDirty = document?.dirty ?? false
+    await this.flushPane(paneId)
+    if (document && !wasDirty && document.dirty) {
+      document.savedMarkdown = document.markdown
+      document.dirty = false
+      this.updateBoundSnapshot(bound)
+      this.commit()
+    }
     return this.createBinding(bound)
   }
 
@@ -748,19 +768,25 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.applied()
   }
 
-  private requestSave(paneId: PaneId, viewId?: ViewId): WorkspaceResult {
+  private async requestSave(paneId: PaneId, viewId?: ViewId): Promise<WorkspaceResult> {
+    if (viewId === undefined || this.panes.get(paneId)?.activeViewId === viewId) {
+      await this.flushPane(paneId)
+    }
     const document = this.documentForPane(paneId, viewId)
     if (!document) return this.rejected('missing pane')
     if (!document.fileKey) return this.rejected('save requires a canonical file key')
     return this.requestDocumentIo('save', document, document.fileKey)
   }
 
-  private requestSaveAs(
+  private async requestSaveAs(
     paneId: PaneId,
     fileKey: string,
     title?: string,
     viewId?: ViewId
-  ): WorkspaceResult {
+  ): Promise<WorkspaceResult> {
+    if (viewId === undefined || this.panes.get(paneId)?.activeViewId === viewId) {
+      await this.flushPane(paneId)
+    }
     const document = this.documentForPane(paneId, viewId)
     if (!document) return this.rejected('missing pane')
     return this.requestDocumentIo('save-as', document, fileKey, title)
@@ -966,7 +992,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     let changedDocument = false
     if (report.markdown !== undefined && report.markdown !== document.markdown) {
       document.markdown = report.markdown
-      document.dirty = document.markdown !== document.savedMarkdown
+      document.dirty = !sameDirtyContent(document.markdown, document.savedMarkdown)
       changedDocument = true
     }
     if (report.portableHistory !== undefined) {
