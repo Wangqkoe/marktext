@@ -89,7 +89,27 @@ export interface DocumentIoObservation {
   readonly kind: 'reload' | 'conflict'
 }
 
+/** A dialog-only companion to DocumentIO: it never reads or writes a document. */
+export interface DocumentIoTargetSelectionRequest {
+  readonly documentId: DocumentId
+  readonly title: string
+  readonly suggestedPath?: string
+}
+
+export type DocumentIoTargetSelection =
+  | { readonly status: 'selected'; readonly pathname: string }
+  | { readonly status: 'cancelled' }
+
+export interface DocumentIoCloseDecisionRequest {
+  readonly documentId: DocumentId
+  readonly title: string
+}
+
+export type DocumentIoCloseDecision = 'save' | 'discard' | 'cancel'
+
 export interface DocumentIoPort {
   request(request: DocumentIoRequest): Promise<DocumentSaveAck>
   subscribe(listener: (observation: DocumentIoObservation) => void): () => void
+  chooseSaveTarget?(request: DocumentIoTargetSelectionRequest): Promise<DocumentIoTargetSelection>
+  confirmClose?(request: DocumentIoCloseDecisionRequest): Promise<DocumentIoCloseDecision>
 }

@@ -144,6 +144,17 @@ export interface EditorState {
 }
 
 const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+const controllerFacadeFields = [
+  'id', 'filename', 'pathname', 'markdown', 'history', 'isSaved', 'cursor', 'scrollTop',
+  'encoding', 'lineEnding', 'adjustLineEndingOnSave', 'trimTrailingNewline'
+] as const
+
+const inertControllerFacadeFile = (file: IFileState): IFileState => {
+  for (const key of controllerFacadeFields) {
+    Object.defineProperty(file, key, { value: file[key], enumerable: true, writable: false })
+  }
+  return file
+}
 interface WorkspaceFacadeBinding {
   readonly mirror: WorkspaceProjectionMirror
   readonly unsubscribe: () => void
@@ -185,10 +196,10 @@ export const useEditorStore = defineStore('editor', {
       if (!pane) return
       const documentsByView = new Map(snapshot.documents.map((document) => [document.viewId, document]))
       const existing = new Map(this.tabs.map((tab) => [tab.id, tab]))
-      this.tabs = pane.tabs.map((tab) => {
+      this.tabs = Object.freeze(pane.tabs.map((tab) => {
         const previous = existing.get(tab.documentId)
         const document = documentsByView.get(tab.viewId)
-        return {
+        return inertControllerFacadeFile({
           ...(previous ?? getBlankFileState([], 'utf8', 'lf')),
           id: tab.documentId,
           filename: tab.title,
@@ -205,18 +216,18 @@ export const useEditorStore = defineStore('editor', {
                 ? 2
                 : 0,
           isSaved: !tab.dirty
-        } as IFileState
-      })
+        } as IFileState)
+      })) as unknown as IFileState[]
       this.updateTabIdToIndex()
       const activeDocumentId = pane.tabs.find((tab) => tab.viewId === pane.activeViewId)?.documentId
       this.currentFile = this.tabs.find((tab) => tab.id === activeDocumentId) ?? null
-      this.listToc = projection.toc.map((item) => ({
+      this.listToc = Object.freeze(projection.toc.map((item) => ({
         slug: item.id,
         githubSlug: item.id,
         content: item.title,
         lvl: item.level
-      }))
-      this.toc = listToTree<TocItem>(this.listToc)
+      }))) as unknown as TocItem[]
+      this.toc = Object.freeze(listToTree<TocItem>(this.listToc)) as unknown as TocTreeNode[]
     },
     updateTabIdToIndex(): void {
       this.tabIdToIndex = this.tabs.reduce<Record<string, number>>((map, tab, index) => {
@@ -563,14 +574,17 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
-    FILE_SAVE_AS(): void {
+    async FILE_SAVE_AS(): Promise<void> {
       if (!this.currentFile) return
       this.flushActiveEditor()
       if (singlePaneWorkspace().isMounted()) {
-        // T04b deliberately accepts an already selected targetPathname. Its
-        // port has no typed chooser request, so routing this through the old
-        // save-as IPC would create a second persistence state machine.
-        console.warn('Save As requires a typed target-path selection before it can run in WorkspaceController.')
+        const pathname = await singlePaneWorkspace().chooseSaveTarget()
+        if (!pathname) return
+        await singlePaneWorkspace().execute({
+          kind: 'save-as',
+          fileKey: pathname,
+          title: window.path.basename(pathname)
+        })
         return
       }
       const projectStore = useProjectStore()
@@ -1004,7 +1018,7 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
-    CLOSE_TAB(file: IFileState | null = null): void {
+    async CLOSE_TAB(file: IFileState | null = null): Promise<void> {
       const target = file ?? this.currentFile
       if (target === null) return
       if (singlePaneWorkspace().isMounted()) {
@@ -1013,7 +1027,34 @@ export const useEditorStore = defineStore('editor', {
         )
         const view = pane?.tabs.find((tab) => tab.documentId === target.id)
         if (!view) return
-        void singlePaneWorkspace().execute({ kind: 'close-view', viewId: view.viewId })
+        const workspace = singlePaneWorkspace()
+        const close = await workspace.execute({ kind: 'close-view', viewId: view.viewId })
+        if (close.status !== 'needs-decision') return
+        const decision = await workspace.confirmClose()
+        if (decision === 'cancel') return
+        if (decision === 'discard') {
+          await workspace.execute({ kind: 'commit-authorized', capability: close.capability })
+          return
+        }
+        if (target.id !== this.currentFile?.id) {
+          await workspace.execute({ kind: 'activate-view', paneId: pane!.paneId, viewId: view.viewId })
+        }
+        const save = target.pathname
+          ? await workspace.execute({ kind: 'save' })
+          : await (async() => {
+              const pathname = await workspace.chooseSaveTarget()
+              return pathname
+                ? workspace.execute({ kind: 'save-as', fileKey: pathname, title: window.path.basename(pathname) })
+                : undefined
+            })()
+        if (!save || save.status !== 'applied') return
+        const committed = await workspace.execute({ kind: 'commit-authorized', capability: close.capability })
+        if (committed.status === 'rejected') {
+          // Binding an untitled Save As intentionally rotates the owner fence,
+          // invalidating the old close capability. The durable save is clean,
+          // so a fresh controller close is the only safe continuation.
+          await workspace.execute({ kind: 'close-view', viewId: view.viewId })
+        }
         return
       }
 
@@ -1444,11 +1485,13 @@ export const useEditorStore = defineStore('editor', {
      * @param toc Flat list of headings returned by `muya.getTOC()`.
      */
     UPDATE_TOC(toc: TocItem[]): void {
+      if (singlePaneWorkspace().isMounted()) return
       this.listToc = toc ?? []
       this.toc = listToTree<TocItem>(toc ?? [])
     },
 
     UPDATE_WORD_COUNT(id: string, wordCount: IFileState['wordCount']): void {
+      if (singlePaneWorkspace().isMounted()) return
       const tabIndex = this.tabIdToIndex[id]
       if (tabIndex === undefined) return
 
@@ -1471,7 +1514,6 @@ export const useEditorStore = defineStore('editor', {
       const scope = singlePaneWorkspace().getScope()
       if (scope) {
         if (scope.documentId !== id) return
-        scope.report({ markdown })
         return
       }
       const preferencesStore = usePreferencesStore()

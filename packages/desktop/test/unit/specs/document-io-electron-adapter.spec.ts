@@ -96,10 +96,18 @@ describe('DocumentIO Electron adapter', () => {
     let handler: ((event: { readonly sender: DocumentIoWebContents }, request: DocumentIoRequest) => Promise<DocumentSaveAck>) | undefined
     const removed: string[] = []
     registerDocumentIoIpc({
-      handle: (_channel, next) => { handler = next },
+      handle: (channel, next) => {
+        if (channel === 'mt::workspace::document-io') {
+          handler = next as typeof handler
+        }
+      },
       removeHandler: (channel) => removed.push(channel)
     }, adapter)
-    expect(removed).toEqual(['mt::workspace::document-io'])
+    expect(removed).toEqual([
+      'mt::workspace::document-io',
+      'mt::workspace::choose-document-path',
+      'mt::workspace::confirm-document-close'
+    ])
     if (!handler) throw new Error('IPC handler not registered')
     const listeners = new Set<(event: unknown, observation: DocumentIoObservation) => void>()
     const port: DocumentIoPort = {

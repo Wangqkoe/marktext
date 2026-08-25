@@ -57,6 +57,7 @@ export class PaneEditorComposition {
   private stopDocumentIoSync: (() => void) | undefined
   private readonly pendingDocumentIoBinds = new Set<string>()
   private readonly boundDocumentFences = new Map<string, string>()
+  private modeTransition: Promise<WorkspaceResult> | undefined
 
   constructor(options: PaneEditorCompositionOptions) {
     this.paneId = options.paneId
@@ -186,6 +187,19 @@ export class PaneEditorComposition {
     return this.binding !== undefined && this.surface !== undefined
   }
 
+  handoffMode(mode: EditorMode): Promise<WorkspaceResult> {
+    const scope = this.getScope()
+    const transition = scope ? scope.handoffMode(mode) : Promise.resolve({ status: 'rejected' as const, reason: 'missing pane scope' })
+    this.modeTransition = transition
+    return transition
+  }
+
+  async scopeForMode(mode: EditorMode): Promise<PaneEditorEventScope | undefined> {
+    await this.modeTransition
+    const scope = this.getScope()
+    return scope?.mode === mode ? scope : undefined
+  }
+
   private mountDocumentIo(): void {
     if (!this.runtime || !this.binding || this.documentIo) return
     const hasProductionPort = typeof window !== 'undefined' && !!window.electron?.ipcRenderer?.invoke
@@ -309,6 +323,59 @@ export class PaneEditorComposition {
     return this.runtime
   }
 
+  async chooseSaveTarget(): Promise<string | undefined> {
+    const binding = this.binding
+    const lease = binding?.getLease()
+    const snapshot = lease ? binding?.getSnapshot(lease) : undefined
+    if (!snapshot) return undefined
+    const selection = await this.documentIo?.chooseSaveTarget({
+      documentId: snapshot.documentId,
+      title: snapshot.document.title,
+      ...(snapshot.document.fileKey ? { suggestedPath: snapshot.document.fileKey } : {})
+    })
+    return selection?.status === 'selected' ? selection.pathname : undefined
+  }
+
+  async confirmClose(): Promise<'save' | 'discard' | 'cancel'> {
+    const binding = this.binding
+    const lease = binding?.getLease()
+    const snapshot = lease ? binding?.getSnapshot(lease) : undefined
+    if (!snapshot) return 'cancel'
+    return this.documentIo?.confirmClose({
+      documentId: snapshot.documentId,
+      title: snapshot.document.title
+    }) ?? 'cancel'
+  }
+
+  private async ensureSaveBinding(targetPathname: string): Promise<WorkspaceResult | undefined> {
+    const runtime = this.runtime
+    const binding = this.binding
+    const documentIo = this.documentIo
+    const lease = binding?.getLease()
+    const snapshot = lease ? binding?.getSnapshot(lease) : undefined
+    if (!runtime || !binding || !documentIo || !snapshot) return undefined
+    const document = snapshot.document
+    if (documentIo.getBinding(document.ownerFence)) return undefined
+    const ack = await documentIo.bind({
+      kind: 'bind',
+      requestId: `bind:save-as:${document.documentId}:${document.documentRevision}`,
+      documentId: document.documentId,
+      documentRevision: document.documentRevision,
+      pathname: targetPathname,
+      dirty: document.dirty
+    })
+    if (ack.status !== 'bound') return { status: 'failed', reason: 'document I/O bind did not complete' }
+    const result = await runtime.execute({
+      kind: 'apply-document-io-bind',
+      documentId: document.documentId,
+      documentRevision: document.documentRevision,
+      previousOwnerFence: document.ownerFence,
+      ownerFence: ack.ownerFence
+    })
+    if (result.status === 'applied') this.boundDocumentFences.set(document.documentId, ack.ownerFence)
+    return result
+  }
+
   /**
    * Production command edge: the controller produces the only DocumentIO
    * request, and the T04b adapter returns the only acknowledgement.  Legacy
@@ -316,6 +383,10 @@ export class PaneEditorComposition {
    */
   async execute(command: WorkspaceCommand): Promise<WorkspaceResult> {
     if (!this.runtime) return { status: 'rejected', reason: 'workspace is not mounted' }
+    if (command.kind === 'save-as') {
+      const bound = await this.ensureSaveBinding(command.fileKey)
+      if (bound && bound.status !== 'applied') return bound
+    }
     const result = await this.runtime.execute(command)
     if (result.status !== 'applied' || !result.documentIoRequest) return result
     const request = result.documentIoRequest

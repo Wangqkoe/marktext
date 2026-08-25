@@ -134,6 +134,10 @@ const prepareTabSwitch = () => {
   if (commitTimer.value) clearTimeout(commitTimer.value)
   if (tabId.value) {
     const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+    const scope = sourceEventScope
+    if (scope?.documentId === tabId.value) {
+      singlePaneWorkspace().reportSource(scope, { markdown: newMarkdown })
+    }
     editorStore.LISTEN_FOR_CONTENT_CHANGE({
       id: tabId.value,
       markdown: newMarkdown,
@@ -364,15 +368,17 @@ const handleScrollToHeader = (slug: unknown) => {
   scrollSourceEditorToLine(editor.value, line, sourceCodeContainer.value)
 }
 
-onMounted(() => {
+onMounted(async() => {
   if (!currentTab.value) return
   const { id } = currentTab.value
   // reset currentTab scrollTop position because the codeMirror scroll position is completely different from the muya scroll position
   // reset blocks as well because the blocks are only valid in muya
   // reset cursor because this is a direct "key-cursor", not a muyaIndexCursor, which is {focus: number, anchor: number}
-  currentTab.value.scrollTop = 0
-  currentTab.value.blocks = undefined
-  currentTab.value.cursor = undefined
+  if (!singlePaneWorkspace().isMounted()) {
+    currentTab.value.scrollTop = 0
+    currentTab.value.blocks = undefined
+    currentTab.value.cursor = undefined
+  }
 
   const { markdown, muyaIndexCursor, textDirection } = props
   const container = sourceCodeContainer.value
@@ -431,7 +437,12 @@ onMounted(() => {
 
   editor.value = codeMirrorInstance
   tabId.value = id
-  sourceEventScope = singlePaneWorkspace().getScope()
+  // The parent starts the controller handoff in the same reactive turn that
+  // mounts CodeMirror. Wait for that handoff's staging microtasks before
+  // capturing the lease; otherwise source edits report through the revoked
+  // WYSIWYG scope and are intentionally ignored.
+  await nextTick()
+  sourceEventScope = await singlePaneWorkspace().scopeForMode('source')
 
   if (sourceEventScope) listenChange(sourceEventScope)
   reportCaretPosition(codeMirrorInstance, props.caretSession)

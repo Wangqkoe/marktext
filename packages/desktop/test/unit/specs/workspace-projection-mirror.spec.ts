@@ -44,7 +44,9 @@ describe('WorkspaceProjectionMirror', () => {
     expect(store.currentFile).toMatchObject({ id: 'note', filename: 'note.md', pathname: '/note.md' })
     expect(store.currentFile?.markdown).toBe('controller-only')
     if (!store.currentFile) throw new Error('missing facade tab')
-    store.currentFile.filename = 'forged.md'
+    expect(() => {
+      if (store.currentFile) store.currentFile.filename = 'forged.md'
+    }).toThrow()
     expect(controller.getProjection().panes[0]?.tabs[0]?.title).toBe('note.md')
 
     await controller.execute({ kind: 'new-tab' })

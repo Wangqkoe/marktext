@@ -34,7 +34,15 @@ import type { BufferedState as BufferedStateType } from './bufferedState'
 import type { MenuTemplate, MenuPopupPosition } from './menu'
 import type { LayoutAction, LayoutMenuState } from './layout'
 import type { ViewMode, ViewModeState } from './viewMode'
-import type { DocumentIoObservation, DocumentIoRequest, DocumentSaveAck } from '@shared/workspace/documentIo'
+import type {
+  DocumentIoCloseDecision,
+  DocumentIoCloseDecisionRequest,
+  DocumentIoObservation,
+  DocumentIoRequest,
+  DocumentIoTargetSelection,
+  DocumentIoTargetSelectionRequest,
+  DocumentSaveAck
+} from '@shared/workspace/documentIo'
 
 // =================================================================
 // Invoke channels (renderer → main, returns Promise<T>)
@@ -49,6 +57,14 @@ export interface IpcInvokeChannels {
   'mt::fonts::list': { args: []; ret: string[] }
   // T04b DocumentIO section. T06 owns a separate transfer/startup insertion point.
   'mt::workspace::document-io': { args: [request: DocumentIoRequest]; ret: DocumentSaveAck }
+  'mt::workspace::choose-document-path': {
+    args: [request: DocumentIoTargetSelectionRequest]
+    ret: DocumentIoTargetSelection
+  }
+  'mt::workspace::confirm-document-close': {
+    args: [request: DocumentIoCloseDecisionRequest]
+    ret: DocumentIoCloseDecision
+  }
   'mt::fs-trash-item': { args: [pathname: string]; ret: void }
   'mt::fs::copy': { args: [src: string, dest: string]; ret: void }
   'mt::fs::empty-dir': { args: [path: string]; ret: void }

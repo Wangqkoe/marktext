@@ -4,7 +4,11 @@ import type {
   DocumentIoPort,
   DocumentIoRequest,
   DocumentIoSaveRequest,
+  DocumentIoCloseDecision,
+  DocumentIoCloseDecisionRequest,
   DocumentIoSyncRequest,
+  DocumentIoTargetSelection,
+  DocumentIoTargetSelectionRequest,
   DocumentSaveAck
 } from '@shared/workspace/documentIo'
 
@@ -145,6 +149,14 @@ export class RendererDocumentIoAdapter {
     return this.bindings.get(ownerFence)
   }
 
+  chooseSaveTarget(request: DocumentIoTargetSelectionRequest): Promise<DocumentIoTargetSelection> {
+    return this.port.chooseSaveTarget?.(request) ?? Promise.resolve({ status: 'cancelled' })
+  }
+
+  confirmClose(request: DocumentIoCloseDecisionRequest): Promise<DocumentIoCloseDecision> {
+    return this.port.confirmClose?.(request) ?? Promise.resolve('cancel')
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) return
     this.disposed = true
@@ -189,6 +201,10 @@ export class RendererDocumentIoAdapter {
 /** Production typed preload transport. */
 export const createElectronDocumentIoPort = (): DocumentIoPort => ({
   request: (request) => window.electron.ipcRenderer.invoke('mt::workspace::document-io', request),
+  chooseSaveTarget: (request) =>
+    window.electron.ipcRenderer.invoke('mt::workspace::choose-document-path', request),
+  confirmClose: (request) =>
+    window.electron.ipcRenderer.invoke('mt::workspace::confirm-document-close', request),
   subscribe: (listener) =>
     window.electron.ipcRenderer.on('mt::workspace::document-io-observation', (_event, observation) =>
       listener(observation)

@@ -568,7 +568,7 @@ watch(focus, (value) => {
 // items) rather than blanket-enabling everything (#3531).
 watch(sourceCode, (isSource) => {
   if (paneScope && isSource) {
-    paneScope.handoffMode('source').catch((error) => {
+    singlePaneWorkspace().handoffMode('source').catch((error) => {
       console.error('Failed to hand off pane editor mode:', error)
     })
   }
@@ -867,7 +867,7 @@ watch(
         // source -> WYSIWYG path. Computing it here rather than on every
         // json-change/selection-change avoids serializing the whole document on
         // each keystroke/caret move, and guarantees a fresh (never stale) value.
-        if (currentFile.value) {
+        if (currentFile.value && !singlePaneWorkspace().isMounted()) {
           currentFile.value.muyaIndexCursor = editor.value.getCursorOffset() ?? null
         }
         // Capture the block-key caret too (same fresh selection getCursorOffset
