@@ -11,7 +11,7 @@ import { guessEncoding } from './encoding'
 import type { Encoding } from 'common/encoding'
 import type { LineEnding } from '@shared/types/files'
 
-interface MarkdownDocumentOptions {
+export interface MarkdownDocumentOptions {
   adjustLineEndingOnSave: boolean
   lineEnding: LineEnding
   encoding: Encoding
@@ -76,17 +76,16 @@ export const writeMarkdownFile = (
   content: string,
   options: MarkdownDocumentOptions
 ): Promise<string> => {
-  const { adjustLineEndingOnSave, lineEnding } = options
-  const { encoding, isBom } = options.encoding
   const extension = path.extname(pathname) || '.md'
-
-  if (adjustLineEndingOnSave) {
-    content = convertLineEndings(content, lineEnding)
-  }
-
-  const buffer = iconv.encode(content, encoding, { addBOM: isBom })
+  const buffer = encodeMarkdown(content, options)
 
   return writeFile(pathname, buffer, extension, undefined).then(() => getContentHash(buffer))
+}
+
+/** Produces exactly the bytes used by the legacy save path before durable write. */
+export const encodeMarkdown = (content: string, options: MarkdownDocumentOptions): Buffer => {
+  if (options.adjustLineEndingOnSave) content = convertLineEndings(content, options.lineEnding)
+  return iconv.encode(content, options.encoding.encoding, { addBOM: options.encoding.isBom })
 }
 
 /**
