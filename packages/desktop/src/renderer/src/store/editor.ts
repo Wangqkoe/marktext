@@ -1244,6 +1244,13 @@ export const useEditorStore = defineStore('editor', {
     },
 
     CLOSE_OTHER_TABS(file: IFileState): void {
+      const workspace = workspaceFor(this)
+      if (workspace) {
+        workspace.closeMatchingTabs((documentId) => documentId !== file.id).catch((error) => {
+          console.error('Failed to close other workspace tabs:', error)
+        })
+        return
+      }
       this.tabs
         .filter((f) => f.id !== file.id)
         .forEach((tab) => {
@@ -1252,6 +1259,13 @@ export const useEditorStore = defineStore('editor', {
     },
 
     CLOSE_SAVED_TABS(): void {
+      const workspace = workspaceFor(this)
+      if (workspace) {
+        workspace.closeMatchingTabs((_documentId, dirty) => !dirty).catch((error) => {
+          console.error('Failed to close saved workspace tabs:', error)
+        })
+        return
+      }
       this.tabs
         .filter((f) => f.isSaved)
         .forEach((tab) => {
@@ -1260,6 +1274,13 @@ export const useEditorStore = defineStore('editor', {
     },
 
     CLOSE_ALL_TABS(): void {
+      const workspace = workspaceFor(this)
+      if (workspace) {
+        workspace.closeMatchingTabs(() => true).catch((error) => {
+          console.error('Failed to close all workspace tabs:', error)
+        })
+        return
+      }
       this.tabs.slice().forEach((tab) => {
         this.CLOSE_TAB(tab)
       })
@@ -1319,6 +1340,10 @@ export const useEditorStore = defineStore('editor', {
     },
 
     EXCHANGE_TABS_BY_ID(tabIDs: { fromId: string; toId: string | null }): void {
+      if (workspaceFor(this)) {
+        console.warn('Workspace tab reorder is unavailable until T03.', tabIDs)
+        return
+      }
       const { fromId, toId } = tabIDs
       const { tabs } = this
       const moveItem = <T>(arr: T[], from: number, to: number): boolean => {
@@ -1353,6 +1378,13 @@ export const useEditorStore = defineStore('editor', {
 
     // Direction is a boolean where false is left and true right.
     CYCLE_TABS(direction: boolean): void {
+      const workspace = workspaceFor(this)
+      if (workspace) {
+        workspace.cycleTabs(direction).catch((error) => {
+          console.error('Failed to cycle workspace tabs:', error)
+        })
+        return
+      }
       const { tabs, currentFile } = this
       if (tabs.length <= 1) {
         return

@@ -81,6 +81,29 @@ describe('WorkspaceProjectionMirror', () => {
     store.DETACH_WORKSPACE_COMPOSITION()
   })
 
+  it('routes legacy tab cycle and bulk-close actions through the injected controller edge', async () => {
+    const controller = createWorkspaceRuntime([
+      { documentId: 'one', markdown: 'one', title: 'one.md' },
+      { documentId: 'two', markdown: 'two', title: 'two.md' }
+    ])
+    const store = useEditorStore()
+    const composition = createPaneEditorComposition({ paneId: 'left', controller })
+    store.ATTACH_WORKSPACE_COMPOSITION(composition)
+    store.ATTACH_WORKSPACE_FACADE(controller)
+
+    await controller.execute({ kind: 'activate-view', paneId: 'left', viewId: controller.getProjection().panes[0]!.tabs[1]!.viewId })
+    store.CYCLE_TABS(false)
+    await vi.waitFor(() => expect(store.currentFile?.id).toBe('one'))
+
+    if (!store.currentFile) throw new Error('missing controller facade')
+    store.CLOSE_OTHER_TABS(store.currentFile)
+    await vi.waitFor(() => expect(store.tabs.map((tab) => tab.id)).toEqual(['one']))
+    expect(controller.getProjection().panes[0]?.tabs.map((tab) => tab.documentId)).toEqual(['one'])
+
+    store.DETACH_WORKSPACE_FACADE()
+    store.DETACH_WORKSPACE_COMPOSITION()
+  })
+
   it('keeps nested controller facade values independent and deeply frozen', async () => {
     const controller = createWorkspaceRuntime([{ markdown: 'one', title: 'note' }])
     const store = useEditorStore()

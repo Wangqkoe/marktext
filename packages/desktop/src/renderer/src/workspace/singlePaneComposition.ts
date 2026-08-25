@@ -364,6 +364,26 @@ export class PaneEditorComposition {
       : retry
   }
 
+  async closeMatchingTabs(match: (documentId: string, dirty: boolean) => boolean): Promise<void> {
+    const tabs = this.runtime
+      ?.getProjection()
+      .panes.find((candidate) => candidate.paneId === this.paneId)
+      ?.tabs
+      .filter((tab) => match(tab.documentId, tab.dirty)) ?? []
+    for (const tab of tabs) await this.closeLegacyTab(tab.documentId)
+  }
+
+  async cycleTabs(direction: boolean): Promise<WorkspaceResult> {
+    const pane = this.runtime?.getProjection().panes.find((candidate) => candidate.paneId === this.paneId)
+    if (!pane || pane.tabs.length < 2) return { status: 'rejected', reason: 'missing adjacent pane tab' }
+    const index = pane.tabs.findIndex((tab) => tab.viewId === pane.activeViewId)
+    if (index < 0) return { status: 'rejected', reason: 'missing active pane tab' }
+    const target = pane.tabs[(index + (direction ? 1 : -1) + pane.tabs.length) % pane.tabs.length]
+    return target
+      ? this.execute({ kind: 'activate-view', paneId: this.paneId, viewId: target.viewId })
+      : { status: 'rejected', reason: 'missing adjacent pane tab' }
+  }
+
   async chooseSaveTarget(viewId?: string): Promise<string | undefined> {
     const document = this.documentForView(viewId)
     if (!document) return undefined

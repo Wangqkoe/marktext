@@ -167,16 +167,22 @@ const closeTab = (tabId: unknown) => {
 const closeOthers = (tabId: unknown) => {
   const tab = tabs.value.find((f) => f.id === tabId)
   if (tab) {
-    editorStore.CLOSE_OTHER_TABS(tab)
+    props.composition.closeMatchingTabs((documentId) => documentId !== tab.id).catch((error) => {
+      console.error('Failed to close other workspace pane tabs:', error)
+    })
   }
 }
 
 const closeSaved = () => {
-  editorStore.CLOSE_SAVED_TABS()
+  props.composition.closeMatchingTabs((_documentId, dirty) => !dirty).catch((error) => {
+    console.error('Failed to close saved workspace pane tabs:', error)
+  })
 }
 
 const closeAll = () => {
-  editorStore.CLOSE_ALL_TABS()
+  props.composition.closeMatchingTabs(() => true).catch((error) => {
+    console.error('Failed to close all workspace pane tabs:', error)
+  })
 }
 
 const rename = (tabId: unknown) => {
@@ -246,10 +252,9 @@ onMounted(() => {
       return
     }
 
-    editorStore.EXCHANGE_TABS_BY_ID({
-      fromId: droppedId,
-      toId: isLastTab ? null : nextTabId
-    })
+    // Controller has no tab-order command yet. T03 owns reorder presentation;
+    // reject this legacy drag edge rather than mutating the projection facade.
+    console.warn('Workspace tab reorder is unavailable until T03.', { droppedId, nextTabId, isLastTab })
   })
 
   // Scroll when dragging a tab to the beginning or end of the tab container.
