@@ -13,6 +13,8 @@ import { loadMarkdownFile } from '../filesystem/markdown'
 import { switchLanguage } from '../spellchecker'
 import fs from 'fs'
 import type { BootstrapEditorConfig } from '@shared/types/files'
+import { getDocumentIoAdapter } from '../ipc'
+import { attachEditorDocumentIo } from './documentIO'
 
 type RawMarkdownDocument = Awaited<ReturnType<typeof loadMarkdownFile>>
 
@@ -151,6 +153,10 @@ class EditorWindow extends BaseWindow {
     }
 
     let win: BrowserWindow | null = (this.browserWindow = new BrowserWindow(winOptions))
+    let detachDocumentIo = attachEditorDocumentIo(
+      getDocumentIoAdapter(),
+      win.webContents as unknown as Parameters<typeof attachEditorDocumentIo>[1]
+    )
 
     // Give every editor window a stable id for session buffer persistence.
     // We cant use win.id as it might collide with same IDs from closed windows
@@ -210,6 +216,16 @@ class EditorWindow extends BaseWindow {
           zoomOut(win!)
         }
       })
+    })
+
+    // Navigation revokes the old endpoint in the adapter; a completed load gets
+    // a fresh authenticated session for the new renderer document.
+    win.webContents.on('did-finish-load', () => {
+      detachDocumentIo()
+      detachDocumentIo = attachEditorDocumentIo(
+        getDocumentIoAdapter(),
+        win!.webContents as unknown as Parameters<typeof attachEditorDocumentIo>[1]
+      )
     })
 
     win.webContents.once('did-fail-load', (_event, errorCode, errorDescription, url) => {
@@ -279,6 +295,7 @@ class EditorWindow extends BaseWindow {
 
     // The window is now destroyed.
     win.on('closed', () => {
+      detachDocumentIo()
       this.lifecycle = WindowLifecycle.QUITTED
       this.emit('window-closed')
 

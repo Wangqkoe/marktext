@@ -35,6 +35,17 @@ export class RendererDocumentIoAdapter {
   async bind(request: DocumentIoBindingRequest): Promise<DocumentSaveAck> {
     if (this.disposed) return this.rejected(request, 'renderer adapter is disposed')
     const ack = await this.port.request(request)
+    if (this.disposed) {
+      if (ack.status === 'bound') {
+        await this.port.request({
+          kind: 'unbind',
+          requestId: `late-dispose:${ack.ownerFence}`,
+          documentId: ack.documentId,
+          ownerFence: ack.ownerFence
+        })
+      }
+      return ack
+    }
     if (ack.status !== 'bound' || ack.requestId !== request.requestId || ack.documentId !== request.documentId) {
       return ack
     }

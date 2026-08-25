@@ -72,6 +72,9 @@ export class DocumentIOCoordinator {
       return { status: 'unbound', requestId: request.requestId, documentId: request.documentId }
     }
     if (request.kind === 'sync') {
+      if (request.documentRevision < binding.documentRevision) {
+        return rejected(request, 'stale document revision')
+      }
       binding.documentRevision = request.documentRevision
       binding.dirty = request.dirty
       if (!(await this.hub.refreshDocumentRevision(binding.lease, request.documentRevision))) {
@@ -112,12 +115,16 @@ export class DocumentIOCoordinator {
     endpoint: DocumentIoEndpoint,
     request: DocumentIoBindingRequest
   ): Promise<DocumentSaveAck> {
-    for (const binding of [...this.bindings.values()]) {
-      if (binding.endpoint.id === endpoint.id && binding.documentId === request.documentId) {
-        this.revokeBinding(binding)
-      }
+    const current = this.findBinding(endpoint, request.documentId)
+    if (current && request.documentRevision <= current.documentRevision) {
+      return rejected(request, 'stale document revision')
     }
     const fileKey = await this.hub.canonicalFileKey(request.pathname)
+    const latest = this.findBinding(endpoint, request.documentId)
+    if (latest && request.documentRevision <= latest.documentRevision) {
+      return rejected(request, 'stale document revision')
+    }
+    if (latest) this.revokeBinding(latest)
     const ownerFence = randomUUID()
     let binding!: Binding
     const subscriber: FileObservationSubscriber = {
@@ -149,6 +156,9 @@ export class DocumentIOCoordinator {
   }
 
   private async save(binding: Binding, request: DocumentIoSaveRequest): Promise<DocumentSaveAck> {
+    if (request.documentRevision < binding.documentRevision) {
+      return rejected(request, 'stale document revision')
+    }
     if (!(await this.hub.refreshDocumentRevision(binding.lease, request.documentRevision))) {
       return rejected(request, 'revoked observation lease')
     }
@@ -265,7 +275,15 @@ export class DocumentIOCoordinator {
       observedDiskRevision,
       ownerLease: lease,
       bytes: encodeMarkdown(request.markdown, request.options),
-      purpose: 'save'
+      purpose: 'save',
+      canWrite: () => {
+        const current = this.bindings.get(binding.ownerFence)
+        return (
+          current !== undefined &&
+          current.endpoint === binding.endpoint &&
+          current.documentRevision === request.documentRevision
+        )
+      }
     })
   }
 
@@ -285,6 +303,13 @@ export class DocumentIOCoordinator {
       binding.endpoint.sessionId === endpoint.sessionId &&
       binding.documentId === documentId
     )
+  }
+
+  private findBinding(endpoint: DocumentIoEndpoint, documentId: string): Binding | undefined {
+    for (const binding of this.bindings.values()) {
+      if (binding.endpoint === endpoint && binding.documentId === documentId) return binding
+    }
+    return undefined
   }
 
   private revokeBinding(binding: Binding): void {

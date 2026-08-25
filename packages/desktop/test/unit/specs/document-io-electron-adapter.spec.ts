@@ -12,6 +12,7 @@ import {
 } from 'main_renderer/ipc/documentIO'
 import { RendererDocumentIoAdapter } from '@/workspace/documentIO'
 import type { DocumentIoObservation, DocumentIoPort, DocumentIoRequest, DocumentSaveAck } from '@shared/workspace/documentIo'
+import { attachEditorDocumentIo } from 'main_renderer/windows/documentIO'
 
 const options = { encoding: { encoding: 'utf8', isBom: false }, lineEnding: 'lf' as const, adjustLineEndingOnSave: false }
 
@@ -53,8 +54,9 @@ describe('DocumentIO Electron adapter', () => {
     const adapter = new DocumentIoElectronAdapter(coordinator)
     const first = new FakeWebContents(1)
     const second = new FakeWebContents(2)
-    adapter.attach(first, 'window-session-a')
-    adapter.attach(second, 'window-session-b')
+    // This is the production EditorWindow assembly helper, not a test-only attach.
+    attachEditorDocumentIo(adapter, first)
+    attachEditorDocumentIo(adapter, second)
     return { storage, watchers, hub, adapter, first, second }
   }
 
@@ -133,5 +135,77 @@ describe('DocumentIO Electron adapter', () => {
     expect(observed).toEqual([])
     await renderer.dispose()
     expect(watchers.activeWatchers.size).toBe(0)
+  })
+
+  it('delivers clean-peer reload and dirty-peer conflict through the assembled coordinator seam', async() => {
+    const { adapter, hub, storage, first, second } = setup()
+    const canonical = await hub.canonicalFileKey('C:/workspace/document.md')
+    storage.files.set(canonical, Buffer.from('baseline'))
+    const writer = await bind(adapter, first, 'writer')
+    const clean = await adapter.handle(second, {
+      kind: 'bind', requestId: 'clean', documentId: 'clean-peer', documentRevision: 1,
+      pathname: 'C:/workspace/document.md', dirty: false
+    })
+    const dirty = await adapter.handle(second, {
+      kind: 'bind', requestId: 'dirty', documentId: 'dirty-peer', documentRevision: 1,
+      pathname: 'C:/workspace/document.md', dirty: true
+    })
+    expect(clean.status).toBe('bound')
+    expect(dirty.status).toBe('bound')
+    await expect(adapter.handle(first, {
+      kind: 'save', requestId: 'peer-save', documentId: 'document', documentRevision: 3,
+      ownerFence: writer.ownerFence, markdown: 'changed', options
+    })).resolves.toMatchObject({ status: 'durable-success' })
+    expect(second.sent.map(({ kind }) => kind).sort()).toEqual(['conflict', 'reload'])
+  })
+
+  it('cleans delayed renderer bind and save completions after dispose', async() => {
+    let resolveBind!: (ack: DocumentSaveAck) => void
+    let resolveSave!: (ack: DocumentSaveAck) => void
+    const calls: DocumentIoRequest[] = []
+    const port: DocumentIoPort = {
+      request: (request) => {
+        calls.push(request)
+        if (request.kind === 'bind' && request.requestId === 'late-bind') {
+          return new Promise<DocumentSaveAck>((resolve) => { resolveBind = resolve })
+        }
+        if (request.kind === 'save') {
+          return new Promise<DocumentSaveAck>((resolve) => { resolveSave = resolve })
+        }
+        if (request.kind === 'bind') {
+          return Promise.resolve({ status: 'bound', requestId: request.requestId, documentId: request.documentId, ownerFence: 'fence' })
+        }
+        return Promise.resolve({ status: 'unbound', requestId: request.requestId, documentId: request.documentId })
+      },
+      subscribe: () => () => {}
+    }
+    const lateBind = new RendererDocumentIoAdapter(port, () => {})
+    const pendingBind = lateBind.bind({
+      kind: 'bind', requestId: 'late-bind', documentId: 'late', documentRevision: 1,
+      pathname: 'C:/workspace/late.md', dirty: true
+    })
+    await lateBind.dispose()
+    resolveBind({ status: 'bound', requestId: 'late-bind', documentId: 'late', ownerFence: 'late-fence' })
+    await pendingBind
+    expect(lateBind.getBinding('late-fence')).toBeUndefined()
+    expect(calls.at(-1)).toMatchObject({ kind: 'unbind', ownerFence: 'late-fence' })
+
+    const lateSave = new RendererDocumentIoAdapter(port, () => {})
+    const bound = await lateSave.bind({
+      kind: 'bind', requestId: 'bind-now', documentId: 'document', documentRevision: 1,
+      pathname: 'C:/workspace/document.md', dirty: true
+    })
+    if (bound.status !== 'bound') throw new Error('bind failed')
+    const pendingSave = lateSave.save({
+      kind: 'save', requestId: 'late-save', documentId: 'document', documentRevision: 1,
+      ownerFence: bound.ownerFence, markdown: 'saved', options
+    })
+    await lateSave.dispose()
+    resolveSave({
+      status: 'durable-success', requestId: 'late-save', documentId: 'document', documentRevision: 1,
+      ownerFence: bound.ownerFence
+    })
+    await pendingSave
+    expect(lateSave.getBinding(bound.ownerFence)).toBeUndefined()
   })
 })

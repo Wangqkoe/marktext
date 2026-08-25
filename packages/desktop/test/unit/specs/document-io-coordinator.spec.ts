@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   FileObservationHub,
   MemoryFileObservationStorage,
@@ -37,8 +37,8 @@ describe('DocumentIOCoordinator', () => {
     return ack
   }
 
-  const save = (ownerFence: string, requestId = 'save:1'): DocumentIoSaveRequest => ({
-    kind: 'save', requestId, documentId: 'document', documentRevision: 2, ownerFence,
+  const save = (ownerFence: string, requestId = 'save:1', documentRevision = 2): DocumentIoSaveRequest => ({
+    kind: 'save', requestId, documentId: 'document', documentRevision, ownerFence,
     markdown: 'updated\n', options, windowId: -1
   })
 
@@ -74,13 +74,13 @@ describe('DocumentIOCoordinator', () => {
     // CAS remains intentionally strict: a dirty peer must resolve the external change first.
     expect(replacement.status).toBe('conflict')
     const rebound = await coordinator.request('sender-a', {
-      kind: 'bind', requestId: 'rebind', documentId: 'document', documentRevision: 2, pathname: file,
+      kind: 'bind', requestId: 'rebind', documentId: 'document', documentRevision: 3, pathname: file,
       dirty: true
     })
     if (rebound.status !== 'bound') throw new Error('rebind failed')
-    const durable = await coordinator.request('sender-a', save(rebound.ownerFence, 'save:durable'))
+    const durable = await coordinator.request('sender-a', save(rebound.ownerFence, 'save:durable', 3))
     expect(durable.status).toBe('durable-success')
-    const duplicate = await coordinator.request('sender-a', save(rebound.ownerFence, 'save:durable'))
+    const duplicate = await coordinator.request('sender-a', save(rebound.ownerFence, 'save:durable', 3))
     expect(duplicate).toEqual(durable)
   })
 
@@ -122,6 +122,55 @@ describe('DocumentIOCoordinator', () => {
     watchers.emit(canonical)
     await Promise.resolve()
     expect(observations).toEqual([])
+    expect(watchers.activeWatchers.size).toBe(0)
+  })
+
+  it('never lets an old bind or delayed save lower the current revision fence', async() => {
+    const { coordinator, hub, storage } = setup()
+    const canonical = await hub.canonicalFileKey(file)
+    storage.files.set(canonical, Buffer.from('baseline'))
+    const bound = await bind(coordinator)
+    let release!: () => void
+    storage.writeBarrier = new Promise<void>((resolve) => { release = resolve })
+    const oldSave = coordinator.request('sender-a', save(bound.ownerFence, 'save:old', 2))
+    await Promise.resolve()
+    const advanced = coordinator.request('sender-a', {
+      kind: 'sync', requestId: 'sync:new', documentId: 'document', documentRevision: 3,
+      ownerFence: bound.ownerFence, dirty: true
+    })
+    release()
+    await expect(oldSave).resolves.toMatchObject({ status: 'not-durable' })
+    await expect(advanced).resolves.toMatchObject({ status: 'bound' })
+    expect((await storage.read(canonical))?.toString()).toBe('baseline')
+    await expect(coordinator.request('sender-a', {
+      kind: 'bind', requestId: 'bind:old', documentId: 'document', documentRevision: 2,
+      pathname: file, dirty: true
+    })).resolves.toMatchObject({ status: 'rejected', reason: 'stale document revision' })
+    await expect(coordinator.request('sender-a', save(bound.ownerFence, 'save:new', 3))).resolves.toMatchObject({
+      status: 'durable-success'
+    })
+  })
+
+  it('releases old owner mappings on rebind and explicit unbind', async() => {
+    const { coordinator, hub, storage, watchers, observations } = setup()
+    const canonical = await hub.canonicalFileKey(file)
+    storage.files.set(canonical, Buffer.from('baseline'))
+    const old = await bind(coordinator)
+    const rebound = await coordinator.request('sender-a', {
+      kind: 'bind', requestId: 'bind:new-owner', documentId: 'document', documentRevision: 3,
+      pathname: file, dirty: true
+    })
+    if (rebound.status !== 'bound') throw new Error('rebind failed')
+    await expect(coordinator.request('sender-a', save(old.ownerFence, 'old-owner', 2))).resolves.toMatchObject({
+      status: 'rejected'
+    })
+    watchers.emit(canonical)
+    await vi.waitFor(() => expect(observations).toHaveLength(1))
+    expect(observations).toEqual([expect.objectContaining({ ownerFence: rebound.ownerFence })])
+    expect(observations).not.toContainEqual(expect.objectContaining({ ownerFence: old.ownerFence }))
+    await expect(coordinator.request('sender-a', {
+      kind: 'unbind', requestId: 'close', documentId: 'document', ownerFence: rebound.ownerFence
+    })).resolves.toMatchObject({ status: 'unbound' })
     expect(watchers.activeWatchers.size).toBe(0)
   })
 })

@@ -26,7 +26,7 @@ export type {
 export interface FileObservationStorage {
   canonicalize(pathname: string): Promise<CanonicalFileKey>
   read(fileKey: CanonicalFileKey): Promise<Buffer | null>
-  write(fileKey: CanonicalFileKey, bytes: Buffer): Promise<void>
+  write(fileKey: CanonicalFileKey, bytes: Buffer, canWrite?: () => boolean): Promise<void>
 }
 
 /** Raw filesystem event; it deliberately carries no claimed write origin. */
@@ -67,6 +67,8 @@ export interface GuardedSaveRequest extends FileObservationIdentity {
   readonly ownerLease: FileObservationLease
   readonly purpose?: FileObservationPurpose
   readonly overwriteToken?: OverwriteToken
+  /** Main-only fence checked immediately before a delayed write lands. */
+  readonly canWrite?: () => boolean
 }
 
 export type GuardedSaveResult =
@@ -252,6 +254,7 @@ export class FileObservationHub {
       const entry = this.entries.get(lease.fileKey)
       const slot = entry?.subscribers.get(lease.subscriberId)
       if (!entry || !slot || !this.isCurrent(lease)) return false
+      if (documentRevision < slot.subscriber.documentRevision) return false
       entry.subscribers.set(lease.subscriberId, {
         ...slot,
         subscriber: { ...slot.subscriber, documentRevision }
@@ -279,6 +282,9 @@ export class FileObservationHub {
       if (!this.matchesOwner(request, fileKey)) {
         return { status: 'rejected', reason: 'stale or mismatched owner lease' }
       }
+      if (request.canWrite && !request.canWrite()) {
+        return { status: 'rejected', reason: 'stale save revision' }
+      }
       const current = await this.readRevision(fileKey)
       if (!equalRevision(current, request.observedDiskRevision)) {
         if (request.purpose && request.purpose !== 'save') {
@@ -301,7 +307,9 @@ export class FileObservationHub {
       const writeId = randomUUID()
       const intendedHash = sha256(request.bytes)
       try {
-        await this.storage.write(fileKey, request.bytes)
+        await this.storage.write(fileKey, request.bytes, () =>
+          this.matchesOwner(request, fileKey) && (request.canWrite?.() ?? true)
+        )
         const persisted = await this.storage.read(fileKey)
         const landedHash = persisted ? sha256(persisted) : null
         if (landedHash !== intendedHash) {
@@ -688,7 +696,8 @@ export class NodeFileObservationStorage implements FileObservationStorage {
     }
   }
 
-  write(fileKey: CanonicalFileKey, bytes: Buffer): Promise<void> {
+  async write(fileKey: CanonicalFileKey, bytes: Buffer, canWrite?: () => boolean): Promise<void> {
+    if (canWrite && !canWrite()) throw new Error('stale save revision')
     return writeFile(fileKey, bytes, undefined, undefined)
   }
 }
@@ -746,8 +755,9 @@ export class MemoryFileObservationStorage implements FileObservationStorage {
     return bytes ? Buffer.from(bytes) : null
   }
 
-  async write(fileKey: CanonicalFileKey, bytes: Buffer): Promise<void> {
+  async write(fileKey: CanonicalFileKey, bytes: Buffer, canWrite?: () => boolean): Promise<void> {
     await this.writeBarrier
+    if (canWrite && !canWrite()) throw new Error('stale save revision')
     this.files.set(fileKey, Buffer.from(bytes))
     this.onWrite?.(fileKey, Buffer.from(bytes))
   }
