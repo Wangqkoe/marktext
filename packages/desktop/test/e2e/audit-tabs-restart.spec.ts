@@ -131,12 +131,12 @@ test.describe('W2 audit — tabs, no normal restart restore and Save As', () => 
       await expect.poll(() => activeText(page)).toBe(activeBaseline)
 
       await stubCloseDialog(app, 2)
-      await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => button.click())
+      await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => (button as HTMLElement).click())
       await expect.poll(() => page.locator(tabSelector).count()).toBe(2)
       expect(await activeText(page)).toBe(activeBaseline)
 
       await stubCloseDialog(app, 1)
-      await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => button.click())
+      await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => (button as HTMLElement).click())
       await expect.poll(() => page.locator(tabSelector).count()).toBe(1)
       expect(await activeText(page)).toBe(activeBaseline)
 
@@ -145,7 +145,7 @@ test.describe('W2 audit — tabs, no normal restart restore and Save As', () => 
       await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
       await stubSaveDialog(app, saveTarget)
       await stubCloseDialog(app, 0)
-      await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => button.click())
+      await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => (button as HTMLElement).click())
       await expect.poll(() => page.locator(tabSelector).count()).toBe(1)
       await expect.poll(() => fs.existsSync(saveTarget)).toBe(true)
       expect(fs.readFileSync(saveTarget, 'utf8').replace(/\r\n/g, '\n')).toBe('TARGET-SAVED\n')
