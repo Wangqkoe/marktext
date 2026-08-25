@@ -52,7 +52,15 @@ Run `pnpm -C packages/desktop exec vitest run test/unit/specs/document-io-coordi
 the T04 core tests, `pnpm -C packages/desktop typecheck`, and `git diff --check`.
 The typed authenticated transport harness must exercise the real coordinator,
 CAS/ACK identity and late-ACK rejection, Save As/rename failure rollback, and an
-observer-driven dirty-peer conflict/rebind. It does not claim real two-window/UI
-evidence; that remains T06/T11. Commit only the coordinator, narrow bridge and
-their focused tests. Independent terra/high Standards + Spec review is required
-before T02 production completion consumes the bridge.
+observer-driven dirty-peer conflict/rebind. It must reject forged sender/window/
+session requests and must never use payload window ID as identity. After rebind,
+close, navigation/reload, destroy or dispose, the old `ownerFence`, observer event
+and late durable ACK are inert and the corresponding main subscription/lease
+mapping is fully cleared: no old subscription receives an event. For an ordinary Save, a failed or
+not-durable ACK leaves dirty state, path, document revision, observed DiskRevision
+and observation binding unchanged; one matching durable-success ACK alone updates
+the landed DiskRevision and clean state, while duplicate or late ACKs are inert.
+It does not claim real two-window/UI evidence; that remains T06/T11. Commit only
+the coordinator, narrow bridge and their focused tests. Independent terra/high
+Standards + Spec review is required before T02 production completion consumes the
+bridge.
