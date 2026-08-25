@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { createWorkspaceProjectionMirror, createWorkspaceRuntime } from '@/workspace'
+import {
+  createPaneEditorComposition,
+  createWorkspaceProjectionMirror,
+  createWorkspaceRuntime
+} from '@/workspace'
 
 vi.hoisted(() => {
   const w = globalThis as unknown as { window?: { path?: { sep: string; dirname: (path: string) => string }; electron?: { clipboard: { writeText: () => void }; ipcRenderer: { send: () => void; on: () => void } } } }
@@ -52,6 +56,29 @@ describe('WorkspaceProjectionMirror', () => {
     await controller.execute({ kind: 'new-tab' })
     expect(store.tabs.map((tab) => tab.filename)).toEqual(['note.md', 'New Tab'])
     store.DETACH_WORKSPACE_FACADE()
+  })
+
+  it('routes mounted compatibility actions through the injected composition without writing the facade', async () => {
+    const controller = createWorkspaceRuntime([
+      { documentId: 'note', markdown: 'controller-only', title: 'note.md', fileKey: '/note.md' }
+    ])
+    const store = useEditorStore()
+    const composition = createPaneEditorComposition({ paneId: 'left', controller })
+    store.ATTACH_WORKSPACE_COMPOSITION(composition)
+    store.ATTACH_WORKSPACE_FACADE(controller)
+
+    store.LISTEN_FOR_CONTENT_CHANGE({ id: 'note', markdown: 'forged legacy write' })
+    expect(store.currentFile?.markdown).toBe('controller-only')
+    expect(controller.getFacadeSnapshot().documents[0]?.markdown).toBe('controller-only')
+
+    store.SET_LINE_ENDING('crlf')
+    await vi.waitFor(() =>
+      expect(controller.getFacadeSnapshot().documents[0]?.lineEnding).toBe('crlf')
+    )
+    expect(store.currentFile?.lineEnding).toBe('crlf')
+
+    store.DETACH_WORKSPACE_FACADE()
+    store.DETACH_WORKSPACE_COMPOSITION()
   })
 
   it('keeps nested controller facade values independent and deeply frozen', async () => {

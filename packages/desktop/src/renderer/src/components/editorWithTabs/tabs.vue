@@ -70,6 +70,9 @@ import { Plus, Close } from '@element-plus/icons-vue'
 import { showContextMenu } from '../../contextMenu/tabs'
 import bus from '../../bus'
 import type { IFileState } from '@shared/types/files'
+import type { PaneEditorComposition } from '@/workspace'
+
+const props = defineProps<{ composition: PaneEditorComposition }>()
 
 const editorStore = useEditorStore()
 const { currentFile, tabs } = storeToRefs(editorStore)
@@ -89,7 +92,9 @@ let drake: dragula.Drake | null = null
 // Methods incorporated from tabsMixins
 const selectFile = (file: IFileState) => {
   if (file.id !== currentFile.value?.id) {
-    editorStore.UPDATE_CURRENT_FILE(file)
+    props.composition.activateLegacyTab(file).catch((error) => {
+      console.error('Failed to activate workspace pane tab:', error)
+    })
   }
 }
 
@@ -106,12 +111,16 @@ const selectAdjacentTab = (file: IFileState, offset: -1 | 1): void => {
 }
 
 const removeFileInTab = (file: IFileState) => {
-  editorStore.CLOSE_TAB(file)
+  props.composition.closeLegacyTab(file.id).catch((error) => {
+    console.error('Failed to close workspace pane tab:', error)
+  })
 }
 
 // Original methods
 const newFile = () => {
-  editorStore.NEW_UNTITLED_TAB({})
+  props.composition.execute({ kind: 'new-tab' }).catch((error) => {
+    console.error('Failed to create workspace pane tab:', error)
+  })
 }
 
 // Keep the active tab visible when the selection changes by something other
@@ -149,7 +158,9 @@ const handleTabScroll = (event: WheelEvent) => {
 const closeTab = (tabId: unknown) => {
   const tab = tabs.value.find((f) => f.id === tabId)
   if (tab) {
-    editorStore.CLOSE_TAB(tab)
+    props.composition.closeLegacyTab(tab.id).catch((error) => {
+      console.error('Failed to close workspace pane tab:', error)
+    })
   }
 }
 

@@ -124,7 +124,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { SyntheticHistory, type IFileHistoryLike } from './syntheticHistory'
 import {
-  legacyPaneFallback as singlePaneWorkspace,
+  type PaneEditorComposition,
   type PaneEditorEventScope,
   type PaneEditorSurface
 } from '@/workspace'
@@ -196,6 +196,7 @@ const props = defineProps<{
   caretSession: CaretSession
   textDirection: string
   platform?: string
+  composition: PaneEditorComposition
 }>()
 
 const emit = defineEmits<{
@@ -568,7 +569,7 @@ watch(focus, (value) => {
 // items) rather than blanket-enabling everything (#3531).
 watch(sourceCode, (isSource) => {
   if (paneScope && isSource) {
-    singlePaneWorkspace().handoffMode('source').catch((error) => {
+    props.composition.handoffMode('source').catch((error) => {
       console.error('Failed to hand off pane editor mode:', error)
     })
   }
@@ -867,9 +868,6 @@ watch(
         // source -> WYSIWYG path. Computing it here rather than on every
         // json-change/selection-change avoids serializing the whole document on
         // each keystroke/caret move, and guarantees a fresh (never stale) value.
-        if (currentFile.value && !singlePaneWorkspace().isMounted()) {
-          currentFile.value.muyaIndexCursor = editor.value.getCursorOffset() ?? null
-        }
         // Capture the block-key caret too (same fresh selection getCursorOffset
         // reads) so the post-handoff undo can restore it — see
         // `preSourceModeSelection`.
@@ -1493,6 +1491,7 @@ interface FileLoadedPayload {
   id?: string
   markdown?: string
   cursor?: unknown
+  workspaceRefresh?: boolean
 }
 
 // listen for `open-single-file` event, it will call this method only when open a new file.
@@ -1500,7 +1499,7 @@ const setMarkdownToEditor = (payload: unknown) => {
   // The workspace composition owns mounted-pane refreshes. A legacy
   // `file-loaded` delivery can otherwise race the queued controller command
   // and flush the incoming document under the outgoing lease.
-  if (singlePaneWorkspace().isMounted()) return
+  if (!(payload as FileLoadedPayload)?.workspaceRefresh) return
   const { id, markdown: newMarkdown, cursor: newCursor } = (payload ?? {}) as FileLoadedPayload
   if (editor.value) {
     // `setContent` resets the document and clears the undo history; only set a
@@ -1551,7 +1550,7 @@ interface FileChangePayload {
 
 // listen for markdown change form source mode or change tabs etc
 const handleFileChange = (payload: unknown) => {
-  if (singlePaneWorkspace().isMounted() && !(payload as FileChangePayload)?.workspaceRefresh) return
+  if (!(payload as FileChangePayload)?.workspaceRefresh) return
   const {
     id,
     markdown: newMarkdown,
@@ -1863,7 +1862,7 @@ onMounted(() => {
             cursor: engineCursorByView.get(snapshot.viewId),
             scrollTop: snapshot.view.scrollTop,
             workspaceRefresh: true,
-            sourceHandoff: singlePaneWorkspace().isSourceHandoff(snapshot)
+            sourceHandoff: props.composition.isSourceHandoff(snapshot)
           })
           committed = true
         },
@@ -1875,7 +1874,7 @@ onMounted(() => {
       }
     },
     async flush (snapshot: EditorBindingSnapshot): Promise<EditorReport> {
-      const sourceReport = singlePaneWorkspace().sourceReportFor(snapshot)
+      const sourceReport = props.composition.sourceReportFor(snapshot)
       if (sourceReport) return sourceReport
       if (!editor.value) return {}
       const markdown = editor.value.getMarkdown()
@@ -1894,7 +1893,7 @@ onMounted(() => {
       }
     }
   }
-  singlePaneWorkspace().setSourceHandoffHandler((report) => {
+  props.composition.setSourceHandoffHandler((report) => {
     handleFileChange({
       markdown: report.markdown,
       workspaceRefresh: true,
@@ -1903,7 +1902,7 @@ onMounted(() => {
   })
   const legacyTab = currentFile.value
   if (legacyTab) {
-    singlePaneWorkspace()
+    props.composition
       .mount(paneSurface, {
         id: legacyTab.id,
         markdown: legacyTab.markdown,
@@ -1912,8 +1911,8 @@ onMounted(() => {
         ...(legacyTab.pathname ? { fileKey: legacyTab.pathname } : {})
       })
       .then(() => {
-        const controller = singlePaneWorkspace().getController()
-        if (controller && singlePaneWorkspace().isMounted()) editorStore.ATTACH_WORKSPACE_FACADE(controller)
+        const controller = props.composition.getController()
+        if (controller) editorStore.ATTACH_WORKSPACE_FACADE(controller)
       })
       .catch((error) => {
         console.error('Failed to bind the pane editor:', error)
@@ -2189,9 +2188,9 @@ onBeforeUnmount(() => {
   }
 
   if (editor.value) {
-    if (paneSurface) singlePaneWorkspace().unmount(paneSurface)
+    if (paneSurface) props.composition.unmount(paneSurface)
     editorStore.DETACH_WORKSPACE_FACADE()
-    singlePaneWorkspace().setSourceHandoffHandler(undefined)
+    props.composition.setSourceHandoffHandler(undefined)
     if (jsonChangeListener) editor.value.off('json-change', jsonChangeListener)
     if (selectionChangeListener) editor.value.off('selection-change', selectionChangeListener)
     rebindPaneGeneration = undefined

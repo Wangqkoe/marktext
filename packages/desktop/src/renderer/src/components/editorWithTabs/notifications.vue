@@ -34,18 +34,20 @@ import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import { Close } from '@element-plus/icons-vue'
 import { t } from '../../i18n'
-import { legacyPaneFallback } from '@/workspace'
+import type { PaneEditorComposition } from '@/workspace'
+
+const props = defineProps<{ composition: PaneEditorComposition }>()
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
 
 const { effectiveSidebarWidth } = storeToRefs(layoutStore)
-const focusedDocumentId = ref<string | undefined>(legacyPaneFallback().getFocusedDocumentId())
+const focusedDocumentId = ref<string | undefined>(props.composition.getFocusedDocumentId())
 let stopProjectionMirror: (() => void) | undefined
 
 onMounted(() => {
-  stopProjectionMirror = legacyPaneFallback().subscribeProjection(() => {
-    focusedDocumentId.value = legacyPaneFallback().getFocusedDocumentId()
+  stopProjectionMirror = props.composition.subscribeProjection(() => {
+    focusedDocumentId.value = props.composition.getFocusedDocumentId()
   })
 })
 

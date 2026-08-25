@@ -1,6 +1,6 @@
 <template>
   <div class="editor-with-tabs">
-    <tabs v-show="tabBarVisible" />
+    <tabs v-show="tabBarVisible" :composition="composition" />
     <div class="container">
       <editor
         :markdown="markdown"
@@ -8,6 +8,7 @@
         :caret-session="caretSession"
         :text-direction="textDirection"
         :platform="platform"
+        :composition="composition"
         @caret-position="$emit('caret-position', $event)"
       />
       <source-code
@@ -16,10 +17,11 @@
         :muya-index-cursor="muyaIndexCursor"
         :caret-session="caretSession"
         :text-direction="textDirection"
+        :composition="composition"
         @caret-position="$emit('caret-position', $event)"
       />
     </div>
-    <tab-notifications />
+    <tab-notifications :composition="composition" />
   </div>
 </template>
 
@@ -28,7 +30,17 @@ import Tabs from './tabs.vue'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
 import TabNotifications from './notifications.vue'
+import { onBeforeUnmount } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
+import { createPaneEditorComposition } from '@/workspace'
+import { useEditorStore } from '@/store/editor'
+
+const editorStore = useEditorStore()
+// The one-pane shell owns this composition. T03 can replace this local
+// assembly with two injected compositions sharing one controller.
+const composition = createPaneEditorComposition({ paneId: 'left' })
+editorStore.ATTACH_WORKSPACE_COMPOSITION(composition)
+onBeforeUnmount(() => editorStore.DETACH_WORKSPACE_COMPOSITION())
 
 defineProps<{
   markdown: string

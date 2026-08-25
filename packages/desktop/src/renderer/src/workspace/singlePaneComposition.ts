@@ -299,7 +299,9 @@ export class PaneEditorComposition {
   async activateLegacyTab(tab: IFileState): Promise<void> {
     if (!this.runtime || !this.binding) return
     const projection = this.runtime.getProjection()
-    const existing = projection.panes[0]?.tabs.find((candidate) => candidate.documentId === tab.id)
+    const existing = projection.panes
+      .find((pane) => pane.paneId === this.paneId)
+      ?.tabs.find((candidate) => candidate.documentId === tab.id)
     if (existing) {
       await this.runtime.execute({
         kind: 'activate-view',
@@ -321,6 +323,45 @@ export class PaneEditorComposition {
 
   getController(): WorkspaceController | undefined {
     return this.runtime
+  }
+
+  /** Pane-local tab closure; dirty-save decisions never read ambient currentFile. */
+  async closeLegacyTab(documentId: string): Promise<WorkspaceResult> {
+    const runtime = this.runtime
+    const pane = runtime?.getProjection().panes.find((candidate) => candidate.paneId === this.paneId)
+    const view = pane?.tabs.find((candidate) => candidate.documentId === documentId)
+    if (!runtime || !pane || !view) return { status: 'rejected', reason: 'missing pane view' }
+    const close = await this.execute({ kind: 'close-view', viewId: view.viewId })
+    if (close.status !== 'needs-decision') return close
+    const decision = await this.confirmClose(view.viewId)
+    if (decision === 'cancel') return { status: 'rejected', reason: 'close cancelled' }
+    if (decision === 'discard') {
+      return runtime.execute({ kind: 'commit-authorized', capability: close.capability })
+    }
+    const document = this.documentForView(view.viewId)
+    const save = document?.fileKey
+      ? await this.execute({ kind: 'save', paneId: this.paneId, viewId: view.viewId })
+      : await this.chooseSaveTarget(view.viewId).then((pathname) =>
+        pathname
+          ? this.execute({
+            kind: 'save-as',
+            paneId: this.paneId,
+            viewId: view.viewId,
+            fileKey: pathname,
+            title: pathname.split(/[\\/]/).at(-1) ?? pathname
+          })
+          : undefined
+      )
+    if (!save || save.status !== 'applied') return save ?? { status: 'rejected', reason: 'close cancelled' }
+    const committed = await runtime.execute({ kind: 'commit-authorized', capability: close.capability })
+    if (committed.status !== 'rejected') return committed
+    // Save As rotates the DocumentIO fence, intentionally invalidating the
+    // original close capability. The durable write is clean, so a fresh close
+    // capability may be committed without another user decision.
+    const retry = await runtime.execute({ kind: 'close-view', viewId: view.viewId })
+    return retry.status === 'needs-decision'
+      ? runtime.execute({ kind: 'commit-authorized', capability: retry.capability })
+      : retry
   }
 
   async chooseSaveTarget(viewId?: string): Promise<string | undefined> {
@@ -377,9 +418,3 @@ export class PaneEditorComposition {
 export const createPaneEditorComposition = (
   options: PaneEditorCompositionOptions
 ): PaneEditorComposition => new PaneEditorComposition(options)
-
-// The old one-editor shell has no injection point. Keep its explicitly named,
-// bounded fallback here; T03 uses `createPaneEditorComposition` instead.
-const legacySinglePaneFallback = createPaneEditorComposition({ paneId: 'left' })
-
-export const legacyPaneFallback = (): PaneEditorComposition => legacySinglePaneFallback

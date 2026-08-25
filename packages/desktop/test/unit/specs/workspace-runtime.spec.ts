@@ -148,6 +148,14 @@ class RecordingDocumentIoPort implements DocumentIoPort {
   observe(observation: DocumentIoObservation): void {
     this.observationListener?.(observation)
   }
+
+  async chooseSaveTarget() {
+    return { status: 'selected' as const, pathname: '/saved.md' }
+  }
+
+  async confirmClose() {
+    return 'save' as const
+  }
 }
 
 class DeferredPaneSurface implements PaneEditorSurface {
@@ -299,6 +307,21 @@ describe('WorkspaceRuntime', () => {
     const projection = workspace.getProjection()
     expect(paneById(projection, 'right').tabs[0]?.title).toBe('right')
     expect(paneById(projection, 'right').status).toMatchObject({})
+  })
+
+  it('commits a fresh close capability after an untitled Save As fence rotation', async () => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'one', title: 'note' }])
+    const port = new RecordingDocumentIoPort()
+    const composition = createPaneEditorComposition({ paneId: 'left', controller: workspace, documentIoPort: port })
+    const surface = new MemoryPaneSurface()
+    await composition.mount(surface, { id: 'note', markdown: 'one', title: 'note' })
+    const scope = expectDefined(surface.scopes.at(-1))
+    expect(scope.report({ markdown: 'dirty' }).status).toBe('applied')
+
+    expect((await composition.closeLegacyTab('note')).status).toBe('applied')
+    expect(port.requests.some((request) => request.kind === 'save-as')).toBe(true)
+    expect(workspace.getProjection().panes[0]?.tabs.some((tab) => tab.documentId === 'note')).toBe(false)
+    composition.unmount(surface)
   })
 
   it('finishes an initially source pane bind with a source lease', async () => {

@@ -15,7 +15,7 @@ import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
 import { toCaretPosition } from '@/util/caretPosition'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
-import { legacyPaneFallback as singlePaneWorkspace, type PaneEditorEventScope } from '@/workspace'
+import type { PaneEditorComposition, PaneEditorEventScope } from '@/workspace'
 
 // CodeMirror 5 ships no first-party types; the wrapper in src/renderer/src/
 // codeMirror/index.ts also keeps the surface intentionally loose.
@@ -32,6 +32,7 @@ const props = defineProps<{
   muyaIndexCursor?: unknown
   caretSession: CaretSession
   textDirection: string
+  composition: PaneEditorComposition
 }>()
 
 const emit = defineEmits<{
@@ -85,7 +86,7 @@ watch(
 watch(
   () => props.markdown,
   (markdown) => {
-    const scope = singlePaneWorkspace().getScope()
+    const scope = props.composition.getScope()
     if (scope?.mode === 'source' && editor.value && typeof markdown === 'string') {
       editor.value.setValue(markdown)
     }
@@ -133,16 +134,11 @@ const getMarkdownAndCursor = (cm: CMInstance) => {
 const prepareTabSwitch = () => {
   if (commitTimer.value) clearTimeout(commitTimer.value)
   if (tabId.value) {
-    const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+    const { markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
     const scope = sourceEventScope
     if (scope?.documentId === tabId.value) {
-      singlePaneWorkspace().reportSource(scope, { markdown: newMarkdown })
+      props.composition.reportSource(scope, { markdown: newMarkdown })
     }
-    editorStore.LISTEN_FOR_CONTENT_CHANGE({
-      id: tabId.value,
-      markdown: newMarkdown,
-      muyaIndexCursor: cursor
-    })
     tabId.value = null
   }
 }
@@ -154,7 +150,7 @@ interface FileChangePayloadLike {
 }
 
 const handleFileChange = (payload: unknown) => {
-  if (singlePaneWorkspace().getScope()) return
+  if (!(payload as { workspaceRefresh?: boolean })?.workspaceRefresh) return
   const { id, markdown: newMarkdown, muyaIndexCursor } = payload as FileChangePayloadLike
   if (!editor.value) return
 
@@ -319,27 +315,18 @@ const handleImageAction = (payload: unknown) => {
 }
 
 const saveContent = (cm: CMInstance, scope = sourceEventScope) => {
-  const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(cm)
+  const { markdown: newMarkdown } = getMarkdownAndCursor(cm)
   // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
   const wordCount = getWordCount(newMarkdown)
   // See "beforeDestroy" note
   if (!viewDestroyed.value) {
     if (tabId.value) {
       if (scope?.documentId === tabId.value) {
-        const result = singlePaneWorkspace().reportSource(scope, {
+        props.composition.reportSource(scope, {
           markdown: newMarkdown,
           status: { wordCount: wordCount.word }
         })
-        if (result.status !== 'applied') return
-      } else {
-        return
       }
-      editorStore.LISTEN_FOR_CONTENT_CHANGE({
-        id: tabId.value,
-        markdown: newMarkdown,
-        wordCount,
-        muyaIndexCursor: cursor
-      })
     } else {
       // This may occur during tab switching but should not occur otherwise.
       console.warn('LISTEN_FOR_CONTENT_CHANGE: Cannot commit changes because not tab id was set!')
@@ -368,18 +355,9 @@ const handleScrollToHeader = (slug: unknown) => {
   scrollSourceEditorToLine(editor.value, line, sourceCodeContainer.value)
 }
 
-onMounted(async() => {
+onMounted(async () => {
   if (!currentTab.value) return
   const { id } = currentTab.value
-  // reset currentTab scrollTop position because the codeMirror scroll position is completely different from the muya scroll position
-  // reset blocks as well because the blocks are only valid in muya
-  // reset cursor because this is a direct "key-cursor", not a muyaIndexCursor, which is {focus: number, anchor: number}
-  if (!singlePaneWorkspace().isMounted()) {
-    currentTab.value.scrollTop = 0
-    currentTab.value.blocks = undefined
-    currentTab.value.cursor = undefined
-  }
-
   const { markdown, muyaIndexCursor, textDirection } = props
   const container = sourceCodeContainer.value
   const codeMirrorConfig: Record<string, unknown> = {
@@ -442,7 +420,7 @@ onMounted(async() => {
   // capturing the lease; otherwise source edits report through the revoked
   // WYSIWYG scope and are intentionally ignored.
   await nextTick()
-  sourceEventScope = await singlePaneWorkspace().scopeForMode('source')
+  sourceEventScope = await props.composition.scopeForMode('source')
 
   if (sourceEventScope) listenChange(sourceEventScope)
   reportCaretPosition(codeMirrorInstance, props.caretSession)
@@ -464,17 +442,12 @@ onBeforeUnmount(() => {
   const scope = sourceEventScope
   const id = tabId.value
   if (id && scope?.mode === 'source' && scope.documentId === id) {
-    const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
-    singlePaneWorkspace().reportSource(scope, {
+    const { markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+    props.composition.reportSource(scope, {
       markdown: newMarkdown,
       status: { wordCount: getWordCount(newMarkdown).word }
     })
-    editorStore.LISTEN_FOR_CONTENT_CHANGE({
-      id,
-      markdown: newMarkdown,
-      muyaIndexCursor: cursor
-    })
-    singlePaneWorkspace().handoffSource(scope)
+    props.composition.handoffSource(scope)
   }
 })
 </script>
