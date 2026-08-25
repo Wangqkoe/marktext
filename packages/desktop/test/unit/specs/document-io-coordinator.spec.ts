@@ -173,4 +173,31 @@ describe('DocumentIOCoordinator', () => {
     })).resolves.toMatchObject({ status: 'unbound' })
     expect(watchers.activeWatchers.size).toBe(0)
   })
+
+  it('reserves a higher pending bind before canonicalization so an old save cannot land', async() => {
+    const { coordinator, hub, storage } = setup()
+    const canonical = await hub.canonicalFileKey(file)
+    storage.files.set(canonical, Buffer.from('baseline'))
+    const bound = await bind(coordinator)
+    const canonicalize = storage.canonicalize.bind(storage)
+    let release!: () => void
+    const pendingCanonicalize = new Promise<void>((resolve) => { release = resolve })
+    let defer = true
+    storage.canonicalize = async(pathname) => {
+      if (defer) await pendingCanonicalize
+      return canonicalize(pathname)
+    }
+    const higher = coordinator.request('sender-a', {
+      kind: 'bind', requestId: 'bind:pending', documentId: 'document', documentRevision: 3,
+      pathname: file, dirty: true
+    })
+    await Promise.resolve()
+    await expect(coordinator.request('sender-a', save(bound.ownerFence, 'save:old-pending', 2))).resolves.toMatchObject({
+      status: 'rejected', reason: 'stale document revision'
+    })
+    expect((await storage.read(canonical))?.toString()).toBe('baseline')
+    defer = false
+    release()
+    await expect(higher).resolves.toMatchObject({ status: 'bound' })
+  })
 })

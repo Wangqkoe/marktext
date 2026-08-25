@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   FileObservationHub,
   MemoryFileObservationStorage,
@@ -207,5 +207,63 @@ describe('DocumentIO Electron adapter', () => {
     })
     await pendingSave
     expect(lateSave.getBinding(bound.ownerFence)).toBeUndefined()
+  })
+
+  it('does not publish a bind when navigation interrupts deferred canonicalization', async() => {
+    const storage = new MemoryFileObservationStorage()
+    const canonicalize = storage.canonicalize.bind(storage)
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    storage.canonicalize = async(pathname) => {
+      await gate
+      return canonicalize(pathname)
+    }
+    const watchers = new MemoryFileObservationWatchFactory()
+    const hub = new FileObservationHub(storage, watchers)
+    hubs.push(hub)
+    const adapter = new DocumentIoElectronAdapter(new DocumentIOCoordinator(hub))
+    const sender = new FakeWebContents(9)
+    attachEditorDocumentIo(adapter, sender)
+    const pending = adapter.handle(sender, {
+      kind: 'bind', requestId: 'bind:navigation', documentId: 'document', documentRevision: 1,
+      pathname: 'C:/workspace/document.md', dirty: true
+    })
+    await Promise.resolve()
+    sender.emit('did-start-navigation')
+    release()
+    await expect(pending).resolves.toMatchObject({ status: 'rejected', reason: 'stale bind' })
+    expect(watchers.activeWatchers.size).toBe(0)
+  })
+
+  it('releases a deferred subscription when its endpoint is destroyed or disposed', async() => {
+    for (const lifecycle of ['destroyed', 'dispose'] as const) {
+      const storage = new MemoryFileObservationStorage()
+      const watchers = new MemoryFileObservationWatchFactory()
+      const hub = new FileObservationHub(storage, watchers)
+      hubs.push(hub)
+      const coordinator = new DocumentIOCoordinator(hub)
+      const adapter = new DocumentIoElectronAdapter(coordinator)
+      const sender = new FakeWebContents(lifecycle === 'destroyed' ? 10 : 11)
+      attachEditorDocumentIo(adapter, sender)
+      const subscribe = hub.subscribe.bind(hub)
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => { release = resolve })
+      const reached = vi.fn()
+      hub.subscribe = async(subscriber) => {
+        reached()
+        await gate
+        return subscribe(subscriber)
+      }
+      const pending = adapter.handle(sender, {
+        kind: 'bind', requestId: `bind:${lifecycle}`, documentId: 'document', documentRevision: 1,
+        pathname: 'C:/workspace/document.md', dirty: true
+      })
+      await vi.waitFor(() => expect(reached).toHaveBeenCalledOnce())
+      if (lifecycle === 'destroyed') sender.emit('destroyed')
+      else adapter.dispose()
+      release()
+      await expect(pending).resolves.toMatchObject({ status: 'rejected', reason: 'stale bind' })
+      expect(watchers.activeWatchers.size).toBe(0)
+    }
   })
 })

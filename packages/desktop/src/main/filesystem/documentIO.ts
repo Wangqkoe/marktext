@@ -35,6 +35,13 @@ interface Binding {
   readonly saveAcks: Map<string, DocumentSaveAck>
 }
 
+interface BindingReservation {
+  readonly token: string
+  readonly endpoint: DocumentIoEndpoint
+  readonly documentId: string
+  readonly documentRevision: number
+}
+
 const rejected = (request: DocumentIoRequest, reason: string): DocumentSaveAck => ({
   status: 'rejected',
   requestId: request.requestId,
@@ -50,6 +57,7 @@ const rejected = (request: DocumentIoRequest, reason: string): DocumentSaveAck =
 export class DocumentIOCoordinator {
   private readonly endpoints = new Map<string, DocumentIoEndpoint>()
   private readonly bindings = new Map<string, Binding>()
+  private readonly reservations = new Map<string, BindingReservation>()
 
   constructor(private readonly hub: FileObservationHub) {}
 
@@ -72,7 +80,7 @@ export class DocumentIOCoordinator {
       return { status: 'unbound', requestId: request.requestId, documentId: request.documentId }
     }
     if (request.kind === 'sync') {
-      if (request.documentRevision < binding.documentRevision) {
+      if (request.documentRevision < this.highestRevision(binding.endpoint, binding.documentId, binding.documentRevision)) {
         return rejected(request, 'stale document revision')
       }
       binding.documentRevision = request.documentRevision
@@ -95,7 +103,9 @@ export class DocumentIOCoordinator {
   }
 
   revokeEndpoint(senderId: string): void {
+    const endpoint = this.endpoints.get(senderId)
     this.endpoints.delete(senderId)
+    if (endpoint) this.clearReservationsFor(endpoint)
     for (const binding of [...this.bindings.values()]) {
       if (binding.endpoint.id === senderId) this.revokeBinding(binding)
     }
@@ -109,54 +119,72 @@ export class DocumentIOCoordinator {
   dispose(): void {
     for (const binding of [...this.bindings.values()]) this.revokeBinding(binding)
     this.endpoints.clear()
+    this.reservations.clear()
   }
 
   private async bind(
     endpoint: DocumentIoEndpoint,
     request: DocumentIoBindingRequest
   ): Promise<DocumentSaveAck> {
-    const current = this.findBinding(endpoint, request.documentId)
-    if (current && request.documentRevision <= current.documentRevision) {
-      return rejected(request, 'stale document revision')
-    }
-    const fileKey = await this.hub.canonicalFileKey(request.pathname)
-    const latest = this.findBinding(endpoint, request.documentId)
-    if (latest && request.documentRevision <= latest.documentRevision) {
-      return rejected(request, 'stale document revision')
-    }
-    if (latest) this.revokeBinding(latest)
-    const ownerFence = randomUUID()
-    let binding!: Binding
-    const subscriber: FileObservationSubscriber = {
-      documentId: request.documentId,
-      documentRevision: request.documentRevision,
-      fileKey,
-      getState: () => (binding.dirty ? 'dirty' : 'clean'),
-      onDiskChange: (change) => this.notify(binding, change)
-    }
-    const lease = await this.hub.subscribe(subscriber)
-    binding = {
-      endpoint,
-      documentId: request.documentId,
-      ownerFence,
-      fileKey,
-      observedDiskRevision: await this.hub.getDiskRevision(fileKey),
-      documentRevision: request.documentRevision,
-      dirty: request.dirty,
-      lease,
-      saveAcks: new Map()
-    }
-    this.bindings.set(ownerFence, binding)
-    return {
-      status: 'bound',
-      requestId: request.requestId,
-      documentId: request.documentId,
-      ownerFence
+    const reservation = this.reserve(endpoint, request.documentId, request.documentRevision)
+    if (!reservation) return rejected(request, 'stale document revision')
+    let lease: FileObservationLease | undefined
+    try {
+      const fileKey = await this.hub.canonicalFileKey(request.pathname)
+      if (!this.isCurrentReservation(reservation)) return rejected(request, 'stale bind')
+      const observedDiskRevision = await this.hub.getDiskRevision(fileKey)
+      if (!this.isCurrentReservation(reservation)) return rejected(request, 'stale bind')
+      const latest = this.findBinding(endpoint, request.documentId)
+      if (latest && latest.documentRevision > request.documentRevision) {
+        return rejected(request, 'stale document revision')
+      }
+      const ownerFence = randomUUID()
+      let binding!: Binding
+      const subscriber: FileObservationSubscriber = {
+        documentId: request.documentId,
+        documentRevision: request.documentRevision,
+        fileKey,
+        getState: () => (binding.dirty ? 'dirty' : 'clean'),
+        onDiskChange: (change) => this.notify(binding, change)
+      }
+      lease = latest?.fileKey === fileKey
+        ? await this.hub.handoff(latest.lease, subscriber)
+        : await this.hub.subscribe(subscriber)
+      if (lease && latest?.fileKey === fileKey && this.bindings.get(latest.ownerFence) === latest) {
+        // Handoff has already revoked this lease; never leave a stale binding
+        // behind if a newer reservation supersedes this bind before publish.
+        this.bindings.delete(latest.ownerFence)
+      }
+      if (!lease || !this.isCurrentReservation(reservation)) return rejected(request, 'stale bind')
+      binding = {
+        endpoint,
+        documentId: request.documentId,
+        ownerFence,
+        fileKey,
+        observedDiskRevision,
+        documentRevision: request.documentRevision,
+        dirty: request.dirty,
+        lease,
+        saveAcks: new Map()
+      }
+      if (!this.isCurrentReservation(reservation)) return rejected(request, 'stale bind')
+      if (latest && latest.fileKey !== fileKey) this.revokeBinding(latest)
+      this.bindings.set(ownerFence, binding)
+      lease = undefined
+      return {
+        status: 'bound',
+        requestId: request.requestId,
+        documentId: request.documentId,
+        ownerFence
+      }
+    } finally {
+      if (lease) this.hub.release(lease)
+      this.clearReservation(reservation)
     }
   }
 
   private async save(binding: Binding, request: DocumentIoSaveRequest): Promise<DocumentSaveAck> {
-    if (request.documentRevision < binding.documentRevision) {
+    if (request.documentRevision < this.highestRevision(binding.endpoint, binding.documentId, binding.documentRevision)) {
       return rejected(request, 'stale document revision')
     }
     if (!(await this.hub.refreshDocumentRevision(binding.lease, request.documentRevision))) {
@@ -281,7 +309,8 @@ export class DocumentIOCoordinator {
         return (
           current !== undefined &&
           current.endpoint === binding.endpoint &&
-          current.documentRevision === request.documentRevision
+          current.documentRevision === request.documentRevision &&
+          request.documentRevision >= this.highestRevision(binding.endpoint, binding.documentId, binding.documentRevision)
         )
       }
     })
@@ -310,6 +339,46 @@ export class DocumentIOCoordinator {
       if (binding.endpoint === endpoint && binding.documentId === documentId) return binding
     }
     return undefined
+  }
+
+  private reserve(
+    endpoint: DocumentIoEndpoint,
+    documentId: string,
+    documentRevision: number
+  ): BindingReservation | undefined {
+    const current = this.findBinding(endpoint, documentId)
+    const existing = this.reservations.get(this.reservationKey(endpoint, documentId))
+    const highest = Math.max(current?.documentRevision ?? -1, existing?.documentRevision ?? -1)
+    if (documentRevision <= highest) return undefined
+    const reservation = { token: randomUUID(), endpoint, documentId, documentRevision }
+    this.reservations.set(this.reservationKey(endpoint, documentId), reservation)
+    return reservation
+  }
+
+  private highestRevision(endpoint: DocumentIoEndpoint, documentId: string, revision: number): number {
+    return Math.max(revision, this.reservations.get(this.reservationKey(endpoint, documentId))?.documentRevision ?? -1)
+  }
+
+  private isCurrentReservation(reservation: BindingReservation): boolean {
+    return (
+      this.endpoints.get(reservation.endpoint.id) === reservation.endpoint &&
+      this.reservations.get(this.reservationKey(reservation.endpoint, reservation.documentId)) === reservation
+    )
+  }
+
+  private clearReservation(reservation: BindingReservation): void {
+    const key = this.reservationKey(reservation.endpoint, reservation.documentId)
+    if (this.reservations.get(key) === reservation) this.reservations.delete(key)
+  }
+
+  private clearReservationsFor(endpoint: DocumentIoEndpoint): void {
+    for (const [key, reservation] of this.reservations) {
+      if (reservation.endpoint === endpoint) this.reservations.delete(key)
+    }
+  }
+
+  private reservationKey(endpoint: DocumentIoEndpoint, documentId: string): string {
+    return `${endpoint.id}:${documentId}`
   }
 
   private revokeBinding(binding: Binding): void {
