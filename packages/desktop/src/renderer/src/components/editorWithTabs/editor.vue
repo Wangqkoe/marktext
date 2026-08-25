@@ -1849,18 +1849,23 @@ onMounted(() => {
   editor.value = muya
 
   paneSurface = {
-    async refresh (snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope): Promise<void> {
-      paneScope = scope
-      if (scope) rebindPaneGeneration?.(scope)
-      if (!editor.value) return
-      handleFileChange({
-        id: snapshot.document.documentId,
-        markdown: snapshot.document.markdown,
-        cursor: engineCursorByView.get(snapshot.viewId),
-        scrollTop: snapshot.view.scrollTop,
-        workspaceRefresh: true,
-        sourceHandoff: singlePaneWorkspace().isSourceHandoff(snapshot)
-      })
+    async stage (snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope) {
+      return {
+        commit: () => {
+          paneScope = scope
+          if (scope) rebindPaneGeneration?.(scope)
+          if (!editor.value) return
+          handleFileChange({
+            id: snapshot.document.documentId,
+            markdown: snapshot.document.markdown,
+            cursor: engineCursorByView.get(snapshot.viewId),
+            scrollTop: snapshot.view.scrollTop,
+            workspaceRefresh: true,
+            sourceHandoff: singlePaneWorkspace().isSourceHandoff(snapshot)
+          })
+        },
+        cancel: () => undefined
+      }
     },
     async flush (snapshot: EditorBindingSnapshot): Promise<EditorReport> {
       const sourceReport = singlePaneWorkspace().sourceReportFor(snapshot)
@@ -1993,7 +1998,7 @@ onMounted(() => {
           })),
           status: { wordCount: wordCount.word }
         }).status !== 'applied'
-      ) return
+      ) { return }
       engineHistoryByTab.set(scope.documentId, editor.value.getHistory())
       editorStore.LISTEN_FOR_CONTENT_CHANGE({
         id: scope.documentId,
@@ -2013,7 +2018,10 @@ onMounted(() => {
     selectionChangeListener = (changes: MuyaChange) => {
       if (!editor.value) return
       const cursor = serializeCursor(editor.value.getSelection())
-      if (scope.report({ status: { wordCount: muyaWordCount(editor.value.getMarkdown()).word } }).status !== 'applied') return
+      if (
+        scope.report({ status: { wordCount: muyaWordCount(editor.value.getMarkdown()).word } })
+          .status !== 'applied'
+      ) { return }
       engineCursorByView.set(scope.viewId, cursor)
       editorStore.PERSIST_CURSOR(scope.documentId, cursor)
       selectionChange.value = changes

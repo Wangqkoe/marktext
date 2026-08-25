@@ -10,6 +10,14 @@ export type DocumentId = string
 export type ViewId = string
 export type FileKey = string
 export type DiskRevision = string
+export type DocumentLineEnding = 'lf' | 'crlf'
+export type TrailingNewlinePolicy = 'trim' | 'ensure-one' | 'preserve' | 'disabled'
+
+/** JSON-only file representation metadata; never import legacy IFileState here. */
+export interface DocumentEncoding {
+  readonly encoding: string
+  readonly isBom: boolean
+}
 
 export type JsonValue =
   | null
@@ -69,10 +77,36 @@ export interface WorkspaceDocumentInput {
   readonly markdown?: string
   readonly portableHistory?: PortableHistory
   readonly title?: string
+  readonly conflict?: boolean
+  readonly encoding?: DocumentEncoding
+  readonly lineEnding?: DocumentLineEnding
+  readonly adjustLineEndingOnSave?: boolean
+  readonly trailingNewline?: TrailingNewlinePolicy
+}
+
+export type DocumentIoOperation = 'save' | 'save-as' | 'rename'
+
+/** A renderer-issued request to T04's I/O owner; it is not a save implementation. */
+export interface DocumentIoRequest {
+  readonly requestId: string
+  readonly operation: DocumentIoOperation
+  readonly documentId: DocumentId
+  readonly documentRevision: number
+  readonly fileKey: FileKey
+  readonly observedDiskRevision?: DiskRevision
+  readonly ownerFence: string
+  readonly markdown: string
+  readonly title: string
+  readonly encoding: DocumentEncoding
+  readonly lineEnding: DocumentLineEnding
+  readonly adjustLineEndingOnSave: boolean
+  readonly trailingNewline: TrailingNewlinePolicy
 }
 
 /** Typed renderer acknowledgement consumed from T04's DocumentIO/CAS port. */
 export interface DocumentSaveAck {
+  readonly requestId: string
+  readonly operation: DocumentIoOperation
   readonly documentId: DocumentId
   readonly documentRevision: number
   readonly fileKey: FileKey
@@ -151,6 +185,36 @@ export type WorkspaceCommand =
   | { readonly kind: 'split-pane'; readonly targetPaneId: PaneId }
   | { readonly kind: 'move-view'; readonly viewId: ViewId; readonly targetPaneId: PaneId }
   | { readonly kind: 'close-view'; readonly viewId: ViewId }
+  | { readonly kind: 'close-focused-view'; readonly paneId?: PaneId }
+  | { readonly kind: 'save'; readonly paneId?: PaneId }
+  | {
+    readonly kind: 'save-as'
+    readonly paneId?: PaneId
+    readonly fileKey: FileKey
+    readonly title?: string
+  }
+  | {
+    readonly kind: 'rename'
+    readonly paneId?: PaneId
+    readonly fileKey: FileKey
+    readonly title?: string
+  }
+  | { readonly kind: 'set-encoding'; readonly paneId?: PaneId; readonly encoding: DocumentEncoding }
+  | {
+    readonly kind: 'set-line-ending'
+    readonly paneId?: PaneId
+    readonly lineEnding: DocumentLineEnding
+  }
+  | {
+    readonly kind: 'set-adjust-line-ending-on-save'
+    readonly paneId?: PaneId
+    readonly adjustLineEndingOnSave: boolean
+  }
+  | {
+    readonly kind: 'set-trailing-newline'
+    readonly paneId?: PaneId
+    readonly trailingNewline: TrailingNewlinePolicy
+  }
   | { readonly kind: 'commit-authorized'; readonly capability: WorkspaceCapability }
   | { readonly kind: 'apply-save-ack'; readonly ack: DocumentSaveAck }
   /** Assembly-only JSON warning update for conflict/recovery presentation. */
@@ -161,7 +225,12 @@ export interface WorkspaceCapability {
 }
 
 export type WorkspaceResult =
-  | { readonly status: 'applied'; readonly workspaceRevision: number }
+  | {
+    readonly status: 'applied'
+    readonly workspaceRevision: number
+      /** Present only for a controller-issued T04 DocumentIO request. */
+    readonly documentIoRequest?: DocumentIoRequest
+  }
   | { readonly status: 'needs-decision'; readonly capability: WorkspaceCapability }
   | { readonly status: 'rejected'; readonly reason: string }
   | { readonly status: 'failed'; readonly reason: string }
@@ -172,6 +241,7 @@ export interface WorkspaceProjectionTab {
   readonly title: string
   readonly fileKey?: FileKey
   readonly dirty: boolean
+  readonly conflict: boolean
   readonly mode: EditorMode
 }
 
@@ -214,8 +284,14 @@ export interface EditorBindingSnapshot {
     readonly ownerFence: string
     readonly markdown: string
     readonly dirty: boolean
+    readonly conflict: boolean
     readonly documentRevision: number
     readonly portableHistory: PortableHistory
+    readonly title: string
+    readonly encoding: DocumentEncoding
+    readonly lineEnding: DocumentLineEnding
+    readonly adjustLineEndingOnSave: boolean
+    readonly trailingNewline: TrailingNewlinePolicy
   }
   readonly view: ViewState
   readonly toc: readonly WorkspaceTocItem[]

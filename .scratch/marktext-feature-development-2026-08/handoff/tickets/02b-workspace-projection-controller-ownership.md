@@ -3,6 +3,12 @@
 Status: required high-risk corrective implementation; T02 is an inherited
 intermediate, not a merge candidate.
 
+Repair order: R1 establishes Controller/domain/snapshot authority and its safety
+proofs; R2 moves production projection consumers to the readonly Pinia facade and
+closed command routes; R3 removes dual-surface fallbacks and proves the final
+E2E cutover. T02b remains one final, indivisible integration gate: neither R1 nor
+R2 is eligible to request integration on its own.
+
 Wave: 2 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T01 and
 the retained current T02 checkpoint `06577bb88b9784b62c9920febab7a5cb35dc2610`.
 

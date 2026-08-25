@@ -1,5 +1,9 @@
 import type {
   DocumentId,
+  DocumentEncoding,
+  DocumentIoOperation,
+  DocumentIoRequest,
+  DocumentLineEnding,
   DocumentSaveAck,
   EditorBindingSnapshot,
   EditorLease,
@@ -9,6 +13,7 @@ import type {
   PaneEditorBinding,
   PaneId,
   PortableHistory,
+  TrailingNewlinePolicy,
   ViewId,
   ViewState,
   WorkspaceCapability,
@@ -28,9 +33,14 @@ interface DocumentRecord {
   observedDiskRevision?: string
   markdown: string
   dirty: boolean
+  conflict: boolean
   revision: number
   history: PortableHistory
   title: string
+  encoding: DocumentEncoding
+  lineEnding: DocumentLineEnding
+  adjustLineEndingOnSave: boolean
+  trailingNewline: TrailingNewlinePolicy
   ownerFence: string
 }
 
@@ -52,7 +62,12 @@ interface CapabilityRecord {
   readonly viewId: ViewId
   readonly documentId: DocumentId
   readonly documentRevision: number
+  readonly ownerFence: string
   used: boolean
+}
+
+interface PendingDocumentIo {
+  readonly request: DocumentIoRequest
 }
 
 interface BoundAdapter {
@@ -62,6 +77,7 @@ interface BoundAdapter {
 }
 
 const EMPTY_HISTORY: PortableHistory = { version: 1, value: [] }
+const DEFAULT_ENCODING: DocumentEncoding = { encoding: 'utf8', isBom: false }
 const EMPTY_VIEW: ViewState = {
   cursor: { line: 0, column: 0 },
   selection: null,
@@ -93,11 +109,13 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private readonly leases = new WeakSet<object>()
   /** Object identity makes a capability an opaque, controller-issued bearer. */
   private readonly capabilities = new WeakMap<WorkspaceCapability, CapabilityRecord>()
+  private readonly pendingDocumentIo = new Map<string, PendingDocumentIo>()
   private readonly listeners = new Set<(projection: WorkspaceProjection) => void>()
   private warnings: WorkspaceWarning[] = []
   private focusedPaneId: PaneId = 'left'
   private workspaceRevision = 0
   private nextId = 1
+  private nextDocumentIoRequest = 1
   private operationTail: Promise<void> = Promise.resolve()
   private pendingOperations = 0
 
@@ -131,6 +149,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
           title: document.title,
           ...(document.fileKey ? { fileKey: document.fileKey } : {}),
           dirty: document.dirty,
+          conflict: document.conflict,
           mode: view.state.mode
         }
       }),
@@ -170,6 +189,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
     // Rebinding can reuse the same adapter instance. Capture its live editor
     // state before any refresh replaces that active representation.
     if (previous) await this.flushPane(paneId)
+    const previousSnapshot = previous?.snapshot
+    // Rebinding is a handoff, not a grace period: revoke the predecessor
+    // before a successor can begin staging on the concrete surface.
+    if (previous) this.invalidate(previous)
     const snapshot = this.snapshotFor(paneId, pane.activeViewId)
     const bound: BoundAdapter = { adapter }
     const lease = this.issueLease(bound, paneId, pane.activeViewId, snapshot.view.mode)
@@ -182,9 +205,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
       // A same-instance refresh can have partially staged its contents. Put
       // the prior accepted snapshot back; if that compensation also fails the
       // original binding is no longer trustworthy and must become inert.
-      if (previous?.adapter === adapter && previous.snapshot) {
+      if (previous && previousSnapshot) {
         try {
-          await previous.adapter.refresh(previous.snapshot)
+          await this.restoreAdapterSnapshot(previous, previousSnapshot)
         } catch {
           this.invalidate(previous)
         }
@@ -194,7 +217,6 @@ export class WorkspaceController implements WorkspaceControllerContract {
     // The predecessor remains available only while a replacement is staging.
     // Once the surface accepted its full snapshot, revoke it before exposing
     // the successor binding to any reporter.
-    if (previous) this.invalidate(previous)
     this.adapters.set(paneId, bound)
     return this.createBinding(bound)
   }
@@ -322,6 +344,38 @@ export class WorkspaceController implements WorkspaceControllerContract {
           return await this.move(command.viewId, command.targetPaneId)
         case 'close-view':
           return await this.close(command.viewId)
+        case 'close-focused-view':
+          return await this.closeFocused(command.paneId ?? this.focusedPaneId)
+        case 'save':
+          return this.requestSave(command.paneId ?? this.focusedPaneId)
+        case 'save-as':
+          return this.requestSaveAs(
+            command.paneId ?? this.focusedPaneId,
+            command.fileKey,
+            command.title
+          )
+        case 'rename':
+          return this.requestRename(
+            command.paneId ?? this.focusedPaneId,
+            command.fileKey,
+            command.title
+          )
+        case 'set-encoding':
+          return this.setDocumentOption(command.paneId ?? this.focusedPaneId, (document) => {
+            document.encoding = clone(command.encoding)
+          })
+        case 'set-line-ending':
+          return this.setDocumentOption(command.paneId ?? this.focusedPaneId, (document) => {
+            document.lineEnding = command.lineEnding
+          })
+        case 'set-adjust-line-ending-on-save':
+          return this.setDocumentOption(command.paneId ?? this.focusedPaneId, (document) => {
+            document.adjustLineEndingOnSave = command.adjustLineEndingOnSave
+          })
+        case 'set-trailing-newline':
+          return this.setDocumentOption(command.paneId ?? this.focusedPaneId, (document) => {
+            document.trailingNewline = command.trailingNewline
+          })
         case 'commit-authorized':
           return await this.commitAuthorized(command.capability)
         case 'apply-save-ack':
@@ -476,6 +530,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.removeView(viewId)
   }
 
+  private async closeFocused(paneId: PaneId): Promise<WorkspaceResult> {
+    const pane = this.panes.get(paneId)
+    return pane ? this.close(pane.activeViewId) : this.rejected('missing pane')
+  }
+
   private async commitAuthorized(capability: WorkspaceCapability): Promise<WorkspaceResult> {
     const stored = this.capabilities.get(capability)
     if (!stored || stored.used || capability.action !== 'close-view') {
@@ -483,7 +542,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
     const view = this.views.get(stored.viewId)
     const document = this.documents.get(stored.documentId)
-    if (!view || !document || document.revision !== stored.documentRevision) {
+    if (
+      !view ||
+      !document ||
+      document.revision !== stored.documentRevision ||
+      document.ownerFence !== stored.ownerFence
+    ) {
       return this.rejected('stale capability target')
     }
     const result = await this.removeView(stored.viewId)
@@ -504,19 +568,104 @@ export class WorkspaceController implements WorkspaceControllerContract {
    * inert before changing durable display state.
    */
   private applySaveAck(ack: DocumentSaveAck): WorkspaceResult {
+    const pending = this.pendingDocumentIo.get(ack.requestId)
     const document = this.documents.get(ack.documentId)
     if (
+      !pending ||
+      pending.request.operation !== ack.operation ||
+      pending.request.documentId !== ack.documentId ||
+      pending.request.documentRevision !== ack.documentRevision ||
+      pending.request.fileKey !== ack.fileKey ||
+      pending.request.ownerFence !== ack.ownerFence ||
       !document ||
       document.revision !== ack.documentRevision ||
-      document.fileKey !== ack.fileKey ||
+      (ack.operation === 'save' && document.fileKey !== ack.fileKey) ||
       document.ownerFence !== ack.ownerFence
     ) {
       return this.rejected('stale document save acknowledgement')
     }
+    this.pendingDocumentIo.delete(ack.requestId)
+    if (ack.operation !== 'save') {
+      document.fileKey = ack.fileKey
+      document.title = pending.request.title
+    }
     document.observedDiskRevision = ack.diskRevision
     document.dirty = false
+    document.conflict = false
     this.commit()
     return this.applied()
+  }
+
+  private requestSave(paneId: PaneId): WorkspaceResult {
+    const document = this.documentForPane(paneId)
+    if (!document) return this.rejected('missing pane')
+    if (!document.fileKey) return this.rejected('save requires a canonical file key')
+    return this.requestDocumentIo('save', document, document.fileKey)
+  }
+
+  private requestSaveAs(paneId: PaneId, fileKey: string, title?: string): WorkspaceResult {
+    const document = this.documentForPane(paneId)
+    if (!document) return this.rejected('missing pane')
+    return this.requestDocumentIo('save-as', document, fileKey, title)
+  }
+
+  private requestRename(paneId: PaneId, fileKey: string, title?: string): WorkspaceResult {
+    const document = this.documentForPane(paneId)
+    if (!document?.fileKey) return this.rejected('rename requires a canonical file key')
+    return this.requestDocumentIo('rename', document, fileKey, title)
+  }
+
+  private requestDocumentIo(
+    operation: DocumentIoOperation,
+    document: DocumentRecord,
+    fileKey: string,
+    title = document.title
+  ): WorkspaceResult {
+    if (document.conflict) return this.rejected('document conflict requires a decision')
+    for (const [requestId, pending] of this.pendingDocumentIo) {
+      if (pending.request.documentId === document.id) this.pendingDocumentIo.delete(requestId)
+    }
+    const request: DocumentIoRequest = freeze({
+      requestId: `document-io-${this.nextDocumentIoRequest++}`,
+      operation,
+      documentId: document.id,
+      documentRevision: document.revision,
+      fileKey,
+      ...(document.observedDiskRevision
+        ? { observedDiskRevision: document.observedDiskRevision }
+        : {}),
+      ownerFence: document.ownerFence,
+      markdown: document.markdown,
+      title,
+      encoding: clone(document.encoding),
+      lineEnding: document.lineEnding,
+      adjustLineEndingOnSave: document.adjustLineEndingOnSave,
+      trailingNewline: document.trailingNewline
+    })
+    this.pendingDocumentIo.set(request.requestId, { request })
+    return {
+      status: 'applied',
+      workspaceRevision: this.workspaceRevision,
+      documentIoRequest: request
+    }
+  }
+
+  private setDocumentOption(
+    paneId: PaneId,
+    set: (document: DocumentRecord) => void
+  ): WorkspaceResult {
+    const document = this.documentForPane(paneId)
+    if (!document) return this.rejected('missing pane')
+    set(document)
+    document.dirty = true
+    document.revision += 1
+    this.commit()
+    return this.applied()
+  }
+
+  private documentForPane(paneId: PaneId): DocumentRecord | undefined {
+    const pane = this.panes.get(paneId)
+    return pane ? this.documents.get(this.view(pane.activeViewId).documentId) : undefined
   }
 
   private async removeView(viewId: ViewId): Promise<WorkspaceResult> {
@@ -699,8 +848,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
         ownerFence: document.ownerFence,
         markdown: document.markdown,
         dirty: document.dirty,
+        conflict: document.conflict,
         documentRevision: document.revision,
-        portableHistory: clone(document.history)
+        portableHistory: clone(document.history),
+        title: document.title,
+        encoding: clone(document.encoding),
+        lineEnding: document.lineEnding,
+        adjustLineEndingOnSave: document.adjustLineEndingOnSave,
+        trailingNewline: document.trailingNewline
       },
       view: clone(state),
       toc: clone(view.toc),
@@ -717,9 +872,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
       ...(input.observedDiskRevision ? { observedDiskRevision: input.observedDiskRevision } : {}),
       markdown: input.markdown ?? '',
       dirty: false,
+      conflict: input.conflict ?? false,
       revision: 0,
       history: clone(input.portableHistory ?? EMPTY_HISTORY),
       title: input.title ?? input.fileKey?.split(/[\\/]/).pop() ?? 'New Tab',
+      encoding: clone(input.encoding ?? DEFAULT_ENCODING),
+      lineEnding: input.lineEnding ?? 'lf',
+      adjustLineEndingOnSave: input.adjustLineEndingOnSave ?? false,
+      trailingNewline: input.trailingNewline ?? 'preserve',
       ownerFence: `owner-${id}-${this.nextId++}`
     }
   }
@@ -808,6 +968,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       viewId,
       documentId: document.id,
       documentRevision: document.revision,
+      ownerFence: document.ownerFence,
       used: false
     })
     return { status: 'needs-decision', capability: freeze(capability) }
@@ -829,8 +990,16 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   private validSnapshot(bound: BoundAdapter, snapshot: EditorBindingSnapshot): boolean {
+    const view = this.views.get(snapshot.viewId)
+    const document = view ? this.documents.get(view.documentId) : undefined
     return (
+      this.adapters.get(snapshot.paneId) === bound &&
+      bound.snapshot === snapshot &&
+      bound.snapshot.workspaceRevision === snapshot.workspaceRevision &&
       this.validLease(bound, snapshot.lease) &&
+      (!view || view.documentId === snapshot.documentId) &&
+      (!document || document.revision === snapshot.documentRevision) &&
+      (!document || document.ownerFence === snapshot.document.ownerFence) &&
       snapshot.documentId === snapshot.document.documentId &&
       snapshot.documentRevision === snapshot.document.documentRevision &&
       snapshot.paneId === snapshot.lease.paneId &&

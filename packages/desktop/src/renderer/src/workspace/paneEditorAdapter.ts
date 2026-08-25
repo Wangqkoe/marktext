@@ -17,8 +17,21 @@ import type {
  * the snapshot that the surface is currently representing.
  */
 export interface PaneEditorSurface {
-  refresh(snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope): Promise<void>
+  /**
+   * Prepare a replacement without making it visible. `commit` is synchronous
+   * so the adapter can choose the one winning generation atomically; `cancel`
+   * must discard every staged resource/listener.
+   */
+  stage(
+    snapshot: EditorBindingSnapshot,
+    scope?: PaneEditorEventScope
+  ): Promise<PaneEditorSurfaceStage>
   flush(snapshot: EditorBindingSnapshot): Promise<EditorReport>
+}
+
+export interface PaneEditorSurfaceStage {
+  commit(): void
+  cancel(): void
 }
 
 /**
@@ -28,6 +41,7 @@ export interface PaneEditorSurface {
  */
 export class RendererPaneEditorAdapter implements PaneEditorAdapter {
   private current: EditorBindingSnapshot | undefined
+  private generation = 0
 
   constructor(
     private readonly surface: PaneEditorSurface,
@@ -35,8 +49,14 @@ export class RendererPaneEditorAdapter implements PaneEditorAdapter {
   ) {}
 
   async refresh(snapshot: EditorBindingSnapshot): Promise<void> {
+    const generation = ++this.generation
     const scope = this.reporter?.stage(snapshot)
-    await this.surface.refresh(snapshot, scope)
+    const staged = await this.surface.stage(snapshot, scope)
+    if (generation !== this.generation || !this.isCurrent(snapshot)) {
+      staged.cancel()
+      return
+    }
+    staged.commit()
     this.current = snapshot
     if (scope && this.reporter) this.reporter.activate(scope)
   }
@@ -44,6 +64,10 @@ export class RendererPaneEditorAdapter implements PaneEditorAdapter {
   async flush(): Promise<EditorReport> {
     const snapshot = this.current
     return snapshot ? this.surface.flush(snapshot) : {}
+  }
+
+  private isCurrent(snapshot: EditorBindingSnapshot): boolean {
+    return !this.reporter || this.reporter.isSnapshotCurrent(snapshot)
   }
 }
 
@@ -68,12 +92,20 @@ export interface PaneEditorEventScope {
 class RendererPaneEditorEventScope implements PaneEditorEventScope {
   constructor(
     private readonly reporter: PaneEditorLeaseReporter,
-    readonly snapshot: EditorBindingSnapshot,
+    private currentSnapshot: EditorBindingSnapshot,
     readonly paneId: PaneId,
     readonly viewId: ViewId,
     readonly documentId: string,
     readonly mode: EditorMode
   ) {}
+
+  get snapshot(): EditorBindingSnapshot {
+    return this.currentSnapshot
+  }
+
+  replaceSnapshot(snapshot: EditorBindingSnapshot): void {
+    this.currentSnapshot = snapshot
+  }
 
   report(report: EditorReport): WorkspaceResult {
     return this.reporter.report(this, report)
@@ -97,6 +129,10 @@ export class PaneEditorLeaseReporter {
   attach(binding: PaneEditorBinding | undefined): void {
     this.binding = binding
     if (!binding) this.activeScope = undefined
+  }
+
+  isSnapshotCurrent(snapshot: EditorBindingSnapshot): boolean {
+    return this.binding?.isSnapshotCurrent(snapshot) ?? true
   }
 
   getActiveScope(): PaneEditorEventScope | undefined {
@@ -139,9 +175,13 @@ export class PaneEditorLeaseReporter {
   report(scope: RendererPaneEditorEventScope, report: EditorReport): WorkspaceResult {
     const lease = this.matchingLease(scope)
     const binding = this.binding
-    return lease && binding
-      ? binding.report(lease, report)
-      : { status: 'rejected', reason: 'stale editor lease' }
+    if (!lease || !binding) return { status: 'rejected', reason: 'stale editor lease' }
+    const result = binding.report(lease, report)
+    if (result.status === 'applied') {
+      const current = binding.getSnapshot(lease)
+      if (current) scope.replaceSnapshot(current)
+    }
+    return result
   }
 
   flush(scope: RendererPaneEditorEventScope): Promise<WorkspaceResult> {

@@ -77,14 +77,54 @@ class MemoryPaneSurface implements PaneEditorSurface {
   readonly scopes: Array<PaneEditorEventScope | undefined> = []
   readonly reports: EditorReport[] = []
 
-  async refresh(snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope): Promise<void> {
-    this.snapshots.push(snapshot)
-    this.scopes.push(scope)
+  async stage(snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope) {
+    return {
+      commit: () => {
+        this.snapshots.push(snapshot)
+        this.scopes.push(scope)
+      },
+      cancel: () => undefined
+    }
   }
 
   async flush(snapshot: EditorBindingSnapshot): Promise<EditorReport> {
     expect(snapshot).toBe(this.snapshots.at(-1))
     return this.reports.shift() ?? {}
+  }
+}
+
+class DeferredPaneSurface implements PaneEditorSurface {
+  readonly committed: EditorBindingSnapshot[] = []
+  readonly committedScopes: Array<PaneEditorEventScope | undefined> = []
+  readonly cancelled: EditorBindingSnapshot[] = []
+  private readonly stages: Array<{
+    readonly snapshot: EditorBindingSnapshot
+    readonly scope: PaneEditorEventScope | undefined
+    readonly release: () => void
+  }> = []
+
+  async stage(snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope) {
+    const gate = deferred()
+    this.stages.push({ snapshot, scope, release: gate.release })
+    await gate.promise
+    return {
+      commit: () => {
+        this.committed.push(snapshot)
+        this.committedScopes.push(scope)
+      },
+      cancel: () => this.cancelled.push(snapshot)
+    }
+  }
+
+  async flush(snapshot: EditorBindingSnapshot): Promise<EditorReport> {
+    expect(snapshot).toBe(this.committed.at(-1))
+    return {}
+  }
+
+  release(index: number): void {
+    const stage = this.stages[index]
+    if (!stage) throw new Error(`missing staged refresh ${index}`)
+    stage.release()
   }
 }
 
@@ -220,6 +260,61 @@ describe('WorkspaceRuntime', () => {
     expect(binding.getSnapshot(restored)?.toc).toEqual([
       { id: 'first-heading', title: 'First', level: 1 }
     ])
+  })
+
+  it('cancels a late staged A refresh after B commits without replacing B scope or adapter state', async () => {
+    const workspace = createWorkspaceRuntime([{ markdown: 'A' }])
+    const surface = new DeferredPaneSurface()
+    const reporter = new PaneEditorLeaseReporter('left')
+    const adapter = new RendererPaneEditorAdapter(surface, reporter)
+    const pendingBind = workspace.bindPaneEditor('left', adapter)
+    await Promise.resolve()
+    surface.release(0)
+    const binding = await pendingBind
+    reporter.attach(binding)
+    const a = expectDefined(binding.getSnapshot(currentLease(binding)))
+
+    const pendingA = adapter.refresh(a)
+    await Promise.resolve()
+    expect(binding.report(currentLease(binding), { markdown: 'B' }).status).toBe('applied')
+    const b = expectDefined(binding.getSnapshot(currentLease(binding)))
+    const pendingB = adapter.refresh(b)
+    await Promise.resolve()
+    surface.release(2)
+    await pendingB
+    const bScope = expectDefined(surface.committedScopes.at(-1))
+    surface.release(1)
+    await pendingA
+
+    expect(surface.committed).toEqual([a, b])
+    expect(surface.cancelled).toEqual([a])
+    expect(reporter.getActiveScope()).toBe(bScope)
+    expect(bScope.report({ scrollTop: 5 }).status).toBe('applied')
+    expect((await bScope.flush()).status).toBe('applied')
+  })
+
+  it('accepts only the controller-current snapshot object, never an old, copied, or forged generation', async () => {
+    const workspace = createWorkspaceRuntime([{ markdown: 'one' }])
+    const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const lease = currentLease(binding)
+    const first = expectDefined(binding.getSnapshot(lease))
+
+    expect(binding.isSnapshotCurrent(first)).toBe(true)
+    expect(binding.report(lease, { markdown: 'two' }).status).toBe('applied')
+    const current = expectDefined(binding.getSnapshot(lease))
+    expect(current).not.toBe(first)
+    expect(binding.isSnapshotCurrent(first)).toBe(false)
+    expect(binding.isSnapshotCurrent(current)).toBe(true)
+    expect(binding.isSnapshotCurrent(structuredClone(current))).toBe(false)
+    expect(
+      binding.isSnapshotCurrent({
+        ...current,
+        document: { ...current.document, markdown: 'forged' }
+      })
+    ).toBe(false)
+
+    expect((await binding.handoffMode(lease, 'source')).status).toBe('applied')
+    expect(binding.isSnapshotCurrent(current)).toBe(false)
   })
 
   it('isolates both panes and flushes/refreshes every active-view transition', async () => {
@@ -656,7 +751,7 @@ describe('WorkspaceRuntime', () => {
     expect((await binding.flush(nextLease)).status).toBe('applied')
   })
 
-  it('keeps a distinct previous binding usable when its replacement adapter fails staging', async () => {
+  it('revokes a previous generation before rebind and reissues it only after replacement staging fails', async () => {
     const workspace = createWorkspaceRuntime()
     const previousEditor = new MemoryEditor()
     const previousBinding = await workspace.bindPaneEditor('left', previousEditor)
@@ -672,7 +767,9 @@ describe('WorkspaceRuntime', () => {
 
     await expect(workspace.bindPaneEditor('left', replacement)).rejects.toThrow('refresh failed')
 
-    const snapshot = expectDefined(previousBinding.getSnapshot(previousLease))
+    expect(previousBinding.getSnapshot(previousLease)).toBeUndefined()
+    const restoredLease = currentLease(previousBinding)
+    const snapshot = expectDefined(previousBinding.getSnapshot(restoredLease))
     expect(snapshot.document).toMatchObject({ markdown: 'previous draft', documentRevision: 1 })
     expect(snapshot.document.portableHistory.value).toEqual(['previous history'])
     expect(snapshot.toc).toEqual([{ id: 'previous-toc', title: 'Previous', level: 1 }])
@@ -685,11 +782,12 @@ describe('WorkspaceRuntime', () => {
       { id: 'previous-toc', title: 'Previous', level: 1 }
     ])
     expect(expectDefined(previousEditor.active).status).toEqual({ wordCount: 8 })
-    expect(previousBinding.report(previousLease, { scrollTop: 12 }).status).toBe('applied')
-    expect((await previousBinding.flush(previousLease)).status).toBe('applied')
+    expect(previousBinding.report(previousLease, { scrollTop: 12 }).status).toBe('rejected')
+    expect(previousBinding.report(restoredLease, { scrollTop: 12 }).status).toBe('applied')
+    expect((await previousBinding.flush(restoredLease)).status).toBe('applied')
   })
 
-  it('compensates a same-instance staged bind failure and preserves its existing lease', async () => {
+  it('compensates a same-instance staged bind failure with a successor lease', async () => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
@@ -704,7 +802,9 @@ describe('WorkspaceRuntime', () => {
 
     await expect(workspace.bindPaneEditor('left', editor)).rejects.toThrow('refresh failed')
 
-    const snapshot = expectDefined(binding.getSnapshot(lease))
+    expect(binding.getSnapshot(lease)).toBeUndefined()
+    const restoredLease = currentLease(binding)
+    const snapshot = expectDefined(binding.getSnapshot(restoredLease))
     expect(snapshot.document).toMatchObject({ markdown: 'same adapter draft', documentRevision: 1 })
     expect(snapshot.document.portableHistory.value).toEqual(['same adapter history'])
     expect(snapshot.toc).toEqual([{ id: 'same-toc', title: 'Same', level: 1 }])
@@ -715,8 +815,9 @@ describe('WorkspaceRuntime', () => {
     ])
     expect(expectDefined(editor.active).toc).toEqual([{ id: 'same-toc', title: 'Same', level: 1 }])
     expect(expectDefined(editor.active).status).toEqual({ wordCount: 11 })
-    expect(binding.report(lease, { scrollTop: 18 }).status).toBe('applied')
-    expect((await binding.flush(lease)).status).toBe('applied')
+    expect(binding.report(lease, { scrollTop: 18 }).status).toBe('rejected')
+    expect(binding.report(restoredLease, { scrollTop: 18 }).status).toBe('applied')
+    expect((await binding.flush(restoredLease)).status).toBe('applied')
   })
 
   it('invalidates a same-instance lease when staged bind recovery cannot restore its snapshot', async () => {
