@@ -17,6 +17,33 @@ emergency recovery. This map does not implement product changes.
 - Every implementation ticket must use its own worktree and `codex/<ticket-feature-name>` branch. Commits stay local; never push.
 - Window/IPC behavior, pane persistence, and shared editor state are high-risk and require `gpt-5.6-terra` at `high` plus independent review. Normal implementation uses `gpt-5.6-terra` at `medium`.
 
+## Implementation handoff update
+
+- T02b R1's final verified commit is `b5ddc413`, but it is a non-integrated
+  intermediate state. The R2 branch remains there; it must not be treated as a
+  production I/O integration.
+- T04 is the sole owner of the FileObservationHub/CAS core. Its actual boundary
+  stops before IPC, preload, and renderer wiring. The narrow production
+  DocumentIO coordinator/adapter is therefore [T04b](handoff/tickets/04b-documentio-electron-adapter.md),
+  not an implicit T02 or T06 responsibility.
+- `WorkspaceProjection` contains JSON metadata only, while the legacy
+  `currentFile` path still carries Markdown, history, editor state, and old save
+  IPC. Directly replacing it with a projection, or retaining a second save state,
+  would either break saves or create two sources of truth. T02 must use the
+  Controller seam only after T04b; it must not attach the legacy save IPC.
+- The minimum dependency chain is T01 + T04 core → T04b → T02 production
+  completion → T03/T05 → T06. R3 then owns dual-surface/E2E evidence and removal
+  of temporary fallbacks. Normal workspace restore remains neither a prerequisite
+  nor an implementation target.
+
+## Next implementation frontier
+
+1. Integrate/verify T01 and T04 core at their declared seams.
+2. Deliver T04b's authenticated Electron DocumentIO adapter and coordinator.
+3. Resume T02 R2 only for the production projection facade and Controller-owned
+   save/options command migration; leave R3's dual-surface/E2E/fallback removal
+   to its later integration stage.
+
 ## Decisions so far
 
 - [确定首版产品边界](issues/01-define-v1-product-boundaries.md): the three V1 contracts, lossless Move, disk-backed Open, two-pane limit, standard details preview, and two mandatory prototype gates are accepted.

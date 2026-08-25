@@ -1,14 +1,16 @@
 # T06 — Electron transfer, startup, and emergency recovery integration
 
-Wave: after T02b/T03/T04/T05 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T02b, T03, T04, T05
+Wave: 6 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T02
+production completion, T03, T04, T04b, T05
 
 ## Result
 
 Attach the proven controller/transfer modules to Electron authenticated endpoints,
 window creation, StartupIntent, DefaultStartupPolicy, and emergency recovery. T06
-implements the production CrashDraftRecovery checkpoint/store and lifecycle for
-ordinary dirty saved and untitled documents, clean-shutdown determination, and the
-startup scan/advance of both CrashDraftRecovery and MoveRecovery. It does not
+reuses T04b's DocumentIO bridge; it implements the production CrashDraftRecovery
+checkpoint/store and lifecycle for ordinary dirty saved and untitled documents,
+clean-shutdown determination, and the startup scan/advance of both
+CrashDraftRecovery and MoveRecovery. It does not
 implement NormalWorkspaceRestore, a restore setting/UI, normal session codec/
 migration, native external-release capture, menus, or details UI.
 
@@ -21,16 +23,19 @@ Inputs: [V1 Spec](../v1-spec.md), [启动常规恢复与紧急恢复边界](../.
 Own existing `packages/desktop/src/main/windows/editor.ts`, `main/app/windowManager.ts`,
 `main/app/index.ts`, and `main/editorBufferStore/index.ts` only to prevent automatic
 normal restore without deleting or overwriting legacy data; also own `main/ipc/index.ts`,
-`main/ipc/window.ts`, `src/preload/index.ts`, `src/shared/types/ipc.ts`, and
-`src/types/global.d.ts` only when bridge typing requires it. Create production
-CrashDraftRecovery files beneath existing `src/main/`, narrow renderer endpoint/
-assembly glue under `renderer/src/workspace/`, and exact Electron tests
+`main/ipc/window.ts` only for transfer/startup routing. T04b owns DocumentIO
+coordinator registrations, preload exposure, shared IPC declarations, global
+declarations and renderer DocumentIO adapter; T06 must not duplicate or modify
+those DocumentIO sections. After T04b integrates, T06 adds any transfer/startup
+route at the recorded separate insertion point. Create production CrashDraftRecovery
+files beneath existing `src/main/`, narrow renderer endpoint/assembly glue under
+`renderer/src/workspace/`, and exact Electron tests
 `test/e2e/{workspace-transfer-electron,workspace-startup-policy}.spec.ts` plus
 `test/unit/specs/crash-draft-recovery.spec.ts`.
 
-T06 runs after T02b/T03 integrate, adds only a narrow endpoint assembly file, and
-does not overwrite their controller/pane bindings. Renderer glue sees only
-commands/projection/endpoint messages, never Move WAL/capsules, CrashDraft store,
+T06 runs after T04b and T02 production completion, adds only a narrow endpoint
+assembly file, and does not overwrite their controller/pane bindings. Renderer
+glue sees only commands/projection/endpoint messages, never Move WAL/capsules, CrashDraft store,
 or watcher leases. T05 remains the sole MoveRecovery owner. Never introduce a
 shared/ambiguous normal-or-emergency persistence `load()`: future normal restore
 storage, CrashDraft store, and Move WAL/capsules are distinct boundaries.

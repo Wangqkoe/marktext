@@ -34,6 +34,7 @@ import type { BufferedState as BufferedStateType } from './bufferedState'
 import type { MenuTemplate, MenuPopupPosition } from './menu'
 import type { LayoutAction, LayoutMenuState } from './layout'
 import type { ViewMode, ViewModeState } from './viewMode'
+import type { DocumentIoObservation, DocumentIoRequest, DocumentSaveAck } from '@shared/workspace/documentIo'
 
 // =================================================================
 // Invoke channels (renderer → main, returns Promise<T>)
@@ -46,6 +47,8 @@ export interface IpcInvokeChannels {
   'mt::clipboard::read-text': { args: []; ret: string }
   'mt::cmd::exists': { args: [name: string]; ret: boolean }
   'mt::fonts::list': { args: []; ret: string[] }
+  // T04b DocumentIO section. T06 owns a separate transfer/startup insertion point.
+  'mt::workspace::document-io': { args: [request: DocumentIoRequest]; ret: DocumentSaveAck }
   'mt::fs-trash-item': { args: [pathname: string]; ret: void }
   'mt::fs::copy': { args: [src: string, dest: string]; ret: void }
   'mt::fs::empty-dir': { args: [path: string]; ret: void }
@@ -221,6 +224,8 @@ export interface IpcSyncChannels {
 export interface IpcMainEventChannels {
   'language-changed': [language: string]
   'mt::UPDATE_AVAILABLE': [info?: unknown]
+  // T04b DocumentIO section. The renderer only receives typed outcomes.
+  'mt::workspace::document-io-observation': [observation: DocumentIoObservation]
   'mt::UPDATE_DOWNLOADED': [info?: unknown]
   'mt::UPDATE_ERROR': [error: unknown]
   'mt::UPDATE_NOT_AVAILABLE': [info?: unknown]

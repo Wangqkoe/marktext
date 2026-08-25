@@ -1,0 +1,148 @@
+import type {
+  DocumentIoBindingRequest,
+  DocumentIoObservation,
+  DocumentIoPort,
+  DocumentIoRequest,
+  DocumentIoSaveRequest,
+  DocumentSaveAck
+} from '@shared/workspace/documentIo'
+
+export interface RendererDocumentBinding {
+  readonly documentId: string
+  readonly ownerFence: string
+  readonly pathname: string
+  readonly documentRevision: number
+  readonly dirty: boolean
+}
+
+/**
+ * Renderer-side narrow adapter. It holds no lease/capability and accepts a
+ * durable result once only when its current binding still exactly matches.
+ */
+export class RendererDocumentIoAdapter {
+  private readonly bindings = new Map<string, RendererDocumentBinding>()
+  private readonly acceptedRequestIds = new Set<string>()
+  private readonly unsubscribe: () => void
+  private disposed = false
+
+  constructor(
+    private readonly port: DocumentIoPort,
+    private readonly onObservation: (observation: DocumentIoObservation) => void
+  ) {
+    this.unsubscribe = port.subscribe((observation) => this.receiveObservation(observation))
+  }
+
+  async bind(request: DocumentIoBindingRequest): Promise<DocumentSaveAck> {
+    if (this.disposed) return this.rejected(request, 'renderer adapter is disposed')
+    const ack = await this.port.request(request)
+    if (this.disposed) {
+      if (ack.status === 'bound') {
+        await this.port.request({
+          kind: 'unbind',
+          requestId: `late-dispose:${ack.ownerFence}`,
+          documentId: ack.documentId,
+          ownerFence: ack.ownerFence
+        })
+      }
+      return ack
+    }
+    if (ack.status !== 'bound' || ack.requestId !== request.requestId || ack.documentId !== request.documentId) {
+      return ack
+    }
+    for (const [ownerFence, binding] of this.bindings) {
+      if (binding.documentId === ack.documentId) this.bindings.delete(ownerFence)
+    }
+    this.bindings.set(ack.ownerFence, {
+      documentId: ack.documentId,
+      ownerFence: ack.ownerFence,
+      pathname: request.pathname,
+      documentRevision: request.documentRevision,
+      dirty: request.dirty
+    })
+    return ack
+  }
+
+  async save(request: DocumentIoSaveRequest): Promise<DocumentSaveAck> {
+    const binding = this.bindings.get(request.ownerFence)
+    if (
+      this.disposed ||
+      !binding ||
+      binding.documentId !== request.documentId ||
+      binding.ownerFence !== request.ownerFence
+    ) {
+      return this.rejected(request, 'stale renderer owner fence')
+    }
+    const ack = await this.port.request(request)
+    if (
+      ack.status === 'durable-success' &&
+      ack.requestId === request.requestId &&
+      ack.documentId === binding.documentId &&
+      ack.documentRevision === request.documentRevision &&
+      ack.ownerFence === binding.ownerFence &&
+      !this.acceptedRequestIds.has(request.requestId) &&
+      this.bindings.get(binding.ownerFence) === binding
+    ) {
+      this.acceptedRequestIds.add(request.requestId)
+      this.bindings.set(binding.ownerFence, {
+        ...binding,
+        pathname: request.kind === 'save' ? binding.pathname : request.targetPathname ?? binding.pathname,
+        documentRevision: request.documentRevision,
+        dirty: false
+      })
+    }
+    return ack
+  }
+
+  getBinding(ownerFence: string): RendererDocumentBinding | undefined {
+    return this.bindings.get(ownerFence)
+  }
+
+  async dispose(): Promise<void> {
+    if (this.disposed) return
+    this.disposed = true
+    this.unsubscribe()
+    const bindings = [...this.bindings.values()]
+    this.bindings.clear()
+    await Promise.all(
+      bindings.map((binding) =>
+        this.port.request({
+          kind: 'unbind',
+          requestId: `dispose:${binding.ownerFence}`,
+          documentId: binding.documentId,
+          ownerFence: binding.ownerFence
+        })
+      )
+    )
+  }
+
+  private receiveObservation(observation: DocumentIoObservation): void {
+    if (this.disposed) return
+    const binding = this.bindings.get(observation.ownerFence)
+    if (
+      !binding ||
+      binding.documentId !== observation.documentId
+    ) {
+      return
+    }
+    this.onObservation(observation)
+  }
+
+  private rejected(request: DocumentIoRequest, reason: string): DocumentSaveAck {
+    return {
+      status: 'rejected',
+      requestId: request.requestId,
+      documentId: request.documentId,
+      ...(request.kind === 'bind' ? {} : { ownerFence: request.ownerFence }),
+      reason
+    }
+  }
+}
+
+/** Production typed preload transport. */
+export const createElectronDocumentIoPort = (): DocumentIoPort => ({
+  request: (request) => window.electron.ipcRenderer.invoke('mt::workspace::document-io', request),
+  subscribe: (listener) =>
+    window.electron.ipcRenderer.on('mt::workspace::document-io-observation', (_event, observation) =>
+      listener(observation)
+    )
+})
