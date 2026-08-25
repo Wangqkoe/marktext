@@ -10,11 +10,12 @@ This is the execution order for the tickets; normative behavior remains in the
 | 2 | [T04](tickets/04-file-observation-diskrevision-cas.md), T02 R1 pane binding | T04 supplies the only FileObservationHub/CAS core; the non-integrated R1 result may bind panes but has no production DocumentIO claim |
 | 3 | [T04b](tickets/04b-documentio-electron-adapter.md) | authenticated main coordinator and typed DocumentIO transport consume T04 core; no transfer, startup, CrashDraft or normal restore is added |
 | 4 | T02 R2 production completion | only after T04b, migrate the readonly projection facade and critical Controller-owned save/options commands; no legacy I/O or dual save state |
-| 5 | [T03](tickets/03-split-workspace-and-tab-drag-ui.md), [T05](tickets/05-tab-transfer-wal-recovery-core.md), [T10](tickets/10-desktop-details-theme-export-integration.md) | T02 has released `editor.vue` before T10 and `index.vue`/app assembly before T03; live pane state remains no-restore; all MoveRecovery WAL gaps and details semantics pass |
-| 6 | [T06](tickets/06-electron-transfer-startup-emergency-recovery.md) | after T02 production completion/T03/T04/T04b/T05, reuse DocumentIO bridge for Electron transfer/startup integration, CrashDraft lifecycle, both-source emergency scan, retained legacy normal data, and independent terra/high review |
-| 7 | [T07](tickets/07-windows-native-external-release-adapter.md), [T08](tickets/08-menus-localization-and-command-routing.md) | supported external-release proof or disabled fallback; command surface passes |
-| 8 | [T11](tickets/11-cross-feature-e2e-and-integration.md) | R3 dual-surface/E2E evidence and temporary-fallback removal follow coordination-branch integration; feature fixes return to a new owner ticket |
-| 9 | [T12](tickets/12-windows-trial-final-review-and-acceptance.md) | T12 gives clean-build/Windows-trial readiness evidence to the coordination task. The coordinator creates independent terra/high Standards + Spec reviews, routes defects, requests user Acceptance, and alone declares completion. |
+| 5 | [T03](tickets/03-split-workspace-and-tab-drag-ui.md), [T05](tickets/05-tab-transfer-wal-recovery-core.md) | After T02b is integrated/reviewed, T03 may own the narrow `editor.vue`/`sourceCode.vue` pane-local input, mount-seed, and focused-command-guard seams plus its `index.vue`/app assembly; live pane state remains no-restore; all MoveRecovery WAL gaps pass |
+| 6 | [T10](tickets/10-desktop-details-theme-export-integration.md) | After T03 is integrated and reviewed, T10 may perform its later `editor.vue` details/theme/export work; T10 does not reopen T03's pane ownership; details semantics pass |
+| 7 | [T06](tickets/06-electron-transfer-startup-emergency-recovery.md) | after T02 production completion/T03/T04/T04b/T05, reuse DocumentIO bridge for Electron transfer/startup integration, CrashDraft lifecycle, both-source emergency scan, retained legacy normal data, and independent terra/high review |
+| 8 | [T07](tickets/07-windows-native-external-release-adapter.md), [T08](tickets/08-menus-localization-and-command-routing.md) | supported external-release proof or disabled fallback; command surface passes |
+| 9 | [T11](tickets/11-cross-feature-e2e-and-integration.md) | R3 dual-surface/E2E evidence and temporary-fallback removal follow coordination-branch integration; feature fixes return to a new owner ticket |
+| 10 | [T12](tickets/12-windows-trial-final-review-and-acceptance.md) | T12 gives clean-build/Windows-trial readiness evidence to the coordination task. The coordinator creates independent terra/high Standards + Spec reviews, routes defects, requests user Acceptance, and alone declares completion. |
 
 The only shared foundational directories are new `src/shared/workspace/` and
 renderer `src/renderer/src/workspace/`: T01 creates shared runtime/startup types and
@@ -22,9 +23,11 @@ controller ports/memory adapters, not a normal session codec; T02 changes only i
 PaneEditorAdapter glue after T01 integrates. T04b owns the DocumentIO coordinator,
 DocumentIO-specific IPC/preload declarations and renderer adapter after T04
 integrates. T02 R2 consumes that already-integrated seam; it does not change it.
-T03 owns `editorWithTabs/index.vue` and the optional narrow
-`pages/app.vue` assembly seam only after T02 releases its editor binding; T10 then
-owns `editor.vue` after T02. T06 runs after T04b/T02 and may add transfer/startup
+T03 owns `editorWithTabs/index.vue`, the optional narrow `pages/app.vue` assembly
+seam, and only the narrow pane-local seams in `editor.vue`/`sourceCode.vue`
+described by its ticket after T02b releases the Controller projection/facade.
+T10's later `editor.vue` details/theme/export work starts only after T03 is
+integrated and reviewed. T06 runs after T04b/T02 and may add transfer/startup
 routes only at T04b's recorded separate insertion point; it reuses rather than
 redefines the DocumentIO bridge. All other tickets have disjoint ownership as
 declared in their files. Recompute this frontier after each integration. R1 at
