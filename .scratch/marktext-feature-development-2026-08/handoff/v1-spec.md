@@ -34,6 +34,7 @@ The terms below are normative and come from [Issue 04](../issues/04-design-pane-
 | View / Tab / Pane | A View owns cursor/selection/scroll/mode; a Tab orders one View in a Pane; a Pane owns ordered tabs, its active tab, and one editor adapter. |
 | WindowWorkspace | One or two panes, focused pane, and split ratio. A saved path is unique within it; a View moves but does not duplicate a Document. |
 | WorkspaceController | Deep renderer-side owner of registry, reducer and focus routing. Its ordinary public surface is `execute`, `getProjection`, and `subscribe`; assembly alone may `bindPaneEditor`. |
+| DocumentIOCoordinator | Deep main-process owner of document save/observe/rebind effects. It hides FileObservationHub leases, canonical FileKey, DiskRevision/CAS, landed-byte hashes, and watcher generations behind the existing `DocumentIoRequest` → `DocumentSaveAck` seam. |
 | StartupIntent | The launch request: no explicit target, or explicit associated/CLI/other file targets. It is not normal workspace state. |
 | DefaultStartupPolicy | Current V1 policy: no explicit target creates one clean New Tab; explicit targets seed/open only themselves. |
 | NormalWorkspaceRestore | Future optional adapter controlled by a default-off setting, and eligible only with no explicit StartupIntent. It is unavailable in current V1. |
@@ -57,8 +58,10 @@ targets and revisions, are single-use, and atomically reject stale/replayed or
 kind-mismatched operations.
 
 T01 establishes typed runtime/emergency ports and deterministic memory substitutes;
-T04 supplies `FileKey`/`DiskRevision`; T05 owns MoveRecovery; and T06 owns the
-independent production CrashDraft store, lifecycle, and both-source Electron scan.
+T04 supplies `FileKey`/`DiskRevision` and the sole FileObservationHub/CAS core;
+T04b supplies the production DocumentIO coordinator and typed Electron adapter;
+T05 owns MoveRecovery; and T06 owns the independent production CrashDraft store,
+lifecycle, and both-source Electron scan.
 T02 binds `PaneEditorAdapter`. CrashDraft identity, revision, durable-write,
 fallback, conflict, tombstone, and clean-marker rules are normative in
 [Issue 12](../issues/12-define-startup-restore-emergency-recovery-boundary.md#crashdraftrecovery-durability-contract)
@@ -156,9 +159,15 @@ revokes the source lease and grants target successor; old-generation events are
 invalid, and hidden staging has no watcher. Same-file writes serialize in main and
 CAS their expected DiskRevision before write, then hash landed bytes. Own-save
 suppression is writer-only (`writeId + FileKey + hash`); Open peers still observe.
-Late DocumentIO ACKs may update state only when document identity, revision and
-ownership remain current. Sources: [Issue 09](../issues/09-design-tab-transfer-ipc-contract.md)
-and [Issue 11](../issues/11-design-workspace-controller-interface.md).
+`DocumentIOCoordinator` is the only production facade for these operations. It
+maps an authenticated window/session and owner fence to the Hub while retaining
+canonical keys, leases, CAS/overwrite capabilities, landed hashes, and watcher
+generations internally. The renderer crosses only the existing typed
+`DocumentIoRequest` → `DocumentSaveAck` seam and never receives a lease or
+overwrite token. A late ACK may update controller state only when document
+identity, revision, ownership, and current request/fence still match. Sources:
+[Issue 09](../issues/09-design-tab-transfer-ipc-contract.md) and
+[Issue 11](../issues/11-design-workspace-controller-interface.md).
 
 The implementation must make the watcher-generation handoff observable in its
 memory and Electron tests: source generation is revoked in the authorization

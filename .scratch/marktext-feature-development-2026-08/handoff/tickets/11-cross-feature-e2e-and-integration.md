@@ -1,6 +1,7 @@
 # T11 — Cross-feature E2E and coordination-branch integration
 
-Wave: 6 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T03–T10
+Wave: 8 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T03–T10,
+including T04b and T02 production completion
 
 ## Result
 
@@ -19,6 +20,7 @@ production paths or tests owned by T03/T06/T10; T06 owns
 `workspace-startup-policy.spec.ts`, which T11 runs as an integration prerequisite.
 
 Cover Move/Open + dirty/untitled/last-tab/history, split + focused command routing,
+the T04b coordinator/typed transport path through the composed product,
 CrashDraftRecovery force-kill/power-loss recovery for dirty saved and untitled
 content, CrashDraft corrupt-latest fallback warning and DiskRevision-conflicted
 recovered copy, MoveRecovery partial salvage, watcher conflict/CAS observable behavior,

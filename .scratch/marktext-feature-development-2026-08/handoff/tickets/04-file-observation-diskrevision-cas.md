@@ -7,8 +7,10 @@ Wave: 2 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T01
 Introduce a main-process FileObservationHub and DiskRevision/CAS save boundary
 with deterministic memory adapters. This ticket establishes same-FileKey
 serialization, watcher subscriber generations, stale-save protection and conflict
-state. It supplies production file-observation/save work behind T01 ports, but does
-not complete Electron renderer/session bridge, transfer ownership or UI decisions.
+state. It is the sole owner of the FileObservationHub/DiskRevision/CAS core, but
+does not complete the Electron renderer/session bridge, transfer ownership or UI
+decisions. T04b is the narrow production coordinator/adapter that consumes this
+core; it must not rewrite it.
 It must not add normal workspace snapshot/load or use a normal session as file or
 emergency-recovery truth.
 
@@ -29,15 +31,17 @@ Require canonical FileKey, persisted-byte SHA-256, one OS watcher per FileKey,
 generation leases, writer-only own-event suppression, CAS expected revision,
 serialized writes, and tokens bound to document revision/FileKey/observed revision/
 purpose. Ensure a clean peer reloads, dirty peer conflicts and ordinary save blocks.
-T06 consumes this canonical FileKey/DiskRevision boundary as the CrashDraft saved-
-document baseline and conflict fence; T04 neither stores nor recovers CrashDrafts.
+T04b consumes this canonical boundary for production DocumentIO. T06 consumes the
+same boundary as the CrashDraft saved-document baseline and conflict fence; T04
+neither stores nor recovers CrashDrafts.
 
 ## Acceptance and handoff
 
 Run `pnpm -C packages/desktop exec vitest run test/unit/specs/file-observation-hub.spec.ts test/unit/specs/disk-revision-cas.spec.ts`,
 `pnpm -C packages/desktop typecheck`, and diff check. Test concurrent same-file
 saves, queued own-save event, late ACK, generation rejection and overwrite-token
-replay. T04 has no real-window/manual claim: T06/T11 own Electron/renderer bridge
-and real dual-window reload/conflict evidence.
+replay. T04 has no real-window/manual claim: T04b owns the authenticated
+Electron/renderer DocumentIO bridge, while T06/T11 own real dual-window
+reload/conflict evidence.
 Commit only owned main filesystem/tests. Independent terra/high Standards + Spec
 review is a gate before T05/T06 consumption.

@@ -10,6 +10,7 @@ integration branch; `Passed` may be claimed only with all four.
 | A02 | StartupIntent, DefaultStartupPolicy, and two emergency boundaries — T01 | `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-startup-policy.spec.ts` (Node/Vitest) | no target→clean New Tab; explicit target→only target; unified scan receives distinct CrashDraft and Move inputs; memory CrashDraft proves monotonic identity/revision, atomic durable-ACK progression, stale-ACK rejection, and corrupt-latest fallback | required |
 | A03 | panes/tabs/focus/collapse/last-tab and live source/history — T02/T03 | `pnpm -C packages/desktop exec playwright test test/e2e/split-workspace.spec.ts` (Electron Playwright) | narrow 719/720px, divider clamp/reset and keyboard focus; ordinary restart does not restore pane state | required |
 | A04 | FileObservationHub/DiskRevision/CAS — T04 core | `pnpm -C packages/desktop exec vitest run test/unit/specs/file-observation-hub.spec.ts test/unit/specs/disk-revision-cas.spec.ts` (deterministic memory adapters) | none in T04; real windows are A08/A13 | required |
+| A04b | authenticated DocumentIO coordinator and typed adapter — T04b | `pnpm -C packages/desktop exec vitest run test/unit/specs/document-io-coordinator.spec.ts test/unit/specs/document-io-electron-adapter.spec.ts` (real coordinator with authenticated typed IPC/preload harness) | none in T04b; real dual-window/UI behavior remains A08/A13 | required |
 | A05 | Move capsule digest, fence, capability, unique owner — T05 | `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-core.spec.ts` (deterministic transport) | inspect recovery projection only | required |
 | A06 | WAL intent/observed and crash/replay gaps — T05 | `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-recovery.spec.ts` (kill/restart scheduler) | no standalone manual claim | required |
 | A07 | MoveRecovery owner migration/tombstone/GC under every startup policy — T05/T06 | `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-emergency-recovery.spec.ts` then `pnpm -C packages/desktop exec playwright test test/e2e/workspace-transfer-electron.spec.ts` | close/restart source and target after authorization; explicit target does not suppress MoveRecovery | required |
@@ -43,9 +44,10 @@ required `Passed` evidence.
 
 ## Phase gates
 
-1. **Foundation:** T01 and T09 pass runtime/startup boundary and details contracts before production UI/IPC work; normal restore codec/migration is deferred.
-2. **Workspace:** T02/T03 pass no-restore live-pane isolation before Electron transfer integration.
-3. **Transfer:** T05 passes every WAL/recovery test and independent terra/high Standards + Spec review before T06.
-4. **Platform:** T06/T07 pass supported Electron/Windows evidence; unavailable configurations must pass disablement fallback.
-5. **Presentation:** T08–T10 pass their independent surfaces; prototypes remain evidence only.
-6. **Integration/readiness:** T11 and T12 deliver evidence after coordination-branch integration, including default-off restart, explicit-target priority, unchanged dirty exit, and always-on emergency recovery. The coordination task, not T12, creates independent terra/high Standards + Spec review, resolves defects, requests user Acceptance, and declares completion only after Windows trial and critical defects = 0.
+1. **Foundation:** T01, T04 core and T09 pass runtime/startup, FileObservationHub/CAS and details contracts; normal restore codec/migration is deferred.
+2. **Document I/O:** T04b passes the real coordinator/typed transport harness, CAS/ACK identity, Save As/rename rollback and observer conflict evidence before T02 production completion. It does not claim real dual-window/UI evidence.
+3. **Workspace:** T02/T03 pass no-restore live-pane isolation before Electron transfer integration.
+4. **Transfer:** T05 passes every WAL/recovery test and independent terra/high Standards + Spec review before T06.
+5. **Platform:** T06/T07 pass supported Electron/Windows evidence; unavailable configurations must pass disablement fallback.
+6. **Presentation:** T08–T10 pass their independent surfaces; prototypes remain evidence only.
+7. **Integration/readiness:** T11 and T12 deliver evidence after coordination-branch integration, including T04b transport use, default-off restart, explicit-target priority, unchanged dirty exit, and always-on emergency recovery. The coordination task, not T12, creates independent terra/high Standards + Spec review, resolves defects, requests user Acceptance, and declares completion only after Windows trial and critical defects = 0.
