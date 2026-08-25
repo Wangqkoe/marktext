@@ -832,8 +832,8 @@ watch(spellcheckerLanguage, (value, oldValue) => {
   }
 })
 
-watch(currentFile, (value, oldValue) => {
-  if (value && value !== oldValue) {
+watch(() => currentFile.value?.id, (id, previousId) => {
+  if (id && id !== previousId) {
     scrollToCursor(0)
     // Hide float tools if needed.
     if (editor.value) {

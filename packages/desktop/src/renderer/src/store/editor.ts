@@ -21,7 +21,11 @@ import {
   type WorkspaceController,
   type WorkspaceProjectionMirror
 } from '@/workspace'
-import type { WorkspaceFacadeSnapshot, WorkspaceProjection } from '@shared/workspace'
+import type {
+  WorkspaceFacadeDocument,
+  WorkspaceFacadeSnapshot,
+  WorkspaceProjection
+} from '@shared/workspace'
 import { t } from '../i18n'
 import { debouncedSendBufferedState, sendBufferedState } from './bufferedState'
 import type {
@@ -145,18 +149,26 @@ export interface EditorState {
 }
 
 const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+type ControllerFacadeFile = IFileState & {
+  selection: WorkspaceFacadeDocument['selection']
+  toc: WorkspaceFacadeDocument['toc']
+  status: WorkspaceFacadeDocument['status']
+}
+
 const controllerFacadeFields = [
   'id', 'filename', 'pathname', 'markdown', 'history', 'isSaved', 'cursor', 'scrollTop',
-  'encoding', 'lineEnding', 'adjustLineEndingOnSave', 'trimTrailingNewline'
+  'encoding', 'lineEnding', 'adjustLineEndingOnSave', 'trimTrailingNewline', 'wordCount',
+  'selection', 'toc', 'status'
 ] as const
 
-const freezeFacadeValue = <T>(value: T): T => {
-  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value
-  for (const child of Object.values(value as Record<string, unknown>)) freezeFacadeValue(child)
+const freezeFacadeValue = <T>(value: T, seen = new WeakSet<object>()): T => {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value) || seen.has(value)) return value
+  seen.add(value)
+  for (const child of Object.values(value as Record<string, unknown>)) freezeFacadeValue(child, seen)
   return Object.freeze(value)
 }
 
-const inertControllerFacadeFile = (file: IFileState): IFileState => {
+const inertControllerFacadeFile = (file: ControllerFacadeFile): ControllerFacadeFile => {
   for (const key of controllerFacadeFields) {
     Object.defineProperty(file, key, {
       value: freezeFacadeValue(deepClone(file[key])),
@@ -165,6 +177,51 @@ const inertControllerFacadeFile = (file: IFileState): IFileState => {
     })
   }
   return file
+}
+
+const controllerFacadeFile = (
+  tab: { documentId: string; title: string; fileKey?: string; dirty: boolean },
+  document: WorkspaceFacadeDocument,
+  previous?: IFileState
+): ControllerFacadeFile => {
+  const blank = getBlankFileState([], 'utf8', 'lf')
+  return inertControllerFacadeFile({
+    // UI-local transient values deliberately remain writable and never become
+    // controller state. Do not spread `previous`: every owned field below must
+    // come from this facade snapshot.
+    searchMatches: previous?.searchMatches ?? blank.searchMatches,
+    muyaIndexCursor: previous?.muyaIndexCursor ?? blank.muyaIndexCursor,
+    notifications: previous?.notifications ?? blank.notifications,
+    ...(previous?.blocks === undefined ? {} : { blocks: previous.blocks }),
+    ...(previous?.isMixedLineEndings === undefined
+      ? {}
+      : { isMixedLineEndings: previous.isMixedLineEndings }),
+    ...(previous?.lastSavedHistoryId === undefined
+      ? {}
+      : { lastSavedHistoryId: previous.lastSavedHistoryId }),
+    id: tab.documentId,
+    filename: tab.title,
+    pathname: tab.fileKey ?? '',
+    markdown: document.markdown,
+    history: document.portableHistory as unknown as IFileState['history'],
+    isSaved: !tab.dirty,
+    cursor: document.cursor,
+    scrollTop: document.scrollTop,
+    encoding: document.encoding,
+    lineEnding: document.lineEnding,
+    adjustLineEndingOnSave: document.adjustLineEndingOnSave,
+    trimTrailingNewline:
+      document.trailingNewline === 'ensure-one' ? 1 : document.trailingNewline === 'preserve' ? 2 : 0,
+    wordCount: {
+      paragraph: 0,
+      word: document.status.wordCount ?? 0,
+      character: document.status.characterCount ?? 0,
+      all: document.status.characterCount ?? document.status.wordCount ?? 0
+    },
+    selection: document.selection,
+    toc: document.toc,
+    status: document.status
+  })
 }
 interface WorkspaceFacadeBinding {
   readonly mirror: WorkspaceProjectionMirror
@@ -205,44 +262,31 @@ export const useEditorStore = defineStore('editor', {
     APPLY_WORKSPACE_PROJECTION(snapshot: WorkspaceFacadeSnapshot): void {
       const facade = freezeFacadeValue(deepClone(snapshot)) as WorkspaceFacadeSnapshot
       this.workspaceFacade = facade
-      const { projection } = facade
+      const projection = freezeFacadeValue(deepClone(facade.projection))
       this.workspaceProjection = projection
       const pane = projection.panes.find((candidate) => candidate.paneId === projection.focusedPaneId)
       if (!pane) return
       const documentsByView = new Map(facade.documents.map((document) => [document.viewId, document]))
       const existing = new Map(this.tabs.map((tab) => [tab.id, tab]))
-      this.tabs = Object.freeze(pane.tabs.map((tab) => {
-        const previous = existing.get(tab.documentId)
+      const tabs = pane.tabs.flatMap((tab) => {
         const document = documentsByView.get(tab.viewId)
-        return inertControllerFacadeFile({
-          ...(previous ?? getBlankFileState([], 'utf8', 'lf')),
-          id: tab.documentId,
-          filename: tab.title,
-          pathname: tab.fileKey ?? '',
-          markdown: document?.markdown ?? '',
-          scrollTop: document?.scrollTop ?? 0,
-          encoding: document?.encoding ?? { encoding: 'utf8', isBom: false },
-          lineEnding: document?.lineEnding ?? 'lf',
-          adjustLineEndingOnSave: document?.adjustLineEndingOnSave ?? false,
-          trimTrailingNewline:
-            document?.trailingNewline === 'ensure-one'
-              ? 1
-              : document?.trailingNewline === 'preserve'
-                ? 2
-                : 0,
-          isSaved: !tab.dirty
-        } as IFileState)
-      })) as unknown as IFileState[]
+        return document ? [controllerFacadeFile(tab, document, existing.get(tab.documentId))] : []
+      })
+      this.tabs = Object.freeze(tabs) as unknown as IFileState[]
       this.updateTabIdToIndex()
       const activeDocumentId = pane.tabs.find((tab) => tab.viewId === pane.activeViewId)?.documentId
-      this.currentFile = this.tabs.find((tab) => tab.id === activeDocumentId) ?? null
-      this.listToc = Object.freeze(projection.toc.map((item) => ({
+      const activeTab = pane.tabs.find((tab) => tab.documentId === activeDocumentId)
+      const activeDocument = activeTab && documentsByView.get(activeTab.viewId)
+      this.currentFile = activeTab && activeDocument
+        ? controllerFacadeFile(activeTab, activeDocument, this.currentFile?.id === activeTab.documentId ? this.currentFile : existing.get(activeTab.documentId))
+        : null
+      this.listToc = freezeFacadeValue(projection.toc.map((item) => ({
         slug: item.id,
         githubSlug: item.id,
         content: item.title,
         lvl: item.level
       }))) as unknown as TocItem[]
-      this.toc = Object.freeze(listToTree<TocItem>(this.listToc)) as unknown as TocTreeNode[]
+      this.toc = freezeFacadeValue(listToTree<TocItem>([...this.listToc])) as unknown as TocTreeNode[]
     },
     updateTabIdToIndex(): void {
       this.tabIdToIndex = this.tabs.reduce<Record<string, number>>((map, tab, index) => {
@@ -1041,7 +1085,7 @@ export const useEditorStore = defineStore('editor', {
           (candidate) => candidate.paneId === this.workspaceProjection?.focusedPaneId
         )
         const view = pane?.tabs.find((tab) => tab.documentId === target.id)
-        if (!view) return
+        if (!pane || !view) return
         const workspace = singlePaneWorkspace()
         const close = await workspace.execute({ kind: 'close-view', viewId: view.viewId })
         if (close.status !== 'needs-decision') return
@@ -1051,17 +1095,19 @@ export const useEditorStore = defineStore('editor', {
           await workspace.execute({ kind: 'commit-authorized', capability: close.capability })
           return
         }
-        if (target.id !== this.currentFile?.id) {
-          await workspace.execute({ kind: 'activate-view', paneId: pane!.paneId, viewId: view.viewId })
-        }
         const save = target.pathname
-          ? await workspace.execute({ kind: 'save' })
-          : await (async() => {
-              const pathname = await workspace.chooseSaveTarget(view.viewId)
-              return pathname
-                ? workspace.execute({ kind: 'save-as', fileKey: pathname, title: window.path.basename(pathname) })
-                : undefined
-            })()
+          ? await workspace.execute({ kind: 'save', paneId: pane.paneId, viewId: view.viewId })
+          : await workspace.chooseSaveTarget(view.viewId).then((pathname) =>
+            pathname
+              ? workspace.execute({
+                kind: 'save-as',
+                paneId: pane.paneId,
+                viewId: view.viewId,
+                fileKey: pathname,
+                title: window.path.basename(pathname)
+              })
+              : undefined
+          )
         if (!save || save.status !== 'applied') return
         const committed = await workspace.execute({ kind: 'commit-authorized', capability: close.capability })
         if (committed.status === 'rejected') {

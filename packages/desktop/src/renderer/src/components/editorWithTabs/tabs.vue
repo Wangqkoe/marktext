@@ -106,12 +106,7 @@ const selectAdjacentTab = (file: IFileState, offset: -1 | 1): void => {
 }
 
 const removeFileInTab = (file: IFileState) => {
-  const { isSaved } = file
-  if (isSaved) {
-    editorStore.FORCE_CLOSE_TAB(file)
-  } else {
-    editorStore.CLOSE_UNSAVED_TAB(file)
-  }
+  editorStore.CLOSE_TAB(file)
 }
 
 // Original methods

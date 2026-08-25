@@ -67,6 +67,38 @@ const restoreSaveDialog = async(app: ElectronApplication): Promise<void> => {
   })
 }
 
+const stubCloseDialog = async(app: ElectronApplication, response: number): Promise<void> => {
+  await app.evaluate(async({ dialog }, selectedResponse) => {
+    const g = global as unknown as {
+      __mt_audit_original_close_dialog__?: typeof dialog.showMessageBox
+      __mt_audit_close_response__?: number
+      __mt_audit_close_messages__?: string[]
+    }
+    if (!g.__mt_audit_original_close_dialog__) {
+      g.__mt_audit_original_close_dialog__ = dialog.showMessageBox.bind(dialog)
+    }
+    g.__mt_audit_close_response__ = selectedResponse
+    g.__mt_audit_close_messages__ = []
+    ;(dialog as unknown as { showMessageBox: unknown }).showMessageBox = async(
+      _windowOrOptions: unknown,
+      maybeOptions?: { message?: string }
+    ) => {
+      g.__mt_audit_close_messages__?.push(maybeOptions?.message ?? '')
+      return { response: g.__mt_audit_close_response__ ?? 2 }
+    }
+  }, response)
+}
+
+const restoreCloseDialog = async(app: ElectronApplication): Promise<void> => {
+  await app.evaluate(({ dialog }) => {
+    const g = global as unknown as { __mt_audit_original_close_dialog__?: typeof dialog.showMessageBox }
+    if (g.__mt_audit_original_close_dialog__) {
+      ;(dialog as unknown as { showMessageBox: unknown }).showMessageBox =
+        g.__mt_audit_original_close_dialog__
+    }
+  })
+}
+
 const restartSharedProfile = async(
   app: ElectronApplication,
   userDataDir: string
@@ -79,6 +111,60 @@ const restartSharedProfile = async(
 }
 
 test.describe('W2 audit — tabs, no normal restart restore and Save As', () => {
+  test('closing a non-active dirty tab keeps the active document and targets its own save decision', async() => {
+    test.setTimeout(90_000)
+    const run = createAuditRun()
+    const profile = run.createIsolatedUserDataDir('w2-close-non-active')
+    const saveTarget = path.join(run.fixtures.F1.rootDir, 'non-active-close-save.md')
+    let app: ElectronApplication | undefined
+    try {
+      const launched = await launchElectron([run.fixtures.F2.documentPath!], run.launchOptionsForUserDataDir(profile))
+      app = launched.app
+      const { page } = launched
+      await waitForEditor(page)
+      await waitForMenuReady(app)
+      const activeBaseline = await activeText(page)
+
+      await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'target baseline\n')
+      await setSource(app, page, 'TARGET-DIRTY\n')
+      await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
+      await expect.poll(() => activeText(page)).toBe(activeBaseline)
+
+      await stubCloseDialog(app, 2)
+      await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => button.click())
+      await expect.poll(() => page.locator(tabSelector).count()).toBe(2)
+      expect(await activeText(page)).toBe(activeBaseline)
+
+      await stubCloseDialog(app, 1)
+      await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => button.click())
+      await expect.poll(() => page.locator(tabSelector).count()).toBe(1)
+      expect(await activeText(page)).toBe(activeBaseline)
+
+      await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'target save baseline\n')
+      await setSource(app, page, 'TARGET-SAVED\n')
+      await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
+      await stubSaveDialog(app, saveTarget)
+      await stubCloseDialog(app, 0)
+      await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => button.click())
+      await expect.poll(() => page.locator(tabSelector).count()).toBe(1)
+      await expect.poll(() => fs.existsSync(saveTarget)).toBe(true)
+      expect(fs.readFileSync(saveTarget, 'utf8').replace(/\r\n/g, '\n')).toBe('TARGET-SAVED\n')
+      expect(await activeText(page)).toBe(activeBaseline)
+      const messages = await app.evaluate(() => {
+        const g = global as unknown as { __mt_audit_close_messages__?: string[] }
+        return g.__mt_audit_close_messages__ ?? []
+      })
+      expect(messages).toEqual(['Save changes to New Tab?'])
+    } finally {
+      if (app) {
+        await restoreSaveDialog(app).catch(() => {})
+        await restoreCloseDialog(app).catch(() => {})
+        await app.close().catch(() => {})
+      }
+      run.cleanup()
+    }
+  })
+
   test('two F1 tabs keep content, dirty state, caret, scroll and history independent', async() => {
     test.setTimeout(90_000)
     const run = createAuditRun()

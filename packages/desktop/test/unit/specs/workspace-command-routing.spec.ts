@@ -24,6 +24,40 @@ const durable = (request: DocumentIoSaveRequest): Extract<DocumentSaveAck, { sta
 })
 
 describe('Workspace command routing', () => {
+  it('saves and closes a specified non-active dirty view without changing the active document', async() => {
+    const controller = createWorkspaceRuntime([
+      { documentId: 'active', fileKey: '/active.md', markdown: 'active' },
+      { documentId: 'target', fileKey: '/target.md', markdown: 'target' }
+    ])
+    const binding = await controller.bindPaneEditor('left', new MemoryAdapter())
+    const targetViewId = controller.getProjection().panes[0]!.tabs.find(
+      (tab) => tab.documentId === 'target'
+    )!.viewId
+    const activeViewId = controller.getProjection().panes[0]!.tabs.find(
+      (tab) => tab.documentId === 'active'
+    )!.viewId
+
+    expect((await controller.execute({ kind: 'activate-view', paneId: 'left', viewId: targetViewId })).status).toBe('applied')
+    const targetLease = binding.getLease()
+    if (!targetLease) throw new Error('missing target lease')
+    expect(binding.report(targetLease, { markdown: 'target dirty' }).status).toBe('applied')
+    expect((await controller.execute({ kind: 'activate-view', paneId: 'left', viewId: activeViewId })).status).toBe('applied')
+
+    const close = await controller.execute({ kind: 'close-view', viewId: targetViewId })
+    if (close.status !== 'needs-decision') throw new Error('expected close decision')
+    const save = await controller.execute({ kind: 'save', paneId: 'left', viewId: targetViewId })
+    if (save.status !== 'applied' || save.documentIoRequest?.kind !== 'save') {
+      throw new Error('missing target save request')
+    }
+    expect(save.documentIoRequest).toMatchObject({ documentId: 'target', markdown: 'target dirty' })
+    expect(controller.getProjection().panes[0]?.activeViewId).toBe(activeViewId)
+
+    expect((await controller.execute({ kind: 'apply-save-ack', ack: durable(save.documentIoRequest) })).status).toBe('applied')
+    expect((await controller.execute({ kind: 'commit-authorized', capability: close.capability })).status).toBe('applied')
+    expect(controller.getProjection().panes[0]?.tabs.map((tab) => tab.documentId)).toEqual(['active'])
+    expect(controller.getProjection().panes[0]?.activeViewId).toBe(activeViewId)
+  })
+
   it('sends save through the opaque T04b request and accepts only its current durable ACK', async () => {
     const controller = createWorkspaceRuntime([{ fileKey: '/note.md', markdown: 'one' }])
     const binding = await controller.bindPaneEditor('left', new MemoryAdapter())

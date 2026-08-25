@@ -405,12 +405,13 @@ export class WorkspaceController implements WorkspaceControllerContract {
         case 'close-focused-view':
           return await this.closeFocused(command.paneId ?? this.focusedPaneId)
         case 'save':
-          return this.requestSave(command.paneId ?? this.focusedPaneId)
+          return this.requestSave(command.paneId ?? this.focusedPaneId, command.viewId)
         case 'save-as':
           return this.requestSaveAs(
             command.paneId ?? this.focusedPaneId,
             command.fileKey,
-            command.title
+            command.title,
+            command.viewId
           )
         case 'rename':
           return this.requestRename(
@@ -720,15 +721,20 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.applied()
   }
 
-  private requestSave(paneId: PaneId): WorkspaceResult {
-    const document = this.documentForPane(paneId)
+  private requestSave(paneId: PaneId, viewId?: ViewId): WorkspaceResult {
+    const document = this.documentForPane(paneId, viewId)
     if (!document) return this.rejected('missing pane')
     if (!document.fileKey) return this.rejected('save requires a canonical file key')
     return this.requestDocumentIo('save', document, document.fileKey)
   }
 
-  private requestSaveAs(paneId: PaneId, fileKey: string, title?: string): WorkspaceResult {
-    const document = this.documentForPane(paneId)
+  private requestSaveAs(
+    paneId: PaneId,
+    fileKey: string,
+    title?: string,
+    viewId?: ViewId
+  ): WorkspaceResult {
+    const document = this.documentForPane(paneId, viewId)
     if (!document) return this.rejected('missing pane')
     return this.requestDocumentIo('save-as', document, fileKey, title)
   }
@@ -791,9 +797,13 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.applied()
   }
 
-  private documentForPane(paneId: PaneId): DocumentRecord | undefined {
+  private documentForPane(paneId: PaneId, viewId?: ViewId): DocumentRecord | undefined {
     const pane = this.panes.get(paneId)
-    return pane ? this.documents.get(this.view(pane.activeViewId).documentId) : undefined
+    if (!pane) return undefined
+    const targetViewId = viewId ?? pane.activeViewId
+    return pane.viewIds.includes(targetViewId)
+      ? this.documents.get(this.view(targetViewId).documentId)
+      : undefined
   }
 
   /** A FileKey belongs to at most one Document and one current request. */

@@ -157,19 +157,20 @@ export type WorkspaceCommand =
   | { readonly kind: 'move-view'; readonly viewId: ViewId; readonly targetPaneId: PaneId }
   | { readonly kind: 'close-view'; readonly viewId: ViewId }
   | { readonly kind: 'close-focused-view'; readonly paneId?: PaneId }
-  | { readonly kind: 'save'; readonly paneId?: PaneId }
+  | { readonly kind: 'save'; readonly paneId?: PaneId; readonly viewId?: ViewId }
   | {
-    readonly kind: 'save-as'
-    readonly paneId?: PaneId
-    readonly fileKey: FileKey
-    readonly title?: string
-  }
+      readonly kind: 'save-as'
+      readonly paneId?: PaneId
+      readonly viewId?: ViewId
+      readonly fileKey: FileKey
+      readonly title?: string
+    }
   | {
-    readonly kind: 'rename'
-    readonly paneId?: PaneId
-    readonly fileKey: FileKey
-    readonly title?: string
-  }
+      readonly kind: 'rename'
+      readonly paneId?: PaneId
+      readonly fileKey: FileKey
+      readonly title?: string
+    }
   | { readonly kind: 'set-encoding'; readonly paneId?: PaneId; readonly encoding: DocumentEncoding }
   | {
     readonly kind: 'set-line-ending'
