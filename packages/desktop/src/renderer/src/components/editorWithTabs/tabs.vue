@@ -79,7 +79,10 @@ const props = defineProps<{
   pane?: import('@shared/workspace').WorkspaceProjectionPane
   workspaceWidth?: number
 }>()
-const emit = defineEmits<{ 'preview-split': [candidate: 'left' | 'right' | null] }>()
+const emit = defineEmits<{
+  'preview-split': [candidate: 'left' | 'right' | null]
+  'tab-drag': [event: { phase: 'start' | 'move' | 'end' | 'cancel'; viewId?: string; x?: number; y?: number }]
+}>()
 
 const editorStore = useEditorStore()
 const { currentFile: legacyCurrentFile, tabs: legacyTabs } = storeToRefs(editorStore)
@@ -105,6 +108,8 @@ let autoScroller: AutoScroller | null = null
 let drake: dragula.Drake | null = null
 let edgeCandidate: 'left' | 'right' | null = null
 let draggedViewId: string | undefined
+let updateCandidate: ((event: PointerEvent) => void) | undefined
+let cancelDrag: ((event: KeyboardEvent) => void) | undefined
 
 // Computed properties
 
@@ -266,6 +271,7 @@ onMounted(() => {
     ignoreInputTextSelection: false
   }).on('drag', (el) => {
     draggedViewId = props.pane?.tabs.find((tab) => tab.documentId === el?.getAttribute('data-id'))?.viewId
+    emit('tab-drag', { phase: 'start', viewId: draggedViewId })
   }).on('drop', (el, _target, _source, sibling) => {
     // Current tab that was dropped and need to be reordered.
     const droppedId = el?.getAttribute('data-id')
@@ -294,6 +300,7 @@ onMounted(() => {
       }
       edgeCandidate = null
       emit('preview-split', null)
+      emit('tab-drag', { phase: 'end' })
       return
     }
     console.warn('Tab reorder is unavailable outside the workspace shell.', { droppedId, nextTabId, isLastTab })
@@ -308,7 +315,8 @@ onMounted(() => {
       return autoScroller!.down && drake?.dragging
     }
   })
-  const updateCandidate = (event: PointerEvent) => {
+  updateCandidate = (event: PointerEvent) => {
+    if (drake?.dragging) emit('tab-drag', { phase: 'move', viewId: draggedViewId, x: event.clientX, y: event.clientY })
     if (!drake?.dragging || !props.pane || (props.workspaceWidth ?? 0) < 720) return
     const rect = tabsEl.getBoundingClientRect()
     const x = event.clientX - rect.left
@@ -316,9 +324,10 @@ onMounted(() => {
     if (candidate !== edgeCandidate) { edgeCandidate = candidate; emit('preview-split', candidate) }
   }
   window.addEventListener('pointermove', updateCandidate)
-  window.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && edgeCandidate) { edgeCandidate = null; emit('preview-split', null); drake?.cancel(true) }
-  })
+  cancelDrag = (event: KeyboardEvent) => {
+    if (event.key === 'Escape' && drake?.dragging) { edgeCandidate = null; emit('preview-split', null); emit('tab-drag', { phase: 'cancel' }); drake.cancel(true) }
+  }
+  window.addEventListener('keydown', cancelDrag)
 })
 
 onBeforeUnmount(() => {
@@ -334,6 +343,8 @@ onBeforeUnmount(() => {
   if (drake) {
     drake.destroy()
   }
+  if (updateCandidate) window.removeEventListener('pointermove', updateCandidate)
+  if (cancelDrag) window.removeEventListener('keydown', cancelDrag)
 
   // Remove event listeners
   bus.off('TABS::close-this', closeTab)
