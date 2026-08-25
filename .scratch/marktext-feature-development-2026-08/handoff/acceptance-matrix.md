@@ -22,6 +22,31 @@ integration branch; `Passed` may be claimed only with all four.
 | A13 | cross-feature regression, default-off startup and two-source emergency recovery — T11 | `pnpm -C packages/desktop exec playwright test test/e2e/workspace-transfer.spec.ts test/e2e/workspace-details-composition.spec.ts test/e2e/workspace-startup-policy.spec.ts`; `pnpm -C packages/desktop typecheck`; `pnpm lint` | tabs/split/Move/Open/details plus CrashDraft kill recovery, corrupt-latest warning/disk-conflict copy, MoveRecovery, explicit-only file, clean no-restore, dirty-exit decision and retained legacy data | required |
 | A14 | clean Windows-build readiness evidence — T12 | `pnpm install --frozen-lockfile`; `pnpm build:win:x64` (clean Windows builder) | trial records default-off clean/explicit startup, no inert setting, clean/dirty exit outcomes, CrashDraft durable-failure fallback/conflict copy and Move recovery, legacy-data retention, display/scale/motion and defects; coordinator—not T12—requests Acceptance | readiness |
 
+## T03 integration evidence — 2026-08-25
+
+The A03 evidence below is recorded from the locally integrated commit
+`1aa17aac6da3ef23610067b7f264bb38a835da4e` on the Windows Electron/Node
+verification environment. It is not a blanket pass for later gates.
+
+| Evidence | Status | Command / environment / result |
+| --- | --- | --- |
+| A03 split Electron proof | Passed | `pnpm -C packages/desktop exec playwright test test/e2e/split-workspace.spec.ts` in Electron: 4/4 passed, including two independent pane compositions against one Controller, focused-pane command isolation, and the split geometry/focus cases |
+| Workspace runtime | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts` in Node/Vitest: 42/42 |
+| DocumentIO/coordinator/routing | Passed | Related Node/Vitest coordinator and routing checks: 17/17 |
+| Source/#781 regression | Passed | Related source-mode regression: 9/9 |
+| Tab history/caret/scroll | Passed | Related tab regression: 3/3 |
+| Auto-focus/body/blank/overflow | Passed | Related UI regression: 4/4 |
+| Typecheck/build/diff/lint | Passed | `vue-tsc`, desktop build, `git diff --check`, and changed-line lint passed on the verified implementation/integration evidence |
+
+The integration worktree had no `node_modules`, so repeated commands were
+unavailable there. Integration was fast-forward-only to the same already
+verified SHA, and `git diff --check` passed on the integration branch. This is
+an environment limitation with inherited evidence, not a code-test failure.
+The broad legacy tabs history test remains a record item because its
+`getMarkdownContent` helper forces repeated Source round-trips; authoritative
+no-perturbation Item 252 passed. Later gates remain Untested/Unfinished unless
+their own evidence is recorded.
+
 ## Status rules
 
 | Status | Rule |

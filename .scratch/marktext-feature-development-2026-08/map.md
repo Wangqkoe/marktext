@@ -67,4 +67,32 @@ emergency recovery. This map does not implement product changes.
 - Preferences redesign.
 - Normal workspace restore setting/UI and normal session migration until a future
   destination redraws this map.
+
+## T03 integration update — 2026-08-25
+
+- T03 is complete and locally integrated at `1aa17aac6da3ef23610067b7f264bb38a835da4e`.
+  Independent Standards and Spec reviews both passed; the T03 blocking findings
+  are cleared.
+- Closed blockers: canonical-left collapse adapter/Vue-key ownership, the
+  320px split-pane minimum, and missing A03 Electron evidence. The accepted
+  `set-split-ratio` Controller-owned seam is required by V1 WindowWorkspace;
+  the ticket's “唯一 typed exception” wording remains a minor record item.
+- Evidence inherited from the verified integration: workspace runtime 42/42;
+  DocumentIO/coordinator/routing 17/17; split Electron 4/4; source/#781 9/9;
+  tab history/caret/scroll 3/3; auto-focus/body/blank/overflow 4/4; plus
+  `vue-tsc`, desktop build, diff-check, and changed-line lint. The integration
+  worktree had no `node_modules`, so repeated commands were unavailable there;
+  integration was fast-forward-only to the same verified SHA and
+  `git diff --check` passed on the integration branch. This is an environment
+  limitation/evidence inheritance, not a code failure.
+- T03 does not complete V1. T10 is now unblocked as the next direct dependent;
+  T07 native detach, T08 menu work (including Split Right), T05/T06, and all
+  other tickets retain their actual frontier state.
+- Non-blocking known record items remain: broad legacy tabs history coverage
+  uses `getMarkdownContent` and can perturb history through repeated Source
+  round-trips (authoritative no-perturbation Item 252 passed); close-saved zero
+  tabs expectation conflicts with V1 all-empty clean New Tab; 39 existing
+  workspace-runtime formatting lint errors, 7 baseline warnings, and the
+  existing Vite dynamic-import warning; and the focused wrappers in `tabs.vue`
+  are a Duplicated Code judgment call. None requires T03 rework.
 - Release, publishing, or any remote push.

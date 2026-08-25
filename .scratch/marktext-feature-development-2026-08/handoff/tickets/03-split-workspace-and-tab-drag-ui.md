@@ -57,3 +57,36 @@ motion, per-pane active tabs and focus. Regression: existing tab reorder and
 overflow behavior. Commit only owned UI/tests; independent reviewer checks
 prototype constraints, no third-pane route, no second writable UI state, and
 the focused-pane command guard.
+
+## Completion and integration record — 2026-08-25
+
+- Integrated locally at `1aa17aac6da3ef23610067b7f264bb38a835da4e`.
+- Independent Standards Review: Passed. Independent Spec Review: Passed.
+- Closed blocking findings: canonical-left collapse adapter/Vue-key ownership;
+  split-pane minimum of 320px; and missing real Electron A03 evidence.
+- Verification evidence: workspace runtime 42/42; DocumentIO/coordinator/routing
+  17/17; split Electron 4/4; source/#781 9/9; tab history/caret/scroll 3/3;
+  auto-focus/body/blank/overflow 4/4; `vue-tsc`, desktop build, diff-check,
+  and changed-line lint passed. The integration worktree had no `node_modules`,
+  so repeated commands were unavailable there; because integration was
+  fast-forward-only to the same verified SHA, this is evidence inheritance and
+  an environment limitation, not a code failure. `git diff --check` passed on
+  the integration branch.
+- Required Controller seam: `set-split-ratio` is V1 WindowWorkspace's
+  Controller-owned seam. The “唯一 typed exception” wording is mildly
+  ambiguous and is retained as a non-blocking record item; no behavior changes.
+
+## Known record items (non-blocking)
+
+- The broad legacy tabs history test uses `getMarkdownContent` to force repeated
+  Source round-trips, which can perturb history; authoritative no-perturbation
+  Item 252 passed.
+- The close-saved zero-tab expectation conflicts with V1's all-empty clean New
+  Tab rule.
+- `workspace-runtime` has 39 existing formatting lint errors, there are 7
+  baseline warnings, and the existing Vite dynamic-import warning remains.
+- Focused wrappers in `tabs.vue` are a Duplicated Code judgment call.
+
+These are recorded for follow-up and do not block T03 or require rework. T10 is
+unblocked as the next direct dependent; T08 menu work (including Split Right),
+T07 native detach, T05/T06, and later gates remain in their own frontier states.
