@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type {
+  DocumentIoObservation,
+  DocumentIoPort,
+  DocumentIoRequest,
+  DocumentSaveAck,
   EditorBindingSnapshot,
   EditorLease,
   EditorReport,
@@ -90,6 +94,59 @@ class MemoryPaneSurface implements PaneEditorSurface {
   async flush(snapshot: EditorBindingSnapshot): Promise<EditorReport> {
     expect(snapshot).toBe(this.snapshots.at(-1))
     return this.reports.shift() ?? {}
+  }
+}
+
+class RecordingDocumentIoPort implements DocumentIoPort {
+  readonly requests: DocumentIoRequest[] = []
+  private observationListener: ((observation: DocumentIoObservation) => void) | undefined
+
+  async request(request: DocumentIoRequest): Promise<DocumentSaveAck> {
+    this.requests.push(request)
+    switch (request.kind) {
+      case 'bind':
+        return {
+          status: 'bound',
+          requestId: request.requestId,
+          documentId: request.documentId,
+          ownerFence: 'main-owner-fence'
+        }
+      case 'save':
+      case 'save-as':
+      case 'rename':
+        return {
+          status: 'durable-success',
+          requestId: request.requestId,
+          documentId: request.documentId,
+          documentRevision: request.documentRevision,
+          ownerFence: request.ownerFence
+        }
+      case 'sync':
+        return {
+          status: 'bound',
+          requestId: request.requestId,
+          documentId: request.documentId,
+          ownerFence: request.ownerFence
+        }
+      case 'unbind':
+        return {
+          status: 'unbound',
+          requestId: request.requestId,
+          documentId: request.documentId,
+          ownerFence: request.ownerFence
+        }
+    }
+  }
+
+  subscribe(listener: (observation: DocumentIoObservation) => void): () => void {
+    this.observationListener = listener
+    return () => {
+      this.observationListener = undefined
+    }
+  }
+
+  observe(observation: DocumentIoObservation): void {
+    this.observationListener?.(observation)
   }
 }
 
@@ -190,6 +247,36 @@ function tabAt(pane: WorkspaceProjectionPane, index: number): WorkspaceProjectio
 }
 
 describe('WorkspaceRuntime', () => {
+  it('routes the mounted production facade through one T04b port and releases its binding', async () => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'note', fileKey: '/note.md', markdown: 'one', title: 'note.md' }
+    ])
+    const port = new RecordingDocumentIoPort()
+    const composition = createPaneEditorComposition({
+      paneId: 'left',
+      controller: workspace,
+      documentIoPort: port
+    })
+    const surface = new MemoryPaneSurface()
+    await composition.mount(surface, { id: 'note', fileKey: '/note.md', markdown: 'one', title: 'note.md' })
+    await vi.waitFor(() => expect(port.requests.some((request) => request.kind === 'bind')).toBe(true))
+
+    expect((await composition.execute({ kind: 'save' })).status).toBe('applied')
+    expect(port.requests.some((request) => request.kind === 'save')).toBe(true)
+    expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(false)
+
+    port.observe({ documentId: 'note', ownerFence: 'main-owner-fence', kind: 'conflict' })
+    await vi.waitFor(() =>
+      expect(workspace.getProjection().warnings).toContainEqual(
+        expect.objectContaining({ kind: 'conflict', message: 'File changed on disk' })
+      )
+    )
+
+    await workspace.execute({ kind: 'close-focused-view' })
+    await vi.waitFor(() => expect(port.requests.some((request) => request.kind === 'unbind')).toBe(true))
+    composition.unmount(surface)
+  })
+
   it('binds independently created pane compositions to one controller', async () => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'left-doc', markdown: 'left', title: 'left' },

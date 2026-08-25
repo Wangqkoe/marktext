@@ -10,12 +10,15 @@ import type { WorkspaceController, WorkspaceProjection } from '@shared/workspace
 export class WorkspaceProjectionMirror {
   private projection: WorkspaceProjection
   private readonly unsubscribe: () => void
+  private readonly listeners = new Set<(projection: WorkspaceProjection) => void>()
   private disposed = false
 
   constructor(private readonly controller: WorkspaceController) {
     this.projection = controller.getProjection()
     this.unsubscribe = controller.subscribe((projection) => {
-      if (!this.disposed) this.projection = projection
+      if (this.disposed) return
+      this.projection = projection
+      for (const listener of this.listeners) listener(projection)
     })
   }
 
@@ -23,10 +26,18 @@ export class WorkspaceProjectionMirror {
     return this.projection
   }
 
+  subscribe(listener: (projection: WorkspaceProjection) => void): () => void {
+    if (this.disposed) return () => undefined
+    this.listeners.add(listener)
+    listener(this.projection)
+    return () => this.listeners.delete(listener)
+  }
+
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
     this.unsubscribe()
+    this.listeners.clear()
   }
 }
 

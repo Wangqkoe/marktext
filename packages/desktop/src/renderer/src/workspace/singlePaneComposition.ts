@@ -4,7 +4,10 @@ import type {
   PaneEditorBinding,
   PaneId,
   WorkspaceDocumentInput,
-  WorkspaceResult
+  WorkspaceResult,
+  WorkspaceCommand,
+  DocumentIoObservation,
+  DocumentIoPort
 } from '@shared/workspace'
 import type { IFileState } from '@shared/types/files'
 import { createWorkspaceRuntime, type WorkspaceController } from './controller'
@@ -15,6 +18,7 @@ import {
   type PaneEditorSurface
 } from './paneEditorAdapter'
 import type { EditorMode } from '@shared/workspace'
+import { createElectronDocumentIoPort, RendererDocumentIoAdapter } from './documentIO'
 
 export interface LegacyPaneSeed {
   readonly id: string
@@ -28,6 +32,8 @@ export interface PaneEditorCompositionOptions {
   readonly paneId: PaneId
   /** T03 supplies one controller to independently mounted pane compositions. */
   readonly controller?: WorkspaceController
+  /** T04b production transport; tests may inject a deterministic port. */
+  readonly documentIoPort?: DocumentIoPort
 }
 
 /**
@@ -46,11 +52,17 @@ export class PaneEditorComposition {
   private sourceHandoffHandler: ((report: EditorReport) => void) | undefined
   private readonly paneId: PaneId
   private mountGeneration = 0
+  private readonly documentIoPort: DocumentIoPort | undefined
+  private documentIo: RendererDocumentIoAdapter | undefined
+  private stopDocumentIoSync: (() => void) | undefined
+  private readonly pendingDocumentIoBinds = new Set<string>()
+  private readonly boundDocumentFences = new Map<string, string>()
 
   constructor(options: PaneEditorCompositionOptions) {
     this.paneId = options.paneId
     this.reporter = new PaneEditorLeaseReporter(options.paneId)
     this.runtime = options.controller
+    this.documentIoPort = options.documentIoPort
   }
 
   async mount(surface: PaneEditorSurface, seed: LegacyPaneSeed): Promise<void> {
@@ -82,6 +94,7 @@ export class PaneEditorComposition {
     }
     this.binding = binding
     this.reporter.attach(this.binding)
+    this.mountDocumentIo()
     if (seed.mode === 'source') {
       const lease = this.binding.getLease()
       if (lease) await this.binding.handoffMode(lease, 'source')
@@ -96,6 +109,12 @@ export class PaneEditorComposition {
     this.binding?.dispose()
     this.binding = undefined
     this.reporter.attach(undefined)
+    this.stopDocumentIoSync?.()
+    this.stopDocumentIoSync = undefined
+    this.pendingDocumentIoBinds.clear()
+    this.boundDocumentFences.clear()
+    void this.documentIo?.dispose()
+    this.documentIo = undefined
     this.surface = undefined
   }
 
@@ -167,6 +186,90 @@ export class PaneEditorComposition {
     return this.binding !== undefined && this.surface !== undefined
   }
 
+  private mountDocumentIo(): void {
+    if (!this.runtime || !this.binding || this.documentIo) return
+    const hasProductionPort = typeof window !== 'undefined' && !!window.electron?.ipcRenderer?.invoke
+    const port = this.documentIoPort ?? (hasProductionPort ? createElectronDocumentIoPort() : undefined)
+    if (!port) return
+    this.documentIo = new RendererDocumentIoAdapter(port, (observation) =>
+      this.routeDocumentIoObservation(observation)
+    )
+    this.stopDocumentIoSync = this.runtime.subscribe(() => this.syncDocumentIo())
+    this.syncDocumentIo()
+  }
+
+  private syncDocumentIo(): void {
+    const runtime = this.runtime
+    const binding = this.binding
+    const documentIo = this.documentIo
+    const lease = binding?.getLease()
+    const snapshot = lease ? binding?.getSnapshot(lease) : undefined
+    if (!runtime || !binding || !documentIo) return
+
+    const liveIds = new Set(runtime.getProjection().panes.flatMap((pane) => pane.tabs.map((tab) => tab.documentId)))
+    for (const [documentId, ownerFence] of this.boundDocumentFences) {
+      if (!liveIds.has(documentId)) {
+        this.boundDocumentFences.delete(documentId)
+        void documentIo.unbind(documentId, ownerFence)
+      }
+    }
+
+    if (!snapshot || !snapshot.document.fileKey) return
+
+    const document = snapshot.document
+    const existing = documentIo.getBinding(document.ownerFence)
+    if (existing) {
+      void documentIo.sync({
+        kind: 'sync',
+        requestId: `sync:${document.documentId}:${document.documentRevision}`,
+        documentId: document.documentId,
+        documentRevision: document.documentRevision,
+        ownerFence: document.ownerFence,
+        dirty: document.dirty
+      })
+      return
+    }
+    if (this.pendingDocumentIoBinds.has(document.documentId)) return
+    this.pendingDocumentIoBinds.add(document.documentId)
+    const previousOwnerFence = document.ownerFence
+    void documentIo
+      .bind({
+        kind: 'bind',
+        requestId: `bind:${document.documentId}:${document.documentRevision}`,
+        documentId: document.documentId,
+        documentRevision: document.documentRevision,
+        pathname: document.fileKey!,
+        dirty: document.dirty
+      })
+      .then(async(ack) => {
+        if (ack.status !== 'bound' || !this.isMounted()) return
+        const result = await runtime.execute({
+          kind: 'apply-document-io-bind',
+          documentId: document.documentId,
+          documentRevision: document.documentRevision,
+          previousOwnerFence,
+          ownerFence: ack.ownerFence
+        })
+        if (result.status === 'applied') this.boundDocumentFences.set(document.documentId, ack.ownerFence)
+      })
+      .finally(() => this.pendingDocumentIoBinds.delete(document.documentId))
+  }
+
+  private routeDocumentIoObservation(observation: DocumentIoObservation): void {
+    if (!this.runtime || !this.binding) return
+    if (observation.kind === 'conflict') {
+      void this.runtime.execute({
+        kind: 'replace-warnings',
+        warnings: [{ id: `document-io:${observation.documentId}`, kind: 'conflict', message: 'File changed on disk' }]
+      })
+    }
+    const lease = this.binding.getLease()
+    const snapshot = lease ? this.binding.getSnapshot(lease) : undefined
+    if (snapshot?.documentId === observation.documentId && lease) {
+      void this.binding.refresh(lease)
+    }
+  }
+
   getFocusedDocumentId(): string | undefined {
     const projection = this.runtime?.getProjection()
     const pane = projection?.panes.find(
@@ -200,6 +303,28 @@ export class PaneEditorComposition {
         }
       })
     }
+  }
+
+  getController(): WorkspaceController | undefined {
+    return this.runtime
+  }
+
+  /**
+   * Production command edge: the controller produces the only DocumentIO
+   * request, and the T04b adapter returns the only acknowledgement.  Legacy
+   * consumers receive just the final typed controller result.
+   */
+  async execute(command: WorkspaceCommand): Promise<WorkspaceResult> {
+    if (!this.runtime) return { status: 'rejected', reason: 'workspace is not mounted' }
+    const result = await this.runtime.execute(command)
+    if (result.status !== 'applied' || !result.documentIoRequest) return result
+    const request = result.documentIoRequest
+    if (request.kind === 'bind' || request.kind === 'sync' || request.kind === 'unbind') {
+      return { status: 'failed', reason: 'controller emitted a non-save document I/O request' }
+    }
+    const ack = await this.documentIo?.save(request)
+    if (!ack) return { status: 'failed', reason: 'document I/O adapter is not mounted' }
+    return this.runtime.execute({ kind: 'apply-save-ack', ack })
   }
 }
 

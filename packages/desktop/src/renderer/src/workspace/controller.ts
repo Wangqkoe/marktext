@@ -1,10 +1,7 @@
 import type {
   DocumentId,
   DocumentEncoding,
-  DocumentIoOperation,
-  DocumentIoRequest,
   DocumentLineEnding,
-  DocumentSaveAck,
   EditorBindingSnapshot,
   EditorLease,
   EditorMode,
@@ -26,11 +23,11 @@ import type {
   WorkspaceTocItem,
   WorkspaceWarning
 } from '@shared/workspace'
+import type { DocumentIoSaveRequest, DocumentSaveAck } from '@shared/workspace/documentIo'
 
 interface DocumentRecord {
   id: DocumentId
   fileKey?: string
-  observedDiskRevision?: string
   markdown: string
   dirty: boolean
   conflict: boolean
@@ -67,7 +64,9 @@ interface CapabilityRecord {
 }
 
 interface PendingDocumentIo {
-  readonly request: DocumentIoRequest
+  readonly request: DocumentIoSaveRequest
+  readonly targetFileKey: string
+  readonly targetTitle: string
 }
 
 interface BoundAdapter {
@@ -435,6 +434,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
           })
         case 'commit-authorized':
           return await this.commitAuthorized(command.capability)
+        case 'apply-document-io-bind':
+          return this.applyDocumentIoBind(command)
         case 'apply-save-ack':
           return this.applySaveAck(command.ack)
         case 'replace-warnings':
@@ -620,40 +621,66 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   /**
-   * T04 remains responsible for I/O and CAS. The controller consumes only a
-   * typed acknowledgement and makes stale identity/revision/file/fence ACKs
-   * inert before changing durable display state.
+   * The main process alone issues a live owner fence.  Assembly supplies the
+   * old local fence from the current binding snapshot, so a late bind cannot
+   * replace a newer document incarnation.
    */
+  private applyDocumentIoBind(command: Extract<WorkspaceCommand, { kind: 'apply-document-io-bind' }>): WorkspaceResult {
+    const document = this.documents.get(command.documentId)
+    if (
+      !document ||
+      document.revision !== command.documentRevision ||
+      document.ownerFence !== command.previousOwnerFence
+    ) {
+      return this.rejected('stale document I/O bind acknowledgement')
+    }
+    document.ownerFence = command.ownerFence
+    for (const bound of this.adapters.values()) {
+      if (bound.snapshot?.documentId === document.id) this.updateBoundSnapshot(bound)
+    }
+    this.commit()
+    return this.applied()
+  }
+
+  /** T04b owns CAS and landed revisions; renderer accepts only its current ACK once. */
   private applySaveAck(ack: DocumentSaveAck): WorkspaceResult {
+    if (ack.status === 'bound' || ack.status === 'unbound' || ack.ownerFence === undefined) {
+      return this.rejected('stale document save acknowledgement')
+    }
     const pending = this.pendingDocumentIo.get(ack.requestId)
     const document = this.documents.get(ack.documentId)
     if (
       !pending ||
-      pending.request.operation !== ack.operation ||
       pending.request.documentId !== ack.documentId ||
-      pending.request.documentRevision !== ack.documentRevision ||
-      pending.request.fileKey !== ack.fileKey ||
-      pending.request.observedDiskRevision !== ack.observedDiskRevision ||
       pending.request.ownerFence !== ack.ownerFence ||
       !document ||
-      document.revision !== ack.documentRevision ||
-      (ack.operation === 'save' && document.fileKey !== ack.fileKey) ||
       document.ownerFence !== ack.ownerFence
     ) {
       return this.rejected('stale document save acknowledgement')
     }
+    if (
+      ack.status === 'durable-success' &&
+      (pending.request.documentRevision !== ack.documentRevision ||
+        document.revision !== ack.documentRevision)
+    ) {
+      return this.rejected('stale document save acknowledgement')
+    }
     this.pendingDocumentIo.delete(ack.requestId)
-    if (ack.outcome !== 'durable-success') {
+    if (ack.status === 'conflict') {
+      document.conflict = true
+      this.commit()
+      return this.failed('document I/O reported a conflict')
+    }
+    if (ack.status !== 'durable-success') {
       return this.failed('document I/O did not durably complete')
     }
-    if (!this.isFileKeyAvailable(ack.fileKey, document.id, ack.requestId)) {
+    if (!this.isFileKeyAvailable(pending.targetFileKey, document.id, ack.requestId)) {
       return this.rejected('document file key is no longer available')
     }
-    if (ack.operation !== 'save') {
-      document.fileKey = ack.fileKey
-      document.title = pending.request.title
+    if (pending.request.kind !== 'save') {
+      document.fileKey = pending.targetFileKey
+      document.title = pending.targetTitle
     }
-    document.observedDiskRevision = ack.landedDiskRevision
     document.dirty = false
     document.conflict = false
     this.commit()
@@ -680,7 +707,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   private requestDocumentIo(
-    operation: DocumentIoOperation,
+    operation: DocumentIoSaveRequest['kind'],
     document: DocumentRecord,
     fileKey: string,
     title = document.title
@@ -692,22 +719,25 @@ export class WorkspaceController implements WorkspaceControllerContract {
     for (const [requestId, pending] of this.pendingDocumentIo) {
       if (pending.request.documentId === document.id) this.pendingDocumentIo.delete(requestId)
     }
-    const request: DocumentIoRequest = freeze({
+    const request: DocumentIoSaveRequest = freeze({
       requestId: `document-io-${this.nextDocumentIoRequest++}`,
-      operation,
+      kind: operation,
       documentId: document.id,
       documentRevision: document.revision,
-      fileKey,
-      observedDiskRevision: document.observedDiskRevision ?? null,
       ownerFence: document.ownerFence,
       markdown: document.markdown,
-      title,
-      encoding: clone(document.encoding),
-      lineEnding: document.lineEnding,
-      adjustLineEndingOnSave: document.adjustLineEndingOnSave,
-      trailingNewline: document.trailingNewline
+      options: {
+        encoding: clone(document.encoding),
+        lineEnding: document.lineEnding,
+        adjustLineEndingOnSave: document.adjustLineEndingOnSave
+      },
+      ...(operation === 'save' ? {} : { targetPathname: fileKey })
     })
-    this.pendingDocumentIo.set(request.requestId, { request })
+    this.pendingDocumentIo.set(request.requestId, {
+      request,
+      targetFileKey: fileKey,
+      targetTitle: title
+    })
     return {
       status: 'applied',
       workspaceRevision: this.workspaceRevision,
@@ -746,7 +776,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       ([requestId, pending]) =>
         requestId !== exceptRequestId &&
         pending.request.documentId !== documentId &&
-        pending.request.fileKey === fileKey
+        pending.targetFileKey === fileKey
     )
   }
 
@@ -924,9 +954,6 @@ export class WorkspaceController implements WorkspaceControllerContract {
       document: {
         documentId: document.id,
         ...(document.fileKey ? { fileKey: document.fileKey } : {}),
-        ...(document.observedDiskRevision
-          ? { observedDiskRevision: document.observedDiskRevision }
-          : {}),
         ownerFence: document.ownerFence,
         markdown: document.markdown,
         dirty: document.dirty,
@@ -951,7 +978,6 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return {
       id,
       ...(input.fileKey ? { fileKey: input.fileKey } : {}),
-      ...(input.observedDiskRevision ? { observedDiskRevision: input.observedDiskRevision } : {}),
       markdown: input.markdown ?? '',
       dirty: false,
       conflict: input.conflict ?? false,

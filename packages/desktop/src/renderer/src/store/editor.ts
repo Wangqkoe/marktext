@@ -15,7 +15,13 @@ import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
 import { useMainStore } from '.'
-import { legacyPaneFallback as singlePaneWorkspace } from '@/workspace'
+import {
+  createWorkspaceProjectionMirror,
+  legacyPaneFallback as singlePaneWorkspace,
+  type WorkspaceController,
+  type WorkspaceProjectionMirror
+} from '@/workspace'
+import type { WorkspaceProjection } from '@shared/workspace'
 import { t } from '../i18n'
 import { debouncedSendBufferedState, sendBufferedState } from './bufferedState'
 import type {
@@ -134,9 +140,15 @@ export interface EditorState {
   tabIdToIndex: Record<string, number>
   listToc: TocItem[]
   toc: TocTreeNode[]
+  workspaceProjection: WorkspaceProjection | null
 }
 
 const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+interface WorkspaceFacadeBinding {
+  readonly mirror: WorkspaceProjectionMirror
+  readonly unsubscribe: () => void
+}
+const workspaceFacadeBindings = new WeakMap<object, WorkspaceFacadeBinding>()
 
 export const useEditorStore = defineStore('editor', {
   state: (): EditorState => ({
@@ -144,10 +156,54 @@ export const useEditorStore = defineStore('editor', {
     tabs: [],
     tabIdToIndex: {},
     listToc: [], // Used for equal check and for searching for the correct github-slug to jump to
-    toc: []
+    toc: [],
+    workspaceProjection: null
   }),
 
   actions: {
+    ATTACH_WORKSPACE_FACADE(controller: WorkspaceController): void {
+      this.DETACH_WORKSPACE_FACADE()
+      const mirror = createWorkspaceProjectionMirror(controller)
+      const unsubscribe = mirror.subscribe((projection) => this.APPLY_WORKSPACE_PROJECTION(projection))
+      workspaceFacadeBindings.set(this, { mirror, unsubscribe })
+    },
+
+    DETACH_WORKSPACE_FACADE(): void {
+      const binding = workspaceFacadeBindings.get(this)
+      if (!binding) return
+      binding.unsubscribe()
+      binding.mirror.dispose()
+      workspaceFacadeBindings.delete(this)
+      this.workspaceProjection = null
+    },
+
+    /** Controller projection is the only writer of these compatibility fields. */
+    APPLY_WORKSPACE_PROJECTION(projection: WorkspaceProjection): void {
+      this.workspaceProjection = projection
+      const pane = projection.panes.find((candidate) => candidate.paneId === projection.focusedPaneId)
+      if (!pane) return
+      const existing = new Map(this.tabs.map((tab) => [tab.id, tab]))
+      this.tabs = pane.tabs.map((tab) => {
+        const previous = existing.get(tab.documentId)
+        return {
+          ...(previous ?? getBlankFileState([], 'utf8', 'lf')),
+          id: tab.documentId,
+          filename: tab.title,
+          pathname: tab.fileKey ?? '',
+          isSaved: !tab.dirty
+        } as IFileState
+      })
+      this.updateTabIdToIndex()
+      const activeDocumentId = pane.tabs.find((tab) => tab.viewId === pane.activeViewId)?.documentId
+      this.currentFile = this.tabs.find((tab) => tab.id === activeDocumentId) ?? null
+      this.listToc = projection.toc.map((item) => ({
+        slug: item.id,
+        githubSlug: item.id,
+        content: item.title,
+        lvl: item.level
+      }))
+      this.toc = listToTree<TocItem>(this.listToc)
+    },
     updateTabIdToIndex(): void {
       this.tabIdToIndex = this.tabs.reduce<Record<string, number>>((map, tab, index) => {
         map[tab.id] = index
@@ -196,7 +252,8 @@ export const useEditorStore = defineStore('editor', {
     updateScrollPosition(id: string, scrollTop: number): void {
       const scope = singlePaneWorkspace().getScope()
       if (scope) {
-        if (scope.documentId !== id || scope.report({ scrollTop }).status !== 'applied') return
+        if (scope.documentId === id) scope.report({ scrollTop })
+        return
       }
       if (!(id in this.tabIdToIndex)) {
         console.warn('updateScrollPosition: Cannot find tab index for id:', id)
@@ -461,6 +518,10 @@ export const useEditorStore = defineStore('editor', {
     FILE_SAVE(): void {
       if (!this.currentFile) return
       this.flushActiveEditor()
+      if (singlePaneWorkspace().isMounted()) {
+        void singlePaneWorkspace().execute({ kind: 'save' })
+        return
+      }
       const projectStore = useProjectStore()
       const { id, filename, pathname, markdown } = this.currentFile
       const options = getOptionsFromState(this.currentFile)
@@ -491,6 +552,13 @@ export const useEditorStore = defineStore('editor', {
     FILE_SAVE_AS(): void {
       if (!this.currentFile) return
       this.flushActiveEditor()
+      if (singlePaneWorkspace().isMounted()) {
+        // T04b deliberately accepts an already selected targetPathname. Its
+        // port has no typed chooser request, so routing this through the old
+        // save-as IPC would create a second persistence state machine.
+        console.warn('Save As requires a typed target-path selection before it can run in WorkspaceController.')
+        return
+      }
       const projectStore = useProjectStore()
       const { id, filename, pathname, markdown } = this.currentFile
       const options = getOptionsFromState(this.currentFile)
@@ -709,6 +777,10 @@ export const useEditorStore = defineStore('editor', {
     RESPONSE_FOR_RENAME(): void {
       if (!this.currentFile) return
       this.flushActiveEditor()
+      if (singlePaneWorkspace().isMounted() && !this.currentFile.pathname) {
+        console.warn('Rename of an untitled document requires a typed target-path selection.')
+        return
+      }
       const projectStore = useProjectStore()
       const { id, filename, pathname, markdown } = this.currentFile
       const options = getOptionsFromState(this.currentFile)
@@ -736,6 +808,14 @@ export const useEditorStore = defineStore('editor', {
       const { id, pathname, filename } = this.currentFile
       if (typeof filename === 'string' && filename !== newFilename) {
         const newPathname = window.path.join(window.path.dirname(pathname), newFilename)
+        if (singlePaneWorkspace().isMounted()) {
+          void singlePaneWorkspace().execute({
+            kind: 'rename',
+            fileKey: newPathname,
+            title: newFilename
+          })
+          return
+        }
         window.electron.ipcRenderer.send('mt::rename', {
           id,
           pathname,
@@ -766,6 +846,13 @@ export const useEditorStore = defineStore('editor', {
     },
 
     UPDATE_CURRENT_FILE(currentFile: IFileState): void {
+      const workspace = singlePaneWorkspace()
+      if (workspace.isMounted()) {
+        workspace.activateLegacyTab(currentFile).catch((error) => {
+          console.error('Failed to activate workspace pane tab:', error)
+        })
+        return
+      }
       const oldCurrentFile = this.currentFile
       let didUpdateCurrentFile = false
       if (oldCurrentFile == null || oldCurrentFile.id !== currentFile.id) {
@@ -778,7 +865,6 @@ export const useEditorStore = defineStore('editor', {
         }
         window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
         this.currentFile = currentFile
-        const workspace = singlePaneWorkspace()
         workspace.activateLegacyTab(currentFile).catch((error) => {
           console.error('Failed to activate legacy pane tab:', error)
         })
@@ -907,6 +993,15 @@ export const useEditorStore = defineStore('editor', {
     CLOSE_TAB(file: IFileState | null = null): void {
       const target = file ?? this.currentFile
       if (target === null) return
+      if (singlePaneWorkspace().isMounted()) {
+        const pane = this.workspaceProjection?.panes.find(
+          (candidate) => candidate.paneId === this.workspaceProjection?.focusedPaneId
+        )
+        const view = pane?.tabs.find((tab) => tab.documentId === target.id)
+        if (!view) return
+        void singlePaneWorkspace().execute({ kind: 'close-view', viewId: view.viewId })
+        return
+      }
 
       if (target.isSaved) {
         this.FORCE_CLOSE_TAB(target)
@@ -1197,6 +1292,10 @@ export const useEditorStore = defineStore('editor', {
       if (selected == null) {
         selected = true
       }
+      if (singlePaneWorkspace().isMounted()) {
+        void singlePaneWorkspace().execute({ kind: 'new-tab' })
+        return
+      }
 
       this.SHOW_TAB_VIEW(false)
 
@@ -1356,7 +1455,11 @@ export const useEditorStore = defineStore('editor', {
       blocks
     }: ContentChangePayload): void {
       const scope = singlePaneWorkspace().getScope()
-      if (scope && scope.documentId !== id) return
+      if (scope) {
+        if (scope.documentId !== id) return
+        scope.report({ markdown })
+        return
+      }
       const preferencesStore = usePreferencesStore()
       const { autoSave } = preferencesStore
       if (!id) {
@@ -1375,7 +1478,6 @@ export const useEditorStore = defineStore('editor', {
       const { filename, pathname, markdown: oldMarkdown, trimTrailingNewline } = tab
 
       markdown = adjustTrailingNewlines(markdown, trimTrailingNewline)
-      if (scope && scope.report({ markdown }).status !== 'applied') return
       tab.markdown = markdown
 
       if (oldMarkdown.length === 0 && markdown.length === 1 && markdown[0] === '\n') {
@@ -1491,6 +1593,7 @@ export const useEditorStore = defineStore('editor', {
     // and the save/dirty bookkeeping LISTEN_FOR_CONTENT_CHANGE performs.
     PERSIST_CURSOR(id: string, cursor: unknown): void {
       if (!id || !cursor) return
+      if (singlePaneWorkspace().isMounted()) return
       const index = this.tabIdToIndex[id]
       if (index == null) return
       const tab = this.tabs[index]
@@ -1563,6 +1666,12 @@ export const useEditorStore = defineStore('editor', {
     },
 
     SET_LINE_ENDING(lineEnding: LineEnding | string): void {
+      if (singlePaneWorkspace().isMounted()) {
+        if (lineEnding === 'lf' || lineEnding === 'crlf') {
+          void singlePaneWorkspace().execute({ kind: 'set-line-ending', lineEnding })
+        }
+        return
+      }
       if (!this.currentFile) return
       const { lineEnding: oldLineEnding } = this.currentFile
       if (lineEnding !== oldLineEnding) {
@@ -1585,6 +1694,15 @@ export const useEditorStore = defineStore('editor', {
 
     LISTEN_FOR_SET_ENCODING(): void {
       bus.on('mt::set-file-encoding', (encodingName) => {
+        if (singlePaneWorkspace().isMounted()) {
+          if (typeof encodingName === 'string') {
+            void singlePaneWorkspace().execute({
+              kind: 'set-encoding',
+              encoding: { encoding: encodingName, isBom: false }
+            })
+          }
+          return
+        }
         if (!this.currentFile) return
         const { encoding } = this.currentFile.encoding
         if (encoding !== encodingName) {
@@ -1598,6 +1716,18 @@ export const useEditorStore = defineStore('editor', {
 
     LISTEN_FOR_SET_FINAL_NEWLINE(): void {
       bus.on('mt::set-final-newline', (value) => {
+        if (singlePaneWorkspace().isMounted()) {
+          const trailingNewline =
+            value === 0
+              ? 'trim'
+              : value === 1
+                ? 'ensure-one'
+                : value === 2
+                  ? 'preserve'
+                  : 'disabled'
+          void singlePaneWorkspace().execute({ kind: 'set-trailing-newline', trailingNewline })
+          return
+        }
         if (!this.currentFile) return
         const { trimTrailingNewline } = this.currentFile
         if (trimTrailingNewline !== value) {

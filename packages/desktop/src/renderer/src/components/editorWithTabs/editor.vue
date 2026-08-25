@@ -1911,6 +1911,10 @@ onMounted(() => {
         mode: sourceCode.value ? 'source' : 'wysiwyg',
         ...(legacyTab.pathname ? { fileKey: legacyTab.pathname } : {})
       })
+      .then(() => {
+        const controller = singlePaneWorkspace().getController()
+        if (controller && singlePaneWorkspace().isMounted()) editorStore.ATTACH_WORKSPACE_FACADE(controller)
+      })
       .catch((error) => {
         console.error('Failed to bind the pane editor:', error)
       })
@@ -2186,6 +2190,7 @@ onBeforeUnmount(() => {
 
   if (editor.value) {
     if (paneSurface) singlePaneWorkspace().unmount(paneSurface)
+    editorStore.DETACH_WORKSPACE_FACADE()
     singlePaneWorkspace().setSourceHandoffHandler(undefined)
     if (jsonChangeListener) editor.value.off('json-change', jsonChangeListener)
     if (selectionChangeListener) editor.value.off('selection-change', selectionChangeListener)

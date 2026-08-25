@@ -4,6 +4,7 @@ import type {
   DocumentIoPort,
   DocumentIoRequest,
   DocumentIoSaveRequest,
+  DocumentIoSyncRequest,
   DocumentSaveAck
 } from '@shared/workspace/documentIo'
 
@@ -91,6 +92,53 @@ export class RendererDocumentIoAdapter {
       })
     }
     return ack
+  }
+
+  async sync(request: DocumentIoSyncRequest): Promise<DocumentSaveAck> {
+    const binding = this.bindings.get(request.ownerFence)
+    if (
+      this.disposed ||
+      !binding ||
+      binding.documentId !== request.documentId ||
+      binding.ownerFence !== request.ownerFence
+    ) {
+      return this.rejected(request, 'stale renderer owner fence')
+    }
+    const ack = await this.port.request(request)
+    if (
+      ack.status === 'bound' &&
+      ack.requestId === request.requestId &&
+      ack.documentId === request.documentId &&
+      ack.ownerFence === request.ownerFence &&
+      this.bindings.get(binding.ownerFence) === binding
+    ) {
+      this.bindings.set(binding.ownerFence, {
+        ...binding,
+        documentRevision: request.documentRevision,
+        dirty: request.dirty
+      })
+    }
+    return ack
+  }
+
+  async unbind(documentId: string, ownerFence: string): Promise<DocumentSaveAck> {
+    const binding = this.bindings.get(ownerFence)
+    if (!binding || binding.documentId !== documentId) {
+      return {
+        status: 'rejected',
+        requestId: `unbind:stale:${ownerFence}`,
+        documentId,
+        ownerFence,
+        reason: 'stale renderer owner fence'
+      }
+    }
+    this.bindings.delete(ownerFence)
+    return this.port.request({
+      kind: 'unbind',
+      requestId: `unbind:${ownerFence}`,
+      documentId,
+      ownerFence
+    })
   }
 
   getBinding(ownerFence: string): RendererDocumentBinding | undefined {

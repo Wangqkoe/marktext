@@ -4,6 +4,8 @@
  * normal-session snapshot, codec, or load boundary.
  */
 
+import type { DocumentIoRequest, DocumentSaveAck } from './documentIo'
+
 export type PaneId = 'left' | 'right'
 export type EditorMode = 'wysiwyg' | 'source'
 export type DocumentId = string
@@ -83,52 +85,6 @@ export interface WorkspaceDocumentInput {
   readonly adjustLineEndingOnSave?: boolean
   readonly trailingNewline?: TrailingNewlinePolicy
 }
-
-export type DocumentIoOperation = 'save' | 'save-as' | 'rename'
-
-/** A renderer-issued request to T04's I/O owner; it is not a save implementation. */
-export interface DocumentIoRequest {
-  readonly requestId: string
-  readonly operation: DocumentIoOperation
-  readonly documentId: DocumentId
-  readonly documentRevision: number
-  readonly fileKey: FileKey
-  /** The exact T04 CAS baseline, including an untitled/no-disk baseline. */
-  readonly observedDiskRevision: DiskRevision | null
-  readonly ownerFence: string
-  readonly markdown: string
-  readonly title: string
-  readonly encoding: DocumentEncoding
-  readonly lineEnding: DocumentLineEnding
-  readonly adjustLineEndingOnSave: boolean
-  readonly trailingNewline: TrailingNewlinePolicy
-}
-
-/** Typed renderer acknowledgement consumed from T04's DocumentIO/CAS port. */
-interface DocumentIoAckIdentity {
-  readonly requestId: string
-  readonly operation: DocumentIoOperation
-  readonly documentId: DocumentId
-  readonly documentRevision: number
-  readonly fileKey: FileKey
-  /** Must echo the request's CAS baseline exactly. */
-  readonly observedDiskRevision: DiskRevision | null
-  /** Controller-owned document/observation handoff fence; never projected. */
-  readonly ownerFence: string
-}
-
-export interface DurableDocumentSaveAck extends DocumentIoAckIdentity {
-  readonly outcome: 'durable-success'
-  /** Hash of the bytes durably landed by T04. */
-  readonly landedDiskRevision: DiskRevision
-}
-
-/** A failed/non-durable response consumes its request but cannot mutate document truth. */
-export interface NonDurableDocumentSaveAck extends DocumentIoAckIdentity {
-  readonly outcome: 'failed' | 'not-durable'
-}
-
-export type DocumentSaveAck = DurableDocumentSaveAck | NonDurableDocumentSaveAck
 
 export interface StartupTarget {
   readonly fileKey: FileKey
@@ -231,6 +187,14 @@ export type WorkspaceCommand =
     readonly trailingNewline: TrailingNewlinePolicy
   }
   | { readonly kind: 'commit-authorized'; readonly capability: WorkspaceCapability }
+  /** Assembly-only adoption of a T04b authenticated binding fence. */
+  | {
+    readonly kind: 'apply-document-io-bind'
+    readonly documentId: DocumentId
+    readonly documentRevision: number
+    readonly previousOwnerFence: string
+    readonly ownerFence: string
+  }
   | { readonly kind: 'apply-save-ack'; readonly ack: DocumentSaveAck }
   /** Assembly-only JSON warning update for conflict/recovery presentation. */
   | { readonly kind: 'replace-warnings'; readonly warnings: readonly WorkspaceWarning[] }
