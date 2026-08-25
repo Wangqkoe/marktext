@@ -1055,8 +1055,7 @@ describe('WorkspaceRuntime', () => {
       const rightBinding = await workspace.bindPaneEditor('right', rightEditor)
       const sourcePane = direction === 'right-to-left' ? 'right' : 'left'
       const targetPane = direction === 'right-to-left' ? 'left' : 'right'
-      const survivorBinding = direction === 'right-to-left' ? leftBinding : rightBinding
-      const oldLease = currentLease(survivorBinding)
+      const oldLease = currentLease(leftBinding)
       const moved = tabAt(paneById(workspace.getProjection(), sourcePane), 0)
       expect(
         (
@@ -1068,38 +1067,82 @@ describe('WorkspaceRuntime', () => {
         ).status
       ).toBe('applied')
       expect(workspace.getProjection().panes).toHaveLength(1)
-      expect(survivorBinding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
-      const nextLease = currentLease(survivorBinding)
+      expect(leftBinding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
+      const nextLease = currentLease(leftBinding)
       expect(nextLease.paneId).toBe('left')
-      expect(survivorBinding.getSnapshot(nextLease)?.paneId).toBe('left')
-      expect((direction === 'right-to-left' ? leftEditor : rightEditor).active?.paneId).toBe('left')
+      expect(leftBinding.getSnapshot(nextLease)?.paneId).toBe('left')
+      expect(leftEditor.active?.paneId).toBe('left')
+      expect(rightBinding.getLease()).toBeUndefined()
     }
+  })
+
+  it('keeps the left adapter canonical when the left pane collapses into the right', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'left-doc', fileKey: '/left.md', markdown: 'left', title: 'left' },
+      { documentId: 'right-doc', fileKey: '/right.md', markdown: 'right', title: 'right' }
+    ])
+    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    const port = new RecordingDocumentIoPort()
+    const left = createPaneEditorComposition({ paneId: 'left', controller: workspace, documentIoPort: port })
+    const right = createPaneEditorComposition({ paneId: 'right', controller: workspace, documentIoPort: port })
+    const leftSurface = new MemoryPaneSurface()
+    const rightSurface = new MemoryPaneSurface()
+    await left.mount(leftSurface, { id: 'left-doc', fileKey: '/left.md', markdown: 'left', title: 'left' })
+    await right.mount(rightSurface, { id: 'right-doc', fileKey: '/right.md', markdown: 'right', title: 'right' })
+    await vi.waitFor(() => expect(port.ownerFences.size).toBe(2))
+    const oldRightScope = expectDefined(rightSurface.scopes.at(-1))
+    const oldRightFence = expectDefined(port.ownerFences.get('right-doc'))
+    const moving = tabAt(paneById(workspace.getProjection(), 'left'), 0)
+
+    expect(
+      (await workspace.execute({ kind: 'move-view', viewId: moving.viewId, targetPaneId: 'right' }))
+        .status
+    ).toBe('applied')
+    await vi.waitFor(() => expect(port.requests).toContainEqual(expect.objectContaining({
+      kind: 'unbind', documentId: 'right-doc', ownerFence: oldRightFence
+    })))
+    expect(workspace.getProjection().panes).toHaveLength(1)
+    expect(oldRightScope.report({ markdown: 'stale right surface' }).status).toBe('rejected')
+
+    const leftScope = expectDefined(leftSurface.scopes.at(-1))
+    expect(leftScope.paneId).toBe('left')
+    expect(leftScope.viewId).toBe(moving.viewId)
+    expect(leftScope.report({ markdown: 'left surface remains live' }).status).toBe('applied')
+    expect((await left.execute({ kind: 'save' })).status).toBe('applied')
+    expect(await right.execute({ kind: 'save' })).not.toMatchObject({ status: 'applied' })
+    const warningsBefore = workspace.getProjection().warnings
+    port.observe({ documentId: 'right-doc', ownerFence: oldRightFence, kind: 'conflict' })
+    expect(workspace.getProjection().warnings).toEqual(warningsBefore)
+    expect(workspace.getFacadeSnapshot().documents.find((document) => document.documentId === moving.documentId)?.markdown)
+      .toBe('left surface remains live')
+    left.unmount(leftSurface)
+    right.unmount(rightSurface)
   })
 
   it('keeps controller and adapter aligned when a collapse refresh fails', async () => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
     await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
-    await workspace.bindPaneEditor('left', new MemoryEditor())
-    const rightEditor = new MemoryEditor()
-    const rightBinding = await workspace.bindPaneEditor('right', rightEditor)
+    const leftEditor = new MemoryEditor()
+    const leftBinding = await workspace.bindPaneEditor('left', leftEditor)
+    await workspace.bindPaneEditor('right', new MemoryEditor())
     const revision = workspace.getProjection().workspaceRevision
     const moved = tabAt(paneAt(workspace.getProjection(), 0), 0)
-    rightEditor.reports.push({
+    leftEditor.reports.push({
       markdown: 'collapse rollback draft',
       toc: [{ id: 'rollback', title: 'Rollback', level: 1 }],
       status: { wordCount: 6 }
     })
-    rightEditor.failAfterRefresh = true
+    leftEditor.failAfterRefresh = true
     expect(
       (await workspace.execute({ kind: 'move-view', viewId: moved.viewId, targetPaneId: 'right' }))
         .status
     ).toBe('failed')
     expect(workspace.getProjection().workspaceRevision).toBeGreaterThan(revision)
     expect(workspace.getProjection().panes).toHaveLength(2)
-    expect(rightEditor.active?.paneId).toBe('right')
-    expect(rightEditor.active?.document.markdown).toBe('collapse rollback draft')
-    expect(rightEditor.active?.toc[0]?.id).toBe('rollback')
-    expect(rightBinding.getLease()).toBeUndefined()
+    expect(leftEditor.active?.paneId).toBe('left')
+    expect(leftEditor.active?.document.markdown).toBe('collapse rollback draft')
+    expect(leftEditor.active?.toc[0]?.id).toBe('rollback')
+    expect(leftBinding.getLease()).toBeUndefined()
   })
 
   it('keeps the survivor binding usable after closing the last tab in either pane', async () => {
@@ -1108,15 +1151,15 @@ describe('WorkspaceRuntime', () => {
       await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
       const leftBinding = await workspace.bindPaneEditor('left', new MemoryEditor())
       const rightBinding = await workspace.bindPaneEditor('right', new MemoryEditor())
-      const survivorBinding = closingPane === 'left' ? rightBinding : leftBinding
-      const oldLease = currentLease(survivorBinding)
+      const oldLease = currentLease(leftBinding)
       const closingView = tabAt(paneById(workspace.getProjection(), closingPane), 0)
       expect(
         (await workspace.execute({ kind: 'close-view', viewId: closingView.viewId })).status
       ).toBe('applied')
       expect(workspace.getProjection().panes).toHaveLength(1)
-      expect(survivorBinding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
-      expect(currentLease(survivorBinding).paneId).toBe('left')
+      expect(leftBinding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
+      expect(currentLease(leftBinding).paneId).toBe('left')
+      expect(rightBinding.getLease()).toBeUndefined()
     }
   })
 

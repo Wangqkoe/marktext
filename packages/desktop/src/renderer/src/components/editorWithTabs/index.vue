@@ -193,6 +193,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .editor-with-tabs { position: relative; height: 100%; min-width: 0; flex: 1; display: flex; overflow: hidden; background: var(--editorBgColor); }
+.editor-with-tabs.split > .workspace-pane { min-width: 320px; }
 .editor-with-tabs.split > .workspace-pane:first-child { flex-basis: calc(v-bind(ratio) * 100%); }
 .editor-with-tabs.preview::before { content: ''; display: block; flex: 0 0 50%; box-sizing: border-box; border: 1px solid var(--appShellAccent); background: color-mix(in srgb, var(--appShellAccent) 12%, var(--editorBgColor)); transition: flex-basis 180ms ease; }
 .editor-with-tabs.preview > .workspace-pane { flex: 0 0 50%; transition: flex-basis 180ms ease; }

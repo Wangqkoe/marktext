@@ -915,12 +915,19 @@ export class WorkspaceController implements WorkspaceControllerContract {
     activeViewId: ViewId
   ): Promise<void> {
     const survivor = this.otherPane(emptyPaneId)
-    const adapter = this.adapters.get(survivor.id)
-    if (adapter) {
+    // Vue keeps the component keyed as `left` when a two-pane projection
+    // collapses. Keep that mounted composition as the controller binding too;
+    // remapping the surviving right adapter would let its unmount dispose the
+    // adapter that the new left projection still names.
+    const adapter = this.adapters.get('left') ?? this.adapters.get(survivor.id)
+    const adapterPaneId = this.adapters.get('left') === adapter ? 'left' : survivor.id
+    if (this.adapters.has(survivor.id)) {
       await this.flushPane(survivor.id)
+    }
+    if (adapter) {
       const view = this.view(activeViewId)
       const document = this.requireDocument(view.documentId)
-      await this.refreshAdapter(survivor.id, this.snapshotForRecord('left', view, document))
+      await this.refreshAdapter(adapterPaneId, this.snapshotForRecord('left', view, document))
     }
     for (const bound of this.adapters.values()) {
       if (bound !== adapter) this.invalidate(bound)
