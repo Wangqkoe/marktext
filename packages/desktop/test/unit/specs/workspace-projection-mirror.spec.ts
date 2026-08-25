@@ -19,12 +19,14 @@ describe('WorkspaceProjectionMirror', () => {
     const initial = mirror.getSnapshot()
 
     expect(Object.isFrozen(initial)).toBe(true)
-    expect(JSON.stringify(initial)).not.toContain('private markdown')
-    expect(JSON.stringify(initial)).not.toContain('portableHistory')
+    expect(initial.documents[0]?.markdown).toBe('private markdown')
+    expect(JSON.stringify(initial)).toContain('portableHistory')
     expect(JSON.stringify(initial)).not.toContain('lease')
+    expect(JSON.stringify(initial)).not.toContain('ownerFence')
+    expect(JSON.stringify(initial)).not.toContain('DiskRevision')
 
     await controller.execute({ kind: 'new-tab' })
-    expect(mirror.getSnapshot().panes[0]?.tabs).toHaveLength(2)
+    expect(mirror.getSnapshot().projection.panes[0]?.tabs).toHaveLength(2)
 
     const beforeDispose = mirror.getSnapshot()
     mirror.dispose()
@@ -40,7 +42,7 @@ describe('WorkspaceProjectionMirror', () => {
     store.ATTACH_WORKSPACE_FACADE(controller)
 
     expect(store.currentFile).toMatchObject({ id: 'note', filename: 'note.md', pathname: '/note.md' })
-    expect(store.currentFile?.markdown).not.toBe('controller-only')
+    expect(store.currentFile?.markdown).toBe('controller-only')
     if (!store.currentFile) throw new Error('missing facade tab')
     store.currentFile.filename = 'forged.md'
     expect(controller.getProjection().panes[0]?.tabs[0]?.title).toBe('note.md')

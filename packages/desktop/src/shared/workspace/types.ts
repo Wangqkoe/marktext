@@ -244,6 +244,37 @@ export interface WorkspaceProjection {
   readonly warnings: readonly WorkspaceWarning[]
 }
 
+/**
+ * Renderer-local, controller-derived compatibility data.  Unlike the public
+ * shell projection it includes editor content, but it is never sent across an
+ * IPC boundary and never contains a lease, owner fence, or disk revision.
+ */
+export interface WorkspaceFacadeDocument {
+  readonly viewId: ViewId
+  readonly documentId: DocumentId
+  readonly fileKey?: FileKey
+  readonly title: string
+  readonly markdown: string
+  readonly portableHistory: PortableHistory
+  readonly dirty: boolean
+  readonly conflict: boolean
+  readonly encoding: DocumentEncoding
+  readonly lineEnding: DocumentLineEnding
+  readonly adjustLineEndingOnSave: boolean
+  readonly trailingNewline: TrailingNewlinePolicy
+  readonly cursor: CursorPosition
+  readonly selection: SelectionRange | null
+  readonly scrollTop: number
+  readonly mode: EditorMode
+  readonly toc: readonly WorkspaceTocItem[]
+  readonly status: WorkspaceStatus
+}
+
+export interface WorkspaceFacadeSnapshot {
+  readonly projection: WorkspaceProjection
+  readonly documents: readonly WorkspaceFacadeDocument[]
+}
+
 export interface EditorBindingSnapshot {
   /**
    * Complete, controller-issued binding identity.  This is deliberately a
@@ -322,6 +353,7 @@ export interface PaneEditorBinding {
 export interface WorkspaceController {
   execute(command: WorkspaceCommand): Promise<WorkspaceResult>
   getProjection(): WorkspaceProjection
+  getFacadeSnapshot(): WorkspaceFacadeSnapshot
   subscribe(listener: (projection: WorkspaceProjection) => void): () => void
   /** Assembly lifecycle only; releases all bindings and makes future commands inert. */
   dispose(): void

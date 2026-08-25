@@ -1,32 +1,31 @@
-import type { WorkspaceController, WorkspaceProjection } from '@shared/workspace'
+import type { WorkspaceController, WorkspaceFacadeSnapshot } from '@shared/workspace'
 
 /**
  * The one-way compatibility seam for legacy renderer consumers.  It stores
- * only the controller's already-frozen JSON display shell; neither a document
- * buffer nor an editor capability can enter here.  Keeping it independent of
- * Pinia makes disposal explicit and lets T03 mount more than one composition
- * without a process-global editor owner.
+ * the controller's already-frozen renderer-local display data. It never
+ * carries a capability, fence, or disk revision. Keeping it independent of
+ * Pinia makes disposal explicit and lets T03 mount more than one composition.
  */
 export class WorkspaceProjectionMirror {
-  private projection: WorkspaceProjection
+  private projection: WorkspaceFacadeSnapshot
   private readonly unsubscribe: () => void
-  private readonly listeners = new Set<(projection: WorkspaceProjection) => void>()
+  private readonly listeners = new Set<(projection: WorkspaceFacadeSnapshot) => void>()
   private disposed = false
 
   constructor(private readonly controller: WorkspaceController) {
-    this.projection = controller.getProjection()
-    this.unsubscribe = controller.subscribe((projection) => {
+    this.projection = controller.getFacadeSnapshot()
+    this.unsubscribe = controller.subscribe(() => {
       if (this.disposed) return
-      this.projection = projection
-      for (const listener of this.listeners) listener(projection)
+      this.projection = controller.getFacadeSnapshot()
+      for (const listener of this.listeners) listener(this.projection)
     })
   }
 
-  getSnapshot(): WorkspaceProjection {
+  getSnapshot(): WorkspaceFacadeSnapshot {
     return this.projection
   }
 
-  subscribe(listener: (projection: WorkspaceProjection) => void): () => void {
+  subscribe(listener: (projection: WorkspaceFacadeSnapshot) => void): () => void {
     if (this.disposed) return () => undefined
     this.listeners.add(listener)
     listener(this.projection)

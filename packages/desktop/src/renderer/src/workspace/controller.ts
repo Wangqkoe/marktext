@@ -17,6 +17,7 @@ import type {
   WorkspaceCommand,
   WorkspaceController as WorkspaceControllerContract,
   WorkspaceDocumentInput,
+  WorkspaceFacadeSnapshot,
   WorkspaceProjection,
   WorkspaceResult,
   WorkspaceStatus,
@@ -618,6 +619,34 @@ export class WorkspaceController implements WorkspaceControllerContract {
     this.warnings = nextWarnings
     this.commit()
     return this.applied()
+  }
+
+  getFacadeSnapshot(): WorkspaceFacadeSnapshot {
+    const projection = this.getProjection()
+    const documents = [...this.views.values()].map((view) => {
+      const document = this.requireDocument(view.documentId)
+      return {
+        viewId: view.id,
+        documentId: document.id,
+        ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+        title: document.title,
+        markdown: document.markdown,
+        portableHistory: clone(document.history),
+        dirty: document.dirty,
+        conflict: document.conflict,
+        encoding: clone(document.encoding),
+        lineEnding: document.lineEnding,
+        adjustLineEndingOnSave: document.adjustLineEndingOnSave,
+        trailingNewline: document.trailingNewline,
+        cursor: clone(view.state.cursor),
+        selection: clone(view.state.selection),
+        scrollTop: view.state.scrollTop,
+        mode: view.state.mode,
+        toc: clone(view.toc),
+        status: clone(view.status)
+      }
+    })
+    return freeze({ projection, documents })
   }
 
   /**

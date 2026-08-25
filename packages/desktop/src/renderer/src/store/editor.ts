@@ -21,7 +21,7 @@ import {
   type WorkspaceController,
   type WorkspaceProjectionMirror
 } from '@/workspace'
-import type { WorkspaceProjection } from '@shared/workspace'
+import type { WorkspaceFacadeSnapshot, WorkspaceProjection } from '@shared/workspace'
 import { t } from '../i18n'
 import { debouncedSendBufferedState, sendBufferedState } from './bufferedState'
 import type {
@@ -178,18 +178,32 @@ export const useEditorStore = defineStore('editor', {
     },
 
     /** Controller projection is the only writer of these compatibility fields. */
-    APPLY_WORKSPACE_PROJECTION(projection: WorkspaceProjection): void {
+    APPLY_WORKSPACE_PROJECTION(snapshot: WorkspaceFacadeSnapshot): void {
+      const { projection } = snapshot
       this.workspaceProjection = projection
       const pane = projection.panes.find((candidate) => candidate.paneId === projection.focusedPaneId)
       if (!pane) return
+      const documentsByView = new Map(snapshot.documents.map((document) => [document.viewId, document]))
       const existing = new Map(this.tabs.map((tab) => [tab.id, tab]))
       this.tabs = pane.tabs.map((tab) => {
         const previous = existing.get(tab.documentId)
+        const document = documentsByView.get(tab.viewId)
         return {
           ...(previous ?? getBlankFileState([], 'utf8', 'lf')),
           id: tab.documentId,
           filename: tab.title,
           pathname: tab.fileKey ?? '',
+          markdown: document?.markdown ?? '',
+          scrollTop: document?.scrollTop ?? 0,
+          encoding: document?.encoding ?? { encoding: 'utf8', isBom: false },
+          lineEnding: document?.lineEnding ?? 'lf',
+          adjustLineEndingOnSave: document?.adjustLineEndingOnSave ?? false,
+          trimTrailingNewline:
+            document?.trailingNewline === 'ensure-one'
+              ? 1
+              : document?.trailingNewline === 'preserve'
+                ? 2
+                : 0,
           isSaved: !tab.dirty
         } as IFileState
       })
