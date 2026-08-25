@@ -227,6 +227,45 @@ describe('WorkspaceRuntime', () => {
     expect(surface.snapshots.at(-1)?.view.mode).toBe('source')
   })
 
+  it('cancels a deferred composition mount after unmount without reviving its scope', async() => {
+    const composition = createPaneEditorComposition({ paneId: 'left' })
+    const surface = new DeferredPaneSurface()
+    const pendingMount = composition.mount(surface, {
+      id: 'deferred-doc',
+      markdown: 'deferred',
+      title: 'deferred'
+    })
+    await Promise.resolve()
+
+    composition.unmount(surface)
+    surface.release(0)
+    await expect(pendingMount).resolves.toBeUndefined()
+
+    expect(composition.isMounted()).toBe(false)
+    expect(composition.getScope()).toBeUndefined()
+    expect(surface.committed).toEqual([])
+    expect(surface.cancelled).toHaveLength(1)
+  })
+
+  it('cancels a deferred controller bind after disposal without registering its scope', async() => {
+    const workspace = createWorkspaceRuntime([{ markdown: 'deferred' }])
+    const surface = new DeferredPaneSurface()
+    const reporter = new PaneEditorLeaseReporter('left')
+    const pendingBind = workspace.bindPaneEditor(
+      'left',
+      new RendererPaneEditorAdapter(surface, reporter)
+    )
+    await Promise.resolve()
+
+    workspace.dispose()
+    surface.release(0)
+    await expect(pendingBind).rejects.toThrow('no longer mounted')
+
+    expect(reporter.getActiveScope()).toBeUndefined()
+    expect(surface.committed).toEqual([])
+    expect(surface.cancelled).toHaveLength(1)
+  })
+
   it('routes the production pane adapter through its current lease only', async () => {
     const workspace = createWorkspaceRuntime([{ markdown: 'first' }])
     const surface = new MemoryPaneSurface()

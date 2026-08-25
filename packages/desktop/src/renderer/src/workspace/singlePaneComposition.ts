@@ -40,10 +40,12 @@ export class PaneEditorComposition {
   private readonly reporter: PaneEditorLeaseReporter
   private surface: PaneEditorSurface | undefined
   private binding: PaneEditorBinding | undefined
+  private adapter: RendererPaneEditorAdapter | undefined
   private runtime: WorkspaceController | undefined
   private sourceReport: { scope: PaneEditorEventScope; report: EditorReport } | undefined
   private sourceHandoffHandler: ((report: EditorReport) => void) | undefined
   private readonly paneId: PaneId
+  private mountGeneration = 0
 
   constructor(options: PaneEditorCompositionOptions) {
     this.paneId = options.paneId
@@ -52,6 +54,7 @@ export class PaneEditorComposition {
   }
 
   async mount(surface: PaneEditorSurface, seed: LegacyPaneSeed): Promise<void> {
+    const mountGeneration = ++this.mountGeneration
     this.surface = surface
     if (!this.runtime) {
       const input: WorkspaceDocumentInput = {
@@ -63,7 +66,21 @@ export class PaneEditorComposition {
       this.runtime = createWorkspaceRuntime([input])
     }
     const adapter = new RendererPaneEditorAdapter(surface, this.reporter)
-    this.binding = await this.runtime.bindPaneEditor(this.paneId, adapter)
+    this.adapter = adapter
+    let binding: PaneEditorBinding
+    try {
+      binding = await this.runtime.bindPaneEditor(this.paneId, adapter, () =>
+        this.isMountCurrent(mountGeneration, surface, adapter)
+      )
+    } catch (error) {
+      if (!this.isMountCurrent(mountGeneration, surface, adapter)) return
+      throw error
+    }
+    if (!this.isMountCurrent(mountGeneration, surface, adapter)) {
+      binding.dispose()
+      return
+    }
+    this.binding = binding
     this.reporter.attach(this.binding)
     if (seed.mode === 'source') {
       const lease = this.binding.getLease()
@@ -73,10 +90,25 @@ export class PaneEditorComposition {
 
   unmount(surface: PaneEditorSurface): void {
     if (this.surface !== surface) return
+    this.mountGeneration += 1
+    this.adapter?.dispose()
+    this.adapter = undefined
     this.binding?.dispose()
     this.binding = undefined
     this.reporter.attach(undefined)
     this.surface = undefined
+  }
+
+  private isMountCurrent(
+    mountGeneration: number,
+    surface: PaneEditorSurface,
+    adapter: RendererPaneEditorAdapter
+  ): boolean {
+    return (
+      this.mountGeneration === mountGeneration &&
+      this.surface === surface &&
+      this.adapter === adapter
+    )
   }
 
   getScope(): PaneEditorEventScope | undefined {

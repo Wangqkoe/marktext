@@ -106,6 +106,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private readonly views = new Map<ViewId, ViewRecord>()
   private readonly panes = new Map<PaneId, PaneRecord>()
   private readonly adapters = new Map<PaneId, BoundAdapter>()
+  private readonly inFlightAdapters = new Set<PaneEditorAdapter>()
   private readonly leases = new WeakSet<object>()
   /** Object identity makes a capability an opaque, controller-issued bearer. */
   private readonly capabilities = new WeakMap<WorkspaceCapability, CapabilityRecord>()
@@ -119,6 +120,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private operationTail: Promise<void> = Promise.resolve()
   private pendingOperations = 0
   private disposed = false
+  private lifecycleGeneration = 0
 
   constructor(initial: readonly WorkspaceDocumentInput[] = []) {
     const first = this.createPane('left')
@@ -181,6 +183,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.lifecycleGeneration += 1
+    for (const adapter of this.inFlightAdapters) adapter.dispose?.()
     for (const bound of this.adapters.values()) {
       this.invalidate(bound)
       bound.adapter.dispose?.()
@@ -191,21 +195,38 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   /** Assembly-only binding: ordinary callers use the WorkspaceController interface. */
-  async bindPaneEditor(paneId: PaneId, adapter: PaneEditorAdapter): Promise<PaneEditorBinding> {
+  async bindPaneEditor(
+    paneId: PaneId,
+    adapter: PaneEditorAdapter,
+    isMounted: () => boolean = () => true
+  ): Promise<PaneEditorBinding> {
     if (this.disposed) throw new Error('workspace controller is disposed')
-    return this.enqueue(async() => this.bindPaneEditorNow(paneId, adapter))
+    const lifecycleGeneration = this.lifecycleGeneration
+    return this.enqueue(async() =>
+      this.bindPaneEditorNow(paneId, adapter, lifecycleGeneration, isMounted)
+    )
   }
 
   private async bindPaneEditorNow(
     paneId: PaneId,
-    adapter: PaneEditorAdapter
+    adapter: PaneEditorAdapter,
+    lifecycleGeneration: number,
+    isMounted: () => boolean
   ): Promise<PaneEditorBinding> {
+    if (!this.isBindCurrent(lifecycleGeneration, isMounted)) {
+      adapter.dispose?.()
+      throw new Error('pane editor binding is no longer mounted')
+    }
     const pane = this.panes.get(paneId)
     if (!pane) throw new Error(`Cannot bind missing pane ${paneId}`)
     const previous = this.adapters.get(paneId)
     // Rebinding can reuse the same adapter instance. Capture its live editor
     // state before any refresh replaces that active representation.
     if (previous) await this.flushPane(paneId)
+    if (!this.isBindCurrent(lifecycleGeneration, isMounted)) {
+      adapter.dispose?.()
+      throw new Error('pane editor binding is no longer mounted')
+    }
     const previousSnapshot = previous?.snapshot
     // Rebinding is a handoff, not a grace period: revoke the predecessor
     // before a successor can begin staging on the concrete surface.
@@ -215,14 +236,20 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const lease = this.issueLease(bound, paneId, pane.activeViewId, snapshot.view.mode)
     const current = this.snapshotWithLease(snapshot, lease)
     bound.snapshot = current
+    this.inFlightAdapters.add(adapter)
     try {
       await adapter.refresh(current)
+      if (!this.isBindCurrent(lifecycleGeneration, isMounted)) {
+        this.invalidate(bound)
+        adapter.dispose?.()
+        throw new Error('pane editor binding is no longer mounted')
+      }
     } catch (error) {
       this.invalidate(bound)
       // A same-instance refresh can have partially staged its contents. Put
       // the prior accepted snapshot back; if that compensation also fails the
       // original binding is no longer trustworthy and must become inert.
-      if (previous && previousSnapshot) {
+      if (this.isBindCurrent(lifecycleGeneration, isMounted) && previous && previousSnapshot) {
         try {
           await this.restoreAdapterSnapshot(previous, previousSnapshot)
         } catch {
@@ -230,12 +257,22 @@ export class WorkspaceController implements WorkspaceControllerContract {
         }
       }
       throw error
+    } finally {
+      this.inFlightAdapters.delete(adapter)
     }
     // The predecessor remains available only while a replacement is staging.
     // Once the surface accepted its full snapshot, revoke it before exposing
     // the successor binding to any reporter.
     this.adapters.set(paneId, bound)
     return this.createBinding(bound)
+  }
+
+  private isBindCurrent(lifecycleGeneration: number, isMounted: () => boolean): boolean {
+    try {
+      return !this.disposed && this.lifecycleGeneration === lifecycleGeneration && isMounted()
+    } catch {
+      return false
+    }
   }
 
   private createBinding(bound: BoundAdapter): PaneEditorBinding {
