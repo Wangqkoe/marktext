@@ -44,3 +44,18 @@ check confirms native semantic tree/focus. Regression: generic html blocks,
 sanitize and export. Before commit verify `git diff --name-only` is only the
 declared necessary subset and tests. Independent review verifies
 that active source mode and standard export markup remain intact.
+
+## Integration status — 2026-08-25
+
+T09's original implementation was on the old baseline. This round fixed the
+active-content blocker in which Preview/Escape could re-enter source mode:
+`463c2c4ac58140fe0f50c7da9873fc9b956be193`. Independent Standards and Spec
+reviews both Passed with no findings. Evidence and exact automated counts are
+recorded in [the T09/T10 integration report](../evidence/t09-t10-details-integration-2026-08-25.md).
+
+Target Vitest passed 29 tests; `lint:types`, details/sanitize E2E (9), generic
+disable-html/sanitize E2E (7), scoped ESLint and diff check passed. Full Muya
+lint retains five baseline-existing errors in the paragraph-content,
+latex-math-delimiters, and marked-math paths; these are record items, not T09
+failures. Manual screen-reader and PDF checks remain unavailable/pending and
+are not claimed as complete here.

@@ -95,9 +95,9 @@ frontier is therefore not complete.
   regression counts whose exact selections are unavailable remain record items.
 - The integration worktree had no `node_modules`, so repeated commands were
   unavailable there; integration was fast-forward-only to the same verified SHA.
-- T03 does not complete V1. T10 is now unblocked as the next direct dependent;
-  T07 native detach, T08 menu work (including Split Right), T05/T06, and all
-  other tickets retain their actual frontier state.
+- T03 does not complete V1. T10 is now integrated/reviewed at the next direct
+  dependent frontier; T07 native detach, T08 menu work (including Split Right),
+  T05/T06, and all other tickets retain their actual frontier state.
 - Non-blocking known record items remain: broad legacy tabs history coverage
   uses `getMarkdownContent` and can perturb history through repeated Source
   round-trips (authoritative no-perturbation Item 252 passed); close-saved zero
@@ -106,3 +106,23 @@ frontier is therefore not complete.
   existing Vite dynamic-import warning; and the focused wrappers in `tabs.vue`
   are a Duplicated Code judgment call. None requires T03 rework.
 - Release, publishing, or any remote push.
+
+## T09/T10 details integration update — 2026-08-25
+
+- T09's original implementation was already present on the old baseline. This
+  round found and fixed an active-content blocker where Preview/Escape could
+  re-enter source mode; the fix is `463c2c4ac58140fe0f50c7da9873fc9b956be193`.
+  Independent Standards and Spec reviews both passed with no findings.
+- T10 is integrated at local integration HEAD
+  `344dbff17a894751dc61ddbf750c711d3b855beb`. Independent Standards and Spec
+  reviews both passed with no blocking findings. The details automation surface
+  is complete; V1 as a whole is not complete.
+- T09/T10 evidence is recorded in [the details integration report](handoff/evidence/t09-t10-details-integration-2026-08-25.md).
+  HTML export is proven to retain standard `details`/`summary`/`open` markup
+  without editor-only controls/tokens; this is not a PDF pass.
+- Screen-reader spot check and PDF visual inspection are `Unavailable`/not yet
+  accepted. A11/A12 therefore retain pending manual portions for T12 or an
+  available environment and are not marked as fully manually complete.
+- T03 remains integrated; T05 remains active; T06 remains dependent on T05;
+  T07, T08, T11 and T12 retain their real dependency/frontier states and are
+  not unlocked or completed by T10 alone.

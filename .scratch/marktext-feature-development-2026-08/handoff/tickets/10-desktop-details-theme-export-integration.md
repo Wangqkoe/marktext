@@ -32,3 +32,20 @@ focus-visible, source button/Escape/Preview, disableHtml, reduced motion, screen
 reader spot check, HTML/PDF inspection. Regression: html-block input/export and
 theme styles. Commit only listed desktop source/test files; independent reviewer
 checks native semantics and export separation.
+
+## Integration status — 2026-08-25
+
+T10 is integrated at local integration HEAD
+`344dbff17a894751dc61ddbf750c711d3b855beb`. Independent Standards and Spec
+reviews both Passed with no blocking findings. Evidence is recorded in [the
+T09/T10 integration report](../evidence/t09-t10-details-integration-2026-08-25.md).
+
+Desktop build, details Electron E2E (7/7), `exportHtml` unit (19/19),
+typecheck, split E2E (4/4), scoped ESLint (0 errors), and diff check passed.
+HTML automatic export is verified as standard `details`/`summary`/`open` with
+no editor-only control/token; PDF is not claimed passed. Screen-reader spot
+check and PDF visual inspection remain unavailable/pending for T12 or an
+available environment. Record items are the fixed 100ms `setHtmlEnabled`
+timing, `%TEMP%` HTML left by failed export assertions, five existing
+`editor.vue` template-formatting warnings, no applicable stylelint config, and
+the baseline `html-block-input.spec.ts` 1/2 reproduction on `463c2c4`.

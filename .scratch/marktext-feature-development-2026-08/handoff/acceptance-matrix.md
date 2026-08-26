@@ -49,6 +49,35 @@ The broad legacy tabs history test remains a record item because its
 no-perturbation Item 252 passed. Later gates remain Untested unless
 their own evidence is recorded.
 
+## T09/T10 details integration evidence — 2026-08-25
+
+See the [T09/T10 details integration report](evidence/t09-t10-details-integration-2026-08-25.md).
+T09's original implementation predates this round; the active-content
+Preview/Escape re-entry blocker was fixed in
+`463c2c4ac58140fe0f50c7da9873fc9b956be193`. T10 is integrated at
+`344dbff17a894751dc61ddbf750c711d3b855beb`. Both tickets have independent
+Standards and Spec reviews marked Passed with no blocking findings.
+
+| Evidence | Status | Command / environment / result |
+| --- | --- | --- |
+| T09 target Vitest | Passed | Target Muya Vitest selection: 29 passed |
+| T09 type/lint/diff | Passed | `lint:types`, scoped ESLint and diff check passed |
+| T09 details/sanitize E2E | Passed | Details/sanitize E2E: 9 passed; generic disable-html/sanitize E2E: 7 passed |
+| T09 full Muya lint | Record item | Five baseline-existing errors in `paragraphContent/index.ts`, `latexMathDelimiters.spec.ts`, and `utils/marked/extensions/math.ts`; not attributed to T09 |
+| T10 desktop build/typecheck | Passed | Desktop build and typecheck passed |
+| T10 details Electron E2E | Passed | Details Electron E2E: 7/7 |
+| T10 export/split checks | Passed | `exportHtml` unit: 19/19; split E2E: 4/4 |
+| T10 scoped lint/diff | Passed | Scoped ESLint: 0 errors; diff check passed |
+| T10 HTML export boundary | Passed | Automatic export proof retains standard `details`/`summary`/`open` markup and has no editor-only control/token; PDF is not claimed passed |
+| T10 manual screen reader/PDF | Unavailable / pending | Screen-reader spot check and PDF visual inspection are not yet accepted; defer to T12/available environment. A11/A12 are not fully manual-complete |
+
+T10 Standards record items: `setHtmlEnabled` uses a fixed 100ms delay that may
+be flaky, and failed export assertions can leave HTML under `%TEMP%`. Existing
+`editor.vue` has five template-formatting warnings; stylelint has no applicable
+configuration. On clean baseline `463c2c4`, `html-block-input.spec.ts` independently
+reproduced 1/2 (`insideHtmlBlock` expected true, actual false); this is a
+baseline record item and does not block T10.
+
 ## Status rules
 
 | Status | Rule |
