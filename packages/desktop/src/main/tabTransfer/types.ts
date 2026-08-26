@@ -37,6 +37,16 @@ export interface TransferCapsule {
   readonly view: ViewState
 }
 
+/** Durable independently of the digest-addressed capsule for post-authorization salvage only. */
+export interface TransferRecoveryPayload {
+  readonly title: string
+  readonly markdown: string
+  readonly dirty: boolean
+  readonly conflict: boolean
+  readonly options: JsonValue
+  readonly view: ViewState
+}
+
 export interface TransferIntent {
   readonly requestId: string
   /** Stable input identity supplied by the Controller; it is never a window id. */
@@ -82,12 +92,17 @@ export interface TransferTransport {
   authenticate(endpoint: TransferEndpoint): boolean
   issueCapability(input: Omit<TransferCapability, 'id'>): TransferCapability
   command(command: TransferCommand, timeout: { readonly timeoutMs: number; readonly retryCadenceMs: number }): Promise<TransferAck>
-  createRecoveryWindow(transferId: string): Promise<TransferEndpoint>
+  /** Returns a persistable session identity; this must not create or activate a window. */
+  reserveRecoveryWindow(transferId: string): Promise<TransferEndpoint>
+  /** Called only after owner/recovery-session migration is durably journaled. */
+  materializeRecoveryWindow(endpoint: TransferEndpoint, payload: TransferRecoveryPayload): Promise<void>
 }
 
 export interface CapsuleStorage {
   put(transferId: string, bytes: Uint8Array, digest: string): Promise<void>
   get(transferId: string): Promise<{ readonly bytes: Uint8Array; readonly digest: string } | undefined>
+  putRecovery(transferId: string, payload: TransferRecoveryPayload): Promise<void>
+  getRecovery(transferId: string): Promise<TransferRecoveryPayload | undefined>
   tombstone(transferId: string): Promise<void>
   gc(): Promise<void>
 }
@@ -105,10 +120,15 @@ export interface JournalRecord {
   readonly recoveryWindowSessionId?: string
   readonly documentRevision: number
   readonly isLastSourceTab: boolean
+  /** Durable terminal disposition; it is not a successful completed transfer. */
+  readonly aborted?: true
+  /** Source endpoint was dead after authorization, so WAL—not an ACK—released ownership. */
+  readonly sourceReconciled?: true
 }
 
 export interface TransferJournal {
   append(record: JournalRecord): Promise<void>
+  abort(record: Omit<JournalRecord, 'kind' | 'aborted'>): Promise<void>
   records(): Promise<readonly JournalRecord[]>
   /** Kept apart from phase records so recovery-window durability is observable. */
   migrateOwner(record: {
@@ -151,6 +171,7 @@ export interface RecoveredTransfer {
   readonly recoveryWindowSessionId?: string
   readonly documentRevision: number
   readonly isLastSourceTab: boolean
+  readonly sourceReconciled?: true
 }
 
 export const toMoveRecoveryRecord = (transfer: RecoveredTransfer): MoveRecoveryRecord => ({
