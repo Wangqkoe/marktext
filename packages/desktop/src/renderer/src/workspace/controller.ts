@@ -836,6 +836,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       return this.rejected('stale document I/O bind acknowledgement')
     }
     document.ownerFence = command.ownerFence
+    document.observedDiskRevision = command.observedDiskRevision ?? undefined
     for (const bound of this.adapters.values()) {
       if (bound.snapshot?.documentId === document.id) this.updateBoundSnapshot(bound)
     }
@@ -884,6 +885,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       document.title = pending.targetTitle
     }
     if (pending.request.ownerFence === undefined) document.ownerFence = ack.ownerFence!
+    document.observedDiskRevision = ack.observedDiskRevision
     document.dirty = false
     document.savedMarkdown = document.markdown
     document.conflict = false

@@ -180,6 +180,8 @@ const openCrashDraft = async (payload: CrashDraftRecoveryPayload): Promise<void>
   // Crash drafts carry source identity, but recovery opens in a fresh window
   // whose bootstrap tab may legitimately use the same controller-local id.
   const recoveredDocumentId = `crash-recovery:${draft.documentId}`
+  left.setCrashDraftLineage(recoveredDocumentId, draft.documentId)
+  right.setCrashDraftLineage(recoveredDocumentId, draft.documentId)
   const opened = await controller.execute({
     kind: 'open-document',
     document: {
@@ -199,7 +201,10 @@ const openCrashDraft = async (payload: CrashDraftRecoveryPayload): Promise<void>
   if (opened.status !== 'applied') throw new Error(workspaceReason(opened))
   const recovered = controller.getFacadeSnapshot().documents.find(document => document.documentId === recoveredDocumentId)
   const pane = recovered && controller.getProjection().panes.find(candidate => candidate.tabs.some(tab => tab.viewId === recovered.viewId))
-  if (recovered && pane) await controller.execute({ kind: 'activate-view', paneId: pane.paneId, viewId: recovered.viewId })
+  if (recovered && pane) {
+    await controller.execute({ kind: 'activate-view', paneId: pane.paneId, viewId: recovered.viewId })
+    await compositionFor(pane.paneId).checkpointCrashDraft()
+  }
   await controller.execute({
     kind: 'replace-warnings',
     warnings: [
@@ -250,6 +255,9 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
     const staged = stagedTransfers.get(command.transferId)
     const document = staged && controller.getFacadeSnapshot().documents.find((candidate) => candidate.documentId === staged.documentId)
     if (!document) return { status: 'nack', reason: 'target checkpoint document is unavailable' }
+    if (document.fileKey && !document.observedDiskRevision) {
+      return { status: 'nack', reason: 'target checkpoint disk baseline is unavailable' }
+    }
     const pane = controller.getProjection().panes.find((candidate) => candidate.tabs.some((tab) => tab.viewId === document.viewId))
     const composition = pane?.paneId === 'left' ? left : pane?.paneId === 'right' ? right : undefined
     if (document.dirty && composition) {
@@ -262,7 +270,7 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
       kind: 'checkpoint',
       checkpoint: {
         documentId: document.documentId,
-        ...(document.fileKey ? { fileKey: document.fileKey, observedDiskRevision: document.observedDiskRevision ?? 'unknown' } : {}),
+        ...(document.fileKey ? { fileKey: document.fileKey, observedDiskRevision: document.observedDiskRevision! } : {}),
         documentRevision: document.documentRevision,
         markdown: document.markdown,
         view: { cursor: document.cursor, selection: document.selection }

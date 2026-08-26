@@ -72,6 +72,14 @@ describe('CrashDraftStore', () => {
     expect(records).toEqual([expect.objectContaining({ warning: expect.stringContaining('last valid'), conflict: true, draft: expect.objectContaining({ markdown: 'safe' }) })])
   })
 
+  it('recovers a saved draft without conflict when its observed disk revision is unchanged', async() => {
+    const store = new CrashDraftStore('/drafts', new MemoryStorage())
+    await store.checkpoint(checkpoint(1, 'safe'))
+    const [recovered] = await store.recover(async() => 'disk-a')
+    expect(recovered?.conflict).toBeUndefined()
+    expect(recovered?.draft.markdown).toBe('safe')
+  })
+
   it('keeps untitled identity without a disk baseline and never clears on cancel', async() => {
     const store = new CrashDraftStore('/drafts', new MemoryStorage())
     const write = store.beginCheckpoint({ documentId: 'untitled-1', documentRevision: 1, markdown: 'unsaved', view: { cursor: { line: 0, column: 0 }, selection: null } })

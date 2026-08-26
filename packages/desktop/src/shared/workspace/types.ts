@@ -211,6 +211,7 @@ export type WorkspaceCommand =
     readonly documentRevision: number
     readonly previousOwnerFence: string
     readonly ownerFence: string
+    readonly observedDiskRevision: DiskRevision | null
   }
   | { readonly kind: 'apply-save-ack'; readonly ack: DocumentSaveAck }
   /** Assembly-only JSON warning update for conflict/recovery presentation. */

@@ -96,7 +96,8 @@ export class DocumentIOCoordinator {
         status: 'bound',
         requestId: request.requestId,
         documentId: binding.documentId,
-        ownerFence: binding.ownerFence
+        ownerFence: binding.ownerFence,
+        observedDiskRevision: binding.observedDiskRevision
       }
     }
     const replay = binding.saveAcks.get(request.requestId)
@@ -179,7 +180,8 @@ export class DocumentIOCoordinator {
         status: 'bound',
         requestId: request.requestId,
         documentId: request.documentId,
-        ownerFence
+        ownerFence,
+        observedDiskRevision
       }
     } finally {
       if (lease) this.hub.release(lease)
@@ -479,13 +481,14 @@ export class DocumentIOCoordinator {
     this.hub.release(binding.lease)
   }
 
-  private durable(request: DocumentIoSaveRequest, binding: Binding, _diskRevision: DiskRevision): DocumentSaveAck {
+  private durable(request: DocumentIoSaveRequest, binding: Binding, diskRevision: DiskRevision): DocumentSaveAck {
     return {
       status: 'durable-success',
       requestId: request.requestId,
       documentId: binding.documentId,
       documentRevision: request.documentRevision,
-      ownerFence: binding.ownerFence
+      ownerFence: binding.ownerFence,
+      observedDiskRevision: diskRevision
     }
   }
 

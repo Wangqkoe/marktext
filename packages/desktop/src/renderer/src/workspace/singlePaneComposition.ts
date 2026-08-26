@@ -62,6 +62,8 @@ export class PaneEditorComposition {
   private modeTransition: Promise<WorkspaceResult> | undefined
   private readonly crashDraft = createElectronCrashDraftPort()
   private readonly crashReceipts = new Map<string, { readonly revision: number; readonly receipt: string }>()
+  /** A recovery's local controller ID writes and clears its pre-crash durable identity. */
+  private readonly crashDraftLineage = new Map<string, string>()
   private stopCrashDraftSync: (() => void) | undefined
   private crashDraftTail: Promise<void> = Promise.resolve()
 
@@ -331,7 +333,8 @@ export class PaneEditorComposition {
           documentId: document.documentId,
           documentRevision: document.documentRevision,
           previousOwnerFence,
-          ownerFence: ack.ownerFence
+          ownerFence: ack.ownerFence,
+          observedDiskRevision: ack.observedDiskRevision ?? null
         })
         if (result.status === 'applied') {
           this.boundDocumentFences.set(document.documentId, ack.ownerFence)
@@ -532,24 +535,33 @@ export class PaneEditorComposition {
     return applied
   }
 
+  setCrashDraftLineage(localDocumentId: string, durableDocumentId: string): void {
+    this.crashDraftLineage.set(localDocumentId, durableDocumentId)
+  }
+
+  async checkpointCrashDraft(): Promise<void> {
+    await this.syncCrashDraft()
+  }
+
   /** Emergency state derives from the controller's live bound snapshot only. */
   private async syncCrashDraft(): Promise<void> {
     const work = async(): Promise<void> => {
       const lease = this.binding?.getLease()
       const snapshot = lease ? this.binding?.getSnapshot(lease) : undefined
       if (!snapshot?.document.dirty) return
+      // A saved draft is recoverable only against bytes DocumentIO actually
+      // observed. Do not manufacture a baseline from the current disk later.
+      if (snapshot.document.fileKey && !snapshot.document.observedDiskRevision) return
       const current = this.crashReceipts.get(snapshot.documentId)
       if (current?.revision === snapshot.documentRevision) return
       const response = await this.crashDraft.request({
         kind: 'checkpoint',
         checkpoint: {
-          documentId: snapshot.documentId,
+          documentId: this.crashDraftLineage.get(snapshot.documentId) ?? snapshot.documentId,
           ...(snapshot.document.fileKey
             ? {
               fileKey: snapshot.document.fileKey,
-              // Legacy open paths have not yet supplied T04's observed revision;
-              // use an unknown baseline so recovery is conservatively conflicted.
-              observedDiskRevision: snapshot.document.observedDiskRevision ?? 'unknown'
+              observedDiskRevision: snapshot.document.observedDiskRevision
             }
             : {}),
           documentRevision: snapshot.documentRevision,

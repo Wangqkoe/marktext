@@ -9,10 +9,59 @@ import { launchElectron, typeIntoEditor } from './helpers'
 const forceTerminate = async(app: ElectronApplication | undefined): Promise<void> => {
   if (!app) return
   const child = app.process()
+  if (child.exitCode !== null) return
   const exited = new Promise<void>(resolve => child.once('exit', resolve))
-  const mainPid = await app.evaluate(() => process.pid)
-  execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
-  await exited
+  let mainPid: number
+  try {
+    mainPid = await app.evaluate(() => process.pid)
+  } catch {
+    return
+  }
+  if (child.exitCode !== null) return
+  try {
+    execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
+  } catch {
+    if (child.exitCode !== null) return
+    throw new Error('could not terminate the Electron process tree')
+  }
+  await Promise.race([exited, new Promise<void>(resolve => setTimeout(resolve, 5_000))])
+}
+
+const windowText = async(app: ElectronApplication): Promise<string> => {
+  const windows = await app.windows()
+  return (await Promise.all(windows.map(window => window.locator('body').innerText()))).join('\n')
+}
+
+const waitForRecovery = async(app: ElectronApplication, marker: string): Promise<void> => {
+  await expect.poll(() => windowText(app), { timeout: 15_000 }).toContain(marker)
+}
+
+const recoveryWindow = async(app: ElectronApplication, marker: string) => {
+  for (const window of await app.windows()) {
+    if ((await window.locator('body').innerText()).includes(marker)) return window
+  }
+  throw new Error('recovery window was not found')
+}
+
+const waitForRecoveredCheckpoint = async(directory: string): Promise<void> => {
+  await expect.poll(() => {
+    try {
+      return fs.readdirSync(directory)
+        .filter(name => name.endsWith('.draft.json'))
+        .some(name => (JSON.parse(fs.readFileSync(path.join(directory, name), 'utf8')) as { documentRevision?: number }).documentRevision! >= 2)
+    } catch {
+      return false
+    }
+  }, { timeout: 15_000 }).toBe(true)
+}
+
+const closeWithDecision = async(app: ElectronApplication, page: Awaited<ReturnType<ElectronApplication['firstWindow']>>, response: number): Promise<void> => {
+  await app.evaluate(({ dialog }, choice) => {
+    dialog.showMessageBox = async() => ({ response: choice, checkboxChecked: false })
+  }, response)
+  const closed = page.waitForEvent('close')
+  await page.evaluate(() => window.electron.ipcRenderer.send('mt::cmd-close-window'))
+  await closed
 }
 
 test('does not load or overwrite legacy normal workspace data at no-target startup', async() => {
@@ -43,6 +92,23 @@ test('opens only explicit targets rather than a normal workspace snapshot', asyn
   try {
     await expect(page.locator('.editor-component')).toContainText('Explicit startup target')
     await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+  } finally {
+    await app.close().catch(() => {})
+    fs.rmSync(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('does not expose the unimplemented workspace restore startup option', async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-no-restore-preference-'))
+  const { app, page } = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+  try {
+    await page.evaluate(() => window.electron.ipcRenderer.send('mt::open-setting-window'))
+    await expect.poll(() => app.windows().length).toBe(2)
+    const settings = (await app.windows()).find(candidate => candidate !== page)
+    if (!settings) throw new Error('settings window was not opened')
+    await settings.waitForLoadState('domcontentloaded')
+    await expect(settings.locator('.pref-general')).not.toContainText('Restore previous editor state')
+    await expect(settings.locator('.pref-general')).not.toContainText('Restore all opened files and folders')
   } finally {
     await app.close().catch(() => {})
     fs.rmSync(userDataDir, { recursive: true, force: true })
@@ -226,7 +292,7 @@ test('normal dirty Save tombstones its durable crash draft before the window clo
       catch { return false }
     }).toBe(true)
     await first.app.evaluate(({ dialog }) => {
-      dialog.showMessageBox = async() => ({ response: 0 })
+      dialog.showMessageBox = async() => ({ response: 0, checkboxChecked: false })
     })
     const child = first.app.process()
     const closed = new Promise<void>(resolve => child.once('exit', () => resolve()))
@@ -261,7 +327,7 @@ test('normal dirty Discard tombstones its durable crash draft before the window 
       catch { return false }
     }).toBe(true)
     await first.app.evaluate(({ dialog }) => {
-      dialog.showMessageBox = async() => ({ response: 1 })
+      dialog.showMessageBox = async() => ({ response: 1, checkboxChecked: false })
     })
     const child = first.app.process()
     const closed = new Promise<void>(resolve => child.once('exit', () => resolve()))
@@ -293,16 +359,139 @@ test('normal dirty Cancel keeps the document and durable crash draft open', asyn
       catch { return false }
     }).toBe(true)
     await first.app.evaluate(({ dialog }) => {
-      dialog.showMessageBox = async() => ({ response: 2 })
+      dialog.showMessageBox = async() => ({ response: 2, checkboxChecked: false })
     })
     await first.page.evaluate(() => window.electron.ipcRenderer.send('mt::cmd-close-window'))
     await expect(first.page.locator('body')).toContainText('retained after Cancel')
     expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json'))).toBe(true)
   } finally {
     await first.app.evaluate(({ dialog }) => {
-      dialog.showMessageBox = async() => ({ response: 1 })
+      dialog.showMessageBox = async() => ({ response: 1, checkboxChecked: false })
     }).catch(() => {})
     await first.app.close().catch(() => {})
+    fs.rmSync(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('recovered saved draft Save tombstones its original crash identity', async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-recovered-save-'))
+  const saved = path.join(userDataDir, 'saved.md')
+  const marker = ' saved after recovery'
+  fs.writeFileSync(saved, '# Saved before recovery\n')
+  const first = await launchElectron([saved], { userDataDir, userDataDirOwnership: 'caller' })
+  let firstKilled = false
+  let second: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  let third: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  try {
+    await typeIntoEditor(first.page, marker)
+    const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+    await expect.poll(() => {
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
+      catch { return false }
+    }).toBe(true)
+    await forceTerminate(first.app)
+    firstKilled = true
+
+    const recovered = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    second = recovered.app
+    await waitForRecovery(second, marker)
+    await waitForRecoveredCheckpoint(crashDraftDirectory)
+    await closeWithDecision(second, await recoveryWindow(second, marker), 0)
+    await forceTerminate(second)
+    second = undefined
+    expect(fs.readFileSync(saved, 'utf8')).toContain(marker)
+
+    const restarted = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    third = restarted.app
+    await expect.poll(() => windowText(third!)).not.toContain(marker)
+  } finally {
+    if (!firstKilled) await first.app.close().catch(() => {})
+    await forceTerminate(second)
+    await forceTerminate(third)
+    fs.rmSync(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('recovered saved draft Discard tombstones its original crash identity', async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-recovered-discard-'))
+  const saved = path.join(userDataDir, 'saved.md')
+  const marker = ' discarded after recovery'
+  const diskBytes = Buffer.from('# Saved before recovery\n')
+  fs.writeFileSync(saved, diskBytes)
+  const first = await launchElectron([saved], { userDataDir, userDataDirOwnership: 'caller' })
+  let firstKilled = false
+  let second: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  let third: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  try {
+    await typeIntoEditor(first.page, marker)
+    const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+    await expect.poll(() => {
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
+      catch { return false }
+    }).toBe(true)
+    await forceTerminate(first.app)
+    firstKilled = true
+
+    const recovered = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    second = recovered.app
+    await waitForRecovery(second, marker)
+    await waitForRecoveredCheckpoint(crashDraftDirectory)
+    await closeWithDecision(second, await recoveryWindow(second, marker), 1)
+    await forceTerminate(second)
+    second = undefined
+    expect(fs.readFileSync(saved)).toEqual(diskBytes)
+
+    const restarted = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    third = restarted.app
+    await expect.poll(() => windowText(third!)).not.toContain(marker)
+  } finally {
+    if (!firstKilled) await first.app.close().catch(() => {})
+    await forceTerminate(second)
+    await forceTerminate(third)
+    fs.rmSync(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('recovered saved draft Cancel keeps its original crash draft', async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-recovered-cancel-'))
+  const saved = path.join(userDataDir, 'saved.md')
+  const marker = ' retained after recovery Cancel'
+  fs.writeFileSync(saved, '# Saved before recovery\n')
+  const first = await launchElectron([saved], { userDataDir, userDataDirOwnership: 'caller' })
+  let firstKilled = false
+  let second: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  let third: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  try {
+    await typeIntoEditor(first.page, marker)
+    const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+    await expect.poll(() => {
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
+      catch { return false }
+    }).toBe(true)
+    await forceTerminate(first.app)
+    firstKilled = true
+
+    const recovered = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    second = recovered.app
+    await waitForRecovery(second, marker)
+    await waitForRecoveredCheckpoint(crashDraftDirectory)
+    const recoveryPage = await recoveryWindow(second, marker)
+    await recovered.app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async() => ({ response: 2, checkboxChecked: false })
+    })
+    await recoveryPage.evaluate(() => window.electron.ipcRenderer.send('mt::cmd-close-window'))
+    await expect(recoveryPage.locator('body')).toContainText(marker)
+    expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json'))).toBe(true)
+    await forceTerminate(second)
+    second = undefined
+
+    const restarted = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    third = restarted.app
+    await waitForRecovery(third, marker)
+  } finally {
+    if (!firstKilled) await first.app.close().catch(() => {})
+    await forceTerminate(second)
+    await forceTerminate(third)
     fs.rmSync(userDataDir, { recursive: true, force: true })
   }
 })

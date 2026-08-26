@@ -1,5 +1,5 @@
 import type { FileEncoding, LineEnding } from '@shared/types/files'
-import type { DocumentId } from './types'
+import type { DiskRevision, DocumentId } from './types'
 
 export interface DocumentIoWriteOptions {
   readonly encoding: FileEncoding
@@ -62,6 +62,8 @@ export type DocumentSaveAck =
     readonly requestId: string
     readonly documentId: DocumentId
     readonly ownerFence: string
+    /** Present when main observed the bound file's actual persisted bytes. */
+    readonly observedDiskRevision?: DiskRevision | null
   }
   | {
     readonly status: 'durable-success'
@@ -69,6 +71,8 @@ export type DocumentSaveAck =
     readonly documentId: DocumentId
     readonly documentRevision: number
     readonly ownerFence: string
+    /** The revision that was durably written by main's guarded save. */
+    readonly observedDiskRevision?: DiskRevision
   }
   | {
     readonly status: 'conflict'

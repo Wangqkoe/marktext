@@ -112,20 +112,6 @@
         </h6>
       </template>
       <template #children>
-        <h6>{{ t('preferences.general.startup.layoutOptions') }}</h6>
-        <section>
-          <el-radio-group
-            v-model="restoreLayoutState"
-            class="startup-action-ctrl"
-          >
-            <el-radio :label="true">
-              {{ t('preferences.general.startup.restorePreviousState') }}
-            </el-radio>
-            <el-radio :label="false">
-              {{ t('preferences.general.startup.openBlankState') }}
-            </el-radio>
-          </el-radio-group>
-        </section>
         <h6>{{ t('preferences.general.startup.startupFilesFolders') }}</h6>
         <section>
           <el-radio-group
@@ -136,9 +122,6 @@
               Hide "lastState" for now (#2064).
             <el-radio class="ag-underdevelop" label="lastState">Restore last editor session</el-radio>
             -->
-            <el-radio label="restoreAll">
-              {{ t('preferences.general.startup.restoreAll') }}
-            </el-radio>
             <el-radio label="openLastFolder">
               {{ t('preferences.general.startup.openLastFolder') }}
             </el-radio>
@@ -227,14 +210,6 @@ const startUpAction = computed<string>({
   get: () => preferenceStore.startUpAction,
   set: (value: string) => {
     const type = 'startUpAction'
-    preferenceStore.SET_SINGLE_PREFERENCE({ type, value })
-  }
-})
-
-const restoreLayoutState = computed<boolean>({
-  get: () => preferenceStore.restoreLayoutState,
-  set: (value: boolean) => {
-    const type = 'restoreLayoutState'
     preferenceStore.SET_SINGLE_PREFERENCE({ type, value })
   }
 })
