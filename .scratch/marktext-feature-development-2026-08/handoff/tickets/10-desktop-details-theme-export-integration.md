@@ -44,8 +44,8 @@ Desktop build, details Electron E2E (7/7), `exportHtml` unit (19/19),
 typecheck, split E2E (4/4), scoped ESLint (0 errors), and diff check passed.
 HTML automatic export is verified as standard `details`/`summary`/`open` with
 no editor-only control/token; PDF is not claimed passed. Screen-reader spot
-check and PDF visual inspection remain unavailable/pending for T12 or an
-available environment. Record items are the fixed 100ms `setHtmlEnabled`
+check and PDF visual inspection are both `Untested`: no manual environment was
+executed; fallback is T12 Windows manual acceptance. Record items are the fixed 100ms `setHtmlEnabled`
 timing, `%TEMP%` HTML left by failed export assertions, five existing
 `editor.vue` template-formatting warnings, no applicable stylelint config, and
 the baseline `html-block-input.spec.ts` 1/2 reproduction on `463c2c4`.

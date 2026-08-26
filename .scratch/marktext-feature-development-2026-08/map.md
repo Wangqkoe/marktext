@@ -51,10 +51,11 @@ is not the current frontier.
 
 T03 is integrated at `1aa17aac6da3ef23610067b7f264bb38a835da4e`; its verified
 evidence is recorded in the [T03 evidence report](handoff/evidence/t03-integration-2026-08-25.md).
-T03 does not complete V1. T10 is its direct newly unlocked ticket. T05 retains
-its own MoveRecovery/WAL gate; T06 remains dependent on T05 and the earlier
-T02/T04/T04b prerequisites; T07 and T08 remain later tickets. The remaining V1
-frontier is therefore not complete.
+T03 does not complete V1. T10 is integrated/reviewed at
+`344dbff17a894751dc61ddbf750c711d3b855beb`; T05 retains its own
+MoveRecovery/WAL gate; T06 remains dependent on T05 and the earlier
+T02/T04/T04b prerequisites; T07 and T08 retain their later frontier state. The
+remaining V1 frontier is therefore not complete.
 
 ## Decisions so far
 
@@ -95,9 +96,10 @@ frontier is therefore not complete.
   regression counts whose exact selections are unavailable remain record items.
 - The integration worktree had no `node_modules`, so repeated commands were
   unavailable there; integration was fast-forward-only to the same verified SHA.
-- T03 does not complete V1. T10 is now integrated/reviewed at the next direct
-  dependent frontier; T07 native detach, T08 menu work (including Split Right),
-  T05/T06, and all other tickets retain their actual frontier state.
+- T03 does not complete V1. T10 is integrated/reviewed at
+  `344dbff17a894751dc61ddbf750c711d3b855beb`; T07 native detach, T08 menu work
+  (including Split Right), T05/T06, and all other tickets retain their actual
+  frontier state.
 - Non-blocking known record items remain: broad legacy tabs history coverage
   uses `getMarkdownContent` and can perturb history through repeated Source
   round-trips (authoritative no-perturbation Item 252 passed); close-saved zero
@@ -112,7 +114,7 @@ frontier is therefore not complete.
 - T09's original implementation was already present on the old baseline. This
   round found and fixed an active-content blocker where Preview/Escape could
   re-enter source mode; the fix is `463c2c4ac58140fe0f50c7da9873fc9b956be193`.
-  Independent Standards and Spec reviews both passed with no findings.
+  Independent Standards and Spec reviews both passed with no blocking findings.
 - T10 is integrated at local integration HEAD
   `344dbff17a894751dc61ddbf750c711d3b855beb`. Independent Standards and Spec
   reviews both passed with no blocking findings. The details automation surface
@@ -120,9 +122,9 @@ frontier is therefore not complete.
 - T09/T10 evidence is recorded in [the details integration report](handoff/evidence/t09-t10-details-integration-2026-08-25.md).
   HTML export is proven to retain standard `details`/`summary`/`open` markup
   without editor-only controls/tokens; this is not a PDF pass.
-- Screen-reader spot check and PDF visual inspection are `Unavailable`/not yet
-  accepted. A11/A12 therefore retain pending manual portions for T12 or an
-  available environment and are not marked as fully manually complete.
+- Screen-reader spot check and PDF visual inspection are `Untested`: no manual
+  environment was executed. The fallback is T12 Windows manual acceptance;
+  A11/A12 therefore are not marked as fully manually complete.
 - T03 remains integrated; T05 remains active; T06 remains dependent on T05;
   T07, T08, T11 and T12 retain their real dependency/frontier states and are
   not unlocked or completed by T10 alone.

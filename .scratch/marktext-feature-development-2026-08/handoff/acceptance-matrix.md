@@ -58,18 +58,23 @@ Preview/Escape re-entry blocker was fixed in
 `344dbff17a894751dc61ddbf750c711d3b855beb`. Both tickets have independent
 Standards and Spec reviews marked Passed with no blocking findings.
 
-| Evidence | Status | Command / environment / result |
+| Evidence | Status | Exact command, environment, result, artifact/trace |
 | --- | --- | --- |
-| T09 target Vitest | Passed | Target Muya Vitest selection: 29 passed |
-| T09 type/lint/diff | Passed | `lint:types`, scoped ESLint and diff check passed |
-| T09 details/sanitize E2E | Passed | Details/sanitize E2E: 9 passed; generic disable-html/sanitize E2E: 7 passed |
-| T09 full Muya lint | Record item | Five baseline-existing errors in `paragraphContent/index.ts`, `latexMathDelimiters.spec.ts`, and `utils/marked/extensions/math.ts`; not attributed to T09 |
-| T10 desktop build/typecheck | Passed | Desktop build and typecheck passed |
-| T10 details Electron E2E | Passed | Details Electron E2E: 7/7 |
-| T10 export/split checks | Passed | `exportHtml` unit: 19/19; split E2E: 4/4 |
-| T10 scoped lint/diff | Passed | Scoped ESLint: 0 errors; diff check passed |
-| T10 HTML export boundary | Passed | Automatic export proof retains standard `details`/`summary`/`open` markup and has no editor-only control/token; PDF is not claimed passed |
-| T10 manual screen reader/PDF | Unavailable / pending | Screen-reader spot check and PDF visual inspection are not yet accepted; defer to T12/available environment. A11/A12 are not fully manual-complete |
+| T09 target Vitest | Passed | `pnpm -C packages/muya exec vitest run src/block/commonMark/html/__tests__/detailsDisclosure.spec.ts src/state/__tests__/detailsRoundTrip.spec.ts src/state/__tests__/renderToStaticHTML.spec.ts`; Windows local worktree; 29 passed, console exit 0; no separate trace. |
+| T09 typecheck | Passed | `pnpm -C packages/muya lint:types`; Windows local worktree; exit 0; no separate artifact. |
+| T09 details/sanitize E2E | Passed | `Remove-Item Env:CI -ErrorAction SilentlyContinue`; set `NODE_OPTIONS=--dns-result-order=ipv4first`; `pnpm -C packages/muya/e2e exec playwright test tests/options/details-disclosure.spec.ts tests/security/details-sanitize.spec.ts --project=chromium`; Windows/Chromium; 9 passed, exit 0; no retained trace. |
+| T09 generic E2E | Passed | Same Windows prefix (`Remove-Item Env:CI -ErrorAction SilentlyContinue`, `NODE_OPTIONS=--dns-result-order=ipv4first`); `pnpm -C packages/muya/e2e exec playwright test tests/options/disable-html.spec.ts tests/security/sanitize.spec.ts --project=chromium`; 7 passed, exit 0; no retained trace. |
+| T09 scoped ESLint | Passed | `pnpm -C packages/muya exec eslint src/block/commonMark/html/index.ts src/block/commonMark/html/__tests__/detailsDisclosure.spec.ts`; Windows local worktree; exit 0; no separate artifact. |
+| T09 full Muya lint | Failed | Full Muya lint ran with five baseline-existing errors in `paragraphContent/index.ts`, `latexMathDelimiters.spec.ts`, and `utils/marked/extensions/math.ts`; nonblocking baseline record item, not attributed to T09. |
+| T10 desktop build | Passed | `pnpm -C packages/desktop build`; Windows/Desktop; exit 0; transient build output only, no separate trace retained. |
+| T10 details Electron E2E | Passed | `pnpm -C packages/desktop exec playwright test test/e2e/details-disclosure.spec.ts`; Windows/Electron; 7 passed, exit 0; no retained trace. |
+| T10 export unit and HTML boundary | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/exportHtml.spec.ts`; Windows local worktree; 19 passed, exit 0; passing path removes HTML temporary files, no long-term artifact; assertions cover standard `details`/`summary`/`open` markup and no editor-only control/token. |
+| T10 typecheck | Passed | `pnpm -C packages/desktop typecheck`; Windows/Desktop; exit 0; no separate artifact. |
+| T10 split E2E | Passed | `pnpm -C packages/desktop exec playwright test test/e2e/split-workspace.spec.ts`; Windows/Electron; 4 passed, exit 0; no retained trace. |
+| T10 scoped ESLint | Untested | Review record says scoped ESLint had 0 errors, but the exact command evidence was not separately saved; no command is claimed. |
+| Diff check | Passed | `git diff HEAD^ HEAD --check`; Windows local worktree; exit 0; no artifact beyond console result. |
+| Screen-reader spot check | Untested | No manual accessibility environment was executed; fallback is T12 Windows manual acceptance. |
+| PDF visual inspection | Untested | No manual PDF inspection environment was executed; fallback is T12 Windows manual acceptance. |
 
 T10 Standards record items: `setHtmlEnabled` uses a fixed 100ms delay that may
 be flaky, and failed export assertions can leave HTML under `%TEMP%`. Existing
