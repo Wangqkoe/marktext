@@ -12,10 +12,10 @@ This is the execution order for the tickets; normative behavior remains in the
 | 4 | T02 R2 production completion | only after T04b, migrate the readonly projection facade and critical Controller-owned save/options commands; no legacy I/O or dual save state |
 | 5 | [T03](tickets/03-split-workspace-and-tab-drag-ui.md) ✅ integrated + [dual review passed](evidence/t03-integration-2026-08-25.md#independent-review-evidence); [T05](tickets/05-tab-transfer-wal-recovery-core.md) ✅ integrated/reviewed | T03 is integrated at `1aa17aac6da3ef23610067b7f264bb38a835da4e`; T05 is integrated/reviewed at `3d6790cf5397dfde9b8dafbd92c0f63d3cba0a6a` with [WAL/MoveRecovery evidence](evidence/t05-integration-2026-08-25.md); T05 scope stops before production Electron wiring |
 | 6 | [T10](tickets/10-desktop-details-theme-export-integration.md) ✅ integrated/reviewed | T10 is integrated at `344dbff17a894751dc61ddbf750c711d3b855beb`; desktop details/theme/export automation is complete with dual review passed. Manual screen-reader/PDF portions remain pending; T05/T06/T07/T08/T11/T12 retain their actual dependencies |
-| 7 | [T06](tickets/06-electron-transfer-startup-emergency-recovery.md) ✅ ready to start | T02b is integrated/reviewed/accepted at `b2cc0a784bd539a598e7db456b1509d87dbaf36f`; T03/T04/T04b/T05 prerequisites and evidence are present. T06 may now implement Electron transfer/startup integration, CrashDraft lifecycle, and the both-source emergency scan; its production implementation, A07 Electron/A08 evidence, and independent terra/high review remain outstanding |
+| 7 | [T06](tickets/06-electron-transfer-startup-emergency-recovery.md) ✅ locally integrated + independently reviewed / Passed (automated scope) | T06 is locally integrated in merge `dde3f49a89877d68dc07171b62bb19eb87002217`, with candidate final HEAD `0343cb5f56f537584d60ea219268ea04c13292c5` and fixed review point `86cf7b8e962bf94791efeba29e9ba8ccbcefa02f`. Third-round independent terra/high Standards and Spec reviews both passed with 0 blockers; A07 Electron and A08 automation are Passed. Manual power-loss/Windows trial remains for T11/T12. |
 | 8 | [T07](tickets/07-windows-native-external-release-adapter.md), [T08](tickets/08-menus-localization-and-command-routing.md) | supported external-release proof or disabled fallback; command surface passes |
-| 9 | [T11](tickets/11-cross-feature-e2e-and-integration.md) | R3 dual-surface/E2E evidence and temporary-fallback removal follow coordination-branch integration; feature fixes return to a new owner ticket |
-| 10 | [T12](tickets/12-windows-trial-final-review-and-acceptance.md) | T12 gives clean-build/Windows-trial readiness evidence to the coordination task. The coordinator creates independent terra/high Standards + Spec reviews, routes defects, requests user Acceptance, and alone declares completion. |
+| 9 | [T11](tickets/11-cross-feature-e2e-and-integration.md) ✅ unblocked to proceed | T06's automated prerequisite is satisfied; T11 still owns composed dual-surface/E2E evidence and temporary-fallback removal, and is not complete. Feature fixes return to a new owner ticket |
+| 10 | [T12](tickets/12-windows-trial-final-review-and-acceptance.md) | T12 remains locked behind T11 and manual acceptance. It gives clean-build/Windows-trial readiness evidence to the coordination task; the coordinator creates independent terra/high Standards + Spec reviews, routes defects, requests user Acceptance, and alone declares completion. |
 
 The only shared foundational directories are new `src/shared/workspace/` and
 renderer `src/renderer/src/workspace/`: T01 creates shared runtime/startup types and
@@ -40,3 +40,24 @@ carried into the T09/T10 report. T10's integration does not alter the T03 or
 T05 evidence links or claim the V1 destination complete. T05 is integrated and
 reviewed, but T06, T07, T08, T11, and T12 retain their real dependency/frontier
 states and do not advance solely because T05 or T10 is integrated.
+
+## T06 integration update — 2026-08-26
+
+T06 is locally integrated and independently reviewed / Passed for the automated
+scope at merge `dde3f49a89877d68dc07171b62bb19eb87002217`. The candidate final
+HEAD is `0343cb5f56f537584d60ea219268ea04c13292c5`; the fixed review point is
+`86cf7b8e962bf94791efeba29e9ba8ccbcefa02f`. The third-round independent
+`gpt-5.6-terra` / `high` Standards and Spec reviews both passed with 0 blockers.
+
+The verified gate includes build and typecheck, startup+transfer Electron E2E
+single-worker 20/20, seven focused/direct unit files 101/101, and the three-file
+new-line rerun 64/64. `git diff --check` passed, the worktree was clean, and no
+Electron/Node processes remained. A07's Electron portion and A08 automation are
+Passed. This does not claim manual power-loss or Windows trial evidence, A11/A12,
+full-repository `pnpm lint`, or final T12 acceptance.
+
+The transfer-fence/move-action assembly-surface range remains a non-blocking
+record item; it does not open a repair cycle. Scoped ESLint still reports
+checkpoint-preceding historical source-style errors; new lines have no hard-lint
+errors. T11 may proceed now that its T06 prerequisite is met; T12 remains behind
+T11 and manual acceptance.

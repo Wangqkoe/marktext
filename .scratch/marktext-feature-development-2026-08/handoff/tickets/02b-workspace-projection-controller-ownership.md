@@ -103,7 +103,8 @@ dual-owner state.
 The final production gate is recorded in the [T02b integration evidence](../evidence/t02b-integration-2026-08-26.md).
 T02b is released for T03/T05/T06/T08/T11 consumption at the integrated HEAD;
 those tickets retain their own implementation, evidence, review, and acceptance
-gates. T06 is ready to start, not complete or passed.
+gates. At the time of this T02b handoff, T06 was ready to start; its later
+integration status is recorded in the T06 evidence report.
 
 Commit only the scoped renderer/shared code and tests when implementation is later
 authorized. This contract revision itself does not authorize production or test

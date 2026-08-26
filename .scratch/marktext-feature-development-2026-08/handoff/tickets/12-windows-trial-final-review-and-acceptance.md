@@ -1,8 +1,12 @@
 # T12 — Windows trial and readiness evidence
 
-Wave: 7 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T11
+Wave: 10 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T11
 
 ## Result
+
+T12 remains locked behind T11 and manual acceptance. T06's automated gate does
+not unlock or complete this ticket; the Windows trial, clean-build readiness,
+and coordinator-requested Acceptance remain outstanding.
 
 Produce clean-build and Windows-trial readiness evidence for the coordination
 task. It neither organizes independent review nor requests or announces user

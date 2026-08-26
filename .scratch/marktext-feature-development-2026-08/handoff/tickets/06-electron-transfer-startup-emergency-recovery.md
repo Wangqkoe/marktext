@@ -1,6 +1,6 @@
 # T06 — Electron transfer, startup, and emergency recovery integration
 
-Wave: 6 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T02
+Wave: 7 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T02
 production completion, T03, T04, T04b, T05
 
 ## Result
@@ -75,6 +75,31 @@ snapshot data is ignored but retained byte-for-byte/no overwrite after a no-rest
 launch; test that explicitly.
 
 ## Acceptance and handoff
+
+### Integration status — 2026-08-26
+
+T06 is locally integrated and independently reviewed / Passed for the automated
+scope. The integration merge is `dde3f49a89877d68dc07171b62bb19eb87002217`;
+the candidate final HEAD is `0343cb5f56f537584d60ea219268ea04c13292c5`; the fixed
+review point is `86cf7b8e962bf94791efeba29e9ba8ccbcefa02f`. Third-round independent
+`gpt-5.6-terra` / `high` Standards and Spec reviews both passed with 0 blockers.
+
+Build and typecheck passed; startup+transfer Electron E2E passed 20/20 with a
+single worker; seven focused/direct unit files passed 101/101; and the new-line
+three-file rerun passed 64/64. `git diff --check` passed, the worktree was clean,
+and no Electron/Node processes remained. A07's Electron portion and A08
+automation are Passed.
+
+The product boundary remains: default startup does not restore a normal
+workspace; explicit files have priority; CrashDraft and MoveRecovery are always
+scanned; no restore setting is exposed. In nullable `DiskRevision`, `null` means
+the file was observed missing and `undefined` means it was not observed.
+
+Not claimed here: manual power-loss/Windows trial, A11/A12, full-repository
+`pnpm lint`, or final T12 acceptance. Scoped ESLint's checkpoint-preceding
+historical source-style errors are a non-blocking record item; new lines have no
+hard-lint errors. The transfer-fence/move-action assembly-surface range remains a
+non-blocking record item and does not trigger rework.
 
 Run `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-recovery.spec.ts test/unit/specs/tab-transfer-emergency-recovery.spec.ts`,
 `pnpm -C packages/desktop exec vitest run test/unit/specs/crash-draft-recovery.spec.ts`,

@@ -58,11 +58,11 @@ in the [T05 evidence report](handoff/evidence/t05-integration-2026-08-25.md).
 T02b's final production gate is integrated, independently reviewed, and accepted
 at `b2cc0a784bd539a598e7db456b1509d87dbaf36f`; its evidence is recorded in the
 [T02b evidence report](handoff/evidence/t02b-integration-2026-08-26.md). The
-T02b/T03/T04/T04b/T05 prerequisite chain is therefore satisfied, and T06 is
-ready to start implementation. T06 is not Passed: its production Electron
-integration, A07 Electron/A08 evidence, and independent terra/high review remain
-outstanding. T07, T08, T11 and T12 retain their later frontier state. The
-remaining V1 frontier is therefore not complete.
+T02b/T03/T04/T04b/T05 prerequisite chain is therefore satisfied. T06 is locally
+integrated and independently reviewed / Passed for the automated scope; see the
+[T06 integration evidence](handoff/evidence/t06-integration-2026-08-26.md).
+T11 is unblocked to proceed, while T12 remains behind T11 and manual acceptance.
+The remaining V1 frontier is therefore not complete.
 
 ## T02b final production gate — 2026-08-26
 
@@ -148,6 +148,10 @@ not change T06's ready-to-start status or advance downstream tickets.
   and independent dual review passed; see the [T05 evidence report](handoff/evidence/t05-integration-2026-08-25.md).
 - T02b is integrated/reviewed/accepted at `b2cc0a784bd539a598e7db456b1509d87dbaf36f`;
   see the [final production gate evidence](handoff/evidence/t02b-integration-2026-08-26.md).
-- T06 is ready to start after the prerequisite audit, but remains unimplemented
-  and unpassed. T07, T08, T11 and T12 retain their real dependency/frontier states
-  and are not unlocked or completed by T02b alone.
+- T06 is locally integrated and independently reviewed / Passed for the automated
+  scope at merge `dde3f49a89877d68dc07171b62bb19eb87002217`, candidate final HEAD
+  `0343cb5f56f537584d60ea219268ea04c13292c5`, and fixed review point
+  `86cf7b8e962bf94791efeba29e9ba8ccbcefa02f`. A07 Electron and A08 automation
+  are Passed; manual power-loss/Windows trial, A11/A12, full `pnpm lint`, and
+  final T12 acceptance remain unclaimed. T11 is unblocked; T12 remains dependent
+  on T11 and manual acceptance.
