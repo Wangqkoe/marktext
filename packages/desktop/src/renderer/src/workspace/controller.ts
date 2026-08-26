@@ -66,10 +66,12 @@ interface CapabilityRecord {
   used: boolean
 }
 interface TransferFence {
+  readonly paneId: PaneId
   readonly documentId: DocumentId
   readonly viewId: ViewId
   readonly documentRevision: number
   readonly ownerFence: string
+  readonly preflightId?: string
   used: boolean
 }
 
@@ -87,6 +89,10 @@ export interface TransferSourceSnapshot {
   readonly conflict: boolean
   readonly history: PortableHistory
   readonly view: ViewState
+}
+
+export interface TransferPreflightSnapshot extends TransferSourceSnapshot {
+  readonly preflightId: string
 }
 
 interface PendingDocumentIo {
@@ -174,23 +180,66 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.enqueue(async() => this.apply(command))
   }
 
-  /** Internal Move edge: flushes the leased source and installs a one-shot release fence. */
-  prepareTransfer(transferId: string, documentId: DocumentId, viewId: ViewId, expectedRevision: number): Promise<number | undefined> {
+  /** Internal Move edge: atomically adopts the action's already-flushed source fence. */
+  prepareTransfer(transferId: string, documentId: DocumentId, viewId: ViewId, expectedRevision: number, preflightId: string): Promise<number | undefined> {
     return this.enqueue(async() => {
-      const pane = this.paneForView(viewId)
+      const adopted = this.transferFences.get(transferId)
       const view = this.views.get(viewId)
       const document = this.documents.get(documentId)
-      if (!pane || !view || view.documentId !== documentId || !document) return undefined
-      await this.flushPane(pane.id)
-      if (document.revision !== expectedRevision) return undefined
+      if (adopted) {
+        return adopted.documentId === documentId && adopted.viewId === viewId &&
+          adopted.documentRevision === expectedRevision && adopted.ownerFence === document?.ownerFence &&
+          view?.documentId === documentId && document?.revision === expectedRevision
+          ? document.revision
+          : undefined
+      }
+      const preflightKey = this.preflightKey(preflightId)
+      const preflight = this.transferFences.get(preflightKey)
+      if (!preflight || !view || view.documentId !== documentId || !document ||
+        preflight.preflightId !== preflightId || preflight.documentId !== documentId ||
+        preflight.viewId !== viewId || preflight.documentRevision !== expectedRevision ||
+        preflight.ownerFence !== document.ownerFence || document.revision !== expectedRevision) return undefined
+      this.transferFences.delete(preflightKey)
       this.transferFences.set(transferId, {
+        paneId: preflight.paneId,
         documentId,
         viewId,
         documentRevision: document.revision,
         ownerFence: document.ownerFence,
+        preflightId,
         used: false
       })
       return document.revision
+    })
+  }
+
+  /** Action-only preflight: one controller-queued flush seals the capsule source. */
+  beginTransferPreflight(paneId: PaneId, tabId: string, preflightId: string): Promise<TransferPreflightSnapshot | undefined> {
+    return this.enqueue(async() => {
+      const source = await this.captureTransferSource(paneId, tabId)
+      if (!source || [...this.transferFences.values()].some(fence =>
+        fence.preflightId && fence.documentId === source.documentId && fence.viewId === source.viewId
+      )) return undefined
+      this.transferFences.set(this.preflightKey(preflightId), {
+        paneId,
+        documentId: source.documentId,
+        viewId: source.viewId,
+        documentRevision: source.documentRevision,
+        ownerFence: this.requireDocument(source.documentId).ownerFence,
+        preflightId,
+        used: false
+      })
+      return { ...source, preflightId }
+    })
+  }
+
+  /** A failed pre-authorization run removes its fence, including an unconsumed adoption. */
+  clearTransferPreflight(preflightId: string): Promise<void> {
+    return this.enqueue(async() => {
+      this.transferFences.delete(this.preflightKey(preflightId))
+      for (const [transferId, fence] of this.transferFences) {
+        if (fence.preflightId === preflightId && !fence.used) this.transferFences.delete(transferId)
+      }
     })
   }
 
@@ -216,31 +265,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
 
   /** The only renderer assembly read used to construct a Move capsule. */
   transferSourceSnapshot(paneId: PaneId, tabId: string): Promise<TransferSourceSnapshot | undefined> {
-    return this.enqueue(async() => {
-      const pane = this.panes.get(paneId)
-      const viewId = pane?.viewIds.find(id => id === tabId || this.views.get(id)?.documentId === tabId)
-      if (!pane || !viewId) return undefined
-      await this.flushPane(paneId)
-      const view = this.views.get(viewId)
-      if (!view) return undefined
-      const document = this.documents.get(view.documentId)
-      if (!document) return undefined
-      return {
-        documentId: document.id,
-        viewId,
-        sourceLineage: `lineage:${document.id}:${document.ownerFence}`,
-        documentRevision: document.revision,
-        isLastSourceTab: pane.viewIds.length === 1,
-        ...(document.fileKey ? { fileKey: document.fileKey } : {}),
-        ...(document.observedDiskRevision ? { observedDiskRevision: document.observedDiskRevision } : {}),
-        title: document.title,
-        markdown: document.markdown,
-        dirty: document.dirty,
-        conflict: document.conflict,
-        history: clone(document.history),
-        view: clone(view.state)
-      }
-    })
+    return this.enqueue(async() => this.captureTransferSource(paneId, tabId))
   }
 
   getProjection(): WorkspaceProjection {
@@ -403,19 +428,21 @@ export class WorkspaceController implements WorkspaceControllerContract {
         if (this.disposed) return this.rejected('workspace controller is disposed')
         if (this.pendingOperations > 0) return this.rejected('workspace mutation is in progress')
         if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
+        if (this.hasPreflightForView(candidate.viewId)) return this.rejected('transfer preflight fence is active')
         const changed = this.applyReport(candidate.viewId, report)
         if (changed) this.updateBoundSnapshot(bound)
         this.commit()
         return this.applied()
       },
       flush: async(candidate) =>
-        this.enqueue(async() =>
-          this.withLease(bound, candidate, async() => {
+        this.enqueue(async() => {
+          if (this.hasPreflightForView(candidate.viewId)) return this.rejected('transfer preflight fence is active')
+          return this.withLease(bound, candidate, async() => {
             if (this.applyReport(candidate.viewId, await bound.adapter.flush())) {
               this.updateBoundSnapshot(bound)
             }
           })
-        ),
+        }),
       handoffMode: async(candidate, mode) =>
         this.enqueue(async() =>
           this.withLease(bound, candidate, async() => {
@@ -1047,6 +1074,38 @@ export class WorkspaceController implements WorkspaceControllerContract {
       this.invalidate(bound)
       throw error
     }
+  }
+
+  private async captureTransferSource(paneId: PaneId, tabId: string): Promise<TransferSourceSnapshot | undefined> {
+    const pane = this.panes.get(paneId)
+    const viewId = pane?.viewIds.find(id => id === tabId || this.views.get(id)?.documentId === tabId)
+    if (!pane || !viewId) return undefined
+    await this.flushPane(paneId)
+    const view = this.views.get(viewId)
+    if (!view) return undefined
+    const document = this.documents.get(view.documentId)
+    if (!document) return undefined
+    return {
+      documentId: document.id,
+      viewId,
+      sourceLineage: `lineage:${document.id}:${document.ownerFence}`,
+      documentRevision: document.revision,
+      isLastSourceTab: pane.viewIds.length === 1,
+      ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+      ...(document.observedDiskRevision ? { observedDiskRevision: document.observedDiskRevision } : {}),
+      title: document.title,
+      markdown: document.markdown,
+      dirty: document.dirty,
+      conflict: document.conflict,
+      history: clone(document.history),
+      view: clone(view.state)
+    }
+  }
+
+  private preflightKey(preflightId: string): string { return `preflight:${preflightId}` }
+
+  private hasPreflightForView(viewId: ViewId): boolean {
+    return [...this.transferFences.values()].some(fence => fence.preflightId && fence.viewId === viewId)
   }
 
   private async refreshAdapter(paneId: PaneId, snapshot: EditorBindingSnapshot): Promise<void> {

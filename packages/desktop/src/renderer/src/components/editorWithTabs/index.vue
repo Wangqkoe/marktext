@@ -40,7 +40,9 @@ const controller = createWorkspaceRuntime(seed ? [{ documentId: seed.id, markdow
 const left = createPaneEditorComposition({ paneId: 'left', controller })
 const right = createPaneEditorComposition({ paneId: 'right', controller })
 const transfer = createElectronTransferPort()
-const moveTabToNewWindow = createMoveTabToNewWindowAction(controller, transfer)
+const moveTabToNewWindow = createMoveTabToNewWindowAction(controller, transfer, {
+  flushSource: (paneId, tabId) => (paneId === 'left' ? left : right).flushTransferSource(tabId)
+})
 interface StagedTransfer { readonly documentId: string; readonly sourceDocumentId: string; readonly sourceViewId: string }
 const stagedTransfers = new Map<string, StagedTransfer>()
 const workspaceReason = (result: { readonly status: string; readonly reason?: string }): string => result.reason ?? 'workspace command was rejected'
@@ -203,11 +205,13 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
   if (command.operation === 'prepare') {
     const response = await transfer.payload(command.transferId)
     if (!response.durable) return { status: 'nack', reason: response.reason }
+    if (!response.payload.sourcePreflightId) return { status: 'nack', reason: 'source preflight fence is unavailable' }
     const sealedRevision = await controller.prepareTransfer(
       command.transferId,
       response.payload.sourceDocumentId,
       response.payload.sourceViewId,
-      command.documentRevision
+      command.documentRevision,
+      response.payload.sourcePreflightId
     )
     return sealedRevision === undefined
       ? { status: 'nack', reason: 'source document revision could not be sealed' }
@@ -239,6 +243,14 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
     const staged = stagedTransfers.get(command.transferId)
     const document = staged && controller.getFacadeSnapshot().documents.find((candidate) => candidate.documentId === staged.documentId)
     if (!document) return { status: 'nack', reason: 'target checkpoint document is unavailable' }
+    const pane = controller.getProjection().panes.find((candidate) => candidate.tabs.some((tab) => tab.viewId === document.viewId))
+    const composition = pane?.paneId === 'left' ? left : pane?.paneId === 'right' ? right : undefined
+    if (document.dirty && composition) {
+      const durable = await composition.hasDurableCrashDraft(document.documentId, document.documentRevision)
+      return durable
+        ? { status: 'ok' }
+        : { status: 'nack', reason: 'target crash-draft checkpoint was not durable' }
+    }
     const response = await window.electron.ipcRenderer.invoke('mt::workspace::crash-draft', {
       kind: 'checkpoint',
       checkpoint: {

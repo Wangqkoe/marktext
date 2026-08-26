@@ -132,6 +132,17 @@ export class PaneEditorComposition {
     this.surface = undefined
   }
 
+  /**
+   * Move's final target checkpoint joins the pane's existing emergency-draft
+   * queue.  It never races a dirty editor's ordinary checkpoint with a second
+   * write for the same document revision.
+   */
+  async hasDurableCrashDraft(documentId: string, documentRevision: number): Promise<boolean> {
+    await this.syncCrashDraft()
+    await this.crashDraftTail
+    return this.crashReceipts.get(documentId)?.revision === documentRevision
+  }
+
   private isMountCurrent(
     mountGeneration: number,
     surface: PaneEditorSurface,
@@ -160,6 +171,13 @@ export class PaneEditorComposition {
 
   getScope(): PaneEditorEventScope | undefined {
     return this.reporter.getActiveScope()
+  }
+
+  /** Move action flushes only the explicit live source view before sealing it. */
+  async flushTransferSource(tabId: string): Promise<boolean> {
+    const scope = this.getScope()
+    if (!scope || (scope.viewId !== tabId && scope.documentId !== tabId)) return false
+    return (await scope.flush()).status === 'applied'
   }
 
   /**

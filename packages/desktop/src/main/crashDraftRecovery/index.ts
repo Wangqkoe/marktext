@@ -85,6 +85,9 @@ interface Commit { readonly version: 1; readonly documentId: string; readonly do
 export class CrashDraftStore implements CrashDraftRecovery {
   private readonly pending = new Map<string, PendingWrite>()
   private readonly fault?: (point: CrashDraftFaultPoint) => void | Promise<void>
+  // Checkpoint receipts may arrive concurrently from a pane lifecycle and a
+  // committed Move target.  Keep their scan/write/tombstone boundaries ordered.
+  private operationTail: Promise<void> = Promise.resolve()
 
   constructor(
     private readonly directory: string,
@@ -101,6 +104,10 @@ export class CrashDraftStore implements CrashDraftRecovery {
   }
 
   async acknowledge(write: CrashDraftWrite): Promise<CrashDraftAck> {
+    return this.serialize(() => this.acknowledgeWrite(write))
+  }
+
+  private async acknowledgeWrite(write: CrashDraftWrite): Promise<CrashDraftAck> {
     const pending = this.pending.get(write.writeId)
     if (!pending || pending.documentId !== write.documentId || pending.documentRevision !== write.documentRevision) {
       return { durable: false, reason: 'stale acknowledgement' }
@@ -129,19 +136,27 @@ export class CrashDraftStore implements CrashDraftRecovery {
   }
 
   async acknowledgeSave(write: CrashDraftWrite): Promise<CrashDraftAck> {
-    const latest = await this.latestValid(write.documentId)
-    if (!latest || latest.documentRevision !== write.documentRevision) return { durable: false, reason: 'stale acknowledgement' }
-    return this.tombstone(write.documentId, write.documentRevision, 'saved')
+    return this.serialize(async() => {
+      const latest = await this.latestValid(write.documentId)
+      if (!latest || latest.documentRevision !== write.documentRevision) return { durable: false, reason: 'stale acknowledgement' }
+      return this.tombstone(write.documentId, write.documentRevision, 'saved')
+    })
   }
 
   async discard(documentId: string, documentRevision: number): Promise<CrashDraftAck> {
-    const latest = await this.latestValid(documentId)
-    if (!latest || latest.documentRevision !== documentRevision) return { durable: false, reason: 'stale acknowledgement' }
-    return this.tombstone(documentId, documentRevision, 'discarded')
+    return this.serialize(async() => {
+      const latest = await this.latestValid(documentId)
+      if (!latest || latest.documentRevision !== documentRevision) return { durable: false, reason: 'stale acknowledgement' }
+      return this.tombstone(documentId, documentRevision, 'discarded')
+    })
   }
 
   /** A marker is written only after all draft tombstones have crossed their own durable boundary. */
   async markCleanShutdown(): Promise<CrashDraftAck> {
+    return this.serialize(() => this.markCleanShutdownWrite())
+  }
+
+  private async markCleanShutdownWrite(): Promise<CrashDraftAck> {
     if ((await this.scan()).length !== 0) return { durable: false, reason: 'unresolved crash drafts remain' }
     try {
       await this.hit('clean-marker')
@@ -209,6 +224,12 @@ export class CrashDraftStore implements CrashDraftRecovery {
 
   private async latestValid(documentId: string): Promise<CrashDraftEnvelope | undefined> {
     return (await this.scan()).find(record => record.draft.documentId === documentId)?.draft
+  }
+
+  private serialize<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.operationTail.then(work, work)
+    this.operationTail = next.then(() => undefined, () => undefined)
+    return next
   }
 
   private async writeDurable(filename: string, bytes: Uint8Array): Promise<void> {

@@ -25,6 +25,8 @@ export interface TransferCapsule {
   readonly sourceViewId: string
   readonly sourceSessionId: string
   readonly sourceLineage: string
+  /** Renderer-local opaque fence adopted only by the authenticated source receiver. */
+  readonly sourcePreflightId?: string
   readonly documentRevision: number
   readonly fileKey?: string
   readonly observedDiskRevision?: DiskRevision
