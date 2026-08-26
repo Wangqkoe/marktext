@@ -146,6 +146,31 @@ describe('Electron transfer endpoint authentication', () => {
       documentRevision: 1,
       isLastSourceTab: false
     }, { timeoutMs: 50, retryCadenceMs: 5 })).resolves.toEqual({ status: 'ok' })
+    expect(transport.acknowledge(target, {
+      transferId: 'transfer',
+      phase: 'target-staged',
+      operation: 'stage',
+      ack: { status: 'ok' }
+    })).toEqual({ status: 'nack', reason: 'stale transfer acknowledgement' })
+    const forgedCapability = transport.issueCapability({
+      transferId: 'forged-capability',
+      operation: 'stage',
+      role: 'target',
+      source: sourceEndpoint,
+      target: targetEndpoint,
+      capsuleDigest: 'digest',
+      documentRevision: 1
+    })
+    await expect(transport.command({
+      transferId: 'forged-capability',
+      phase: 'target-staged',
+      operation: 'stage',
+      endpoint: targetEndpoint,
+      capability: { ...forgedCapability, id: 'forged' },
+      capsuleDigest: 'digest',
+      documentRevision: 1,
+      isLastSourceTab: false
+    }, { timeoutMs: 50, retryCadenceMs: 5 })).resolves.toEqual({ status: 'nack', reason: 'invalid transfer capability' })
     source.emit('did-start-navigation')
     expect(transport.authenticate(sourceEndpoint)).toBe(false)
     await expect(transport.command({
