@@ -52,10 +52,13 @@ is not the current frontier.
 T03 is integrated at `1aa17aac6da3ef23610067b7f264bb38a835da4e`; its verified
 evidence is recorded in the [T03 evidence report](handoff/evidence/t03-integration-2026-08-25.md).
 T03 does not complete V1. T10 is integrated/reviewed at
-`344dbff17a894751dc61ddbf750c711d3b855beb`; T05 retains its own
-MoveRecovery/WAL gate; T06 remains dependent on T05 and the earlier
-T02/T04/T04b prerequisites; T07 and T08 retain their later frontier state. The
-remaining V1 frontier is therefore not complete.
+`344dbff17a894751dc61ddbf750c711d3b855beb`. T05 is integrated/reviewed at
+`3d6790cf5397dfde9b8dafbd92c0f63d3cba0a6a`; its verified evidence is recorded
+in the [T05 evidence report](handoff/evidence/t05-integration-2026-08-25.md).
+T06's T05 prerequisite is satisfied, but T06 is not marked ready until all
+existing T02/T04/T04b/T03 prerequisites and required evidence are satisfied.
+T07 and T08 retain their later frontier state. The remaining V1 frontier is
+therefore not complete.
 
 ## Decisions so far
 
@@ -125,6 +128,10 @@ remaining V1 frontier is therefore not complete.
 - Screen-reader spot check and PDF visual inspection are `Untested`: no manual
   environment was executed. The fallback is T12 Windows manual acceptance;
   A11/A12 therefore are not marked as fully manually complete.
-- T03 remains integrated; T05 remains active; T06 remains dependent on T05;
-  T07, T08, T11 and T12 retain their real dependency/frontier states and are
-  not unlocked or completed by T10 alone.
+- T03 remains integrated; T05 is integrated/reviewed at
+  `3d6790cf5397dfde9b8dafbd92c0f63d3cba0a6a` after its WAL/MoveRecovery gate
+  and independent dual review passed; see the [T05 evidence report](handoff/evidence/t05-integration-2026-08-25.md).
+- T06's T05 prerequisite is now satisfied, but T06 is not marked ready until
+  all prior T02/T04/T04b/T03 prerequisites and evidence are satisfied. T07,
+  T08, T11 and T12 retain their real dependency/frontier states and are not
+  unlocked or completed by T05 or T10 alone.

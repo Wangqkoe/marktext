@@ -83,6 +83,28 @@ configuration. On clean baseline `463c2c4`, `html-block-input.spec.ts` independe
 reproduced 1/2 (`insideHtmlBlock` expected true, actual false); this is a
 baseline record item and does not block T10.
 
+## T05 TabTransfer integration evidence — 2026-08-25
+
+See the [T05 integration report](evidence/t05-integration-2026-08-25.md). T05 is
+integrated/reviewed at `3d6790cf5397dfde9b8dafbd92c0f63d3cba0a6a`; independent
+terra/high Standards and Spec reviews both finished `Passed` with zero blocking
+findings after three historical blocking review/repair rounds.
+
+| Evidence | Status | Exact command, environment, result, artifact/trace |
+| --- | --- | --- |
+| A05 capsule/fence/capability/unique owner | Passed | Covered by `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-core.spec.ts`; Windows local T05 worktree; selected suite passed as part of 3 files / 32 tests, exit 0; console evidence, no retained trace. |
+| A06 WAL intent/observed and crash/replay gaps | Passed | Covered by `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-recovery.spec.ts`; Windows local T05 worktree; selected suite passed as part of 3 files / 32 tests, exit 0; console evidence, no retained trace. |
+| A07 MoveRecovery owner migration/tombstone/GC | Passed | Covered by `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-emergency-recovery.spec.ts`; Windows local T05 worktree; selected suite passed as part of 3 files / 32 tests, exit 0; console evidence, no retained trace. This is deterministic core evidence only; production Electron evidence remains T06. |
+| T05 typecheck | Passed | `pnpm -C packages/desktop typecheck`; Windows local T05 worktree; exit 0; console evidence, no separate artifact. |
+| T05 scoped ESLint | Passed | `pnpm -C packages/desktop exec eslint src/main/tabTransfer/index.ts src/main/tabTransfer/memory.ts src/main/tabTransfer/types.ts test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-recovery.spec.ts test/unit/specs/tab-transfer-emergency-recovery.spec.ts`; Windows local T05 worktree; exit 0; only `MODULE_TYPELESS_PACKAGE_JSON` performance warning, no retained trace. |
+| T05 integrated diff check | Passed | `git diff 4728129a0790b2def5e96a22172746e0fff6750b...3d6790cf5397dfde9b8dafbd92c0f63d3cba0a6a --check`; Windows local T05 worktree; exit 0; console evidence, no retained trace. |
+
+T05's non-blocking record item is that Memory capability validation authenticates
+the receiving command endpoint without re-checking the other endpoint's current
+epoch; T06's production IPC adapter must define and verify this semantic. T05
+does not claim CrashDraftRecovery, production Electron wiring, or normal
+workspace restore.
+
 ## Status rules
 
 | Status | Rule |
