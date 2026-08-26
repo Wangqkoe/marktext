@@ -29,6 +29,12 @@ import { getNativeThemeSource, isDarkApplicationTheme } from './nativeTheme'
 import type Accessor from './accessor'
 import type WindowManager from './windowManager'
 
+const consumeTransferTestFault = (fault: 'target-create-once'): boolean => {
+  if (process.env.PERF_TESTING !== 'true' || process.env.MARKTEXT_T06_TRANSFER_FAULT !== fault) return false
+  delete process.env.MARKTEXT_T06_TRANSFER_FAULT
+  return true
+}
+
 interface CliArgs {
   _: string[]
   [flag: string]: unknown
@@ -63,14 +69,25 @@ class App {
     // Initialize main process language
     this._initializeLanguage()
     configureTransferTargetFactory(async(_transferId, _recovery, reserved) => {
+      if (consumeTransferTestFault('target-create-once')) {
+        throw new Error('test injected target creation failure')
+      }
       const editor = this._createEditorWindow()
       await new Promise<void>((resolve, reject) => {
         editor.once('window-ready', resolve)
         editor.once('window-closed', () => reject(new Error('transfer target window closed before ready')))
       })
+      // Editor's second did-finish-load listener refreshes its ordinary
+      // endpoint in the same event turn. A reservation must bind after that
+      // listener, not race it, or its epoch is immediately revoked.
+      await new Promise<void>(resolve => setImmediate(resolve))
       const window = editor.browserWindow
       if (window && reserved) {
-        getTransferAdapter()?.attach(window.webContents as never, reserved.sessionId, reserved.epoch)
+        const adapter = getTransferAdapter()
+        // The window reached its renderer-ready lifecycle before the inert
+        // reservation became its durable owner. The transport retains an
+        // already-proven receiver binding for this same sender only.
+        adapter?.attach(window.webContents as never, reserved.sessionId, reserved.epoch)
       }
       const endpoint = window && getTransferAdapter()?.endpointFor(window.webContents as never)
       if (!endpoint) throw new Error('transfer target endpoint was not authenticated')
@@ -270,12 +287,15 @@ class App {
         }
       }
     }
+    // StartupIntent is fixed before the asynchronous emergency scan. Recovery
+    // window creation must not consume or reroute its explicit targets.
+    const startupTargets = _openFilesCache.splice(0)
 
     // Emergency truth is deliberately advanced before StartupIntent. Neither
     // explicit files nor the no-target default suppress either source.
     const recoveryStorage = new NodeFileObservationStorage()
     const crashStore = getCrashDraftAdapter()?.store
-    const [crashDrafts] = await Promise.all([
+    const [crashDrafts, moveRecovery] = await Promise.all([
       crashStore?.recover(async(fileKey) => {
         const canonical = await recoveryStorage.canonicalize(fileKey)
         const bytes = await recoveryStorage.read(canonical)
@@ -406,8 +426,12 @@ class App {
         // writes the saved path or revives a normal workspace/session.
         this._createEditorWindow(null, [], [], {}, null, crashDrafts as readonly CrashDraftRecoveryPayload[])
       }
-      if (_openFilesCache.length) {
-        this._openFilesToOpen()
+      if (startupTargets.length) {
+        // A Move recovery target is already a Controller-owned emergency
+        // workspace. StartupIntent must not route its explicit files through
+        // the legacy open-tab message, which cannot adopt that controller.
+        // Keep the ordinary explicit set in a separate normal editor window.
+        this._openPathList(startupTargets, moveRecovery.length > 0)
       } else {
         this._createEditorWindow()
       }

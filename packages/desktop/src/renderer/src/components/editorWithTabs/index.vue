@@ -305,8 +305,11 @@ onMounted(() => {
   // T06 test/automation seam; this invokes the exact action future T08 UI will import.
   moveActionDriver.__mtMoveTabToNewWindow = ({ tabId, paneId }) => moveTabToNewWindow(tabId, paneId)
   stopTransferCommands = transfer.bind(acknowledgeTransferCommand)
+  stopTransferRecovery = transfer.bindRecovery(async (message: TransferRecoveryMessage) => {
+    await openTransferPayload(message.payload, message.transferId)
+    await transfer.recoveryMaterialized(message.transferId)
+  })
   transfer.ready().catch(() => undefined)
-  stopTransferRecovery = transfer.bindRecovery(async (message: TransferRecoveryMessage) => { await openTransferPayload(message.payload, message.transferId) })
   stopCrashRecovery = window.electron.ipcRenderer.on('mt::workspace::crash-recovery', async (_event, payload) => { await openCrashDraft(payload as CrashDraftRecoveryPayload) })
 })
 let stopTransferCommands: (() => void) | undefined

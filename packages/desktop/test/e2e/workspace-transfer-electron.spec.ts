@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { launchElectron, typeIntoEditor } from './helpers'
 
 for (const scenario of [
@@ -81,5 +82,117 @@ test('rebinds the crash-draft endpoint after renderer reload', async() => {
     }))).resolves.toMatchObject({ durable: true, receipt: expect.any(String) })
   } finally {
     await app.close().catch(() => {})
+  }
+})
+
+test('keeps the source usable when production target creation fails before authorization', async() => {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-transfer-target-failure-'))
+  const file = path.join(profile, 'move.md')
+  fs.writeFileSync(file, '# Target failure source\n')
+  const { app, page } = await launchElectron([file], {
+    userDataDir: profile,
+    userDataDirOwnership: 'caller',
+    transferFault: 'target-create-once'
+  })
+  try {
+    await expect(page.locator('.editor-with-tabs')).toBeVisible()
+    const tabId = await page.locator('.tabs-container li').first().getAttribute('data-id')
+    expect(tabId).toBeTruthy()
+    const first = await page.evaluate(async(id) => {
+      const driver = window as unknown as {
+        __mtMoveTabToNewWindow?: (input: { tabId: string; paneId: 'left' | 'right' }) => Promise<unknown>
+      }
+      return driver.__mtMoveTabToNewWindow?.({ tabId: id!, paneId: 'left' })
+    }, tabId)
+    expect(first).toMatchObject({ status: 'failed', reason: expect.stringContaining('target creation') })
+    await expect(page.locator('body')).toContainText('Target failure source')
+    await expect(page.locator('.tabs-container li')).toHaveCount(1)
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+
+    const second = await page.evaluate(async(id) => {
+      const driver = window as unknown as {
+        __mtMoveTabToNewWindow?: (input: { tabId: string; paneId: 'left' | 'right' }) => Promise<unknown>
+      }
+      return driver.__mtMoveTabToNewWindow?.({ tabId: id!, paneId: 'left' })
+    }, tabId)
+    expect(second).toMatchObject({ status: 'applied' })
+    await expect(page.locator('.tabs-container li')).toHaveCount(1)
+    await expect(page.locator('.tabs-container li')).toContainText('New Tab')
+  } finally {
+    await app.close().catch(() => {})
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
+test('forwards an authorized Move through startup recovery alongside an explicit target', async() => {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-transfer-recovery-restart-'))
+  const moved = path.join(profile, 'moved.md')
+  const explicit = path.join(profile, 'explicit.md')
+  fs.writeFileSync(moved, '# Post authorization recovery\n')
+  fs.writeFileSync(explicit, '# Explicit startup stays open\n')
+  const first = await launchElectron([moved], {
+    userDataDir: profile,
+    userDataDirOwnership: 'caller',
+    transferFault: 'hold-source-release'
+  })
+  let firstKilled = false
+  let secondApp: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  try {
+    await expect(first.page.locator('.editor-with-tabs')).toBeVisible()
+    const tabId = await first.page.locator('.tabs-container li').first().getAttribute('data-id')
+    expect(tabId).toBeTruthy()
+    await first.page.evaluate((id) => {
+      const driver = window as unknown as {
+        __mtMoveTabToNewWindow?: (input: { tabId: string; paneId: 'left' | 'right' }) => Promise<unknown>
+      }
+      window.setTimeout(() => {
+        const action = driver.__mtMoveTabToNewWindow
+        if (action) action({ tabId: id!, paneId: 'left' }).catch(() => undefined)
+      }, 0)
+    }, tabId)
+    const journalPath = path.join(profile, 'tab-transfer', 'journal.ndjson')
+    await expect.poll(() => {
+      try {
+        return fs.readFileSync(journalPath, 'utf8').split('\n').flatMap(line => line ? [JSON.parse(line) as { phase: string; kind: string }] : [])
+      } catch {
+        return []
+      }
+    }).toEqual(expect.arrayContaining([
+      expect.objectContaining({ phase: 'commit-authorized', kind: 'observed' }),
+      expect.objectContaining({ phase: 'source-released', kind: 'intent' })
+    ]))
+
+    const child = first.app.process()
+    const mainPid = await first.app.evaluate(() => process.pid)
+    execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
+    await new Promise<void>((resolve) => child.once('exit', () => resolve()))
+    firstKilled = true
+
+    const second = await launchElectron([explicit], { userDataDir: profile, userDataDirOwnership: 'caller' })
+    secondApp = second.app
+    expect(await second.app.evaluate(() => process.pid)).not.toBe(mainPid)
+    expect(await second.app.evaluate(() => process.argv)).toContain(explicit)
+    await expect.poll(() => second.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBeGreaterThanOrEqual(1)
+    await expect.poll(async() => {
+      const windows = await second.app.windows()
+      return (await Promise.all(windows.map(window => window.locator('body').innerText()))).join('\n')
+    }).toContain('Post authorization recovery')
+    await expect.poll(async() => {
+      const windows = await second.app.windows()
+      return (await Promise.all(windows.map(window => window.locator('body').innerText()))).join('\n')
+    }, { timeout: 20_000 }).toContain('Explicit startup stays open')
+    await expect.poll(() => {
+      try {
+        const last = fs.readFileSync(journalPath, 'utf8').trim().split('\n').at(-1)
+        const record = last ? JSON.parse(last) as { phase?: string; kind?: string; aborted?: boolean; ownerSessionId?: string; source?: { sessionId?: string }; target?: { sessionId?: string } } : undefined
+        return record && { phase: record.phase, kind: record.kind, aborted: record.aborted, owner: record.ownerSessionId, source: record.source?.sessionId, target: record.target?.sessionId }
+      } catch { return undefined }
+    }, { timeout: 20_000 }).toMatchObject({ phase: 'completed', kind: 'observed' })
+    const migrations = fs.readFileSync(path.join(profile, 'tab-transfer', 'migrations.ndjson'), 'utf8').trim().split('\n')
+    expect(migrations).toHaveLength(1)
+  } finally {
+    if (!firstKilled) await first.app.close().catch(() => {})
+    await secondApp?.close().catch(() => {})
+    fs.rmSync(profile, { recursive: true, force: true })
   }
 })

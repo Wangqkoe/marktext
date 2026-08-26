@@ -71,6 +71,7 @@ export interface IpcInvokeChannels {
   'mt::workspace::tab-transfer-ack': { args: [receipt: unknown]; ret: unknown }
   'mt::workspace::tab-transfer-payload': { args: [request: unknown]; ret: unknown }
   'mt::workspace::tab-transfer-ready': { args: []; ret: boolean }
+  'mt::workspace::tab-transfer-recovery-ready': { args: [transferId: string]; ret: boolean }
   'mt::fs-trash-item': { args: [pathname: string]; ret: void }
   'mt::fs::copy': { args: [src: string, dest: string]; ret: void }
   'mt::fs::empty-dir': { args: [path: string]; ret: void }

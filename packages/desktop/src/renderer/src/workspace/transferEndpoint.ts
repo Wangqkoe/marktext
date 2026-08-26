@@ -15,6 +15,7 @@ export const createElectronTransferPort = (): {
   bind(handler: (command: TransferCommand) => Promise<TransferAck>): () => void
   bindRecovery(handler: (message: TransferRecoveryMessage) => Promise<void>): () => void
   payload(transferId: string, capability?: TransferCapability): Promise<TransferPayloadResponse>
+  recoveryMaterialized(transferId: string): Promise<boolean>
   ready(): Promise<boolean>
 } => ({
   run: intent => window.electron.ipcRenderer.invoke('mt::workspace::tab-transfer', intent) as Promise<TabTransferResult>,
@@ -34,5 +35,6 @@ export const createElectronTransferPort = (): {
     'mt::workspace::tab-transfer-payload',
     { transferId, capability }
   ) as Promise<TransferPayloadResponse>,
+  recoveryMaterialized: transferId => window.electron.ipcRenderer.invoke('mt::workspace::tab-transfer-recovery-ready', transferId),
   ready: () => window.electron.ipcRenderer.invoke('mt::workspace::tab-transfer-ready')
 })

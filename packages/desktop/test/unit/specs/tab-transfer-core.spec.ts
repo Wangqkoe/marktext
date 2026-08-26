@@ -7,7 +7,7 @@ import {
   type TransferIntent
 } from 'main_renderer/tabTransfer'
 import { ElectronTransferTransport, type TransferWebContents } from 'main_renderer/tabTransfer/electron'
-import type { TransferCommand } from 'main_renderer/tabTransfer'
+import type { TransferCommand, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 
 const makeIntent = (transport: MemoryTransferTransport, requestId = 'request-1'): TransferIntent => ({
   requestId,
@@ -130,9 +130,12 @@ describe('Electron transfer endpoint authentication', () => {
       capsuleDigest: 'digest',
       documentRevision: 1
     })
-    target.onSend = command => transport.acknowledge(target, {
-      transferId: command.transferId, phase: command.phase, operation: command.operation, ack: { status: 'ok' }
-    })
+    target.onSend = command => {
+      if (!('phase' in command)) return
+      transport.acknowledge(target, {
+        transferId: command.transferId, phase: command.phase, operation: command.operation, ack: { status: 'ok' }
+      })
+    }
     await expect(transport.command({
       transferId: 'transfer',
       phase: 'target-staged',
@@ -170,6 +173,9 @@ describe('Electron transfer endpoint authentication', () => {
     const reserved = await transport.reserveRecoveryWindow('recovery-transfer')
     expect(created).toBe(0)
     expect(transport.authenticate(reserved)).toBe(false)
+    target.onSend = message => {
+      if ('ownerSessionId' in message) transport.recoveryMaterialized(target, message.transferId)
+    }
     await transport.materializeRecoveryWindow(reserved, {
       sourceDocumentId: 'document-1',
       sourceViewId: 'view-1',
@@ -189,10 +195,10 @@ describe('Electron transfer endpoint authentication', () => {
 
 class FakeTransferWebContents implements TransferWebContents {
   readonly listeners = new Map<string, (() => void)[]>()
-  onSend?: (command: TransferCommand) => void
+  onSend?: (message: TransferCommand | TransferRecoveryMessage) => void
   constructor(readonly id: number) {}
   send(_channel: 'mt::workspace::transfer-command' | 'mt::workspace::transfer-recovery', payload: unknown): void {
-    this.onSend?.(payload as TransferCommand)
+    this.onSend?.(payload as TransferCommand | TransferRecoveryMessage)
   }
 
   on(event: 'destroyed' | 'did-start-navigation', listener: () => void): void { this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]) }

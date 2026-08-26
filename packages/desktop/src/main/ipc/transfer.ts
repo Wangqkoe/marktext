@@ -10,7 +10,8 @@ export interface TransferIpcMain {
   handle(channel: 'mt::workspace::tab-transfer-ack', listener: (event: { readonly sender: TransferWebContents }, receipt: TransferReceipt) => TransferAck): void
   handle(channel: 'mt::workspace::tab-transfer-payload', listener: (event: { readonly sender: TransferWebContents }, request: TransferPayloadRequest) => Promise<TransferPayloadResponse>): void
   handle(channel: 'mt::workspace::tab-transfer-ready', listener: (event: { readonly sender: TransferWebContents }) => boolean): void
-  removeHandler?(channel: 'mt::workspace::tab-transfer' | 'mt::workspace::tab-transfer-ack' | 'mt::workspace::tab-transfer-payload' | 'mt::workspace::tab-transfer-ready'): void
+  handle(channel: 'mt::workspace::tab-transfer-recovery-ready', listener: (event: { readonly sender: TransferWebContents }, transferId: string) => boolean): void
+  removeHandler?(channel: 'mt::workspace::tab-transfer' | 'mt::workspace::tab-transfer-ack' | 'mt::workspace::tab-transfer-payload' | 'mt::workspace::tab-transfer-ready' | 'mt::workspace::tab-transfer-recovery-ready'): void
 }
 export interface TransferReceipt { readonly transferId: string; readonly phase: TransferCommand['phase']; readonly operation: TransferCommand['operation']; readonly ack: TransferAck }
 export interface TransferPayloadRequest { readonly transferId: string; readonly capability?: TransferCapability }
@@ -47,6 +48,7 @@ export class TabTransferElectronAdapter {
   }
 
   acknowledge(sender: TransferWebContents, receipt: TransferReceipt): TransferAck { return this.transport.acknowledge(sender, receipt) }
+  recoveryMaterialized(sender: TransferWebContents, transferId: string): boolean { return this.transport.recoveryMaterialized(sender, transferId) }
   async payload(sender: TransferWebContents, request: TransferPayloadRequest): Promise<TransferPayloadResponse> {
     const endpoint = this.transport.endpointForSender(sender)
     if (!endpoint) return { durable: false, reason: 'unauthenticated transfer endpoint' }
@@ -68,12 +70,13 @@ export class TabTransferElectronAdapter {
 }
 
 export const registerTransferIpc = (ipc: TransferIpcMain, adapter: TabTransferElectronAdapter): (() => void) => {
-  ipc.removeHandler?.('mt::workspace::tab-transfer'); ipc.removeHandler?.('mt::workspace::tab-transfer-ack'); ipc.removeHandler?.('mt::workspace::tab-transfer-payload'); ipc.removeHandler?.('mt::workspace::tab-transfer-ready')
+  ipc.removeHandler?.('mt::workspace::tab-transfer'); ipc.removeHandler?.('mt::workspace::tab-transfer-ack'); ipc.removeHandler?.('mt::workspace::tab-transfer-payload'); ipc.removeHandler?.('mt::workspace::tab-transfer-ready'); ipc.removeHandler?.('mt::workspace::tab-transfer-recovery-ready')
   ipc.handle('mt::workspace::tab-transfer', (event, intent) => adapter.run(event.sender, intent))
   ipc.handle('mt::workspace::tab-transfer-ack', (event, receipt) => adapter.acknowledge(event.sender, receipt))
   ipc.handle('mt::workspace::tab-transfer-payload', (event, request) => adapter.payload(event.sender, request))
   ipc.handle('mt::workspace::tab-transfer-ready', event => adapter.transport.receiverReady(event.sender))
-  return () => { ipc.removeHandler?.('mt::workspace::tab-transfer'); ipc.removeHandler?.('mt::workspace::tab-transfer-ack'); ipc.removeHandler?.('mt::workspace::tab-transfer-payload'); ipc.removeHandler?.('mt::workspace::tab-transfer-ready') }
+  ipc.handle('mt::workspace::tab-transfer-recovery-ready', (event, transferId) => adapter.recoveryMaterialized(event.sender, transferId))
+  return () => { ipc.removeHandler?.('mt::workspace::tab-transfer'); ipc.removeHandler?.('mt::workspace::tab-transfer-ack'); ipc.removeHandler?.('mt::workspace::tab-transfer-payload'); ipc.removeHandler?.('mt::workspace::tab-transfer-ready'); ipc.removeHandler?.('mt::workspace::tab-transfer-recovery-ready') }
 }
 
 export const createProductionTransferAdapter = (): TabTransferElectronAdapter => new TabTransferElectronAdapter()
