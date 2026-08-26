@@ -55,10 +55,25 @@ T03 does not complete V1. T10 is integrated/reviewed at
 `344dbff17a894751dc61ddbf750c711d3b855beb`. T05 is integrated/reviewed at
 `3d6790cf5397dfde9b8dafbd92c0f63d3cba0a6a`; its verified evidence is recorded
 in the [T05 evidence report](handoff/evidence/t05-integration-2026-08-25.md).
-T06's T05 prerequisite is satisfied, but T06 is not marked ready until all
-existing T02/T04/T04b/T03 prerequisites and required evidence are satisfied.
-T07 and T08 retain their later frontier state. The remaining V1 frontier is
-therefore not complete.
+T02b's final production gate is integrated, independently reviewed, and accepted
+at `b2cc0a784bd539a598e7db456b1509d87dbaf36f`; its evidence is recorded in the
+[T02b evidence report](handoff/evidence/t02b-integration-2026-08-26.md). The
+T02b/T03/T04/T04b/T05 prerequisite chain is therefore satisfied, and T06 is
+ready to start implementation. T06 is not Passed: its production Electron
+integration, A07 Electron/A08 evidence, and independent terra/high review remain
+outstanding. T07, T08, T11 and T12 retain their later frontier state. The
+remaining V1 frontier is therefore not complete.
+
+## T02b final production gate — 2026-08-26
+
+The final gate is recorded against implementation commit
+`b2cc0a784bd539a598e7db456b1509d87dbaf36f`, repaired/reviewed from fixed
+baseline `1130af41aa5fc004d0adcdbf24e0d47abd06cfd8`. The supplied unit,
+single-worker Electron, typecheck, build, scoped ESLint, diff-check, Standards
+review and Spec review evidence all passed. The default no-normal-workspace-restore
+policy remains passed and unchanged. Non-blocking records and the prior default
+three-worker Electron launch timeouts are retained in the evidence report; they do
+not change T06's ready-to-start status or advance downstream tickets.
 
 ## Decisions so far
 
@@ -131,7 +146,8 @@ therefore not complete.
 - T03 remains integrated; T05 is integrated/reviewed at
   `3d6790cf5397dfde9b8dafbd92c0f63d3cba0a6a` after its WAL/MoveRecovery gate
   and independent dual review passed; see the [T05 evidence report](handoff/evidence/t05-integration-2026-08-25.md).
-- T06's T05 prerequisite is now satisfied, but T06 is not marked ready until
-  all prior T02/T04/T04b/T03 prerequisites and evidence are satisfied. T07,
-  T08, T11 and T12 retain their real dependency/frontier states and are not
-  unlocked or completed by T05 or T10 alone.
+- T02b is integrated/reviewed/accepted at `b2cc0a784bd539a598e7db456b1509d87dbaf36f`;
+  see the [final production gate evidence](handoff/evidence/t02b-integration-2026-08-26.md).
+- T06 is ready to start after the prerequisite audit, but remains unimplemented
+  and unpassed. T07, T08, T11 and T12 retain their real dependency/frontier states
+  and are not unlocked or completed by T02b alone.

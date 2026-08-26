@@ -106,6 +106,30 @@ epoch; T06's production IPC adapter must define and verify this semantic. T05
 does not claim CrashDraftRecovery, production Electron wiring, or normal
 workspace restore.
 
+## T02b final production integration evidence — 2026-08-26
+
+See the [T02b final gate report](evidence/t02b-integration-2026-08-26.md).
+T02b is integrated/reviewed/accepted at `b2cc0a784bd539a598e7db456b1509d87dbaf36f`.
+This gate releases the current Controller/projection seam; it does not claim
+normal workspace restore, T06 production recovery, or completion of V1.
+
+| Evidence | Status | Exact command, environment, result |
+| --- | --- | --- |
+| T02b unit gate | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts test/unit/specs/workspace-projection-mirror.spec.ts test/unit/specs/workspace-command-routing.spec.ts`; Windows Node/Vitest; 3 files / 52 passed |
+| T02b Electron gate | Passed | `pnpm -C packages/desktop exec playwright test test/e2e/tab-switch-cursor.spec.ts test/e2e/split-workspace.spec.ts test/e2e/audit-tabs-restart.spec.ts --workers=1`; Windows Electron; 11 passed |
+| T02b typecheck | Passed | `pnpm -C packages/desktop typecheck`; exit 0 |
+| T02b build | Passed | `pnpm -C packages/desktop build`; exit 0, warnings only |
+| T02b scoped ESLint | Passed | `pnpm exec eslint packages/desktop/src/shared/workspace packages/desktop/src/renderer/src/workspace packages/desktop/src/renderer/src/store/editor.ts packages/desktop/src/renderer/src/components/editorWithTabs`; exit 0, warnings only |
+| T02b integrated diff check | Passed | `git diff --check 1130af41...b2cc0a78`; exit 0 |
+| Independent Standards review | Passed | No blockers |
+| Independent Spec review | Passed | No blockers |
+| Default no-normal-workspace-restore policy | Passed | Passed and unchanged; no new restore surface is claimed |
+
+T02b non-blocking records: unused `sourceEventScope` assignment; repeated
+waiter anonymous type; and exceptional failed-refresh waiter resilience. Prior
+default three-worker Electron launch timeouts are environment/runner records;
+the authoritative deterministic gate is the successful single-worker 11/11 run.
+
 ## Status rules
 
 | Status | Rule |

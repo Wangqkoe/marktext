@@ -1,7 +1,8 @@
 # T02b — Workspace projection mirror & controller ownership
 
-Status: required high-risk corrective implementation; T02 is an inherited
-intermediate, not a merge candidate.
+Status: integrated, independently reviewed, and accepted at
+`b2cc0a784bd539a598e7db456b1509d87dbaf36f`; T02 is an inherited intermediate,
+not a merge candidate.
 
 Repair order: R1 establishes Controller/domain/snapshot authority and its safety
 proofs; R2 moves production projection consumers to the readonly Pinia facade and
@@ -24,10 +25,12 @@ reviewed at that baseline, so its FileObservationHub/FileKey/DiskRevision/CAS
 port is now a consumable seam while it remains sole owner of watcher, hash and
 save I/O. The final whole-diff three-dot review fixed point is `7ae5e2f4`.
 
-It blocks T03, T05, T06, T08 and T11 wherever those tickets consume real runtime
-Document/View state. T04 may execute in parallel through the integration seam
-below. T02b does not implement normal restore, Transfer WAL/recovery, production
-file observation/CAS, or a second long-lived dual-write state.
+Historically, this ticket blocked T03, T05, T06, T08 and T11 wherever those
+tickets consumed real runtime Document/View state. The final production chain is
+now integrated; downstream tickets use the current seam and their own
+frontier/acceptance gates. T04 may execute in parallel through the integration
+seam below. T02b does not implement normal restore, Transfer WAL/recovery,
+production file observation/CAS, or a second long-lived dual-write state.
 
 ## Normative architecture boundary
 
@@ -96,6 +99,11 @@ back at its prior adapter boundary; no stage may leave an enduring dual-write or
 dual-owner state.
 
 ## Handoff
+
+The final production gate is recorded in the [T02b integration evidence](../evidence/t02b-integration-2026-08-26.md).
+T02b is released for T03/T05/T06/T08/T11 consumption at the integrated HEAD;
+those tickets retain their own implementation, evidence, review, and acceptance
+gates. T06 is ready to start, not complete or passed.
 
 Commit only the scoped renderer/shared code and tests when implementation is later
 authorized. This contract revision itself does not authorize production or test
