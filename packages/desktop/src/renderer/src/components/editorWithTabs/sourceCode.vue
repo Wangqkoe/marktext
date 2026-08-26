@@ -46,12 +46,13 @@ const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
 
 const sourceCodeContainer = ref<HTMLDivElement | null>(null)
-
 const editor = ref<CMInstance>(null)
 const commitTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const viewDestroyed = ref(false)
 const tabId = ref<string | null>(null)
 let sourceEventScope: PaneEditorEventScope | undefined
+let sourceDocumentId: string | undefined
+const sourceScopeAbort = new AbortController()
 const focusedBusHandlers = new Map<string, (...args: any[]) => void>()
 const onFocused = (event: string, handler: (...args: any[]) => void): void => {
   const guarded = (...args: any[]) => { if (props.focused !== false) handler(...args) }
@@ -147,6 +148,11 @@ const getMarkdownAndCursor = (cm: CMInstance) => {
   return { cursor: { focus, anchor }, markdown }
 }
 
+const activeSourceScope = (): PaneEditorEventScope | undefined => {
+  const scope = props.composition.getScope()
+  return scope?.mode === 'source' && scope.documentId === sourceDocumentId ? scope : undefined
+}
+
 /**
  * This is to write the OLD content of the editor before switching to another tab
  * @param id
@@ -155,8 +161,8 @@ const prepareTabSwitch = () => {
   if (commitTimer.value) clearTimeout(commitTimer.value)
   if (tabId.value) {
     const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(editor.value)
-    const scope = sourceEventScope
-    if (scope?.documentId === tabId.value) {
+    const scope = activeSourceScope()
+    if (scope) {
       props.composition.reportSource(scope, { markdown: newMarkdown, cursor })
     }
     tabId.value = null
@@ -210,6 +216,7 @@ const handleFileChange = (payload: unknown) => {
   } else {
     prepareTabSwitch()
     tabId.value = id
+    sourceDocumentId = id
   }
 
   if (typeof newMarkdown === 'string') {
@@ -334,31 +341,30 @@ const handleImageAction = (payload: unknown) => {
   }
 }
 
-const saveContent = (cm: CMInstance, scope = sourceEventScope) => {
+const saveContent = (cm: CMInstance) => {
   const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(cm)
   // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
   const wordCount = getWordCount(newMarkdown)
   // See "beforeDestroy" note
   if (!viewDestroyed.value) {
-    if (tabId.value) {
-      if (scope?.documentId === tabId.value) {
-        props.composition.reportSource(scope, {
-          markdown: newMarkdown,
-          cursor,
-          status: { wordCount: wordCount.word }
-        })
-      }
-    } else {
-      // This may occur during tab switching but should not occur otherwise.
-      console.warn('LISTEN_FOR_CONTENT_CHANGE: Cannot commit changes because not tab id was set!')
+    const scope = activeSourceScope()
+    if (scope) {
+      props.composition.reportSource(scope, {
+        markdown: newMarkdown,
+        cursor,
+        status: { wordCount: wordCount.word }
+      })
     }
   }
 }
 
-const listenChange = (scope: PaneEditorEventScope) => {
+const listenChange = () => {
+  editor.value.on('change', (cm: CMInstance) => {
+    saveContent(cm)
+  })
   editor.value.on('cursorActivity', (cm: CMInstance) => {
     reportCaretPosition(cm, props.caretSession)
-    saveContent(cm, scope)
+    saveContent(cm)
   })
 }
 
@@ -379,6 +385,10 @@ const handleScrollToHeader = (slug: unknown) => {
 onMounted(async () => {
   if (!currentTab.value) return
   const { id } = currentTab.value
+  sourceDocumentId = id
+  sourceEventScope = await props.composition.scopeForMode('source', sourceScopeAbort.signal)
+  if (!sourceEventScope || viewDestroyed.value) return
+
   const { markdown, muyaIndexCursor, textDirection } = props
   const container = sourceCodeContainer.value
   const codeMirrorConfig: Record<string, unknown> = {
@@ -416,6 +426,9 @@ onMounted(async () => {
   // For some reason, code mirror does not seem to play well with Vue's refs if we reference editor.value directly.
   // See https://github.com/codemirror/codemirror5/issues/6886 - hence, we need to use a local variable first.
   const codeMirrorInstance = codeMirror(container, codeMirrorConfig)
+  editor.value = codeMirrorInstance
+  tabId.value = id
+  listenChange()
 
   // `markdown-math` wraps the standard Markdown mode and delegates `$...$` and
   // `$$...$$` spans to stex so subscript underscores in math do not flip the
@@ -434,21 +447,12 @@ onMounted(async () => {
     setCursorAtFirstLine(codeMirrorInstance)
   }
 
-  editor.value = codeMirrorInstance
-  tabId.value = id
-  // The parent starts the controller handoff in the same reactive turn that
-  // mounts CodeMirror. Wait for that handoff's staging microtasks before
-  // capturing the lease; otherwise source edits report through the revoked
-  // WYSIWYG scope and are intentionally ignored.
-  await nextTick()
-  sourceEventScope = await props.composition.scopeForMode('source')
-
-  if (sourceEventScope) listenChange(sourceEventScope)
   reportCaretPosition(codeMirrorInstance, props.caretSession)
 })
 
 onBeforeUnmount(() => {
   viewDestroyed.value = true
+  sourceScopeAbort.abort()
   if (commitTimer.value) clearTimeout(commitTimer.value)
 
   offFocused('file-loaded')
@@ -460,9 +464,8 @@ onBeforeUnmount(() => {
   offFocused('image-action')
   offFocused('scroll-to-header')
 
-  const scope = sourceEventScope
-  const id = tabId.value
-  if (id && scope?.mode === 'source' && scope.documentId === id) {
+  const scope = activeSourceScope()
+  if (scope && editor.value) {
     const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(editor.value)
     props.composition.reportSource(scope, {
       markdown: newMarkdown,

@@ -29,15 +29,28 @@ const sourceValue = (page: Page): Promise<string> =>
     return cm?.CodeMirror?.getValue() ?? ''
   })
 
-const setSource = async(app: ElectronApplication, page: Page, markdown: string): Promise<void> => {
+const setSource = async(
+  app: ElectronApplication,
+  page: Page,
+  markdown: string
+): Promise<void> => {
   await enterSourceMode(page, app)
-  await page.evaluate((value) => {
-    const cm = document.querySelector('.source-code .CodeMirror') as Element & {
-      CodeMirror: { setValue(value: string): void }
+  await page.locator('.source-code .CodeMirror').click()
+  await page.keyboard.press('Control+A')
+  if (markdown.length > 4_000) {
+    await page.keyboard.insertText(markdown)
+  } else {
+    const lines = markdown.split('\n')
+    for (const [index, line] of lines.entries()) {
+      if (line) await page.keyboard.type(line)
+      if (index < lines.length - 1) await page.keyboard.press('Enter')
     }
-    cm.CodeMirror.setValue(value)
-  }, markdown)
+  }
+  await expect.poll(() => sourceValue(page)).toBe(markdown)
+  await expect.poll(() => isDirty(page)).toBe(true)
   await exitSourceMode(page, app)
+  const visibleMarker = markdown.trim().split(/\s+/).at(-1)
+  if (visibleMarker) await expect.poll(() => activeText(page)).toContain(visibleMarker)
 }
 
 const stubSaveDialog = async(app: ElectronApplication, targetPath: string): Promise<void> => {
@@ -126,7 +139,12 @@ test.describe('W2 audit — tabs, no normal restart restore and Save As', () => 
       const activeBaseline = await activeText(page)
 
       await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'target baseline\n')
-      await setSource(app, page, 'TARGET-DIRTY\n')
+      await expect.poll(() => page.locator(tabSelector).count()).toBe(2)
+      await expect.poll(() => activeText(page)).toContain('target baseline')
+      await page.click('.editor-component')
+      await page.keyboard.insertText(' TARGET-DIRTY')
+      await expect.poll(() => activeText(page)).toContain('TARGET-DIRTY')
+      await expect.poll(() => isDirty(page)).toBe(true)
       await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
       await expect.poll(() => activeText(page)).toBe(activeBaseline)
 
@@ -134,6 +152,11 @@ test.describe('W2 audit — tabs, no normal restart restore and Save As', () => 
       await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => (button as HTMLElement).click())
       await expect.poll(() => page.locator(tabSelector).count()).toBe(2)
       expect(await activeText(page)).toBe(activeBaseline)
+      await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 1)
+      await expect.poll(() => activeText(page)).toContain('TARGET-DIRTY')
+      await expect.poll(() => isDirty(page)).toBe(true)
+      await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
+      await expect.poll(() => activeText(page)).toBe(activeBaseline)
 
       await stubCloseDialog(app, 1)
       await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => (button as HTMLElement).click())
@@ -141,14 +164,25 @@ test.describe('W2 audit — tabs, no normal restart restore and Save As', () => 
       expect(await activeText(page)).toBe(activeBaseline)
 
       await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'target save baseline\n')
-      await setSource(app, page, 'TARGET-SAVED\n')
+      await expect.poll(() => page.locator(tabSelector).count()).toBe(2)
+      await expect.poll(() => activeText(page)).toContain('target save baseline')
+      await page.click('.editor-component')
+      await page.keyboard.insertText(' TARGET-SAVED')
+      await expect.poll(() => activeText(page)).toContain('TARGET-SAVED')
+      await expect.poll(() => isDirty(page)).toBe(true)
       await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
+      await expect.poll(() => activeText(page)).toBe(activeBaseline)
+      await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 1)
+      await expect.poll(() => activeText(page)).toContain('TARGET-SAVED')
+      await expect.poll(() => isDirty(page)).toBe(true)
+      await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
+      await expect.poll(() => activeText(page)).toBe(activeBaseline)
       await stubSaveDialog(app, saveTarget)
       await stubCloseDialog(app, 0)
       await page.locator(`${tabSelector}:nth-child(2) .close-icon`).evaluate((button) => (button as HTMLElement).click())
       await expect.poll(() => page.locator(tabSelector).count()).toBe(1)
       await expect.poll(() => fs.existsSync(saveTarget)).toBe(true)
-      expect(fs.readFileSync(saveTarget, 'utf8').replace(/\r\n/g, '\n')).toBe('TARGET-SAVED\n')
+      expect(fs.readFileSync(saveTarget, 'utf8').replace(/\r\n/g, '\n')).toBe('target save baseline\n\n TARGET-SAVED\n')
       expect(await activeText(page)).toBe(activeBaseline)
       const messages = await app.evaluate(() => {
         const g = global as unknown as { __mt_audit_close_messages__?: string[] }
@@ -223,6 +257,7 @@ test.describe('W2 audit — tabs, no normal restart restore and Save As', () => 
         (selector) => document.querySelectorAll(selector).length === 2,
         tabSelector
       )
+      await expect.poll(() => activeText(page)).toContain('B baseline')
       await setSource(app, page, 'B baseline\n\nB-DIRTY\n')
       await expect.poll(() => activeText(page)).toContain('B-DIRTY')
       await expect.poll(() => isDirty(page)).toBe(true)

@@ -145,12 +145,21 @@ class RendererPaneEditorEventScope implements PaneEditorEventScope {
 export class PaneEditorLeaseReporter {
   private binding: PaneEditorBinding | undefined
   private activeScope: RendererPaneEditorEventScope | undefined
+  private readonly scopeWaiters = new Set<{
+    mode: EditorMode
+    resolve: (scope: PaneEditorEventScope | undefined) => void
+    signal: AbortSignal | undefined
+    abort: () => void
+  }>()
 
   constructor(private readonly paneId: PaneId) {}
 
   attach(binding: PaneEditorBinding | undefined): void {
     this.binding = binding
-    if (!binding) this.activeScope = undefined
+    if (!binding) {
+      this.activeScope = undefined
+      this.resolveScopeWaiters(undefined)
+    }
   }
 
   /** Restores the pre-refresh scope when commit/activation compensation runs. */
@@ -164,6 +173,23 @@ export class PaneEditorLeaseReporter {
 
   getActiveScope(): PaneEditorEventScope | undefined {
     return this.activeScope
+  }
+
+  /** Wait for the controller to publish a scope for a newly mounted surface. */
+  scopeForMode(mode: EditorMode, signal?: AbortSignal): Promise<PaneEditorEventScope | undefined> {
+    const active = this.activeScope
+    if (active?.mode === mode) return Promise.resolve(active)
+    if (signal?.aborted) return Promise.resolve(undefined)
+    return new Promise((resolve) => {
+      const waiter = {
+        mode,
+        resolve,
+        signal,
+        abort: () => this.finishScopeWaiter(waiter, undefined)
+      }
+      this.scopeWaiters.add(waiter)
+      signal?.addEventListener('abort', waiter.abort, { once: true })
+    })
   }
 
   stage(snapshot: EditorBindingSnapshot): PaneEditorEventScope {
@@ -197,6 +223,7 @@ export class PaneEditorLeaseReporter {
       throw new Error('pane adapter attempted to activate a stale editor snapshot')
     }
     this.activeScope = scope
+    this.resolveScopeWaiters(scope)
   }
 
   report(scope: RendererPaneEditorEventScope, report: EditorReport): WorkspaceResult {
@@ -245,5 +272,25 @@ export class PaneEditorLeaseReporter {
     if (!snapshot) return undefined
     scope.replaceSnapshot(snapshot)
     return lease
+  }
+
+  private resolveScopeWaiters(scope: PaneEditorEventScope | undefined): void {
+    for (const waiter of [...this.scopeWaiters]) {
+      if (!scope || waiter.mode === scope.mode) this.finishScopeWaiter(waiter, scope)
+    }
+  }
+
+  private finishScopeWaiter(
+    waiter: {
+      mode: EditorMode
+      resolve: (scope: PaneEditorEventScope | undefined) => void
+      signal: AbortSignal | undefined
+      abort: () => void
+    },
+    scope: PaneEditorEventScope | undefined
+  ): void {
+    if (!this.scopeWaiters.delete(waiter)) return
+    waiter.signal?.removeEventListener('abort', waiter.abort)
+    waiter.resolve(scope)
   }
 }

@@ -565,6 +565,26 @@ describe('WorkspaceRuntime', () => {
     ])
   })
 
+  it('notifies a source surface only when its controller scope is active', async() => {
+    const workspace = createWorkspaceRuntime([{ markdown: 'first' }])
+    const surface = new MemoryPaneSurface()
+    const reporter = new PaneEditorLeaseReporter('left')
+    const binding = await workspace.bindPaneEditor(
+      'left',
+      new RendererPaneEditorAdapter(surface, reporter)
+    )
+    reporter.attach(binding)
+
+    const pendingSourceScope = reporter.scopeForMode('source')
+    const abort = new AbortController()
+    const cancelledSourceScope = reporter.scopeForMode('source', abort.signal)
+    abort.abort()
+
+    expect((await binding.handoffMode(currentLease(binding), 'source')).status).toBe('applied')
+    expect(await pendingSourceScope).toBe(surface.scopes.at(-1))
+    await expect(cancelledSourceScope).resolves.toBeUndefined()
+  })
+
   it('cancels a late staged A refresh after B commits without replacing B scope or adapter state', async () => {
     const workspace = createWorkspaceRuntime([{ markdown: 'A' }])
     const surface = new DeferredPaneSurface()

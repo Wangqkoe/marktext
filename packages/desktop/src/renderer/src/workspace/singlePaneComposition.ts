@@ -49,6 +49,7 @@ export class PaneEditorComposition {
   private adapter: RendererPaneEditorAdapter | undefined
   private runtime: WorkspaceController | undefined
   private sourceReport: { scope: PaneEditorEventScope; report: EditorReport } | undefined
+  private sourceReportFlush: Promise<void> | undefined
   private sourceHandoffHandler: ((report: EditorReport) => void) | undefined
   private readonly paneId: PaneId
   private mountGeneration = 0
@@ -131,6 +132,20 @@ export class PaneEditorComposition {
     )
   }
 
+  /** Replays the latest source report after a mode transition releases its lease. */
+  private flushSourceReport(scope: PaneEditorEventScope): void {
+    if (this.sourceReportFlush) return
+    const queuedReport = this.sourceReport
+    this.sourceReportFlush = scope.flush()
+      .catch(() => undefined)
+      .then(() => {
+        this.sourceReportFlush = undefined
+        if (this.sourceReport !== queuedReport && scope === this.reporter.getActiveScope()) {
+          this.flushSourceReport(scope)
+        }
+      })
+  }
+
   getScope(): PaneEditorEventScope | undefined {
     return this.reporter.getActiveScope()
   }
@@ -142,7 +157,17 @@ export class PaneEditorComposition {
    */
   reportSource(scope: PaneEditorEventScope, report: EditorReport): WorkspaceResult {
     const result = scope.report(report)
-    if (result.status === 'applied') this.sourceReport = { scope, report }
+    if (result.status === 'applied') {
+      this.sourceReport = { scope, report }
+    } else if (
+      result.status === 'rejected' &&
+      result.reason === 'workspace mutation is in progress' &&
+      scope === this.reporter.getActiveScope() &&
+      scope.mode === 'source'
+    ) {
+      this.sourceReport = { scope, report }
+      this.flushSourceReport(scope)
+    }
     return result
   }
 
@@ -164,12 +189,13 @@ export class PaneEditorComposition {
 
   sourceReportFor(snapshot: EditorBindingSnapshot): EditorReport | undefined {
     const pending = this.sourceReport
-    return pending &&
+    const result = pending &&
       snapshot.view.mode === 'source' &&
       pending.scope === this.reporter.getActiveScope() &&
       pending.scope.viewId === snapshot.viewId
       ? pending.report
       : undefined
+    return result
   }
 
   isSourceHandoff(snapshot: EditorBindingSnapshot): boolean {
@@ -194,10 +220,19 @@ export class PaneEditorComposition {
     return transition
   }
 
-  async scopeForMode(mode: EditorMode): Promise<PaneEditorEventScope | undefined> {
+  async scopeForMode(mode: EditorMode, signal?: AbortSignal): Promise<PaneEditorEventScope | undefined> {
     await this.modeTransition
-    const scope = this.getScope()
-    return scope?.mode === mode ? scope : undefined
+    if (signal?.aborted) return undefined
+    const current = this.getScope()
+    const scope = current?.mode === mode
+      ? current
+      : await this.reporter.scopeForMode(mode, signal)
+    // A source component can mount before its parent watcher records the
+    // controller transition. Activation publishes the lease during that
+    // transition, but reports remain rejected until the queue has drained.
+    await this.modeTransition
+    if (signal?.aborted || scope !== this.getScope() || scope?.mode !== mode) return undefined
+    return scope
   }
 
   private mountDocumentIo(): void {

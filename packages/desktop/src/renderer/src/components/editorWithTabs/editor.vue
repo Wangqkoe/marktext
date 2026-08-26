@@ -587,6 +587,11 @@ watch(sourceCode, (isSource) => {
       console.error('Failed to hand off pane editor mode:', error)
     })
   }
+  if (!isSource && props.composition.getScope()?.mode === 'source') {
+    props.composition.handoffMode('wysiwyg').catch((error) => {
+      console.error('Failed to hand off pane editor mode:', error)
+    })
+  }
   const windowId = window.marktext?.env?.windowId ?? -1
   if (isSource) {
     window.electron.ipcRenderer.send('mt::set-editor-format-menus-enabled', windowId, false)
@@ -599,7 +604,7 @@ watch(sourceCode, (isSource) => {
       window.electron.ipcRenderer.send('mt::set-editor-format-menus-enabled', windowId, true)
     }
   })
-})
+}, { flush: 'sync' })
 
 watch(fontSize, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
