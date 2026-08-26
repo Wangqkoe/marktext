@@ -76,6 +76,31 @@ test.describe('options / raw HTML details disclosure', () => {
         expect(await getMarkdown(page)).toContain('Changed body');
     });
 
+    test('restores source editing after Preview rebuilds the same block', async ({ page }) => {
+        await page.evaluate((text) => {
+            window.muya!.setContent([{ name: 'html-block', text }] as TState[]);
+        }, source);
+
+        const wrapper = page.locator(editor.htmlBlock);
+        const preview = wrapper.locator(editor.htmlPreview);
+        const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content');
+
+        await preview.locator('.mu-details-source-action').click();
+        await expect(sourceContent).toBeVisible();
+        await wrapper.locator('.mu-html-preview-action').click();
+        await expect(preview).toBeVisible();
+
+        await preview.locator('.mu-details-source-action').click();
+        await expect(wrapper).toHaveClass(/mu-active/);
+        await expect(sourceContent).toBeVisible();
+        await sourceContent.fill('<details><summary>Re-entered</summary>Edited again</details>');
+        await wrapper.locator('.mu-html-preview-action').click();
+
+        await expect(preview).toBeVisible();
+        await expect(preview.locator('summary')).toHaveText('Re-entered');
+        expect(await getMarkdown(page)).toContain('Edited again');
+    });
+
     test('Escape rebuilds edited source and drops transient disclosure state', async ({ page }) => {
         await page.evaluate((text) => {
             window.muya!.setContent([{ name: 'html-block', text }] as TState[]);
@@ -92,6 +117,30 @@ test.describe('options / raw HTML details disclosure', () => {
         await expect(preview.locator('summary')).toHaveText('Escaped');
         await expect(preview.locator('details')).not.toHaveAttribute('open', '');
         expect(await getMarkdown(page)).toContain('New body');
+    });
+
+    test('restores source editing after Escape rebuilds the same block', async ({ page }) => {
+        await page.evaluate((text) => {
+            window.muya!.setContent([{ name: 'html-block', text }] as TState[]);
+        }, source);
+
+        const wrapper = page.locator(editor.htmlBlock);
+        const preview = wrapper.locator(editor.htmlPreview);
+        const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content');
+
+        await preview.locator('.mu-details-source-action').click();
+        await page.keyboard.press('Escape');
+        await expect(preview).toBeVisible();
+
+        await preview.locator('.mu-details-source-action').click();
+        await expect(wrapper).toHaveClass(/mu-active/);
+        await expect(sourceContent).toBeVisible();
+        await expect(wrapper.locator('.mu-html-preview-action')).toBeVisible();
+        await sourceContent.fill('<details><summary>Escaped twice</summary>Editable</details>');
+        await wrapper.locator('.mu-html-preview-action').click();
+
+        await expect(preview.locator('summary')).toHaveText('Escaped twice');
+        expect(await getMarkdown(page)).toContain('Editable');
     });
 
     test('disableHtml renders escaped source and no native disclosure or source action', async ({ page }) => {

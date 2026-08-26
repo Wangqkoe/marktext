@@ -27,6 +27,10 @@ function bootDetails(source: string) {
     return { block, content, figure };
 }
 
+function nextFrame() {
+    return new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+}
+
 describe('raw HTML details disclosure sanitization', () => {
     it('keeps semantic details, summary and source open markup', () => {
         const html = sanitize(
@@ -85,5 +89,23 @@ describe('raw HTML details disclosure sanitization', () => {
         }));
         expect(preview.querySelector('summary')?.textContent).toBe('Escape result');
         expect(preview.querySelector('details')?.open).toBe(false);
+    });
+
+    it('reestablishes source focus after leaving preview mode', async () => {
+        const { block, figure } = bootDetails(
+            '<details><summary>More</summary>Body</details>\n',
+        );
+        const previewAction = figure.querySelector<HTMLButtonElement>('.mu-html-preview-action')!;
+
+        block.enterSourceEditing();
+        await nextFrame();
+        previewAction.click();
+        await nextFrame();
+        expect(block.active).toBe(false);
+
+        block.enterSourceEditing();
+        await nextFrame();
+        expect(block.active).toBe(true);
+        expect(figure.classList.contains('mu-active')).toBe(true);
     });
 });

@@ -95,7 +95,15 @@ class HTMLBlock extends Parent {
 
     enterSourceEditing() {
         this.domNode!.classList.remove('mu-html-preview-mode');
-        this.firstContentInDescendant()?.setCursor(0, 0);
+        const content = this.firstContentInDescendant();
+
+        // Preview/Escape leaves the source content as the editor's cached
+        // active block. Reset that ownership before restoring its cursor so
+        // the focus route runs again and reapplies active state to this block.
+        if (this.muya.editor.activeContentBlock === content)
+            this.muya.editor.activeContentBlock = null;
+
+        content?.setCursor(0, 0);
 
         if (this._escapeListenerId)
             this.muya.eventCenter.detachDOMEvent(this._escapeListenerId);
