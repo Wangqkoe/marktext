@@ -90,6 +90,8 @@ type PlannedAck = TransferAck & { readonly late?: boolean }
 export class MemoryTransferTransport implements TransferTransport {
   readonly commands: TransferCommand[] = []
   readonly lateEvents: TransferCommand[] = []
+  /** Effects that became durable before their ACK was deliberately lost. */
+  readonly appliedCommands: TransferCommand[] = []
   readonly recoveryCalls: string[] = []
   readonly materializedRecovery: { endpoint: TransferEndpoint; payload: TransferRecoveryPayload }[] = []
   onMaterialize?: () => void
@@ -97,6 +99,7 @@ export class MemoryTransferTransport implements TransferTransport {
   private readonly plans = new Map<string, PlannedAck[]>()
   private readonly successful = new Map<string, TransferAck>()
   private readonly capabilities = new Map<string, TransferCapability>()
+  private readonly crashAfterApply = new Set<string>()
   private nextEndpoint = 1
   private nextCapability = 1
 
@@ -132,6 +135,11 @@ export class MemoryTransferTransport implements TransferTransport {
 
   lateNextAck(phase: TransferCommand['phase'], ack: TransferAck = { status: 'ok' }): void {
     this.plan(phase, { ...ack, late: true })
+  }
+
+  /** Simulates process death after an idempotent effect lands but before its ACK/observed WAL record. */
+  crashAfterApplying(phase: TransferCommand['phase'], operation?: TransferCommand['operation']): void {
+    this.crashAfterApply.add(`${phase}:${operation ?? '*'}`)
   }
 
   kill(sessionId: string): void {
@@ -175,11 +183,21 @@ export class MemoryTransferTransport implements TransferTransport {
     const planned = queue?.shift()
     if (previous && !planned) return previous
     const ack = planned ?? { status: 'ok', sealedRevision: command.documentRevision }
+    const crashKey = `${command.phase}:${command.operation}`
+    if (this.crashAfterApply.delete(crashKey) || this.crashAfterApply.delete(`${command.phase}:*`)) {
+      const applied: TransferAck = ack.status === 'ok' ? ack : { status: 'ok', sealedRevision: command.documentRevision }
+      this.successful.set(idempotencyKey, applied)
+      this.appliedCommands.push({ ...command })
+      return new Promise<TransferAck>(() => undefined)
+    }
     if (planned?.late) {
       this.lateEvents.push({ ...command })
       return { status: 'timeout' }
     }
-    if (ack.status === 'ok') this.successful.set(idempotencyKey, ack)
+    if (ack.status === 'ok') {
+      this.successful.set(idempotencyKey, ack)
+      this.appliedCommands.push({ ...command })
+    }
     return ack
   }
 

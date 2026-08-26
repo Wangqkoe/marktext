@@ -39,6 +39,12 @@ export interface TransferCapsule {
 
 /** Durable independently of the digest-addressed capsule for post-authorization salvage only. */
 export interface TransferRecoveryPayload {
+  readonly sourceDocumentId: string
+  readonly sourceViewId: string
+  readonly sourceLineage: string
+  readonly documentRevision: number
+  readonly fileKey?: string
+  readonly observedDiskRevision?: DiskRevision
   readonly title: string
   readonly markdown: string
   readonly dirty: boolean

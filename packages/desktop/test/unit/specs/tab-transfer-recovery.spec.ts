@@ -36,6 +36,21 @@ const intent = (transport: MemoryTransferTransport): TransferIntent => ({
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 0))
 
+const payload = (capsule: TransferIntent['capsule']) => ({
+  sourceDocumentId: capsule.sourceDocumentId,
+  sourceViewId: capsule.sourceViewId,
+  sourceLineage: capsule.sourceLineage,
+  documentRevision: capsule.documentRevision,
+  ...(capsule.fileKey ? { fileKey: capsule.fileKey } : {}),
+  ...(capsule.observedDiskRevision ? { observedDiskRevision: capsule.observedDiskRevision } : {}),
+  title: capsule.title,
+  markdown: capsule.markdown,
+  dirty: capsule.dirty,
+  conflict: capsule.conflict,
+  options: capsule.options,
+  view: capsule.view
+})
+
 const seedRestart = async(
   journal: MemoryTransferJournal,
   capsules: MemoryCapsuleStorage,
@@ -48,14 +63,7 @@ const seedRestart = async(
   const capsule = intent(transport).capsule
   const bytes = new TextEncoder().encode(JSON.stringify(capsule))
   const capsuleDigest = createHash('sha256').update(bytes).digest('hex')
-  await capsules.putRecovery('transfer', {
-    title: capsule.title,
-    markdown: capsule.markdown,
-    dirty: capsule.dirty,
-    conflict: capsule.conflict,
-    options: capsule.options,
-    view: capsule.view
-  })
+  await capsules.putRecovery('transfer', payload(capsule))
   await capsules.put('transfer', bytes, capsuleDigest)
   await journal.append({
     transferId: 'transfer',
@@ -182,14 +190,7 @@ describe('TabTransfer recovery', () => {
       ? new TextEncoder().encode('{')
       : new TextEncoder().encode(JSON.stringify(capsule))
     const capsuleDigest = createHash('sha256').update(bytes).digest('hex')
-    await capsules.putRecovery('transfer', {
-      title: capsule.title,
-      markdown: capsule.markdown,
-      dirty: capsule.dirty,
-      conflict: capsule.conflict,
-      options: capsule.options,
-      view: capsule.view
-    })
+    await capsules.putRecovery('transfer', payload(capsule))
     await capsules.put('transfer', corruption === 'digest mismatch' ? new Uint8Array([1, 2, 3]) : bytes, capsuleDigest)
     await journal.append({
       transferId: 'transfer',
@@ -224,5 +225,90 @@ describe('TabTransfer recovery', () => {
     expect(journal.migrations).toHaveLength(1)
     expect(transport.recoveryCalls).toEqual(['reserve:recovery-2', 'materialize:recovery-2'])
     expect((await journal.records()).filter(record => record.phase === 'completed' && record.kind === 'observed')).toHaveLength(1)
+  })
+
+  it.each([
+    {
+      name: 'saved identity',
+      capsule: { fileKey: '/saved.md', observedDiskRevision: 'disk-revision' },
+      expected: { fileKey: '/saved.md', observedDiskRevision: 'disk-revision' }
+    },
+    {
+      name: 'untitled identity',
+      capsule: { sourceDocumentId: 'untitled-document', sourceLineage: 'untitled-lineage' },
+      expected: { sourceDocumentId: 'untitled-document', sourceLineage: 'untitled-lineage' }
+    }
+  ])('salvages $name with identity, content, options and View but no history', async({ capsule: patch, expected }) => {
+    const journal = new MemoryTransferJournal()
+    const capsules = new MemoryCapsuleStorage()
+    const transport = new MemoryTransferTransport()
+    const source = transport.endpoint()
+    const target = await transport.createTarget('transfer')
+    const sourceCapsule = { ...intent(transport).capsule, ...patch }
+    const bytes = new TextEncoder().encode(JSON.stringify(sourceCapsule))
+    const capsuleDigest = createHash('sha256').update(bytes).digest('hex')
+    await capsules.putRecovery('transfer', payload(sourceCapsule))
+    await capsules.put('transfer', new Uint8Array([1, 2, 3]), capsuleDigest)
+    await journal.append({
+      transferId: 'transfer',
+      requestId: 'request',
+      fingerprint: 'fingerprint',
+      phase: 'commit-authorized',
+      kind: 'observed',
+      capsuleDigest,
+      source,
+      target,
+      ownerSessionId: target.sessionId,
+      documentRevision: sourceCapsule.documentRevision,
+      isLastSourceTab: false
+    })
+    const coordinator = new TabTransferCoordinator(journal, capsules, transport)
+    await expect(coordinator.recover()).resolves.toEqual([{ status: 'applied', transferId: 'transfer' }])
+    expect(transport.materializedRecovery[0]).toMatchObject({
+      payload: { ...expected, markdown: 'content', options: {}, view: { mode: 'source' } }
+    })
+    expect(transport.materializedRecovery[0]?.payload).not.toHaveProperty('history')
+  })
+
+  it('shares one transfer advance between matching persisted run replay and recover, while rejecting a changed fingerprint', async() => {
+    const journal = new MemoryTransferJournal()
+    const capsules = new MemoryCapsuleStorage()
+    const transport = new MemoryTransferTransport()
+    await seedRestart(journal, capsules, transport, 'commit-authorized')
+    transport.kill('target-1')
+    const coordinator = new TabTransferCoordinator(journal, capsules, transport)
+    const replay = coordinator.run(intent(transport))
+    const recovery = coordinator.recover()
+    await expect(coordinator.run({ ...intent(transport), fingerprint: 'different' })).resolves.toMatchObject({ status: 'rejected' })
+    await expect(replay).resolves.toEqual({ status: 'applied', transferId: 'transfer' })
+    await expect(recovery).resolves.toEqual([{ status: 'applied', transferId: 'transfer' }])
+    expect(journal.migrations).toHaveLength(1)
+    expect(transport.materializedRecovery).toHaveLength(1)
+    expect((await journal.records()).filter(record => record.phase === 'completed' && record.kind === 'observed')).toHaveLength(1)
+  })
+
+  it.each([
+    { phase: 'source-prepared' as const, operation: 'prepare' as const },
+    { phase: 'target-staged' as const, operation: 'stage' as const },
+    { phase: 'source-released' as const, operation: 'release' as const },
+    { phase: 'target-activated' as const, operation: 'activate' as const },
+    { phase: 'target-activated' as const, operation: 'checkpoint' as const }
+  ])('replays command-applied/ACK-lost crash at $phase/$operation exactly once', async({ phase, operation }) => {
+    const journal = new MemoryTransferJournal()
+    const capsules = new MemoryCapsuleStorage()
+    const transport = new MemoryTransferTransport()
+    transport.crashAfterApplying(phase, operation)
+    const first = new TabTransferCoordinator(journal, capsules, transport, () => 'transfer')
+    const _crashed = first.run(intent(transport))
+    await settle()
+    const beforeRecovery = await journal.records()
+    expect(beforeRecovery.some(record => record.kind === 'intent')).toBe(true)
+    const restarted = new TabTransferCoordinator(journal, capsules, transport)
+    await expect(restarted.recover()).resolves.toEqual([{ status: 'applied', transferId: 'transfer' }])
+    expect(transport.appliedCommands.filter(command => command.operation === operation)).toHaveLength(1)
+    const completed = (await journal.records()).filter(record => record.phase === 'completed' && record.kind === 'observed')
+    expect(completed).toHaveLength(1)
+    expect(new Set(completed.map(record => record.ownerSessionId)).size).toBe(1)
+    await expect(restarted.scan()).resolves.toEqual([])
   })
 })

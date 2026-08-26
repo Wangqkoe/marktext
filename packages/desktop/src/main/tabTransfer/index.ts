@@ -82,7 +82,7 @@ export class TabTransferCoordinator implements TabTransfer {
         return { status: 'rejected', reason: 'request id was replayed with a different transfer fingerprint' }
       }
       if (persisted.phase === 'completed') return { status: 'applied', transferId: persisted.transferId }
-      return this.advance(persisted, false)
+      return this.advanceExisting(persisted, false)
     }
     if (!this.transport.authenticate(intent.source)) {
       return { status: 'rejected', reason: 'unauthenticated source endpoint epoch' }
@@ -103,7 +103,7 @@ export class TabTransferCoordinator implements TabTransfer {
     const results: TabTransferResult[] = []
     for (const transfer of await this.loadTransfers()) {
       if (transfer.phase === 'completed') continue
-      const result = await this.recoverOne(transfer)
+      const result = await this.advanceExisting(transfer, true)
       results.push(result)
       if (result.status === 'applied') {
         this.pending.get(transfer.transferId)?.(result)
@@ -182,7 +182,7 @@ export class TabTransferCoordinator implements TabTransfer {
     let current = transfer
     try {
       if (phaseIndex(current.phase) < phaseIndex('source-prepared')) {
-        const target = await this.transport.createTarget(current.transferId)
+        const target = current.target ?? await this.transport.createTarget(current.transferId)
         current = { ...current, target }
         const ack = await this.command(current, 'source-prepared', current.source)
         if (!isSealed(ack, current.documentRevision)) return this.abort(current, 'source revision fence was not sealed')
@@ -248,6 +248,7 @@ export class TabTransferCoordinator implements TabTransfer {
         current = this.advanceState(current, 'target-activated', current.ownerSessionId)
       }
       const checkpoint = this.capability(current, 'checkpoint', 'target')
+      await this.intent(current, 'completed')
       const checkpointAck = await this.transport.command({
         transferId: current.transferId,
         phase: 'target-activated',
@@ -259,7 +260,8 @@ export class TabTransferCoordinator implements TabTransfer {
         isLastSourceTab: current.isLastSourceTab
       }, timeout)
       if (checkpointAck.status !== 'ok') throw new Error(`session checkpoint ${ackReason(checkpointAck)}`)
-      current = await this.observe(current, 'completed', current.ownerSessionId)
+      await this.observed(current, 'completed')
+      current = this.advanceState(current, 'completed', current.ownerSessionId)
       await this.capsules.tombstone(current.transferId)
       try {
         await this.capsules.gc()
@@ -414,10 +416,10 @@ export class TabTransferCoordinator implements TabTransfer {
     })
   }
 
-  private recoverOne(transfer: RecoveredTransfer): Promise<TabTransferResult> {
+  private advanceExisting(transfer: RecoveredTransfer, recovering: boolean): Promise<TabTransferResult> {
     const existing = this.recoveringTransfers.get(transfer.transferId)
     if (existing) return existing
-    const operation = this.advance(transfer, true).finally(() => this.recoveringTransfers.delete(transfer.transferId))
+    const operation = this.advance(transfer, recovering).finally(() => this.recoveringTransfers.delete(transfer.transferId))
     this.recoveringTransfers.set(transfer.transferId, operation)
     return operation
   }
@@ -441,6 +443,12 @@ const containsNonJson = (value: unknown): boolean => {
 }
 
 const recoveryPayload = (capsule: TransferIntent['capsule']): TransferRecoveryPayload => ({
+  sourceDocumentId: capsule.sourceDocumentId,
+  sourceViewId: capsule.sourceViewId,
+  sourceLineage: capsule.sourceLineage,
+  documentRevision: capsule.documentRevision,
+  ...(capsule.fileKey ? { fileKey: capsule.fileKey } : {}),
+  ...(capsule.observedDiskRevision ? { observedDiskRevision: capsule.observedDiskRevision } : {}),
   title: capsule.title,
   markdown: capsule.markdown,
   dirty: capsule.dirty,
