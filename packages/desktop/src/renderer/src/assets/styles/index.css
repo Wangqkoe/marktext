@@ -57,6 +57,15 @@
   --inputBgColor: rgba(0, 0, 0, 0.06);
   --focusColor: var(--themeColor);
 
+  /* Raw HTML disclosure presentation. These semantic aliases keep the
+     editor-only details affordance aligned with every desktop theme without
+     becoming part of HTML/PDF export styles. */
+  --detailsDisclosureForeground: var(--editorColor);
+  --detailsDisclosureMuted: var(--editorColor50);
+  --detailsDisclosureHover: var(--themeColor);
+  --detailsDisclosureFocus: var(--focusColor);
+  --detailsDisclosureMotion: 170ms;
+
   --buttonFontColor: var(--editorColor);
   --buttonBgColor: #ffffff;
   --buttonBorder: 1px solid #dcdfe6;

@@ -2255,6 +2255,43 @@ onBeforeUnmount(() => {
   isolation: isolate;
   flex: 1;
   color: var(--editorColor);
+  --details-disclosure-foreground: var(--detailsDisclosureForeground);
+  --details-disclosure-muted: var(--detailsDisclosureMuted);
+  --details-disclosure-hover: var(--detailsDisclosureHover);
+  --details-disclosure-focus: var(--detailsDisclosureFocus);
+  --details-disclosure-motion: var(--detailsDisclosureMotion);
+}
+
+/* T09 owns the native details/source state machine. Desktop supplies only its
+   theme-facing presentation tokens; these selectors are editor-scoped and
+   cannot enter static HTML/PDF output. */
+.editor-component figure.mu-html-block .mu-html-preview details > summary {
+  color: var(--details-disclosure-foreground);
+}
+
+.editor-component figure.mu-html-block .mu-html-preview details > summary::before {
+  color: var(--details-disclosure-muted);
+  transition-duration: var(--details-disclosure-motion);
+}
+
+.editor-component figure.mu-html-block .mu-html-preview details > summary:hover {
+  color: var(--details-disclosure-hover);
+}
+
+.editor-component figure.mu-html-block .mu-html-preview details > summary:focus-visible,
+.editor-component figure.mu-html-block .mu-html-preview .mu-details-source-action:focus-visible {
+  outline-color: var(--details-disclosure-focus);
+}
+
+.editor-component figure.mu-html-block .mu-html-preview .mu-details-source-action {
+  color: var(--details-disclosure-muted);
+  transition-duration: var(--details-disclosure-motion);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-wrapper {
+    --details-disclosure-motion: 0ms;
+  }
 }
 
 .ag-insert-table-dialog {
