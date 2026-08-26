@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
-import { createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
+import { createElectronCrashDraftPort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
 import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
@@ -43,6 +43,7 @@ const transfer = createElectronTransferPort()
 const moveTabToNewWindow = createMoveTabToNewWindowAction(controller, transfer, {
   flushSource: (paneId, tabId) => (paneId === 'left' ? left : right).flushTransferSource(tabId)
 })
+const crashDraft = createElectronCrashDraftPort()
 interface StagedTransfer { readonly documentId: string; readonly sourceDocumentId: string; readonly sourceViewId: string }
 const stagedTransfers = new Map<string, StagedTransfer>()
 const workspaceReason = (result: { readonly status: string; readonly reason?: string }): string => result.reason ?? 'workspace command was rejected'
@@ -176,10 +177,13 @@ const openTransferPayload = async (payload: TransferRecoveryPayload, transferId:
 }
 const openCrashDraft = async (payload: CrashDraftRecoveryPayload): Promise<void> => {
   const { draft } = payload
+  // Crash drafts carry source identity, but recovery opens in a fresh window
+  // whose bootstrap tab may legitimately use the same controller-local id.
+  const recoveredDocumentId = `crash-recovery:${draft.documentId}`
   const opened = await controller.execute({
     kind: 'open-document',
     document: {
-      documentId: draft.documentId,
+      documentId: recoveredDocumentId,
       // Advance the recovered draft before checkpointing so its fresh opaque
       // receipt can tombstone the pre-crash revision after Save/Discard.
       documentRevision: draft.documentRevision + 1,
@@ -193,6 +197,9 @@ const openCrashDraft = async (payload: CrashDraftRecoveryPayload): Promise<void>
     }
   })
   if (opened.status !== 'applied') throw new Error(workspaceReason(opened))
+  const recovered = controller.getFacadeSnapshot().documents.find(document => document.documentId === recoveredDocumentId)
+  const pane = recovered && controller.getProjection().panes.find(candidate => candidate.tabs.some(tab => tab.viewId === recovered.viewId))
+  if (recovered && pane) await controller.execute({ kind: 'activate-view', paneId: pane.paneId, viewId: recovered.viewId })
   await controller.execute({
     kind: 'replace-warnings',
     warnings: [
@@ -296,7 +303,7 @@ const unsubscribe = controller.subscribe(() => {
 })
 editorStore.ATTACH_WORKSPACE_FACADE(controller)
 syncLegacyCommandEdge()
-onMounted(() => {
+onMounted(async() => {
   observer = new ResizeObserver(updateWidth)
   if (root.value) observer.observe(root.value)
   updateWidth()
@@ -309,12 +316,12 @@ onMounted(() => {
     await openTransferPayload(message.payload, message.transferId)
     await transfer.recoveryMaterialized(message.transferId)
   })
+  const recovered = await crashDraft.request({ kind: 'recover' })
+  if (recovered.durable) for (const payload of recovered.recoveries ?? []) await openCrashDraft(payload)
   transfer.ready().catch(() => undefined)
-  stopCrashRecovery = window.electron.ipcRenderer.on('mt::workspace::crash-recovery', async (_event, payload) => { await openCrashDraft(payload as CrashDraftRecoveryPayload) })
 })
 let stopTransferCommands: (() => void) | undefined
 let stopTransferRecovery: (() => void) | undefined
-let stopCrashRecovery: (() => void) | undefined
 type MoveActionDriver = Window & {
   __mtMoveTabToNewWindow?: (input: { readonly tabId: string; readonly paneId: 'left' | 'right' }) => Promise<unknown>
 }
@@ -331,7 +338,6 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerup', releaseTabDrag, true)
   stopTransferCommands?.()
   stopTransferRecovery?.()
-  stopCrashRecovery?.()
   delete moveActionDriver.__mtMoveTabToNewWindow
 })
 </script>

@@ -1,9 +1,19 @@
 import { expect, test } from '@playwright/test'
+import type { ElectronApplication } from 'playwright'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { launchElectron, typeIntoEditor } from './helpers'
+
+const forceTerminate = async(app: ElectronApplication | undefined): Promise<void> => {
+  if (!app) return
+  const child = app.process()
+  const exited = new Promise<void>(resolve => child.once('exit', resolve))
+  const mainPid = await app.evaluate(() => process.pid)
+  execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
+  await exited
+}
 
 for (const scenario of [
   { kind: 'saved', edit: '', expectedDirty: false },
@@ -44,7 +54,7 @@ for (const scenario of [
       await expect(page.locator('.tabs-container li')).toHaveCount(1)
       await expect(page.locator('.tabs-container li')).toContainText('New Tab')
     } finally {
-      await app.close().catch(() => {})
+      await forceTerminate(app)
       fs.rmSync(profile, { recursive: true, force: true })
     }
   })
@@ -81,7 +91,7 @@ test('rebinds the crash-draft endpoint after renderer reload', async() => {
       }
     }))).resolves.toMatchObject({ durable: true, receipt: expect.any(String) })
   } finally {
-    await app.close().catch(() => {})
+    await forceTerminate(app)
   }
 })
 
@@ -119,7 +129,7 @@ test('keeps the source usable when production target creation fails before autho
     await expect(page.locator('.tabs-container li')).toHaveCount(1)
     await expect(page.locator('.tabs-container li')).toContainText('New Tab')
   } finally {
-    await app.close().catch(() => {})
+    await forceTerminate(app)
     fs.rmSync(profile, { recursive: true, force: true })
   }
 })
@@ -163,9 +173,10 @@ test('forwards an authorized Move through startup recovery alongside an explicit
     ]))
 
     const child = first.app.process()
+    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
     const mainPid = await first.app.evaluate(() => process.pid)
     execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
-    await new Promise<void>((resolve) => child.once('exit', () => resolve()))
+    await exited
     firstKilled = true
 
     const second = await launchElectron([explicit], { userDataDir: profile, userDataDirOwnership: 'caller' })
@@ -191,8 +202,8 @@ test('forwards an authorized Move through startup recovery alongside an explicit
     const migrations = fs.readFileSync(path.join(profile, 'tab-transfer', 'migrations.ndjson'), 'utf8').trim().split('\n')
     expect(migrations).toHaveLength(1)
   } finally {
-    if (!firstKilled) await first.app.close().catch(() => {})
-    await secondApp?.close().catch(() => {})
+    if (!firstKilled) await forceTerminate(first.app)
+    await forceTerminate(secondApp)
     fs.rmSync(profile, { recursive: true, force: true })
   }
 })

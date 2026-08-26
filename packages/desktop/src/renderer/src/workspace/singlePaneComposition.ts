@@ -403,7 +403,9 @@ export class PaneEditorComposition {
   /** Pane-local tab closure; dirty-save decisions never read ambient currentFile. */
   async closeLegacyTab(documentId: string): Promise<WorkspaceResult> {
     const runtime = this.runtime
-    const pane = runtime?.getProjection().panes.find((candidate) => candidate.paneId === this.paneId)
+    const pane = runtime?.getProjection().panes.find((candidate) =>
+      candidate.tabs.some((tab) => tab.documentId === documentId)
+    )
     const view = pane?.tabs.find((candidate) => candidate.documentId === documentId)
     if (!runtime || !pane || !view) return { status: 'rejected', reason: 'missing pane view' }
     const close = await this.execute({ kind: 'close-view', viewId: view.viewId })
@@ -448,6 +450,24 @@ export class PaneEditorComposition {
       ?.tabs
       .filter((tab) => match(tab.documentId, tab.dirty)) ?? []
     for (const tab of tabs) await this.closeLegacyTab(tab.documentId)
+  }
+
+  /**
+   * Window close is a final controller transaction: every dirty decision must
+   * cross its DocumentIO and CrashDraft durable boundaries before main may
+   * destroy the BrowserWindow.  A cancellation or failed durable boundary
+   * deliberately leaves the window open.
+   */
+  async closeForWindowExit(): Promise<boolean> {
+    const runtime = this.runtime
+    if (!runtime) return false
+    const documentIds = runtime.getFacadeSnapshot().documents.map((document) => document.documentId)
+    for (const documentId of documentIds) {
+      const result = await this.closeLegacyTab(documentId)
+      if (result.status !== 'applied') return false
+    }
+    await this.crashDraftTail
+    return (await this.crashDraft.request({ kind: 'mark-clean' })).durable
   }
 
   async cycleTabs(direction: boolean): Promise<WorkspaceResult> {

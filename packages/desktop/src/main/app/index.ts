@@ -424,7 +424,9 @@ class App {
       if (crashDrafts.length) {
         // Recovery is a separate window and only opens draft copies; it never
         // writes the saved path or revives a normal workspace/session.
-        this._createEditorWindow(null, [], [], {}, null, crashDrafts as readonly CrashDraftRecoveryPayload[])
+        const recoveryWindow = this._createEditorWindow()
+        const webContents = recoveryWindow.browserWindow?.webContents
+        if (webContents) getCrashDraftAdapter()?.queueStartupRecovery(webContents as never, crashDrafts as readonly CrashDraftRecoveryPayload[])
       }
       if (startupTargets.length) {
         // A Move recovery target is already a Controller-owned emergency

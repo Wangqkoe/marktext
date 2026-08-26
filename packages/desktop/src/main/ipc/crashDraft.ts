@@ -2,16 +2,17 @@ import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { app } from 'electron'
 import { CrashDraftStore } from '../crashDraftRecovery'
-import type { CrashDraftCheckpoint } from '@shared/workspace'
+import type { CrashDraftCheckpoint, CrashDraftRecoveryPayload } from '@shared/workspace'
 
 export type CrashDraftRequest =
   | { readonly kind: 'checkpoint'; readonly checkpoint: CrashDraftCheckpoint }
   | { readonly kind: 'saved'; readonly receipt: string }
   | { readonly kind: 'discard'; readonly receipt: string }
+  | { readonly kind: 'recover' }
   | { readonly kind: 'mark-clean' }
 
 export type CrashDraftResponse =
-  | { readonly durable: true; readonly receipt?: string }
+  | { readonly durable: true; readonly receipt?: string; readonly recoveries?: readonly CrashDraftRecoveryPayload[] }
   | { readonly durable: false; readonly reason: string }
 
 export interface CrashDraftWebContents {
@@ -30,6 +31,7 @@ export class CrashDraftElectronAdapter {
   private readonly endpoints = new Set<string>()
   private readonly endpointEpochs = new Map<string, string>()
   private readonly receipts = new Map<string, { readonly endpointEpoch: string; readonly write: { readonly writeId: string; readonly documentId: string; readonly documentRevision: number } }>()
+  private readonly startupRecoveries = new Map<string, readonly CrashDraftRecoveryPayload[]>()
 
   constructor(readonly store = new CrashDraftStore(path.join(app.getPath('userData'), 'crash-drafts'))) {}
 
@@ -42,12 +44,20 @@ export class CrashDraftElectronAdapter {
       this.endpoints.delete(id)
       if (this.endpointEpochs.get(id) === endpointEpoch) this.endpointEpochs.delete(id)
       for (const [receipt, pending] of this.receipts) if (pending.endpointEpoch === endpointEpoch) this.receipts.delete(receipt)
-      webContents.removeListener?.('destroyed', detach)
+      webContents.removeListener?.('destroyed', destroy)
       webContents.removeListener?.('did-start-navigation', detach)
     }
-    webContents.on?.('destroyed', detach)
+    const destroy = (): void => {
+      this.startupRecoveries.delete(id)
+      detach()
+    }
+    webContents.on?.('destroyed', destroy)
     webContents.on?.('did-start-navigation', detach)
     return detach
+  }
+
+  queueStartupRecovery(webContents: CrashDraftWebContents, recoveries: readonly CrashDraftRecoveryPayload[]): void {
+    if (recoveries.length) this.startupRecoveries.set(String(webContents.id), recoveries)
   }
 
   async handle(sender: CrashDraftWebContents, request: CrashDraftRequest): Promise<CrashDraftResponse> {
@@ -63,6 +73,11 @@ export class CrashDraftElectronAdapter {
       }
       case 'saved': return this.resolve(sender, request.receipt, 'saved')
       case 'discard': return this.resolve(sender, request.receipt, 'discard')
+      case 'recover': {
+        const recoveries = this.startupRecoveries.get(String(sender.id)) ?? []
+        this.startupRecoveries.delete(String(sender.id))
+        return { durable: true, recoveries }
+      }
       case 'mark-clean': return this.store.markCleanShutdown()
     }
   }
