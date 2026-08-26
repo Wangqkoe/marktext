@@ -83,15 +83,15 @@ frontier is therefore not complete.
 ## T03 integration update — 2026-08-25
 
 - T03 is complete and locally integrated at `1aa17aac6da3ef23610067b7f264bb38a835da4e`.
-  Independent Standards and Spec reviews both passed; the T03 blocking findings
-  are cleared.
+  Independent [Standards and Spec reviews both passed](handoff/evidence/t03-integration-2026-08-25.md#independent-review-evidence);
+  the T03 blocking findings are cleared.
 - Closed blockers: canonical-left collapse adapter/Vue-key ownership, the
   320px split-pane minimum, and missing A03 Electron evidence. The accepted
   `set-split-ratio` Controller-owned seam is required by V1 WindowWorkspace;
   the ticket's “唯一 typed exception” wording remains a minor record item.
 - Evidence inherited from the verified integration is recorded in the [T03
   evidence report](handoff/evidence/t03-integration-2026-08-25.md). Only its
-  precisely confirmed commands are Passed; aggregate source/#781, tab, and UI
+  precisely confirmed commands are [Passed](handoff/evidence/t03-integration-2026-08-25.md#precisely-confirmed-commands-and-results); aggregate source/#781, tab, and UI
   regression counts whose exact selections are unavailable remain record items.
 - The integration worktree had no `node_modules`, so repeated commands were
   unavailable there; integration was fast-forward-only to the same verified SHA.

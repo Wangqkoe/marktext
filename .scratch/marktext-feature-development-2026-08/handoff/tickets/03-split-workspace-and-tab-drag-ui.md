@@ -61,7 +61,7 @@ the focused-pane command guard.
 ## Completion and integration record — 2026-08-25
 
 - Integrated locally at `1aa17aac6da3ef23610067b7f264bb38a835da4e`.
-- Independent Standards Review: Passed. Independent Spec Review: Passed.
+- Independent [Standards Review: Passed](../evidence/t03-integration-2026-08-25.md#standards-review). Independent [Spec Review: Passed](../evidence/t03-integration-2026-08-25.md#spec-review).
 - Closed blocking findings: canonical-left collapse adapter/Vue-key ownership;
   split-pane minimum of 320px; and missing real Electron A03 evidence.
 - Verification evidence is recorded in the [T03 integration evidence report](../evidence/t03-integration-2026-08-25.md):
