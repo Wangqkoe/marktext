@@ -4,6 +4,7 @@ import { exec } from 'child_process'
 import dayjs from 'dayjs'
 import log from 'electron-log'
 import { app, BrowserWindow, clipboard, dialog, nativeTheme, shell, ipcMain } from 'electron'
+import { createHash } from 'crypto'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import { isChildOfDirectory } from 'common/filesystem/paths'
 import type { IUserPreferences } from '@shared/types/preferences'
@@ -21,9 +22,18 @@ import { WindowType } from '../windows/base'
 import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
 import { setLanguage } from '../i18n'
+import { configureTransferTargetFactory, getCrashDraftAdapter, getTransferAdapter } from '../ipc'
+import { NodeFileObservationStorage } from '../filesystem/fileObservation'
+import type { CrashDraftRecoveryPayload } from '@shared/workspace'
 import { getNativeThemeSource, isDarkApplicationTheme } from './nativeTheme'
 import type Accessor from './accessor'
 import type WindowManager from './windowManager'
+
+const consumeTransferTestFault = (fault: 'target-create-once'): boolean => {
+  if (process.env.PERF_TESTING !== 'true' || process.env.MARKTEXT_T06_TRANSFER_FAULT !== fault) return false
+  delete process.env.MARKTEXT_T06_TRANSFER_FAULT
+  return true
+}
 
 interface CliArgs {
   _: string[]
@@ -58,6 +68,33 @@ class App {
 
     // Initialize main process language
     this._initializeLanguage()
+    configureTransferTargetFactory(async(_transferId, _recovery, reserved) => {
+      if (consumeTransferTestFault('target-create-once')) {
+        throw new Error('test injected target creation failure')
+      }
+      const editor = this._createEditorWindow()
+      await new Promise<void>((resolve, reject) => {
+        editor.once('window-ready', resolve)
+        editor.once('window-closed', () => reject(new Error('transfer target window closed before ready')))
+      })
+      // Editor's second did-finish-load listener refreshes its ordinary
+      // endpoint in the same event turn. A reservation must bind after that
+      // listener, not race it, or its epoch is immediately revoked.
+      await new Promise<void>(resolve => setImmediate(resolve))
+      const window = editor.browserWindow
+      if (window && reserved) {
+        const adapter = getTransferAdapter()
+        // The window reached its renderer-ready lifecycle before the inert
+        // reservation became its durable owner. The transport retains an
+        // already-proven receiver binding for this same sender only.
+        adapter?.attach(window.webContents as never, reserved.sessionId, reserved.epoch)
+      }
+      const endpoint = window && getTransferAdapter()?.endpointFor(window.webContents as never)
+      if (!endpoint) throw new Error('transfer target endpoint was not authenticated')
+      if (reserved && (endpoint.sessionId !== reserved.sessionId || endpoint.epoch !== reserved.epoch)) throw new Error('recovery target endpoint was not bound to reservation')
+      await getTransferAdapter()?.waitForReceiver(endpoint)
+      return endpoint
+    })
     this._listenForIpcMain()
     // Initialize theme listener
     this._themeListenerRegistered = false
@@ -223,14 +260,13 @@ class App {
     return path.join(screenshotFolderPath, fileName)
   }
 
-  ready = (): void => {
+  ready = async(): Promise<void> => {
     const { _args: args, _openFilesCache } = this
-    const { preferences, editorBufferStore } = this._accessor
+    const { preferences } = this._accessor
 
     // Initialize language settings
-    const { startUpAction, defaultDirectoryToOpen, theme, language } = preferences.getAll()
+    const { theme, language } = preferences.getAll()
     const followSystemTheme = preferences.getItem<boolean>('followSystemTheme')
-    const lastOpenedFolder = preferences.getItem<string>('lastOpenedFolder')
     const lightModeTheme = preferences.getItem<string>('lightModeTheme')
     const darkModeTheme = preferences.getItem<string>('darkModeTheme')
 
@@ -251,25 +287,26 @@ class App {
         }
       }
     }
+    // StartupIntent is fixed before the asynchronous emergency scan. Recovery
+    // window creation must not consume or reroute its explicit targets.
+    const startupTargets = _openFilesCache.splice(0)
 
-    // We should NOT restore the previous buffer or open a folder if the user just wants to double click to open a file
-    let isRestorePathway = false
-    if (_openFilesCache.length === 0) {
-      if (startUpAction === 'restoreAll') {
-        // Restore based off the previous buffer
-        isRestorePathway = true
-      } else if (startUpAction === 'folder' && defaultDirectoryToOpen) {
-        const info = normalizeMarkdownPath(defaultDirectoryToOpen)
-        if (info) {
-          _openFilesCache.unshift(info as PathInfo)
-        }
-      } else if (startUpAction === 'openLastFolder' && lastOpenedFolder) {
-        const info = normalizeMarkdownPath(lastOpenedFolder)
-        if (info) {
-          _openFilesCache.unshift(info as PathInfo)
-        }
-      }
-    }
+    // Emergency truth is deliberately advanced before StartupIntent. Neither
+    // explicit files nor the no-target default suppress either source.
+    const recoveryStorage = new NodeFileObservationStorage()
+    const crashStore = getCrashDraftAdapter()?.store
+    const [crashDrafts, moveRecovery] = await Promise.all([
+      crashStore?.recover(async(fileKey) => {
+        const canonical = await recoveryStorage.canonicalize(fileKey)
+        const bytes = await recoveryStorage.read(canonical)
+        return bytes ? createHash('sha256').update(bytes).digest('hex') : null
+      }) ?? Promise.resolve([]),
+      getTransferAdapter()?.recover() ?? Promise.resolve([])
+    ])
+
+    // DefaultStartupPolicy is intentionally no-restore: StartupIntent comes
+    // only from explicit CLI/association targets.  Do not touch legacy normal
+    // session data here; it is retained byte-for-byte for a future adapter.
 
     nativeTheme.themeSource = getNativeThemeSource({ followSystemTheme, theme })
 
@@ -384,26 +421,19 @@ class App {
     }
 
     const createWindow = (): void => {
-      if (isRestorePathway) {
-        // We will restore based off the previous buffer, one window per buffer store file
-        const bufferStores = editorBufferStore.getAll()
-        const bufferStoreList = Object.values(bufferStores) as Array<{
-          id: string
-          filePath: string | null
-        }>
-        if (bufferStoreList.length === 0) {
-          this._createEditorWindow()
-          return
-        }
-
-        bufferStoreList.forEach((bufferStoreInfo) => {
-          // Read the buffer store file and pass the content
-          this._createEditorWindow(null, [], [], {}, bufferStoreInfo)
-        })
-      } else if (_openFilesCache.length) {
-        // We should wipe the buffer store if not it will keep creating new windows whenever we open files via double click in the file manager
-        editorBufferStore.clearBufferStoresWithAllSaved()
-        this._openFilesToOpen()
+      if (crashDrafts.length) {
+        // Recovery is a separate window and only opens draft copies; it never
+        // writes the saved path or revives a normal workspace/session.
+        const recoveryWindow = this._createEditorWindow()
+        const webContents = recoveryWindow.browserWindow?.webContents
+        if (webContents) getCrashDraftAdapter()?.queueStartupRecovery(webContents as never, crashDrafts as readonly CrashDraftRecoveryPayload[])
+      }
+      if (startupTargets.length) {
+        // A Move recovery target is already a Controller-owned emergency
+        // workspace. StartupIntent must not route its explicit files through
+        // the legacy open-tab message, which cannot adopt that controller.
+        // Keep the ordinary explicit set in a separate normal editor window.
+        this._openPathList(startupTargets, moveRecovery.length > 0)
       } else {
         this._createEditorWindow()
       }
@@ -479,13 +509,14 @@ class App {
     fileList: string[] = [],
     markdownList: string[] = [],
     options: Partial<BrowserWindowConstructorOptions> = {},
-    bufferStoreInfo: { id: string; filePath: string | null } | null = null
+    bufferStoreInfo: { id: string; filePath: string | null } | null = null,
+    crashDrafts: readonly CrashDraftRecoveryPayload[] = []
   ): EditorWindow {
     const editor = new EditorWindow(this._accessor)
     if (rootDirectory) {
       this._accessor.preferences.setItems({ lastOpenedFolder: rootDirectory })
     }
-    editor.createWindow(rootDirectory, fileList, markdownList, options, bufferStoreInfo)
+    editor.createWindow(rootDirectory, fileList, markdownList, options, bufferStoreInfo, crashDrafts)
     this._windowManager.add(editor)
     if (this._windowManager.windowCount === 1) {
       this._accessor.menu.setActiveWindow(editor.id!)

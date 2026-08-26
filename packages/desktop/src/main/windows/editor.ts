@@ -13,7 +13,8 @@ import { loadMarkdownFile } from '../filesystem/markdown'
 import { switchLanguage } from '../spellchecker'
 import fs from 'fs'
 import type { BootstrapEditorConfig } from '@shared/types/files'
-import { getDocumentIoAdapter } from '../ipc'
+import type { CrashDraftRecoveryPayload } from '@shared/workspace'
+import { getCrashDraftAdapter, getDocumentIoAdapter, getTransferAdapter } from '../ipc'
 import { attachEditorDocumentIo } from './documentIO'
 
 type RawMarkdownDocument = Awaited<ReturnType<typeof loadMarkdownFile>>
@@ -55,6 +56,7 @@ class EditorWindow extends BaseWindow {
   private _directoryToOpen: string | null
   private _filesToOpen: PendingFile[] | null
   private _markdownToOpen: string[] | null
+  private _crashDrafts: readonly CrashDraftRecoveryPayload[]
   // Root directory and file list that are currently opened. These lists are
   // used to find the best window to open new files in.
   private _openedRootDirectory: string | null
@@ -73,6 +75,7 @@ class EditorWindow extends BaseWindow {
     this._directoryToOpen = null
     this._filesToOpen = [] // {doc: IMarkdownDocumentRaw, options: any, selected: boolean}
     this._markdownToOpen = [] // List of markdown strings or an empty string will open a new untitled tab
+    this._crashDrafts = []
 
     // Root directory and file list that are currently opened. These lists are
     // used to find the best window to open new files in.
@@ -109,11 +112,14 @@ class EditorWindow extends BaseWindow {
     fileList: string[] = [],
     markdownList: string[] = [],
     options: Partial<BrowserWindowConstructorOptions> = {},
-    bufferStoreInfo: BufferStoreInfo | null = null
+    _legacyBufferStoreInfo: BufferStoreInfo | null = null,
+    crashDrafts: readonly CrashDraftRecoveryPayload[] = []
   ): BrowserWindow {
     const { menu: appMenu, env, preferences, editorBufferStore } = this._accessor
-    const addBlankTab =
-      !bufferStoreInfo && !rootDirectory && fileList.length === 0 && markdownList.length === 0
+    this._crashDrafts = crashDrafts
+    // Legacy editorBufferStore bytes deliberately remain on disk, but V1 never
+    // reads them as startup state.  A window is seeded only by this call.
+    const addBlankTab = !rootDirectory && fileList.length === 0 && markdownList.length === 0
 
     const mainWindowState = windowStateKeeper({
       defaultWidth: 1200,
@@ -157,12 +163,19 @@ class EditorWindow extends BaseWindow {
       getDocumentIoAdapter(),
       win.webContents as unknown as Parameters<typeof attachEditorDocumentIo>[1]
     )
+    let detachCrashDraft = getCrashDraftAdapter()?.attach(
+      win.webContents as unknown as Parameters<NonNullable<ReturnType<typeof getCrashDraftAdapter>>['attach']>[0]
+    ) ?? (() => {})
+    let detachTransfer = getTransferAdapter()?.attach(
+      win.webContents as unknown as Parameters<NonNullable<ReturnType<typeof getTransferAdapter>>['attach']>[0]
+    ) ?? (() => {})
+    let initialRendererLoad = true
 
     // Give every editor window a stable id for session buffer persistence.
     // We cant use win.id as it might collide with same IDs from closed windows
     this.bufferStoreInfo = {
-      id: bufferStoreInfo ? bufferStoreInfo.id : editorBufferStore.getUnUsedBufferUUID(),
-      filePath: bufferStoreInfo ? bufferStoreInfo.filePath : null
+      id: editorBufferStore.getUnUsedBufferUUID(),
+      filePath: null
     }
     ;(win as unknown as { restoreBufferId: string }).restoreBufferId = this.bufferStoreInfo.id
 
@@ -195,18 +208,12 @@ class EditorWindow extends BaseWindow {
 
       win!.webContents.send(
         'mt::bootstrap-editor',
-        this._createBootstrapEditorConfig(
-          addBlankTab,
-          this.bufferStoreInfo!.filePath ? [] : this._markdownToOpen!
-        )
+        this._createBootstrapEditorConfig(addBlankTab && this._crashDrafts.length === 0, this._markdownToOpen!)
       )
-
-      if (this.bufferStoreInfo!.filePath) {
-        this._restoreAllState()
-      } else {
-        this._doOpenFilesToOpen()
-        this._markdownToOpen!.length = 0
-      }
+      for (const draft of this._crashDrafts) win!.webContents.send('mt::workspace::crash-recovery', draft)
+      this._crashDrafts = []
+      this._doOpenFilesToOpen()
+      this._markdownToOpen!.length = 0
 
       // Listen on default system mouse zoom event (e.g. Ctrl+MouseWheel on Linux/Windows).
       win!.webContents.on('zoom-changed', (_event, zoomDirection) => {
@@ -222,10 +229,23 @@ class EditorWindow extends BaseWindow {
     // a fresh authenticated session for the new renderer document.
     win.webContents.on('did-finish-load', () => {
       detachDocumentIo()
+      detachCrashDraft()
+      detachTransfer()
       detachDocumentIo = attachEditorDocumentIo(
         getDocumentIoAdapter(),
         win!.webContents as unknown as Parameters<typeof attachEditorDocumentIo>[1]
       )
+      detachCrashDraft = getCrashDraftAdapter()?.attach(
+        win!.webContents as unknown as Parameters<NonNullable<ReturnType<typeof getCrashDraftAdapter>>['attach']>[0]
+      ) ?? (() => {})
+      detachTransfer = getTransferAdapter()?.attach(
+        win!.webContents as unknown as Parameters<NonNullable<ReturnType<typeof getTransferAdapter>>['attach']>[0]
+      ) ?? (() => {})
+      if (!initialRendererLoad) {
+        this.lifecycle = WindowLifecycle.READY
+        win!.webContents.send('mt::bootstrap-editor', this._createBootstrapEditorConfig(true, []))
+      }
+      initialRendererLoad = false
     })
 
     win.webContents.once('did-fail-load', (_event, errorCode, errorDescription, url) => {
@@ -296,6 +316,8 @@ class EditorWindow extends BaseWindow {
     // The window is now destroyed.
     win.on('closed', () => {
       detachDocumentIo()
+      detachCrashDraft()
+      detachTransfer()
       this.lifecycle = WindowLifecycle.QUITTED
       this.emit('window-closed')
 

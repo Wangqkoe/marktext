@@ -65,6 +65,13 @@ export interface IpcInvokeChannels {
     args: [request: DocumentIoCloseDecisionRequest]
     ret: DocumentIoCloseDecision
   }
+  // T06 transfer/startup/recovery insertion point; deliberately separate from DocumentIO.
+  'mt::workspace::crash-draft': { args: [request: unknown]; ret: unknown }
+  'mt::workspace::tab-transfer': { args: [intent: unknown]; ret: unknown }
+  'mt::workspace::tab-transfer-ack': { args: [receipt: unknown]; ret: unknown }
+  'mt::workspace::tab-transfer-payload': { args: [request: unknown]; ret: unknown }
+  'mt::workspace::tab-transfer-ready': { args: []; ret: boolean }
+  'mt::workspace::tab-transfer-recovery-ready': { args: [transferId: string]; ret: boolean }
   'mt::fs-trash-item': { args: [pathname: string]; ret: void }
   'mt::fs::copy': { args: [src: string, dest: string]; ret: void }
   'mt::fs::empty-dir': { args: [path: string]; ret: void }
@@ -242,6 +249,9 @@ export interface IpcMainEventChannels {
   'mt::UPDATE_AVAILABLE': [info?: unknown]
   // T04b DocumentIO section. The renderer only receives typed outcomes.
   'mt::workspace::document-io-observation': [observation: DocumentIoObservation]
+  'mt::workspace::transfer-command': [command: unknown]
+  'mt::workspace::transfer-recovery': [payload: unknown]
+  'mt::workspace::crash-recovery': [payload: unknown]
   'mt::UPDATE_DOWNLOADED': [info?: unknown]
   'mt::UPDATE_ERROR': [error: unknown]
   'mt::UPDATE_NOT_AVAILABLE': [info?: unknown]

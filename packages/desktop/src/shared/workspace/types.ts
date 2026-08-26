@@ -78,8 +78,14 @@ export interface PortableHistory {
 export interface WorkspaceDocumentInput {
   readonly documentId?: DocumentId
   readonly fileKey?: FileKey
-  readonly observedDiskRevision?: DiskRevision
+  readonly observedDiskRevision?: DiskRevision | null
+  /** Monotonic document revision supplied only by emergency/transfer adoption. */
+  readonly documentRevision?: number
   readonly markdown?: string
+  /** Emergency-recovery input only; never a normal-workspace snapshot. */
+  readonly dirty?: boolean
+  readonly savedMarkdown?: string
+  readonly view?: Partial<ViewState>
   readonly portableHistory?: PortableHistory
   readonly title?: string
   readonly conflict?: boolean
@@ -108,7 +114,7 @@ export type WorkspaceSeed =
 export interface CrashDraftCheckpoint {
   readonly documentId: DocumentId
   readonly fileKey?: FileKey
-  readonly observedDiskRevision?: DiskRevision
+  readonly observedDiskRevision?: DiskRevision | null
   readonly documentRevision: number
   readonly markdown: string
   readonly view: Pick<ViewState, 'cursor' | 'selection'>
@@ -123,6 +129,10 @@ export interface CrashDraftRecoveryRecord {
   readonly kind: 'crash-draft'
   readonly draft: CrashDraftEnvelope
   readonly warning?: string
+}
+
+export interface CrashDraftRecoveryPayload extends CrashDraftRecoveryRecord {
+  readonly conflict?: true
 }
 
 export interface MoveRecoveryRecord {
@@ -201,6 +211,7 @@ export type WorkspaceCommand =
     readonly documentRevision: number
     readonly previousOwnerFence: string
     readonly ownerFence: string
+    readonly observedDiskRevision: DiskRevision | null
   }
   | { readonly kind: 'apply-save-ack'; readonly ack: DocumentSaveAck }
   /** Assembly-only JSON warning update for conflict/recovery presentation. */
@@ -260,6 +271,8 @@ export interface WorkspaceFacadeDocument {
   readonly viewId: ViewId
   readonly documentId: DocumentId
   readonly fileKey?: FileKey
+  readonly observedDiskRevision?: DiskRevision | null
+  readonly documentRevision: number
   readonly title: string
   readonly markdown: string
   readonly portableHistory: PortableHistory
@@ -297,7 +310,7 @@ export interface EditorBindingSnapshot {
   readonly document: {
     readonly documentId: DocumentId
     readonly fileKey?: FileKey
-    readonly observedDiskRevision?: DiskRevision
+    readonly observedDiskRevision?: DiskRevision | null
     readonly ownerFence: string
     readonly markdown: string
     readonly dirty: boolean

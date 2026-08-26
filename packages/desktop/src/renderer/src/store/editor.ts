@@ -774,6 +774,15 @@ export const useEditorStore = defineStore('editor', {
       const projectStore = useProjectStore()
       const preferencesStore = usePreferencesStore()
       window.electron.ipcRenderer.on('mt::ask-for-close', () => {
+        const workspace = workspaceFor(this)
+        if (workspace) {
+          workspace.closeForWindowExit()
+            .then((readyToClose) => {
+              if (readyToClose) window.electron.ipcRenderer.send('mt::close-window')
+            })
+            .catch((error) => console.error('Failed to complete workspace close', error))
+          return
+        }
         sendBufferedState()
           .catch((err) => {
             console.error('Failed to update buffered state before closing', err)

@@ -25,9 +25,11 @@ export interface TransferCapsule {
   readonly sourceViewId: string
   readonly sourceSessionId: string
   readonly sourceLineage: string
+  /** Renderer-local opaque fence adopted only by the authenticated source receiver. */
+  readonly sourcePreflightId?: string
   readonly documentRevision: number
   readonly fileKey?: string
-  readonly observedDiskRevision?: DiskRevision
+  readonly observedDiskRevision?: DiskRevision | null
   readonly title: string
   readonly markdown: string
   readonly dirty: boolean
@@ -44,13 +46,20 @@ export interface TransferRecoveryPayload {
   readonly sourceLineage: string
   readonly documentRevision: number
   readonly fileKey?: string
-  readonly observedDiskRevision?: DiskRevision
+  readonly observedDiskRevision?: DiskRevision | null
   readonly title: string
   readonly markdown: string
   readonly dirty: boolean
   readonly conflict: boolean
   readonly options: JsonValue
   readonly view: ViewState
+}
+
+/** Renderer receives recovery content only with the durable transfer identity. */
+export interface TransferRecoveryMessage {
+  readonly transferId: string
+  readonly ownerSessionId: string
+  readonly payload: TransferRecoveryPayload
 }
 
 export interface TransferIntent {

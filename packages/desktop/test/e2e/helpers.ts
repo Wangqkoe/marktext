@@ -62,6 +62,8 @@ export interface LaunchOptions {
   // should opt in — otherwise existing specs would silently ignore renderer
   // exceptions that previously surfaced as a dialog (a hidden regression risk).
   suppressErrorDialog?: boolean
+  /** T06 production-assembly fault, accepted only by the test-mode main process. */
+  transferFault?: 'target-create-once' | 'hold-source-release'
   userDataDir?: string
   /**
    * The launcher deletes only directories it owns when the Playwright process
@@ -91,6 +93,7 @@ export const launchElectron = async(
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
   env.PERF_TESTING = 'true'
   if (options.suppressErrorDialog) env.MARKTEXT_ERROR_INTERACTION = '1'
+  if (options.transferFault) env.MARKTEXT_T06_TRANSFER_FAULT = options.transferFault
   const app = await _electron.launch({
     executablePath,
     args,

@@ -19,6 +19,7 @@ import {
 } from './paneEditorAdapter'
 import type { EditorMode } from '@shared/workspace'
 import { createElectronDocumentIoPort, RendererDocumentIoAdapter } from './documentIO'
+import { createElectronCrashDraftPort } from './crashDraft'
 
 export interface LegacyPaneSeed {
   readonly id: string
@@ -59,6 +60,12 @@ export class PaneEditorComposition {
   private readonly pendingDocumentIoBinds = new Set<string>()
   private readonly boundDocumentFences = new Map<string, string>()
   private modeTransition: Promise<WorkspaceResult> | undefined
+  private readonly crashDraft = createElectronCrashDraftPort()
+  private readonly crashReceipts = new Map<string, { readonly revision: number; readonly receipt: string }>()
+  /** A recovery's local controller ID writes and clears its pre-crash durable identity. */
+  private readonly crashDraftLineage = new Map<string, string>()
+  private stopCrashDraftSync: (() => void) | undefined
+  private crashDraftTail: Promise<void> = Promise.resolve()
 
   constructor(options: PaneEditorCompositionOptions) {
     this.paneId = options.paneId
@@ -97,6 +104,8 @@ export class PaneEditorComposition {
     this.binding = binding
     this.reporter.attach(this.binding)
     this.mountDocumentIo()
+    this.stopCrashDraftSync = this.runtime.subscribe(() => { this.syncCrashDraft().catch(() => undefined) })
+    this.syncCrashDraft().catch(() => undefined)
     if (seed.mode === 'source') {
       const lease = this.binding.getLease()
       if (lease) await this.binding.handoffMode(lease, 'source')
@@ -116,8 +125,24 @@ export class PaneEditorComposition {
     this.pendingDocumentIoBinds.clear()
     this.boundDocumentFences.clear()
     this.documentIo?.dispose()
+    this.stopCrashDraftSync?.()
+    this.stopCrashDraftSync = undefined
+    // A clean marker is only accepted by main after every durable draft has a
+    // durable disposition; failed/dirty cases remain recoverable by design.
+    this.crashDraftTail.then(() => this.crashDraft.request({ kind: 'mark-clean' })).catch(() => undefined)
     this.documentIo = undefined
     this.surface = undefined
+  }
+
+  /**
+   * Move's final target checkpoint joins the pane's existing emergency-draft
+   * queue.  It never races a dirty editor's ordinary checkpoint with a second
+   * write for the same document revision.
+   */
+  async hasDurableCrashDraft(documentId: string, documentRevision: number): Promise<boolean> {
+    await this.syncCrashDraft()
+    await this.crashDraftTail
+    return this.crashReceipts.get(documentId)?.revision === documentRevision
   }
 
   private isMountCurrent(
@@ -148,6 +173,13 @@ export class PaneEditorComposition {
 
   getScope(): PaneEditorEventScope | undefined {
     return this.reporter.getActiveScope()
+  }
+
+  /** Move action flushes only the explicit live source view before sealing it. */
+  async flushTransferSource(tabId: string): Promise<boolean> {
+    const scope = this.getScope()
+    if (!scope || (scope.viewId !== tabId && scope.documentId !== tabId)) return false
+    return (await scope.flush()).status === 'applied'
   }
 
   /**
@@ -301,7 +333,8 @@ export class PaneEditorComposition {
           documentId: document.documentId,
           documentRevision: document.documentRevision,
           previousOwnerFence,
-          ownerFence: ack.ownerFence
+          ownerFence: ack.ownerFence,
+          observedDiskRevision: ack.observedDiskRevision ?? null
         })
         if (result.status === 'applied') {
           this.boundDocumentFences.set(document.documentId, ack.ownerFence)
@@ -373,7 +406,9 @@ export class PaneEditorComposition {
   /** Pane-local tab closure; dirty-save decisions never read ambient currentFile. */
   async closeLegacyTab(documentId: string): Promise<WorkspaceResult> {
     const runtime = this.runtime
-    const pane = runtime?.getProjection().panes.find((candidate) => candidate.paneId === this.paneId)
+    const pane = runtime?.getProjection().panes.find((candidate) =>
+      candidate.tabs.some((tab) => tab.documentId === documentId)
+    )
     const view = pane?.tabs.find((candidate) => candidate.documentId === documentId)
     if (!runtime || !pane || !view) return { status: 'rejected', reason: 'missing pane view' }
     const close = await this.execute({ kind: 'close-view', viewId: view.viewId })
@@ -381,6 +416,8 @@ export class PaneEditorComposition {
     const decision = await this.confirmClose(view.viewId)
     if (decision === 'cancel') return { status: 'rejected', reason: 'close cancelled' }
     if (decision === 'discard') {
+      await this.syncCrashDraft()
+      await this.resolveCrashDraft(documentId, 'discard')
       return runtime.execute({ kind: 'commit-authorized', capability: close.capability })
     }
     const document = this.documentForView(view.viewId)
@@ -416,6 +453,24 @@ export class PaneEditorComposition {
       ?.tabs
       .filter((tab) => match(tab.documentId, tab.dirty)) ?? []
     for (const tab of tabs) await this.closeLegacyTab(tab.documentId)
+  }
+
+  /**
+   * Window close is a final controller transaction: every dirty decision must
+   * cross its DocumentIO and CrashDraft durable boundaries before main may
+   * destroy the BrowserWindow.  A cancellation or failed durable boundary
+   * deliberately leaves the window open.
+   */
+  async closeForWindowExit(): Promise<boolean> {
+    const runtime = this.runtime
+    if (!runtime) return false
+    const documentIds = runtime.getFacadeSnapshot().documents.map((document) => document.documentId)
+    for (const documentId of documentIds) {
+      const result = await this.closeLegacyTab(documentId)
+      if (result.status !== 'applied') return false
+    }
+    await this.crashDraftTail
+    return (await this.crashDraft.request({ kind: 'mark-clean' })).durable
   }
 
   async cycleTabs(direction: boolean): Promise<WorkspaceResult> {
@@ -475,8 +530,62 @@ export class PaneEditorComposition {
     const applied = await this.runtime.execute({ kind: 'apply-save-ack', ack })
     if (applied.status === 'applied' && ack.status === 'durable-success') {
       this.boundDocumentFences.set(ack.documentId, ack.ownerFence)
+      await this.resolveCrashDraft(ack.documentId)
     }
     return applied
+  }
+
+  setCrashDraftLineage(localDocumentId: string, durableDocumentId: string): void {
+    this.crashDraftLineage.set(localDocumentId, durableDocumentId)
+  }
+
+  async checkpointCrashDraft(): Promise<void> {
+    await this.syncCrashDraft()
+  }
+
+  /** Emergency state derives from the controller's live bound snapshot only. */
+  private async syncCrashDraft(): Promise<void> {
+    const work = async(): Promise<void> => {
+      const lease = this.binding?.getLease()
+      const snapshot = lease ? this.binding?.getSnapshot(lease) : undefined
+      if (!snapshot?.document.dirty) return
+      // A saved draft is recoverable only against bytes DocumentIO actually
+      // observed. Do not manufacture a baseline from the current disk later.
+      if (snapshot.document.fileKey && snapshot.document.observedDiskRevision === undefined) return
+      const current = this.crashReceipts.get(snapshot.documentId)
+      if (current?.revision === snapshot.documentRevision) return
+      const response = await this.crashDraft.request({
+        kind: 'checkpoint',
+        checkpoint: {
+          documentId: this.crashDraftLineage.get(snapshot.documentId) ?? snapshot.documentId,
+          ...(snapshot.document.fileKey
+            ? {
+              fileKey: snapshot.document.fileKey,
+              observedDiskRevision: snapshot.document.observedDiskRevision
+            }
+            : {}),
+          documentRevision: snapshot.documentRevision,
+          markdown: snapshot.document.markdown,
+          view: { cursor: snapshot.view.cursor, selection: snapshot.view.selection }
+        }
+      })
+      if (response.durable && response.receipt) {
+        this.crashReceipts.set(snapshot.documentId, { revision: snapshot.documentRevision, receipt: response.receipt })
+      }
+    }
+    const next = this.crashDraftTail.then(work, work)
+    this.crashDraftTail = next.catch(() => undefined)
+    return next
+  }
+
+  private async resolveCrashDraft(documentId: string, action: 'saved' | 'discard' = 'saved'): Promise<void> {
+    await this.crashDraftTail
+    const receipt = this.crashReceipts.get(documentId)?.receipt
+    if (!receipt) return
+    const response = await this.crashDraft.request({ kind: action, receipt })
+    if (!response.durable) return
+    this.crashReceipts.delete(documentId)
+    await this.crashDraft.request({ kind: 'mark-clean' })
   }
 }
 

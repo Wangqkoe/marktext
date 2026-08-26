@@ -29,6 +29,7 @@ import type { DocumentIoSaveRequest, DocumentSaveAck } from '@shared/workspace/d
 interface DocumentRecord {
   id: DocumentId
   fileKey?: string
+  observedDiskRevision?: string | null
   markdown: string
   savedMarkdown: string
   dirty: boolean
@@ -63,6 +64,35 @@ interface CapabilityRecord {
   readonly documentRevision: number
   readonly ownerFence: string
   used: boolean
+}
+interface TransferFence {
+  readonly paneId: PaneId
+  readonly documentId: DocumentId
+  readonly viewId: ViewId
+  readonly documentRevision: number
+  readonly ownerFence: string
+  readonly preflightId?: string
+  used: boolean
+}
+
+export interface TransferSourceSnapshot {
+  readonly documentId: DocumentId
+  readonly viewId: ViewId
+  readonly sourceLineage: string
+  readonly documentRevision: number
+  readonly isLastSourceTab: boolean
+  readonly fileKey?: string
+  readonly observedDiskRevision?: string | null
+  readonly title: string
+  readonly markdown: string
+  readonly dirty: boolean
+  readonly conflict: boolean
+  readonly history: PortableHistory
+  readonly view: ViewState
+}
+
+export interface TransferPreflightSnapshot extends TransferSourceSnapshot {
+  readonly preflightId: string
 }
 
 interface PendingDocumentIo {
@@ -118,6 +148,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private readonly leases = new WeakSet<object>()
   /** Object identity makes a capability an opaque, controller-issued bearer. */
   private readonly capabilities = new WeakMap<WorkspaceCapability, CapabilityRecord>()
+  private readonly transferFences = new Map<string, TransferFence>()
   private readonly pendingDocumentIo = new Map<string, PendingDocumentIo>()
   private readonly listeners = new Set<(projection: WorkspaceProjection) => void>()
   private warnings: WorkspaceWarning[] = []
@@ -147,6 +178,94 @@ export class WorkspaceController implements WorkspaceControllerContract {
   execute(command: WorkspaceCommand): Promise<WorkspaceResult> {
     if (this.disposed) return Promise.resolve(this.rejected('workspace controller is disposed'))
     return this.enqueue(async() => this.apply(command))
+  }
+
+  /** Internal Move edge: atomically adopts the action's already-flushed source fence. */
+  prepareTransfer(transferId: string, documentId: DocumentId, viewId: ViewId, expectedRevision: number, preflightId: string): Promise<number | undefined> {
+    return this.enqueue(async() => {
+      const adopted = this.transferFences.get(transferId)
+      const view = this.views.get(viewId)
+      const document = this.documents.get(documentId)
+      if (adopted) {
+        return adopted.documentId === documentId && adopted.viewId === viewId &&
+          adopted.documentRevision === expectedRevision && adopted.ownerFence === document?.ownerFence &&
+          view?.documentId === documentId && document?.revision === expectedRevision
+          ? document.revision
+          : undefined
+      }
+      const preflightKey = this.preflightKey(preflightId)
+      const preflight = this.transferFences.get(preflightKey)
+      if (!preflight || !view || view.documentId !== documentId || !document ||
+        preflight.preflightId !== preflightId || preflight.documentId !== documentId ||
+        preflight.viewId !== viewId || preflight.documentRevision !== expectedRevision ||
+        preflight.ownerFence !== document.ownerFence || document.revision !== expectedRevision) return undefined
+      this.transferFences.delete(preflightKey)
+      this.transferFences.set(transferId, {
+        paneId: preflight.paneId,
+        documentId,
+        viewId,
+        documentRevision: document.revision,
+        ownerFence: document.ownerFence,
+        preflightId,
+        used: false
+      })
+      return document.revision
+    })
+  }
+
+  /** Action-only preflight: one controller-queued flush seals the capsule source. */
+  beginTransferPreflight(paneId: PaneId, tabId: string, preflightId: string): Promise<TransferPreflightSnapshot | undefined> {
+    return this.enqueue(async() => {
+      const source = await this.captureTransferSource(paneId, tabId)
+      if (!source || [...this.transferFences.values()].some(fence =>
+        fence.preflightId && fence.documentId === source.documentId && fence.viewId === source.viewId
+      )) return undefined
+      this.transferFences.set(this.preflightKey(preflightId), {
+        paneId,
+        documentId: source.documentId,
+        viewId: source.viewId,
+        documentRevision: source.documentRevision,
+        ownerFence: this.requireDocument(source.documentId).ownerFence,
+        preflightId,
+        used: false
+      })
+      return { ...source, preflightId }
+    })
+  }
+
+  /** A failed pre-authorization run removes its fence, including an unconsumed adoption. */
+  clearTransferPreflight(preflightId: string): Promise<void> {
+    return this.enqueue(async() => {
+      this.transferFences.delete(this.preflightKey(preflightId))
+      for (const [transferId, fence] of this.transferFences) {
+        if (fence.preflightId === preflightId && !fence.used) this.transferFences.delete(transferId)
+      }
+    })
+  }
+
+  /** Only a pre-authorized Move fence may release a dirty source without a dialog. */
+  releaseTransfer(transferId: string, documentId: DocumentId, viewId: ViewId): Promise<WorkspaceResult> {
+    return this.enqueue(async() => {
+      const fence = this.transferFences.get(transferId)
+      const view = this.views.get(viewId)
+      const document = this.documents.get(documentId)
+      if (!fence || fence.used || !view || !document ||
+        fence.documentId !== documentId || fence.viewId !== viewId || view.documentId !== documentId ||
+        fence.documentRevision !== document.revision || fence.ownerFence !== document.ownerFence) {
+        return this.rejected('stale transfer release fence')
+      }
+      const result = await this.removeView(viewId)
+      if (result.status === 'applied') {
+        fence.used = true
+        this.transferFences.delete(transferId)
+      }
+      return result
+    })
+  }
+
+  /** The only renderer assembly read used to construct a Move capsule. */
+  transferSourceSnapshot(paneId: PaneId, tabId: string): Promise<TransferSourceSnapshot | undefined> {
+    return this.enqueue(async() => this.captureTransferSource(paneId, tabId))
   }
 
   getProjection(): WorkspaceProjection {
@@ -309,19 +428,21 @@ export class WorkspaceController implements WorkspaceControllerContract {
         if (this.disposed) return this.rejected('workspace controller is disposed')
         if (this.pendingOperations > 0) return this.rejected('workspace mutation is in progress')
         if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
+        if (this.hasPreflightForView(candidate.viewId)) return this.rejected('transfer preflight fence is active')
         const changed = this.applyReport(candidate.viewId, report)
         if (changed) this.updateBoundSnapshot(bound)
         this.commit()
         return this.applied()
       },
       flush: async(candidate) =>
-        this.enqueue(async() =>
-          this.withLease(bound, candidate, async() => {
+        this.enqueue(async() => {
+          if (this.hasPreflightForView(candidate.viewId)) return this.rejected('transfer preflight fence is active')
+          return this.withLease(bound, candidate, async() => {
             if (this.applyReport(candidate.viewId, await bound.adapter.flush())) {
               this.updateBoundSnapshot(bound)
             }
           })
-        ),
+        }),
       handoffMode: async(candidate, mode) =>
         this.enqueue(async() =>
           this.withLease(bound, candidate, async() => {
@@ -504,7 +625,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const pane = this.requirePane(this.focusedPaneId)
     await this.flushPane(pane.id)
     const doc = this.makeDocument(input)
-    const view = this.makeView(doc.id)
+    const view = this.makeView(doc.id, input.view)
     await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
@@ -678,6 +799,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
         viewId: view.id,
         documentId: document.id,
         ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+        ...(document.observedDiskRevision !== undefined ? { observedDiskRevision: document.observedDiskRevision } : {}),
+        documentRevision: document.revision,
         title: document.title,
         markdown: document.markdown,
         portableHistory: clone(document.history),
@@ -713,6 +836,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       return this.rejected('stale document I/O bind acknowledgement')
     }
     document.ownerFence = command.ownerFence
+    document.observedDiskRevision = command.observedDiskRevision
     for (const bound of this.adapters.values()) {
       if (bound.snapshot?.documentId === document.id) this.updateBoundSnapshot(bound)
     }
@@ -761,6 +885,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       document.title = pending.targetTitle
     }
     if (pending.request.ownerFence === undefined) document.ownerFence = ack.ownerFence!
+    if (ack.observedDiskRevision !== undefined) document.observedDiskRevision = ack.observedDiskRevision
     document.dirty = false
     document.savedMarkdown = document.markdown
     document.conflict = false
@@ -953,6 +1078,38 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
   }
 
+  private async captureTransferSource(paneId: PaneId, tabId: string): Promise<TransferSourceSnapshot | undefined> {
+    const pane = this.panes.get(paneId)
+    const viewId = pane?.viewIds.find(id => id === tabId || this.views.get(id)?.documentId === tabId)
+    if (!pane || !viewId) return undefined
+    await this.flushPane(paneId)
+    const view = this.views.get(viewId)
+    if (!view) return undefined
+    const document = this.documents.get(view.documentId)
+    if (!document) return undefined
+    return {
+      documentId: document.id,
+      viewId,
+      sourceLineage: `lineage:${document.id}:${document.ownerFence}`,
+      documentRevision: document.revision,
+      isLastSourceTab: pane.viewIds.length === 1,
+      ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+      ...(document.observedDiskRevision !== undefined ? { observedDiskRevision: document.observedDiskRevision } : {}),
+      title: document.title,
+      markdown: document.markdown,
+      dirty: document.dirty,
+      conflict: document.conflict,
+      history: clone(document.history),
+      view: clone(view.state)
+    }
+  }
+
+  private preflightKey(preflightId: string): string { return `preflight:${preflightId}` }
+
+  private hasPreflightForView(viewId: ViewId): boolean {
+    return [...this.transferFences.values()].some(fence => fence.preflightId && fence.viewId === viewId)
+  }
+
   private async refreshAdapter(paneId: PaneId, snapshot: EditorBindingSnapshot): Promise<void> {
     const bound = this.adapters.get(paneId)
     if (!bound) return
@@ -1003,8 +1160,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
       changedDocument = true
     }
     if (report.portableHistory !== undefined) {
-      document.history = clone(report.portableHistory)
-      changedDocument = true
+      const nextHistory = clone(report.portableHistory)
+      if (JSON.stringify(document.history) !== JSON.stringify(nextHistory)) {
+        document.history = nextHistory
+        changedDocument = true
+      }
     }
     let changedAuxiliary = false
     if (report.toc !== undefined) {
@@ -1057,6 +1217,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       document: {
         documentId: document.id,
         ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+        ...(document.observedDiskRevision !== undefined ? { observedDiskRevision: document.observedDiskRevision } : {}),
         ownerFence: document.ownerFence,
         markdown: document.markdown,
         dirty: document.dirty,
@@ -1081,11 +1242,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return {
       id,
       ...(input.fileKey ? { fileKey: input.fileKey } : {}),
+      ...(input.observedDiskRevision !== undefined ? { observedDiskRevision: input.observedDiskRevision } : {}),
       markdown: input.markdown ?? '',
-      savedMarkdown: input.markdown ?? '',
-      dirty: false,
+      savedMarkdown: input.savedMarkdown ?? input.markdown ?? '',
+      dirty: input.dirty ?? false,
       conflict: input.conflict ?? false,
-      revision: 0,
+      revision: input.documentRevision ?? 0,
       history: clone(input.portableHistory ?? EMPTY_HISTORY),
       title: input.title ?? input.fileKey?.split(/[\\/]/).pop() ?? 'New Tab',
       encoding: clone(input.encoding ?? DEFAULT_ENCODING),
@@ -1096,11 +1258,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
   }
 
-  private makeView(documentId: DocumentId): ViewRecord {
+  private makeView(documentId: DocumentId, state: Partial<ViewState> = {}): ViewRecord {
     return {
       id: `view-${this.nextId++}`,
       documentId,
-      state: clone(EMPTY_VIEW),
+      state: { ...clone(EMPTY_VIEW), ...clone(state) },
       toc: [],
       status: {}
     }
@@ -1114,7 +1276,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
 
   private appendDocument(pane: PaneRecord, input: WorkspaceDocumentInput): void {
     const document = this.makeDocument(input)
-    const view = this.makeView(document.id)
+    const view = this.makeView(document.id, input.view)
     this.documents.set(document.id, document)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)

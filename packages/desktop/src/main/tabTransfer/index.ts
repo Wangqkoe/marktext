@@ -475,7 +475,7 @@ const recoveryPayload = (capsule: TransferIntent['capsule']): TransferRecoveryPa
   sourceLineage: capsule.sourceLineage,
   documentRevision: capsule.documentRevision,
   ...(capsule.fileKey ? { fileKey: capsule.fileKey } : {}),
-  ...(capsule.observedDiskRevision ? { observedDiskRevision: capsule.observedDiskRevision } : {}),
+  ...(capsule.observedDiskRevision !== undefined ? { observedDiskRevision: capsule.observedDiskRevision } : {}),
   title: capsule.title,
   markdown: capsule.markdown,
   dirty: capsule.dirty,

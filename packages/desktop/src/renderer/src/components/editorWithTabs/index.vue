@@ -22,7 +22,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
-import { createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
+import { createElectronCrashDraftPort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
+import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
+import type { CrashDraftRecoveryPayload } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { usePreferencesStore } from '@/store/preferences'
@@ -37,6 +39,14 @@ const seed = editorStore.currentFile
 const controller = createWorkspaceRuntime(seed ? [{ documentId: seed.id, markdown: seed.markdown, title: seed.filename, ...(seed.pathname ? { fileKey: seed.pathname } : {}) }] : [{ markdown: props.markdown, title: 'New Tab' }])
 const left = createPaneEditorComposition({ paneId: 'left', controller })
 const right = createPaneEditorComposition({ paneId: 'right', controller })
+const transfer = createElectronTransferPort()
+const moveTabToNewWindow = createMoveTabToNewWindowAction(controller, transfer, {
+  flushSource: (paneId, tabId) => (paneId === 'left' ? left : right).flushTransferSource(tabId)
+})
+const crashDraft = createElectronCrashDraftPort()
+interface StagedTransfer { readonly documentId: string; readonly sourceDocumentId: string; readonly sourceViewId: string }
+const stagedTransfers = new Map<string, StagedTransfer>()
+const workspaceReason = (result: { readonly status: string; readonly reason?: string }): string => result.reason ?? 'workspace command was rejected'
 const root = ref<HTMLElement | null>(null)
 const workspaceWidth = ref(0)
 const ratio = computed(() => snapshot.value.projection.splitRatio ?? 0.5)
@@ -140,6 +150,136 @@ const startDivider = (event: PointerEvent) => {
   window.addEventListener('pointercancel', endDivider)
 }
 let legacyCommandPane: 'left' | 'right' | undefined
+const openTransferPayload = async (payload: TransferRecoveryPayload, transferId: string): Promise<StagedTransfer> => {
+  const staged = stagedTransfers.get(transferId) ?? {
+    // Document IDs are window-local. Source identity remains lineage metadata,
+    // never an adopted target document identity.
+    documentId: `transfer-target:${crypto.randomUUID()}`,
+    sourceDocumentId: payload.sourceDocumentId,
+    sourceViewId: payload.sourceViewId
+  }
+  const opened = await controller.execute({
+    kind: 'open-document',
+    document: {
+      documentId: staged.documentId,
+      documentRevision: payload.documentRevision,
+      markdown: payload.markdown,
+      savedMarkdown: payload.dirty ? '' : payload.markdown,
+      dirty: payload.dirty,
+      title: payload.title,
+      ...(payload.fileKey ? { fileKey: payload.fileKey, observedDiskRevision: payload.observedDiskRevision } : {}),
+      conflict: payload.conflict
+    }
+  })
+  if (opened.status !== 'applied') throw new Error(workspaceReason(opened))
+  stagedTransfers.set(transferId, staged)
+  return staged
+}
+const openCrashDraft = async (payload: CrashDraftRecoveryPayload): Promise<void> => {
+  const { draft } = payload
+  // Crash drafts carry source identity, but recovery opens in a fresh window
+  // whose bootstrap tab may legitimately use the same controller-local id.
+  const recoveredDocumentId = `crash-recovery:${draft.documentId}`
+  left.setCrashDraftLineage(recoveredDocumentId, draft.documentId)
+  right.setCrashDraftLineage(recoveredDocumentId, draft.documentId)
+  const opened = await controller.execute({
+    kind: 'open-document',
+    document: {
+      documentId: recoveredDocumentId,
+      // Advance the recovered draft before checkpointing so its fresh opaque
+      // receipt can tombstone the pre-crash revision after Save/Discard.
+      documentRevision: draft.documentRevision + 1,
+      markdown: draft.markdown,
+      savedMarkdown: '',
+      dirty: true,
+      title: draft.fileKey?.split(/[\\/]/).pop() ?? 'Recovered Draft',
+      ...(draft.fileKey ? { fileKey: draft.fileKey, observedDiskRevision: draft.observedDiskRevision } : {}),
+      ...(payload.conflict ? { conflict: true } : {}),
+      view: { cursor: draft.view.cursor, selection: draft.view.selection }
+    }
+  })
+  if (opened.status !== 'applied') throw new Error(workspaceReason(opened))
+  const recovered = controller.getFacadeSnapshot().documents.find(document => document.documentId === recoveredDocumentId)
+  const pane = recovered && controller.getProjection().panes.find(candidate => candidate.tabs.some(tab => tab.viewId === recovered.viewId))
+  if (recovered && pane) {
+    await controller.execute({ kind: 'activate-view', paneId: pane.paneId, viewId: recovered.viewId })
+    await compositionFor(pane.paneId).checkpointCrashDraft()
+  }
+  await controller.execute({
+    kind: 'replace-warnings',
+    warnings: [
+      ...(payload.warning ? [{ id: `recovery:${draft.documentId}`, kind: 'recovery' as const, message: payload.warning }] : []),
+      ...(payload.conflict ? [{ id: `conflict:${draft.documentId}`, kind: 'conflict' as const, message: 'The saved file changed after the crash; a conflicted recovery copy was opened.' }] : [])
+    ]
+  })
+}
+const acknowledgeTransferCommand = async (command: TransferCommand): Promise<TransferAck> => {
+  if (command.operation === 'prepare') {
+    const response = await transfer.payload(command.transferId)
+    if (!response.durable) return { status: 'nack', reason: response.reason }
+    if (!response.payload.sourcePreflightId) return { status: 'nack', reason: 'source preflight fence is unavailable' }
+    const sealedRevision = await controller.prepareTransfer(
+      command.transferId,
+      response.payload.sourceDocumentId,
+      response.payload.sourceViewId,
+      command.documentRevision,
+      response.payload.sourcePreflightId
+    )
+    return sealedRevision === undefined
+      ? { status: 'nack', reason: 'source document revision could not be sealed' }
+      : { status: 'ok', sealedRevision }
+  }
+  if (!command.capability) return { status: 'nack', reason: 'missing transfer capability' }
+  if (command.operation === 'stage') {
+    const response = await transfer.payload(command.transferId, command.capability)
+    if (!response.durable) return { status: 'nack', reason: response.reason }
+    await openTransferPayload(response.payload, command.transferId)
+    return { status: 'ok' }
+  }
+  if (command.operation === 'release') {
+    const response = await transfer.payload(command.transferId, command.capability)
+    if (!response.durable) return { status: 'nack', reason: response.reason }
+    const closed = await controller.releaseTransfer(command.transferId, response.payload.sourceDocumentId, response.payload.sourceViewId)
+    return closed.status === 'applied' ? { status: 'ok' } : { status: 'nack', reason: workspaceReason(closed) }
+  }
+  if (command.operation === 'activate') {
+    const staged = stagedTransfers.get(command.transferId)
+    const view = staged && controller.getFacadeSnapshot().documents.find((document) => document.documentId === staged.documentId)
+    if (!view) return { status: 'nack', reason: 'staged target is unavailable' }
+    const pane = controller.getProjection().panes.find((candidate) => candidate.tabs.some((tab) => tab.viewId === view.viewId))
+    if (!pane) return { status: 'nack', reason: 'staged target pane is unavailable' }
+    const activated = await controller.execute({ kind: 'activate-view', paneId: pane.paneId, viewId: view.viewId })
+    return activated.status === 'applied' ? { status: 'ok' } : { status: 'nack', reason: workspaceReason(activated) }
+  }
+  if (command.operation === 'checkpoint') {
+    const staged = stagedTransfers.get(command.transferId)
+    const document = staged && controller.getFacadeSnapshot().documents.find((candidate) => candidate.documentId === staged.documentId)
+    if (!document) return { status: 'nack', reason: 'target checkpoint document is unavailable' }
+    if (document.fileKey && document.observedDiskRevision === undefined) {
+      return { status: 'nack', reason: 'target checkpoint disk baseline is unavailable' }
+    }
+    const pane = controller.getProjection().panes.find((candidate) => candidate.tabs.some((tab) => tab.viewId === document.viewId))
+    const composition = pane?.paneId === 'left' ? left : pane?.paneId === 'right' ? right : undefined
+    if (document.dirty && composition) {
+      const durable = await composition.hasDurableCrashDraft(document.documentId, document.documentRevision)
+      return durable
+        ? { status: 'ok' }
+        : { status: 'nack', reason: 'target crash-draft checkpoint was not durable' }
+    }
+    const response = await window.electron.ipcRenderer.invoke('mt::workspace::crash-draft', {
+      kind: 'checkpoint',
+      checkpoint: {
+        documentId: document.documentId,
+        ...(document.fileKey ? { fileKey: document.fileKey, observedDiskRevision: document.observedDiskRevision! } : {}),
+        documentRevision: document.documentRevision,
+        markdown: document.markdown,
+        view: { cursor: document.cursor, selection: document.selection }
+      }
+    }) as { durable: boolean }
+    return response.durable ? { status: 'ok' } : { status: 'nack', reason: 'target crash-draft checkpoint was not durable' }
+  }
+  return { status: 'ok' }
+}
 const syncLegacyCommandEdge = () => {
   const paneId = snapshot.value.projection.focusedPaneId
   if (paneId === legacyCommandPane) return
@@ -171,13 +311,29 @@ const unsubscribe = controller.subscribe(() => {
 })
 editorStore.ATTACH_WORKSPACE_FACADE(controller)
 syncLegacyCommandEdge()
-onMounted(() => {
+onMounted(async() => {
   observer = new ResizeObserver(updateWidth)
   if (root.value) observer.observe(root.value)
   updateWidth()
   // Capture sees Dragula spills as the same primary release before DOM drop handling.
   window.addEventListener('pointerup', releaseTabDrag, true)
+  // T06 test/automation seam; this invokes the exact action future T08 UI will import.
+  moveActionDriver.__mtMoveTabToNewWindow = ({ tabId, paneId }) => moveTabToNewWindow(tabId, paneId)
+  stopTransferCommands = transfer.bind(acknowledgeTransferCommand)
+  stopTransferRecovery = transfer.bindRecovery(async (message: TransferRecoveryMessage) => {
+    await openTransferPayload(message.payload, message.transferId)
+    await transfer.recoveryMaterialized(message.transferId)
+  })
+  const recovered = await crashDraft.request({ kind: 'recover' })
+  if (recovered.durable) for (const payload of recovered.recoveries ?? []) await openCrashDraft(payload)
+  transfer.ready().catch(() => undefined)
 })
+let stopTransferCommands: (() => void) | undefined
+let stopTransferRecovery: (() => void) | undefined
+type MoveActionDriver = Window & {
+  __mtMoveTabToNewWindow?: (input: { readonly tabId: string; readonly paneId: 'left' | 'right' }) => Promise<unknown>
+}
+const moveActionDriver = window as MoveActionDriver
 onBeforeUnmount(() => {
   observer?.disconnect()
   unsubscribe()
@@ -188,6 +344,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerup', endDivider)
   window.removeEventListener('pointercancel', endDivider)
   window.removeEventListener('pointerup', releaseTabDrag, true)
+  stopTransferCommands?.()
+  stopTransferRecovery?.()
+  delete moveActionDriver.__mtMoveTabToNewWindow
 })
 </script>
 

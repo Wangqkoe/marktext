@@ -1922,6 +1922,10 @@ onMounted(() => {
       const sourceReport = props.composition.sourceReportFor(snapshot)
       if (sourceReport) return sourceReport
       if (!editor.value) return {}
+      // Muya batches the tail of a contenteditable input.  An explicit
+      // controller lease flush is a synchronous editor boundary, so drain it
+      // before serializing the exact source that a Move fence will seal.
+      editor.value.flush()
       const markdown = editor.value.getMarkdown()
       const toc = editor.value
         .getTOC()

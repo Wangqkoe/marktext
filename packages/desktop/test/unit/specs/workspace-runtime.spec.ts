@@ -1517,4 +1517,23 @@ describe('WorkspaceRuntime', () => {
     await workspace.execute({ kind: 'focus-pane', paneId: 'left' })
     expect(expectDefined(workspace.getProjection().toc[0]).id).toBe('left-heading')
   })
+
+  it('preserves DocumentIO\'s observed missing-file baseline in the controller and editor snapshot', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'missing', fileKey: '/missing.md', markdown: 'draft', dirty: true }])
+    const editor = new MemoryEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const current = expectDefined(editor.active)
+    await expect(workspace.execute({
+      kind: 'apply-document-io-bind',
+      documentId: 'missing',
+      documentRevision: current.documentRevision,
+      previousOwnerFence: current.document.ownerFence,
+      ownerFence: 'main-owner:missing',
+      observedDiskRevision: null
+    })).resolves.toMatchObject({ status: 'applied' })
+    await binding.refresh(current.lease)
+    expect(workspace.getFacadeSnapshot().documents[0]?.observedDiskRevision).toBeNull()
+    expect(editor.active?.document.observedDiskRevision).toBeNull()
+    binding.dispose()
+  })
 })
