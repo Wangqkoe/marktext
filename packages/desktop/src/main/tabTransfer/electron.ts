@@ -17,32 +17,35 @@ export interface TransferWebContents {
 }
 
 export interface TransferTargetFactory {
-  createTarget(transferId: string, recovery: boolean): Promise<TransferEndpoint>
+  createTarget(transferId: string, recovery: boolean, reserved?: TransferEndpoint): Promise<TransferEndpoint>
 }
 
 interface RegisteredEndpoint { readonly endpoint: TransferEndpoint; readonly webContents: TransferWebContents }
-interface AwaitedAck { readonly endpoint: TransferEndpoint; readonly resolve: (ack: TransferAck) => void; readonly timer: ReturnType<typeof setTimeout> }
+interface AwaitedAck { readonly endpoint: TransferEndpoint; readonly capability?: TransferCapability; readonly resolve: (ack: TransferAck) => void; readonly timer: ReturnType<typeof setTimeout> }
 
 /** Electron delivery adapter. Window ids are never accepted from IPC payloads. */
 export class ElectronTransferTransport implements TransferTransport {
   private readonly bySender = new Map<string, RegisteredEndpoint>()
   private readonly capabilities = new Map<string, TransferCapability>()
   private readonly awaiting = new Map<string, AwaitedAck>()
+  private readonly detachers = new Map<string, () => void>()
   private nextEpoch = 1
 
   constructor(private readonly targets: TransferTargetFactory) {}
 
-  attach(webContents: TransferWebContents, sessionId = `editor-session:${randomUUID()}`): () => void {
+  attach(webContents: TransferWebContents, sessionId = `editor-session:${randomUUID()}`, epoch = this.nextEpoch++): () => void {
     const sender = String(webContents.id)
     this.detach(sender)
-    const registered: RegisteredEndpoint = { endpoint: { sessionId, epoch: this.nextEpoch++ }, webContents }
+    const registered: RegisteredEndpoint = { endpoint: { sessionId, epoch }, webContents }
     this.bySender.set(sender, registered)
     const detach = (): void => {
       if (this.bySender.get(sender) !== registered) return
       this.bySender.delete(sender)
+      this.detachers.delete(sender)
       webContents.removeListener?.('destroyed', detach)
       webContents.removeListener?.('did-start-navigation', detach)
     }
+    this.detachers.set(sender, detach)
     webContents.on?.('destroyed', detach)
     webContents.on?.('did-start-navigation', detach)
     return detach
@@ -52,7 +55,12 @@ export class ElectronTransferTransport implements TransferTransport {
   endpointForSender(sender: TransferWebContents): TransferEndpoint | undefined { return this.endpointFor(sender) }
 
   createTarget(transferId: string): Promise<TransferEndpoint> { return this.targets.createTarget(transferId, false) }
-  reserveRecoveryWindow(transferId: string): Promise<TransferEndpoint> { return this.targets.createTarget(transferId, true) }
+  async reserveRecoveryWindow(_transferId: string): Promise<TransferEndpoint> {
+    // Reservation is intentionally inert: it cannot authenticate or receive a
+    // command until the T05 journal has durably migrated ownership.
+    return { sessionId: `recovery-reservation:${randomUUID()}`, epoch: this.nextEpoch++ }
+  }
+
   authenticate(endpoint: TransferEndpoint): boolean {
     return [...this.bySender.values()].some(registered => registered.endpoint.sessionId === endpoint.sessionId && registered.endpoint.epoch === endpoint.epoch && !registered.webContents.isDestroyed?.())
   }
@@ -70,7 +78,7 @@ export class ElectronTransferTransport implements TransferTransport {
     const key = `${command.transferId}:${command.phase}:${command.operation}:${command.endpoint.sessionId}:${command.endpoint.epoch}`
     return new Promise<TransferAck>(resolve => {
       const timer = setTimeout(() => { this.awaiting.delete(key); resolve({ status: 'timeout' }) }, timeout.timeoutMs)
-      this.awaiting.set(key, { endpoint: command.endpoint, resolve, timer })
+      this.awaiting.set(key, { endpoint: command.endpoint, ...(command.capability ? { capability: command.capability } : {}), resolve, timer })
       try { registered.webContents.send('mt::workspace::transfer-command', command) } catch { clearTimeout(timer); this.awaiting.delete(key); resolve({ status: 'nack', reason: 'endpoint delivery failed' }) }
     })
   }
@@ -81,24 +89,26 @@ export class ElectronTransferTransport implements TransferTransport {
     const key = `${receipt.transferId}:${receipt.phase}:${receipt.operation}:${registered.endpoint.sessionId}:${registered.endpoint.epoch}`
     const waiting = this.awaiting.get(key)
     if (!waiting || waiting.endpoint !== registered.endpoint) return { status: 'nack', reason: 'stale transfer acknowledgement' }
-    clearTimeout(waiting.timer); this.awaiting.delete(key); waiting.resolve(receipt.ack)
+    clearTimeout(waiting.timer); this.awaiting.delete(key)
+    if (waiting.capability) this.capabilities.delete(waiting.capability.id)
+    waiting.resolve(receipt.ack)
     return { status: 'ok' }
   }
 
   async materializeRecoveryWindow(endpoint: TransferEndpoint, payload: TransferRecoveryPayload): Promise<void> {
+    if (!this.authenticate(endpoint)) await this.targets.createTarget('recovery', true, endpoint)
     const registered = [...this.bySender.values()].find(item => item.endpoint.sessionId === endpoint.sessionId && item.endpoint.epoch === endpoint.epoch)
     if (!registered) throw new Error('recovery endpoint is unavailable')
     registered.webContents.send('mt::workspace::transfer-recovery', payload)
   }
 
-  private validCapability(capability: TransferCapability, command: TransferCommand): boolean {
+  validCapability(capability: TransferCapability, command: Pick<TransferCommand, 'transferId' | 'operation' | 'capsuleDigest' | 'documentRevision' | 'endpoint'>): boolean {
     const issued = this.capabilities.get(capability.id)
-    if (!issued || issued !== capability || issued.transferId !== command.transferId || issued.operation !== command.operation || issued.capsuleDigest !== command.capsuleDigest || issued.documentRevision !== command.documentRevision) return false
+    if (!issued || issued.transferId !== command.transferId || issued.operation !== command.operation || issued.capsuleDigest !== command.capsuleDigest || issued.documentRevision !== command.documentRevision) return false
     const endpoint = issued.role === 'source' ? issued.source : issued.target
     if (endpoint.sessionId !== command.endpoint.sessionId || endpoint.epoch !== command.endpoint.epoch) return false
-    this.capabilities.delete(capability.id)
     return true
   }
 
-  private detach(sender: string): void { this.bySender.get(sender)?.webContents.removeListener?.('destroyed', () => {}); this.bySender.delete(sender) }
+  private detach(sender: string): void { this.detachers.get(sender)?.() }
 }

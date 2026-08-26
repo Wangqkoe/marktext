@@ -3,34 +3,38 @@ import { app } from 'electron'
 import { TabTransferCoordinator } from '../tabTransfer'
 import { ElectronTransferTransport, type TransferTargetFactory, type TransferWebContents } from '../tabTransfer/electron'
 import { NodeCapsuleStorage, NodeTransferJournal } from '../tabTransfer/node'
-import type { TabTransferResult, TransferAck, TransferCommand, TransferEndpoint, TransferIntent } from '../tabTransfer/types'
+import type { TabTransferResult, TransferAck, TransferCapability, TransferCommand, TransferEndpoint, TransferIntent } from '../tabTransfer/types'
 
 export interface TransferIpcMain {
   handle(channel: 'mt::workspace::tab-transfer', listener: (event: { readonly sender: TransferWebContents }, intent: TransferIntent) => Promise<TabTransferResult>): void
   handle(channel: 'mt::workspace::tab-transfer-ack', listener: (event: { readonly sender: TransferWebContents }, receipt: TransferReceipt) => TransferAck): void
-  removeHandler?(channel: 'mt::workspace::tab-transfer' | 'mt::workspace::tab-transfer-ack'): void
+  handle(channel: 'mt::workspace::tab-transfer-payload', listener: (event: { readonly sender: TransferWebContents }, request: TransferPayloadRequest) => Promise<TransferPayloadResponse>): void
+  removeHandler?(channel: 'mt::workspace::tab-transfer' | 'mt::workspace::tab-transfer-ack' | 'mt::workspace::tab-transfer-payload'): void
 }
 export interface TransferReceipt { readonly transferId: string; readonly phase: TransferCommand['phase']; readonly operation: TransferCommand['operation']; readonly ack: TransferAck }
+export interface TransferPayloadRequest { readonly transferId: string; readonly capability: TransferCapability }
+export type TransferPayloadResponse = { readonly durable: true; readonly payload: TransferIntent['capsule'] } | { readonly durable: false; readonly reason: string }
 
-let createWindow: ((transferId: string, recovery: boolean) => Promise<TransferEndpoint>) | undefined
+let createWindow: ((transferId: string, recovery: boolean, reserved?: TransferEndpoint) => Promise<TransferEndpoint>) | undefined
 const targets: TransferTargetFactory = {
-  createTarget: async(transferId, recovery) => {
+  createTarget: async(transferId, recovery, reserved) => {
     if (!createWindow) throw new Error('transfer target factory is not ready')
-    return createWindow(transferId, recovery)
+    return createWindow(transferId, recovery, reserved)
   }
 }
 
-export const configureTransferTargetFactory = (factory: (transferId: string, recovery: boolean) => Promise<TransferEndpoint>): void => { createWindow = factory }
+export const configureTransferTargetFactory = (factory: (transferId: string, recovery: boolean, reserved?: TransferEndpoint) => Promise<TransferEndpoint>): void => { createWindow = factory }
 
 export class TabTransferElectronAdapter {
   readonly transport = new ElectronTransferTransport(targets)
+  private readonly capsules = new NodeCapsuleStorage(path.join(app.getPath('userData'), 'tab-transfer'))
   readonly coordinator = new TabTransferCoordinator(
     new NodeTransferJournal(path.join(app.getPath('userData'), 'tab-transfer')),
-    new NodeCapsuleStorage(path.join(app.getPath('userData'), 'tab-transfer')),
+    this.capsules,
     this.transport
   )
 
-  attach(webContents: TransferWebContents): () => void { return this.transport.attach(webContents) }
+  attach(webContents: TransferWebContents, sessionId?: string, epoch?: number): () => void { return this.transport.attach(webContents, sessionId, epoch) }
   endpointFor(webContents: TransferWebContents): TransferEndpoint | undefined { return this.transport.endpointFor(webContents) }
   async run(sender: TransferWebContents, intent: TransferIntent): Promise<TabTransferResult> {
     const source = this.transport.endpointForSender(sender)
@@ -41,14 +45,29 @@ export class TabTransferElectronAdapter {
   }
 
   acknowledge(sender: TransferWebContents, receipt: TransferReceipt): TransferAck { return this.transport.acknowledge(sender, receipt) }
+  async payload(sender: TransferWebContents, request: TransferPayloadRequest): Promise<TransferPayloadResponse> {
+    const endpoint = this.transport.endpointForSender(sender)
+    if (!endpoint || !this.transport.validCapability(request.capability, {
+      transferId: request.transferId,
+      operation: request.capability.operation,
+      capsuleDigest: request.capability.capsuleDigest,
+      documentRevision: request.capability.documentRevision,
+      endpoint
+    })) return { durable: false, reason: 'invalid transfer capability' }
+    const stored = await this.capsules.get(request.transferId)
+    if (!stored || stored.digest !== request.capability.capsuleDigest) return { durable: false, reason: 'transfer payload is unavailable' }
+    try { return { durable: true, payload: JSON.parse(new TextDecoder().decode(stored.bytes)) as TransferIntent['capsule'] } } catch { return { durable: false, reason: 'transfer payload is corrupt' } }
+  }
+
   async recover(): Promise<readonly TabTransferResult[]> { return this.coordinator.recover() }
 }
 
 export const registerTransferIpc = (ipc: TransferIpcMain, adapter: TabTransferElectronAdapter): (() => void) => {
-  ipc.removeHandler?.('mt::workspace::tab-transfer'); ipc.removeHandler?.('mt::workspace::tab-transfer-ack')
+  ipc.removeHandler?.('mt::workspace::tab-transfer'); ipc.removeHandler?.('mt::workspace::tab-transfer-ack'); ipc.removeHandler?.('mt::workspace::tab-transfer-payload')
   ipc.handle('mt::workspace::tab-transfer', (event, intent) => adapter.run(event.sender, intent))
   ipc.handle('mt::workspace::tab-transfer-ack', (event, receipt) => adapter.acknowledge(event.sender, receipt))
-  return () => { ipc.removeHandler?.('mt::workspace::tab-transfer'); ipc.removeHandler?.('mt::workspace::tab-transfer-ack') }
+  ipc.handle('mt::workspace::tab-transfer-payload', (event, request) => adapter.payload(event.sender, request))
+  return () => { ipc.removeHandler?.('mt::workspace::tab-transfer'); ipc.removeHandler?.('mt::workspace::tab-transfer-ack'); ipc.removeHandler?.('mt::workspace::tab-transfer-payload') }
 }
 
 export const createProductionTransferAdapter = (): TabTransferElectronAdapter => new TabTransferElectronAdapter()

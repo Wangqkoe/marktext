@@ -79,7 +79,13 @@ export interface WorkspaceDocumentInput {
   readonly documentId?: DocumentId
   readonly fileKey?: FileKey
   readonly observedDiskRevision?: DiskRevision
+  /** Monotonic document revision supplied only by emergency/transfer adoption. */
+  readonly documentRevision?: number
   readonly markdown?: string
+  /** Emergency-recovery input only; never a normal-workspace snapshot. */
+  readonly dirty?: boolean
+  readonly savedMarkdown?: string
+  readonly view?: Partial<ViewState>
   readonly portableHistory?: PortableHistory
   readonly title?: string
   readonly conflict?: boolean
@@ -123,6 +129,10 @@ export interface CrashDraftRecoveryRecord {
   readonly kind: 'crash-draft'
   readonly draft: CrashDraftEnvelope
   readonly warning?: string
+}
+
+export interface CrashDraftRecoveryPayload extends CrashDraftRecoveryRecord {
+  readonly conflict?: true
 }
 
 export interface MoveRecoveryRecord {

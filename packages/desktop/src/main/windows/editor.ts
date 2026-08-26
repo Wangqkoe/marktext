@@ -13,6 +13,7 @@ import { loadMarkdownFile } from '../filesystem/markdown'
 import { switchLanguage } from '../spellchecker'
 import fs from 'fs'
 import type { BootstrapEditorConfig } from '@shared/types/files'
+import type { CrashDraftRecoveryPayload } from '@shared/workspace'
 import { getCrashDraftAdapter, getDocumentIoAdapter, getTransferAdapter } from '../ipc'
 import { attachEditorDocumentIo } from './documentIO'
 
@@ -55,6 +56,7 @@ class EditorWindow extends BaseWindow {
   private _directoryToOpen: string | null
   private _filesToOpen: PendingFile[] | null
   private _markdownToOpen: string[] | null
+  private _crashDrafts: readonly CrashDraftRecoveryPayload[]
   // Root directory and file list that are currently opened. These lists are
   // used to find the best window to open new files in.
   private _openedRootDirectory: string | null
@@ -73,6 +75,7 @@ class EditorWindow extends BaseWindow {
     this._directoryToOpen = null
     this._filesToOpen = [] // {doc: IMarkdownDocumentRaw, options: any, selected: boolean}
     this._markdownToOpen = [] // List of markdown strings or an empty string will open a new untitled tab
+    this._crashDrafts = []
 
     // Root directory and file list that are currently opened. These lists are
     // used to find the best window to open new files in.
@@ -109,9 +112,11 @@ class EditorWindow extends BaseWindow {
     fileList: string[] = [],
     markdownList: string[] = [],
     options: Partial<BrowserWindowConstructorOptions> = {},
-    _legacyBufferStoreInfo: BufferStoreInfo | null = null
+    _legacyBufferStoreInfo: BufferStoreInfo | null = null,
+    crashDrafts: readonly CrashDraftRecoveryPayload[] = []
   ): BrowserWindow {
     const { menu: appMenu, env, preferences, editorBufferStore } = this._accessor
+    this._crashDrafts = crashDrafts
     // Legacy editorBufferStore bytes deliberately remain on disk, but V1 never
     // reads them as startup state.  A window is seeded only by this call.
     const addBlankTab = !rootDirectory && fileList.length === 0 && markdownList.length === 0
@@ -203,8 +208,10 @@ class EditorWindow extends BaseWindow {
 
       win!.webContents.send(
         'mt::bootstrap-editor',
-        this._createBootstrapEditorConfig(addBlankTab, this._markdownToOpen!)
+        this._createBootstrapEditorConfig(addBlankTab && this._crashDrafts.length === 0, this._markdownToOpen!)
       )
+      for (const draft of this._crashDrafts) win!.webContents.send('mt::workspace::crash-recovery', draft)
+      this._crashDrafts = []
       this._doOpenFilesToOpen()
       this._markdownToOpen!.length = 0
 

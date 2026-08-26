@@ -19,6 +19,7 @@ import {
 } from './paneEditorAdapter'
 import type { EditorMode } from '@shared/workspace'
 import { createElectronDocumentIoPort, RendererDocumentIoAdapter } from './documentIO'
+import { createElectronCrashDraftPort } from './crashDraft'
 
 export interface LegacyPaneSeed {
   readonly id: string
@@ -59,6 +60,10 @@ export class PaneEditorComposition {
   private readonly pendingDocumentIoBinds = new Set<string>()
   private readonly boundDocumentFences = new Map<string, string>()
   private modeTransition: Promise<WorkspaceResult> | undefined
+  private readonly crashDraft = createElectronCrashDraftPort()
+  private readonly crashReceipts = new Map<string, { readonly revision: number; readonly receipt: string }>()
+  private stopCrashDraftSync: (() => void) | undefined
+  private crashDraftTail: Promise<void> = Promise.resolve()
 
   constructor(options: PaneEditorCompositionOptions) {
     this.paneId = options.paneId
@@ -97,6 +102,8 @@ export class PaneEditorComposition {
     this.binding = binding
     this.reporter.attach(this.binding)
     this.mountDocumentIo()
+    this.stopCrashDraftSync = this.runtime.subscribe(() => { this.syncCrashDraft().catch(() => undefined) })
+    this.syncCrashDraft().catch(() => undefined)
     if (seed.mode === 'source') {
       const lease = this.binding.getLease()
       if (lease) await this.binding.handoffMode(lease, 'source')
@@ -116,6 +123,11 @@ export class PaneEditorComposition {
     this.pendingDocumentIoBinds.clear()
     this.boundDocumentFences.clear()
     this.documentIo?.dispose()
+    this.stopCrashDraftSync?.()
+    this.stopCrashDraftSync = undefined
+    // A clean marker is only accepted by main after every durable draft has a
+    // durable disposition; failed/dirty cases remain recoverable by design.
+    this.crashDraftTail.then(() => this.crashDraft.request({ kind: 'mark-clean' })).catch(() => undefined)
     this.documentIo = undefined
     this.surface = undefined
   }
@@ -381,6 +393,8 @@ export class PaneEditorComposition {
     const decision = await this.confirmClose(view.viewId)
     if (decision === 'cancel') return { status: 'rejected', reason: 'close cancelled' }
     if (decision === 'discard') {
+      await this.syncCrashDraft()
+      await this.resolveCrashDraft(documentId, 'discard')
       return runtime.execute({ kind: 'commit-authorized', capability: close.capability })
     }
     const document = this.documentForView(view.viewId)
@@ -475,8 +489,53 @@ export class PaneEditorComposition {
     const applied = await this.runtime.execute({ kind: 'apply-save-ack', ack })
     if (applied.status === 'applied' && ack.status === 'durable-success') {
       this.boundDocumentFences.set(ack.documentId, ack.ownerFence)
+      await this.resolveCrashDraft(ack.documentId)
     }
     return applied
+  }
+
+  /** Emergency state derives from the controller's live bound snapshot only. */
+  private async syncCrashDraft(): Promise<void> {
+    const work = async(): Promise<void> => {
+      const lease = this.binding?.getLease()
+      const snapshot = lease ? this.binding?.getSnapshot(lease) : undefined
+      if (!snapshot?.document.dirty) return
+      const current = this.crashReceipts.get(snapshot.documentId)
+      if (current?.revision === snapshot.documentRevision) return
+      const response = await this.crashDraft.request({
+        kind: 'checkpoint',
+        checkpoint: {
+          documentId: snapshot.documentId,
+          ...(snapshot.document.fileKey
+            ? {
+              fileKey: snapshot.document.fileKey,
+              // Legacy open paths have not yet supplied T04's observed revision;
+              // use an unknown baseline so recovery is conservatively conflicted.
+              observedDiskRevision: snapshot.document.observedDiskRevision ?? 'unknown'
+            }
+            : {}),
+          documentRevision: snapshot.documentRevision,
+          markdown: snapshot.document.markdown,
+          view: { cursor: snapshot.view.cursor, selection: snapshot.view.selection }
+        }
+      })
+      if (response.durable && response.receipt) {
+        this.crashReceipts.set(snapshot.documentId, { revision: snapshot.documentRevision, receipt: response.receipt })
+      }
+    }
+    const next = this.crashDraftTail.then(work, work)
+    this.crashDraftTail = next.catch(() => undefined)
+    return next
+  }
+
+  private async resolveCrashDraft(documentId: string, action: 'saved' | 'discard' = 'saved'): Promise<void> {
+    await this.crashDraftTail
+    const receipt = this.crashReceipts.get(documentId)?.receipt
+    if (!receipt) return
+    const response = await this.crashDraft.request({ kind: action, receipt })
+    if (!response.durable) return
+    this.crashReceipts.delete(documentId)
+    await this.crashDraft.request({ kind: 'mark-clean' })
   }
 }
 

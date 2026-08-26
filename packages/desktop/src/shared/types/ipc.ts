@@ -69,6 +69,7 @@ export interface IpcInvokeChannels {
   'mt::workspace::crash-draft': { args: [request: unknown]; ret: unknown }
   'mt::workspace::tab-transfer': { args: [intent: unknown]; ret: unknown }
   'mt::workspace::tab-transfer-ack': { args: [receipt: unknown]; ret: unknown }
+  'mt::workspace::tab-transfer-payload': { args: [request: unknown]; ret: unknown }
   'mt::fs-trash-item': { args: [pathname: string]; ret: void }
   'mt::fs::copy': { args: [src: string, dest: string]; ret: void }
   'mt::fs::empty-dir': { args: [path: string]; ret: void }
@@ -247,6 +248,8 @@ export interface IpcMainEventChannels {
   // T04b DocumentIO section. The renderer only receives typed outcomes.
   'mt::workspace::document-io-observation': [observation: DocumentIoObservation]
   'mt::workspace::transfer-command': [command: unknown]
+  'mt::workspace::transfer-recovery': [payload: unknown]
+  'mt::workspace::crash-recovery': [payload: unknown]
   'mt::UPDATE_DOWNLOADED': [info?: unknown]
   'mt::UPDATE_ERROR': [error: unknown]
   'mt::UPDATE_NOT_AVAILABLE': [info?: unknown]

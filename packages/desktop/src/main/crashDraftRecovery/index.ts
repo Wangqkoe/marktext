@@ -33,7 +33,7 @@ export interface CrashDraftStorage {
   rename(from: string, to: string): Promise<void>
   unlink(filename: string): Promise<void>
   syncFile(filename: string): Promise<void>
-  syncDirectory(directory: string): Promise<void>
+  syncDirectory(directory: string, entry?: string): Promise<void>
 }
 
 /** Node implementation deliberately keeps all durability operations explicit for fault injection. */
@@ -60,14 +60,16 @@ export class NodeCrashDraftStorage implements CrashDraftStorage {
     try { await handle.sync() } finally { await handle.close() }
   }
 
-  async syncDirectory(directory: string): Promise<void> {
-    // Windows does not permit opening a directory as a file.  Syncing the newly
-    // replaced entry is the platform-equivalent persistence barrier there.
+  async syncDirectory(directory: string, entry?: string): Promise<void> {
     try {
       const handle = await fs.open(directory, 'r')
       try { await handle.sync() } finally { await handle.close() }
     } catch (error) {
-      if (process.platform !== 'win32') throw error
+      // Windows does not expose POSIX directory handles. FlushFileBuffers on
+      // the just-replaced entry is the available NTFS durability barrier; if
+      // there is no entry, fail closed rather than claim a durable ACK.
+      if (process.platform !== 'win32' || !entry) throw error
+      await this.syncFile(entry)
     }
   }
 }
@@ -216,7 +218,7 @@ export class CrashDraftStore implements CrashDraftRecovery {
     await this.hit('temp-fsync'); await this.storage.syncFile(temporary)
     await this.hit('replace'); await this.storage.rename(temporary, filename)
     await this.storage.syncFile(filename)
-    await this.hit('directory-fsync'); await this.storage.syncDirectory(this.directory)
+    await this.hit('directory-fsync'); await this.storage.syncDirectory(this.directory, filename)
   }
 
   private async hit(point: CrashDraftFaultPoint): Promise<void> {

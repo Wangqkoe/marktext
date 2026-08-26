@@ -4,6 +4,7 @@ import { exec } from 'child_process'
 import dayjs from 'dayjs'
 import log from 'electron-log'
 import { app, BrowserWindow, clipboard, dialog, nativeTheme, shell, ipcMain } from 'electron'
+import { createHash } from 'crypto'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import { isChildOfDirectory } from 'common/filesystem/paths'
 import type { IUserPreferences } from '@shared/types/preferences'
@@ -22,6 +23,8 @@ import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
 import { setLanguage } from '../i18n'
 import { configureTransferTargetFactory, getCrashDraftAdapter, getTransferAdapter } from '../ipc'
+import { NodeFileObservationStorage } from '../filesystem/fileObservation'
+import type { CrashDraftRecoveryPayload } from '@shared/workspace'
 import { getNativeThemeSource, isDarkApplicationTheme } from './nativeTheme'
 import type Accessor from './accessor'
 import type WindowManager from './windowManager'
@@ -59,15 +62,19 @@ class App {
 
     // Initialize main process language
     this._initializeLanguage()
-    configureTransferTargetFactory(async(_transferId, _recovery) => {
+    configureTransferTargetFactory(async(_transferId, _recovery, reserved) => {
       const editor = this._createEditorWindow()
       await new Promise<void>((resolve, reject) => {
         editor.once('window-ready', resolve)
         editor.once('window-closed', () => reject(new Error('transfer target window closed before ready')))
       })
       const window = editor.browserWindow
+      if (window && reserved) {
+        getTransferAdapter()?.attach(window.webContents as never, reserved.sessionId, reserved.epoch)
+      }
       const endpoint = window && getTransferAdapter()?.endpointFor(window.webContents as never)
       if (!endpoint) throw new Error('transfer target endpoint was not authenticated')
+      if (reserved && (endpoint.sessionId !== reserved.sessionId || endpoint.epoch !== reserved.epoch)) throw new Error('recovery target endpoint was not bound to reservation')
       return endpoint
     })
     this._listenForIpcMain()
@@ -265,8 +272,14 @@ class App {
 
     // Emergency truth is deliberately advanced before StartupIntent. Neither
     // explicit files nor the no-target default suppress either source.
+    const recoveryStorage = new NodeFileObservationStorage()
+    const crashStore = getCrashDraftAdapter()?.store
     const [crashDrafts] = await Promise.all([
-      getCrashDraftAdapter()?.store.scan() ?? Promise.resolve([]),
+      crashStore?.recover(async(fileKey) => {
+        const canonical = await recoveryStorage.canonicalize(fileKey)
+        const bytes = await recoveryStorage.read(canonical)
+        return bytes ? createHash('sha256').update(bytes).digest('hex') : null
+      }) ?? Promise.resolve([]),
       getTransferAdapter()?.recover() ?? Promise.resolve([])
     ])
 
@@ -390,7 +403,7 @@ class App {
       if (crashDrafts.length) {
         // Recovery is a separate window and only opens draft copies; it never
         // writes the saved path or revives a normal workspace/session.
-        this._createEditorWindow(null, [], crashDrafts.map(record => record.draft.markdown))
+        this._createEditorWindow(null, [], [], {}, null, crashDrafts as readonly CrashDraftRecoveryPayload[])
       }
       if (_openFilesCache.length) {
         this._openFilesToOpen()
@@ -469,13 +482,14 @@ class App {
     fileList: string[] = [],
     markdownList: string[] = [],
     options: Partial<BrowserWindowConstructorOptions> = {},
-    bufferStoreInfo: { id: string; filePath: string | null } | null = null
+    bufferStoreInfo: { id: string; filePath: string | null } | null = null,
+    crashDrafts: readonly CrashDraftRecoveryPayload[] = []
   ): EditorWindow {
     const editor = new EditorWindow(this._accessor)
     if (rootDirectory) {
       this._accessor.preferences.setItems({ lastOpenedFolder: rootDirectory })
     }
-    editor.createWindow(rootDirectory, fileList, markdownList, options, bufferStoreInfo)
+    editor.createWindow(rootDirectory, fileList, markdownList, options, bufferStoreInfo, crashDrafts)
     this._windowManager.add(editor)
     if (this._windowManager.windowCount === 1) {
       this._accessor.menu.setActiveWindow(editor.id!)

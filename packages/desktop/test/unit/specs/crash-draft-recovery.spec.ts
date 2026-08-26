@@ -78,4 +78,19 @@ describe('CrashDraftStore', () => {
     await expect(store.acknowledge(write)).resolves.toEqual({ durable: true })
     await expect(store.scan()).resolves.toEqual([expect.objectContaining({ draft: expect.objectContaining({ documentId: 'untitled-1', markdown: 'unsaved' }) })])
   })
+
+  it.each(['tombstone', 'clean-marker'] as const)('never acknowledges the %s durability gap', async point => {
+    const storage = new MemoryStorage()
+    const safe = new CrashDraftStore('/drafts', storage)
+    const write = safe.beginCheckpoint(checkpoint(1))
+    await expect(safe.acknowledge(write)).resolves.toEqual({ durable: true })
+    const faulty = new CrashDraftStore('/drafts', storage, { fault: fault => { if (fault === point) throw new Error(point) } })
+    if (point === 'tombstone') {
+      await expect(faulty.acknowledgeSave(write)).resolves.toEqual({ durable: false, reason: point })
+      await expect(safe.scan()).resolves.toHaveLength(1)
+    } else {
+      await expect(safe.acknowledgeSave(write)).resolves.toEqual({ durable: true })
+      await expect(faulty.markCleanShutdown()).resolves.toEqual({ durable: false, reason: point })
+    }
+  })
 })

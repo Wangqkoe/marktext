@@ -36,6 +36,7 @@ export class NodeTransferJournal implements TransferJournal {
     const file = path.join(this.directory, name)
     const handle = await fs.open(file, 'a')
     try { await handle.write(bytes(record)); await handle.write('\n'); await handle.sync() } finally { await handle.close() }
+    await syncDirectory(this.directory, file)
   }
 
   private async readLines<T>(name: string): Promise<readonly T[]> {
@@ -82,9 +83,23 @@ export class NodeCapsuleStorage implements CapsuleStorage {
     const handle = await fs.open(temp, 'w')
     try { await handle.write(content); await handle.sync() } finally { await handle.close() }
     await fs.rename(temp, target)
+    await syncDirectory(this.directory, target)
   }
 
   private async read<T>(name: string): Promise<T | undefined> {
     try { return decode<T>(await fs.readFile(path.join(this.directory, name))) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined; throw error }
+  }
+}
+
+const syncDirectory = async(directory: string, fallbackFile: string): Promise<void> => {
+  try {
+    const handle = await fs.open(directory, 'r')
+    try { await handle.sync() } finally { await handle.close() }
+  } catch (error) {
+    // Windows does not expose directory handles. The just-written target is
+    // re-synced there as the platform-equivalent metadata barrier.
+    if (process.platform !== 'win32') throw error
+    const handle = await fs.open(fallbackFile, 'r+')
+    try { await handle.sync() } finally { await handle.close() }
   }
 }

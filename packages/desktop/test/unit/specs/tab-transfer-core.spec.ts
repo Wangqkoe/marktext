@@ -155,6 +155,36 @@ describe('Electron transfer endpoint authentication', () => {
       isLastSourceTab: false
     }, { timeoutMs: 50, retryCadenceMs: 5 })).resolves.toEqual({ status: 'nack', reason: 'unauthenticated endpoint epoch' })
   })
+
+  it('keeps recovery reservations inert until materialization binds the durable owner epoch', async() => {
+    const target = new FakeTransferWebContents(9)
+    let created = 0
+    const transport = new ElectronTransferTransport({
+      createTarget: async(_transferId, _recovery, reserved) => {
+        created += 1
+        if (!reserved) throw new Error('missing inert reservation')
+        transport.attach(target, reserved.sessionId, reserved.epoch)
+        return reserved
+      }
+    })
+    const reserved = await transport.reserveRecoveryWindow('recovery-transfer')
+    expect(created).toBe(0)
+    expect(transport.authenticate(reserved)).toBe(false)
+    await transport.materializeRecoveryWindow(reserved, {
+      sourceDocumentId: 'document-1',
+      sourceViewId: 'view-1',
+      sourceLineage: 'lineage-1',
+      documentRevision: 1,
+      title: 'Recovered',
+      markdown: 'retained',
+      dirty: true,
+      conflict: false,
+      options: {},
+      view: { cursor: { line: 0, column: 0 }, selection: null, scrollTop: 0, mode: 'wysiwyg' }
+    })
+    expect(created).toBe(1)
+    expect(transport.authenticate(reserved)).toBe(true)
+  })
 })
 
 class FakeTransferWebContents implements TransferWebContents {

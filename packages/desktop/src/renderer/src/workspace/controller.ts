@@ -29,6 +29,7 @@ import type { DocumentIoSaveRequest, DocumentSaveAck } from '@shared/workspace/d
 interface DocumentRecord {
   id: DocumentId
   fileKey?: string
+  observedDiskRevision?: string
   markdown: string
   savedMarkdown: string
   dirty: boolean
@@ -504,7 +505,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const pane = this.requirePane(this.focusedPaneId)
     await this.flushPane(pane.id)
     const doc = this.makeDocument(input)
-    const view = this.makeView(doc.id)
+    const view = this.makeView(doc.id, input.view)
     await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
@@ -1057,6 +1058,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       document: {
         documentId: document.id,
         ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+        ...(document.observedDiskRevision ? { observedDiskRevision: document.observedDiskRevision } : {}),
         ownerFence: document.ownerFence,
         markdown: document.markdown,
         dirty: document.dirty,
@@ -1081,11 +1083,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return {
       id,
       ...(input.fileKey ? { fileKey: input.fileKey } : {}),
+      ...(input.observedDiskRevision ? { observedDiskRevision: input.observedDiskRevision } : {}),
       markdown: input.markdown ?? '',
-      savedMarkdown: input.markdown ?? '',
-      dirty: false,
+      savedMarkdown: input.savedMarkdown ?? input.markdown ?? '',
+      dirty: input.dirty ?? false,
       conflict: input.conflict ?? false,
-      revision: 0,
+      revision: input.documentRevision ?? 0,
       history: clone(input.portableHistory ?? EMPTY_HISTORY),
       title: input.title ?? input.fileKey?.split(/[\\/]/).pop() ?? 'New Tab',
       encoding: clone(input.encoding ?? DEFAULT_ENCODING),
@@ -1096,11 +1099,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
   }
 
-  private makeView(documentId: DocumentId): ViewRecord {
+  private makeView(documentId: DocumentId, state: Partial<ViewState> = {}): ViewRecord {
     return {
       id: `view-${this.nextId++}`,
       documentId,
-      state: clone(EMPTY_VIEW),
+      state: { ...clone(EMPTY_VIEW), ...clone(state) },
       toc: [],
       status: {}
     }
@@ -1114,7 +1117,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
 
   private appendDocument(pane: PaneRecord, input: WorkspaceDocumentInput): void {
     const document = this.makeDocument(input)
-    const view = this.makeView(document.id)
+    const view = this.makeView(document.id, input.view)
     this.documents.set(document.id, document)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
