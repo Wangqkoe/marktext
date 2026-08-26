@@ -21,6 +21,7 @@ import { WindowType } from '../windows/base'
 import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
 import { setLanguage } from '../i18n'
+import { configureTransferTargetFactory, getCrashDraftAdapter, getTransferAdapter } from '../ipc'
 import { getNativeThemeSource, isDarkApplicationTheme } from './nativeTheme'
 import type Accessor from './accessor'
 import type WindowManager from './windowManager'
@@ -58,6 +59,17 @@ class App {
 
     // Initialize main process language
     this._initializeLanguage()
+    configureTransferTargetFactory(async(_transferId, _recovery) => {
+      const editor = this._createEditorWindow()
+      await new Promise<void>((resolve, reject) => {
+        editor.once('window-ready', resolve)
+        editor.once('window-closed', () => reject(new Error('transfer target window closed before ready')))
+      })
+      const window = editor.browserWindow
+      const endpoint = window && getTransferAdapter()?.endpointFor(window.webContents as never)
+      if (!endpoint) throw new Error('transfer target endpoint was not authenticated')
+      return endpoint
+    })
     this._listenForIpcMain()
     // Initialize theme listener
     this._themeListenerRegistered = false
@@ -223,14 +235,13 @@ class App {
     return path.join(screenshotFolderPath, fileName)
   }
 
-  ready = (): void => {
+  ready = async(): Promise<void> => {
     const { _args: args, _openFilesCache } = this
-    const { preferences, editorBufferStore } = this._accessor
+    const { preferences } = this._accessor
 
     // Initialize language settings
-    const { startUpAction, defaultDirectoryToOpen, theme, language } = preferences.getAll()
+    const { theme, language } = preferences.getAll()
     const followSystemTheme = preferences.getItem<boolean>('followSystemTheme')
-    const lastOpenedFolder = preferences.getItem<string>('lastOpenedFolder')
     const lightModeTheme = preferences.getItem<string>('lightModeTheme')
     const darkModeTheme = preferences.getItem<string>('darkModeTheme')
 
@@ -252,24 +263,16 @@ class App {
       }
     }
 
-    // We should NOT restore the previous buffer or open a folder if the user just wants to double click to open a file
-    let isRestorePathway = false
-    if (_openFilesCache.length === 0) {
-      if (startUpAction === 'restoreAll') {
-        // Restore based off the previous buffer
-        isRestorePathway = true
-      } else if (startUpAction === 'folder' && defaultDirectoryToOpen) {
-        const info = normalizeMarkdownPath(defaultDirectoryToOpen)
-        if (info) {
-          _openFilesCache.unshift(info as PathInfo)
-        }
-      } else if (startUpAction === 'openLastFolder' && lastOpenedFolder) {
-        const info = normalizeMarkdownPath(lastOpenedFolder)
-        if (info) {
-          _openFilesCache.unshift(info as PathInfo)
-        }
-      }
-    }
+    // Emergency truth is deliberately advanced before StartupIntent. Neither
+    // explicit files nor the no-target default suppress either source.
+    const [crashDrafts] = await Promise.all([
+      getCrashDraftAdapter()?.store.scan() ?? Promise.resolve([]),
+      getTransferAdapter()?.recover() ?? Promise.resolve([])
+    ])
+
+    // DefaultStartupPolicy is intentionally no-restore: StartupIntent comes
+    // only from explicit CLI/association targets.  Do not touch legacy normal
+    // session data here; it is retained byte-for-byte for a future adapter.
 
     nativeTheme.themeSource = getNativeThemeSource({ followSystemTheme, theme })
 
@@ -384,25 +387,12 @@ class App {
     }
 
     const createWindow = (): void => {
-      if (isRestorePathway) {
-        // We will restore based off the previous buffer, one window per buffer store file
-        const bufferStores = editorBufferStore.getAll()
-        const bufferStoreList = Object.values(bufferStores) as Array<{
-          id: string
-          filePath: string | null
-        }>
-        if (bufferStoreList.length === 0) {
-          this._createEditorWindow()
-          return
-        }
-
-        bufferStoreList.forEach((bufferStoreInfo) => {
-          // Read the buffer store file and pass the content
-          this._createEditorWindow(null, [], [], {}, bufferStoreInfo)
-        })
-      } else if (_openFilesCache.length) {
-        // We should wipe the buffer store if not it will keep creating new windows whenever we open files via double click in the file manager
-        editorBufferStore.clearBufferStoresWithAllSaved()
+      if (crashDrafts.length) {
+        // Recovery is a separate window and only opens draft copies; it never
+        // writes the saved path or revives a normal workspace/session.
+        this._createEditorWindow(null, [], crashDrafts.map(record => record.draft.markdown))
+      }
+      if (_openFilesCache.length) {
         this._openFilesToOpen()
       } else {
         this._createEditorWindow()

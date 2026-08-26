@@ -6,6 +6,8 @@ import {
   TabTransferCoordinator,
   type TransferIntent
 } from 'main_renderer/tabTransfer'
+import { ElectronTransferTransport, type TransferWebContents } from 'main_renderer/tabTransfer/electron'
+import type { TransferCommand } from 'main_renderer/tabTransfer'
 
 const makeIntent = (transport: MemoryTransferTransport, requestId = 'request-1'): TransferIntent => ({
   requestId,
@@ -100,3 +102,70 @@ describe('TabTransfer core', () => {
     expect(transport.lateEvents).toHaveLength(1)
   })
 })
+
+describe('Electron transfer endpoint authentication', () => {
+  it('rejects a forged endpoint and makes the pre-reload endpoint inert', async() => {
+    const source = new FakeTransferWebContents(1)
+    const target = new FakeTransferWebContents(2)
+    const holder: { transport?: ElectronTransferTransport } = {}
+    const transport = new ElectronTransferTransport({
+      createTarget: async() => {
+        const targetEndpoint = holder.transport?.endpointFor(target)
+        if (!targetEndpoint) throw new Error('target endpoint is unavailable')
+        return targetEndpoint
+      }
+    })
+    holder.transport = transport
+    transport.attach(source)
+    const sourceEndpoint = transport.endpointFor(source)
+    transport.attach(target)
+    const targetEndpoint = transport.endpointFor(target)
+    if (!sourceEndpoint || !targetEndpoint) throw new Error('endpoints were not attached')
+    const capability = transport.issueCapability({
+      transferId: 'transfer',
+      operation: 'stage',
+      role: 'target',
+      source: sourceEndpoint,
+      target: targetEndpoint,
+      capsuleDigest: 'digest',
+      documentRevision: 1
+    })
+    target.onSend = command => transport.acknowledge(target, {
+      transferId: command.transferId, phase: command.phase, operation: command.operation, ack: { status: 'ok' }
+    })
+    await expect(transport.command({
+      transferId: 'transfer',
+      phase: 'target-staged',
+      operation: 'stage',
+      endpoint: targetEndpoint,
+      capability,
+      capsuleDigest: 'digest',
+      documentRevision: 1,
+      isLastSourceTab: false
+    }, { timeoutMs: 50, retryCadenceMs: 5 })).resolves.toEqual({ status: 'ok' })
+    source.emit('did-start-navigation')
+    expect(transport.authenticate(sourceEndpoint)).toBe(false)
+    await expect(transport.command({
+      transferId: 'forged',
+      phase: 'target-staged',
+      operation: 'stage',
+      endpoint: sourceEndpoint,
+      capsuleDigest: 'digest',
+      documentRevision: 1,
+      isLastSourceTab: false
+    }, { timeoutMs: 50, retryCadenceMs: 5 })).resolves.toEqual({ status: 'nack', reason: 'unauthenticated endpoint epoch' })
+  })
+})
+
+class FakeTransferWebContents implements TransferWebContents {
+  readonly listeners = new Map<string, (() => void)[]>()
+  onSend?: (command: TransferCommand) => void
+  constructor(readonly id: number) {}
+  send(_channel: 'mt::workspace::transfer-command' | 'mt::workspace::transfer-recovery', payload: unknown): void {
+    this.onSend?.(payload as TransferCommand)
+  }
+
+  on(event: 'destroyed' | 'did-start-navigation', listener: () => void): void { this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]) }
+  removeListener(event: 'destroyed' | 'did-start-navigation', listener: () => void): void { this.listeners.set(event, (this.listeners.get(event) ?? []).filter(item => item !== listener)) }
+  emit(event: 'destroyed' | 'did-start-navigation'): void { for (const listener of this.listeners.get(event) ?? []) listener() }
+}
