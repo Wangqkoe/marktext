@@ -30,6 +30,8 @@ export class ElectronTransferTransport implements TransferTransport {
   private readonly capabilities = new Map<string, TransferCapability>()
   private readonly awaiting = new Map<string, AwaitedAck>()
   private readonly detachers = new Map<string, () => void>()
+  private readonly ready = new Set<string>()
+  private readonly readyWaiters = new Map<string, { readonly resolve: () => void; readonly reject: (error: Error) => void; readonly timer: ReturnType<typeof setTimeout> }>()
   private nextEpoch = 1
 
   constructor(private readonly targets: TransferTargetFactory) {}
@@ -42,6 +44,10 @@ export class ElectronTransferTransport implements TransferTransport {
     const detach = (): void => {
       if (this.bySender.get(sender) !== registered) return
       this.bySender.delete(sender)
+      const key = endpointKey(registered.endpoint)
+      this.ready.delete(key)
+      const waiter = this.readyWaiters.get(key)
+      if (waiter) { clearTimeout(waiter.timer); waiter.reject(new Error('transfer endpoint navigated before receiver bound')); this.readyWaiters.delete(key) }
       this.detachers.delete(sender)
       webContents.removeListener?.('destroyed', detach)
       webContents.removeListener?.('did-start-navigation', detach)
@@ -54,6 +60,25 @@ export class ElectronTransferTransport implements TransferTransport {
 
   endpointFor(webContents: TransferWebContents): TransferEndpoint | undefined { return this.bySender.get(String(webContents.id))?.endpoint }
   endpointForSender(sender: TransferWebContents): TransferEndpoint | undefined { return this.endpointFor(sender) }
+
+  receiverReady(sender: TransferWebContents): boolean {
+    const endpoint = this.endpointForSender(sender)
+    if (!endpoint) return false
+    const key = endpointKey(endpoint)
+    this.ready.add(key)
+    const waiter = this.readyWaiters.get(key)
+    if (waiter) { clearTimeout(waiter.timer); waiter.resolve(); this.readyWaiters.delete(key) }
+    return true
+  }
+
+  waitForReceiver(endpoint: TransferEndpoint, timeoutMs = 10_000): Promise<void> {
+    const key = endpointKey(endpoint)
+    if (this.ready.has(key)) return Promise.resolve()
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.readyWaiters.delete(key); reject(new Error('transfer target receiver did not bind')) }, timeoutMs)
+      this.readyWaiters.set(key, { resolve, reject, timer })
+    })
+  }
 
   createTarget(transferId: string): Promise<TransferEndpoint> { return this.targets.createTarget(transferId, false) }
   async reserveRecoveryWindow(transferId: string): Promise<TransferEndpoint> {
@@ -132,3 +157,5 @@ const recoveryTransferId = (sessionId: string): string => {
   if (!sessionId.startsWith(prefix)) return 'recovery'
   return sessionId.slice(prefix.length).split(':')[0] || 'recovery'
 }
+
+const endpointKey = (endpoint: TransferEndpoint): string => `${endpoint.sessionId}:${endpoint.epoch}`

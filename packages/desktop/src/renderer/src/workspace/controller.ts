@@ -73,6 +73,22 @@ interface TransferFence {
   used: boolean
 }
 
+export interface TransferSourceSnapshot {
+  readonly documentId: DocumentId
+  readonly viewId: ViewId
+  readonly sourceLineage: string
+  readonly documentRevision: number
+  readonly isLastSourceTab: boolean
+  readonly fileKey?: string
+  readonly observedDiskRevision?: string
+  readonly title: string
+  readonly markdown: string
+  readonly dirty: boolean
+  readonly conflict: boolean
+  readonly history: PortableHistory
+  readonly view: ViewState
+}
+
 interface PendingDocumentIo {
   readonly request: DocumentIoSaveRequest
   readonly targetFileKey: string
@@ -195,6 +211,35 @@ export class WorkspaceController implements WorkspaceControllerContract {
         this.transferFences.delete(transferId)
       }
       return result
+    })
+  }
+
+  /** The only renderer assembly read used to construct a Move capsule. */
+  transferSourceSnapshot(paneId: PaneId, tabId: string): Promise<TransferSourceSnapshot | undefined> {
+    return this.enqueue(async() => {
+      const pane = this.panes.get(paneId)
+      const viewId = pane?.viewIds.find(id => id === tabId || this.views.get(id)?.documentId === tabId)
+      if (!pane || !viewId) return undefined
+      await this.flushPane(paneId)
+      const view = this.views.get(viewId)
+      if (!view) return undefined
+      const document = this.documents.get(view.documentId)
+      if (!document) return undefined
+      return {
+        documentId: document.id,
+        viewId,
+        sourceLineage: `lineage:${document.id}:${document.ownerFence}`,
+        documentRevision: document.revision,
+        isLastSourceTab: pane.viewIds.length === 1,
+        ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+        ...(document.observedDiskRevision ? { observedDiskRevision: document.observedDiskRevision } : {}),
+        title: document.title,
+        markdown: document.markdown,
+        dirty: document.dirty,
+        conflict: document.conflict,
+        history: clone(document.history),
+        view: clone(view.state)
+      }
     })
   }
 
@@ -1054,8 +1099,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
       changedDocument = true
     }
     if (report.portableHistory !== undefined) {
-      document.history = clone(report.portableHistory)
-      changedDocument = true
+      const nextHistory = clone(report.portableHistory)
+      if (JSON.stringify(document.history) !== JSON.stringify(nextHistory)) {
+        document.history = nextHistory
+        changedDocument = true
+      }
     }
     let changedAuxiliary = false
     if (report.toc !== undefined) {

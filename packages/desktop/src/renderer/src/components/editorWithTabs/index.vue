@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
-import { createElectronTransferPort, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
+import { createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
 import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
@@ -40,6 +40,7 @@ const controller = createWorkspaceRuntime(seed ? [{ documentId: seed.id, markdow
 const left = createPaneEditorComposition({ paneId: 'left', controller })
 const right = createPaneEditorComposition({ paneId: 'right', controller })
 const transfer = createElectronTransferPort()
+const moveTabToNewWindow = createMoveTabToNewWindowAction(controller, transfer)
 interface StagedTransfer { readonly documentId: string; readonly sourceDocumentId: string; readonly sourceViewId: string }
 const stagedTransfers = new Map<string, StagedTransfer>()
 const workspaceReason = (result: { readonly status: string; readonly reason?: string }): string => result.reason ?? 'workspace command was rejected'
@@ -289,13 +290,20 @@ onMounted(() => {
   updateWidth()
   // Capture sees Dragula spills as the same primary release before DOM drop handling.
   window.addEventListener('pointerup', releaseTabDrag, true)
+  // T06 test/automation seam; this invokes the exact action future T08 UI will import.
+  moveActionDriver.__mtMoveTabToNewWindow = ({ tabId, paneId }) => moveTabToNewWindow(tabId, paneId)
   stopTransferCommands = transfer.bind(acknowledgeTransferCommand)
+  transfer.ready().catch(() => undefined)
   stopTransferRecovery = transfer.bindRecovery(async (message: TransferRecoveryMessage) => { await openTransferPayload(message.payload, message.transferId) })
   stopCrashRecovery = window.electron.ipcRenderer.on('mt::workspace::crash-recovery', async (_event, payload) => { await openCrashDraft(payload as CrashDraftRecoveryPayload) })
 })
 let stopTransferCommands: (() => void) | undefined
 let stopTransferRecovery: (() => void) | undefined
 let stopCrashRecovery: (() => void) | undefined
+type MoveActionDriver = Window & {
+  __mtMoveTabToNewWindow?: (input: { readonly tabId: string; readonly paneId: 'left' | 'right' }) => Promise<unknown>
+}
+const moveActionDriver = window as MoveActionDriver
 onBeforeUnmount(() => {
   observer?.disconnect()
   unsubscribe()
@@ -309,6 +317,7 @@ onBeforeUnmount(() => {
   stopTransferCommands?.()
   stopTransferRecovery?.()
   stopCrashRecovery?.()
+  delete moveActionDriver.__mtMoveTabToNewWindow
 })
 </script>
 

@@ -75,6 +75,7 @@ class App {
       const endpoint = window && getTransferAdapter()?.endpointFor(window.webContents as never)
       if (!endpoint) throw new Error('transfer target endpoint was not authenticated')
       if (reserved && (endpoint.sessionId !== reserved.sessionId || endpoint.epoch !== reserved.epoch)) throw new Error('recovery target endpoint was not bound to reservation')
+      await getTransferAdapter()?.waitForReceiver(endpoint)
       return endpoint
     })
     this._listenForIpcMain()
