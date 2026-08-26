@@ -12,7 +12,7 @@ export interface TransferIpcMain {
   removeHandler?(channel: 'mt::workspace::tab-transfer' | 'mt::workspace::tab-transfer-ack' | 'mt::workspace::tab-transfer-payload'): void
 }
 export interface TransferReceipt { readonly transferId: string; readonly phase: TransferCommand['phase']; readonly operation: TransferCommand['operation']; readonly ack: TransferAck }
-export interface TransferPayloadRequest { readonly transferId: string; readonly capability: TransferCapability }
+export interface TransferPayloadRequest { readonly transferId: string; readonly capability?: TransferCapability }
 export type TransferPayloadResponse = { readonly durable: true; readonly payload: TransferIntent['capsule'] } | { readonly durable: false; readonly reason: string }
 
 let createWindow: ((transferId: string, recovery: boolean, reserved?: TransferEndpoint) => Promise<TransferEndpoint>) | undefined
@@ -47,7 +47,10 @@ export class TabTransferElectronAdapter {
   acknowledge(sender: TransferWebContents, receipt: TransferReceipt): TransferAck { return this.transport.acknowledge(sender, receipt) }
   async payload(sender: TransferWebContents, request: TransferPayloadRequest): Promise<TransferPayloadResponse> {
     const endpoint = this.transport.endpointForSender(sender)
-    if (!endpoint || !this.transport.validCapability(request.capability, {
+    if (!endpoint) return { durable: false, reason: 'unauthenticated transfer endpoint' }
+    if (!request.capability) {
+      if (!this.transport.authorizePreflight(sender, request.transferId)) return { durable: false, reason: 'invalid transfer preflight' }
+    } else if (!this.transport.validCapability(request.capability, {
       transferId: request.transferId,
       operation: request.capability.operation,
       capsuleDigest: request.capability.capsuleDigest,
@@ -55,7 +58,7 @@ export class TabTransferElectronAdapter {
       endpoint
     })) return { durable: false, reason: 'invalid transfer capability' }
     const stored = await this.capsules.get(request.transferId)
-    if (!stored || stored.digest !== request.capability.capsuleDigest) return { durable: false, reason: 'transfer payload is unavailable' }
+    if (!stored || (request.capability && stored.digest !== request.capability.capsuleDigest)) return { durable: false, reason: 'transfer payload is unavailable' }
     try { return { durable: true, payload: JSON.parse(new TextDecoder().decode(stored.bytes)) as TransferIntent['capsule'] } } catch { return { durable: false, reason: 'transfer payload is corrupt' } }
   }
 

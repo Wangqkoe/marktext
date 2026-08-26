@@ -270,6 +270,8 @@ export interface WorkspaceFacadeDocument {
   readonly viewId: ViewId
   readonly documentId: DocumentId
   readonly fileKey?: FileKey
+  readonly observedDiskRevision?: DiskRevision
+  readonly documentRevision: number
   readonly title: string
   readonly markdown: string
   readonly portableHistory: PortableHistory

@@ -4,6 +4,7 @@ import type {
   TransferCapability,
   TransferCommand,
   TransferEndpoint,
+  TransferRecoveryMessage,
   TransferRecoveryPayload,
   TransferTransport
 } from './types'
@@ -55,10 +56,10 @@ export class ElectronTransferTransport implements TransferTransport {
   endpointForSender(sender: TransferWebContents): TransferEndpoint | undefined { return this.endpointFor(sender) }
 
   createTarget(transferId: string): Promise<TransferEndpoint> { return this.targets.createTarget(transferId, false) }
-  async reserveRecoveryWindow(_transferId: string): Promise<TransferEndpoint> {
+  async reserveRecoveryWindow(transferId: string): Promise<TransferEndpoint> {
     // Reservation is intentionally inert: it cannot authenticate or receive a
     // command until the T05 journal has durably migrated ownership.
-    return { sessionId: `recovery-reservation:${randomUUID()}`, epoch: this.nextEpoch++ }
+    return { sessionId: `recovery-reservation:${transferId}:${randomUUID()}`, epoch: this.nextEpoch++ }
   }
 
   authenticate(endpoint: TransferEndpoint): boolean {
@@ -99,7 +100,20 @@ export class ElectronTransferTransport implements TransferTransport {
     if (!this.authenticate(endpoint)) await this.targets.createTarget('recovery', true, endpoint)
     const registered = [...this.bySender.values()].find(item => item.endpoint.sessionId === endpoint.sessionId && item.endpoint.epoch === endpoint.epoch)
     if (!registered) throw new Error('recovery endpoint is unavailable')
-    registered.webContents.send('mt::workspace::transfer-recovery', payload)
+    registered.webContents.send('mt::workspace::transfer-recovery', {
+      transferId: recoveryTransferId(endpoint.sessionId),
+      ownerSessionId: endpoint.sessionId,
+      payload
+    } satisfies TransferRecoveryMessage)
+  }
+
+  authorizePreflight(sender: TransferWebContents, transferId: string): boolean {
+    const endpoint = this.endpointForSender(sender)
+    return !!endpoint && [...this.awaiting.values()].some(waiting =>
+      waiting.endpoint.sessionId === endpoint.sessionId &&
+      waiting.endpoint.epoch === endpoint.epoch &&
+      [...this.awaiting.entries()].some(([key, candidate]) => candidate === waiting && key.startsWith(`${transferId}:source-prepared:prepare:`))
+    )
   }
 
   validCapability(capability: TransferCapability, command: Pick<TransferCommand, 'transferId' | 'operation' | 'capsuleDigest' | 'documentRevision' | 'endpoint'>): boolean {
@@ -111,4 +125,10 @@ export class ElectronTransferTransport implements TransferTransport {
   }
 
   private detach(sender: string): void { this.detachers.get(sender)?.() }
+}
+
+const recoveryTransferId = (sessionId: string): string => {
+  const prefix = 'recovery-reservation:'
+  if (!sessionId.startsWith(prefix)) return 'recovery'
+  return sessionId.slice(prefix.length).split(':')[0] || 'recovery'
 }

@@ -1,4 +1,4 @@
-import type { TransferAck, TransferCapability, TransferCommand, TransferIntent, TransferRecoveryPayload } from 'main_renderer/tabTransfer'
+import type { TransferAck, TransferCapability, TransferCommand, TransferIntent, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 
 export interface TransferReceipt {
   readonly transferId: string
@@ -13,8 +13,8 @@ export type TransferPayloadResponse = { readonly durable: true; readonly payload
 export const createElectronTransferPort = (): {
   run(intent: TransferIntent): Promise<unknown>
   bind(handler: (command: TransferCommand) => Promise<TransferAck>): () => void
-  bindRecovery(handler: (payload: TransferRecoveryPayload) => Promise<void>): () => void
-  payload(transferId: string, capability: TransferCapability): Promise<TransferPayloadResponse>
+  bindRecovery(handler: (message: TransferRecoveryMessage) => Promise<void>): () => void
+  payload(transferId: string, capability?: TransferCapability): Promise<TransferPayloadResponse>
 } => ({
   run: intent => window.electron.ipcRenderer.invoke('mt::workspace::tab-transfer', intent),
   bind: handler => {
@@ -28,7 +28,7 @@ export const createElectronTransferPort = (): {
     }
     return window.electron.ipcRenderer.on('mt::workspace::transfer-command', listener)
   },
-  bindRecovery: handler => window.electron.ipcRenderer.on('mt::workspace::transfer-recovery', async(_event, payload) => { await handler(payload as TransferRecoveryPayload) }),
+  bindRecovery: handler => window.electron.ipcRenderer.on('mt::workspace::transfer-recovery', async(_event, payload) => { await handler(payload as TransferRecoveryMessage) }),
   payload: (transferId, capability) => window.electron.ipcRenderer.invoke(
     'mt::workspace::tab-transfer-payload',
     { transferId, capability }

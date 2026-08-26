@@ -53,6 +53,13 @@ export interface TransferRecoveryPayload {
   readonly view: ViewState
 }
 
+/** Renderer receives recovery content only with the durable transfer identity. */
+export interface TransferRecoveryMessage {
+  readonly transferId: string
+  readonly ownerSessionId: string
+  readonly payload: TransferRecoveryPayload
+}
+
 export interface TransferIntent {
   readonly requestId: string
   /** Stable input identity supplied by the Controller; it is never a window id. */

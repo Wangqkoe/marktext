@@ -23,7 +23,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import { createElectronTransferPort, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
-import type { TransferAck, TransferCommand, TransferRecoveryPayload } from 'main_renderer/tabTransfer'
+import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
@@ -40,7 +40,8 @@ const controller = createWorkspaceRuntime(seed ? [{ documentId: seed.id, markdow
 const left = createPaneEditorComposition({ paneId: 'left', controller })
 const right = createPaneEditorComposition({ paneId: 'right', controller })
 const transfer = createElectronTransferPort()
-const stagedTransfers = new Map<string, string>()
+interface StagedTransfer { readonly documentId: string; readonly sourceDocumentId: string; readonly sourceViewId: string }
+const stagedTransfers = new Map<string, StagedTransfer>()
 const workspaceReason = (result: { readonly status: string; readonly reason?: string }): string => result.reason ?? 'workspace command was rejected'
 const root = ref<HTMLElement | null>(null)
 const workspaceWidth = ref(0)
@@ -145,20 +146,30 @@ const startDivider = (event: PointerEvent) => {
   window.addEventListener('pointercancel', endDivider)
 }
 let legacyCommandPane: 'left' | 'right' | undefined
-const openTransferPayload = async (payload: TransferRecoveryPayload, transferId?: string): Promise<void> => {
+const openTransferPayload = async (payload: TransferRecoveryPayload, transferId: string): Promise<StagedTransfer> => {
+  const staged = stagedTransfers.get(transferId) ?? {
+    // Document IDs are window-local. Source identity remains lineage metadata,
+    // never an adopted target document identity.
+    documentId: `transfer-target:${crypto.randomUUID()}`,
+    sourceDocumentId: payload.sourceDocumentId,
+    sourceViewId: payload.sourceViewId
+  }
   const opened = await controller.execute({
     kind: 'open-document',
     document: {
-      documentId: payload.sourceDocumentId,
+      documentId: staged.documentId,
       documentRevision: payload.documentRevision,
       markdown: payload.markdown,
+      savedMarkdown: payload.dirty ? '' : payload.markdown,
+      dirty: payload.dirty,
       title: payload.title,
       ...(payload.fileKey ? { fileKey: payload.fileKey, observedDiskRevision: payload.observedDiskRevision } : {}),
       conflict: payload.conflict
     }
   })
   if (opened.status !== 'applied') throw new Error(workspaceReason(opened))
-  if (transferId) stagedTransfers.set(transferId, payload.sourceDocumentId)
+  stagedTransfers.set(transferId, staged)
+  return staged
 }
 const openCrashDraft = async (payload: CrashDraftRecoveryPayload): Promise<void> => {
   const { draft } = payload
@@ -188,8 +199,20 @@ const openCrashDraft = async (payload: CrashDraftRecoveryPayload): Promise<void>
   })
 }
 const acknowledgeTransferCommand = async (command: TransferCommand): Promise<TransferAck> => {
+  if (command.operation === 'prepare') {
+    const response = await transfer.payload(command.transferId)
+    if (!response.durable) return { status: 'nack', reason: response.reason }
+    const sealedRevision = await controller.prepareTransfer(
+      command.transferId,
+      response.payload.sourceDocumentId,
+      response.payload.sourceViewId,
+      command.documentRevision
+    )
+    return sealedRevision === undefined
+      ? { status: 'nack', reason: 'source document revision could not be sealed' }
+      : { status: 'ok', sealedRevision }
+  }
   if (!command.capability) return { status: 'nack', reason: 'missing transfer capability' }
-  if (command.operation === 'prepare') return { status: 'ok', sealedRevision: command.documentRevision }
   if (command.operation === 'stage') {
     const response = await transfer.payload(command.transferId, command.capability)
     if (!response.durable) return { status: 'nack', reason: response.reason }
@@ -199,19 +222,33 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
   if (command.operation === 'release') {
     const response = await transfer.payload(command.transferId, command.capability)
     if (!response.durable) return { status: 'nack', reason: response.reason }
-    const view = controller.getFacadeSnapshot().documents.find((document) => document.documentId === response.payload.sourceDocumentId)
-    if (!view) return { status: 'nack', reason: 'source view is unavailable' }
-    const closed = await controller.execute({ kind: 'close-view', viewId: view.viewId })
+    const closed = await controller.releaseTransfer(command.transferId, response.payload.sourceDocumentId, response.payload.sourceViewId)
     return closed.status === 'applied' ? { status: 'ok' } : { status: 'nack', reason: workspaceReason(closed) }
   }
   if (command.operation === 'activate') {
-    const documentId = stagedTransfers.get(command.transferId)
-    const view = documentId && controller.getFacadeSnapshot().documents.find((document) => document.documentId === documentId)
+    const staged = stagedTransfers.get(command.transferId)
+    const view = staged && controller.getFacadeSnapshot().documents.find((document) => document.documentId === staged.documentId)
     if (!view) return { status: 'nack', reason: 'staged target is unavailable' }
     const pane = controller.getProjection().panes.find((candidate) => candidate.tabs.some((tab) => tab.viewId === view.viewId))
     if (!pane) return { status: 'nack', reason: 'staged target pane is unavailable' }
     const activated = await controller.execute({ kind: 'activate-view', paneId: pane.paneId, viewId: view.viewId })
     return activated.status === 'applied' ? { status: 'ok' } : { status: 'nack', reason: workspaceReason(activated) }
+  }
+  if (command.operation === 'checkpoint') {
+    const staged = stagedTransfers.get(command.transferId)
+    const document = staged && controller.getFacadeSnapshot().documents.find((candidate) => candidate.documentId === staged.documentId)
+    if (!document) return { status: 'nack', reason: 'target checkpoint document is unavailable' }
+    const response = await window.electron.ipcRenderer.invoke('mt::workspace::crash-draft', {
+      kind: 'checkpoint',
+      checkpoint: {
+        documentId: document.documentId,
+        ...(document.fileKey ? { fileKey: document.fileKey, observedDiskRevision: document.observedDiskRevision ?? 'unknown' } : {}),
+        documentRevision: document.documentRevision,
+        markdown: document.markdown,
+        view: { cursor: document.cursor, selection: document.selection }
+      }
+    }) as { durable: boolean }
+    return response.durable ? { status: 'ok' } : { status: 'nack', reason: 'target crash-draft checkpoint was not durable' }
   }
   return { status: 'ok' }
 }
@@ -253,7 +290,7 @@ onMounted(() => {
   // Capture sees Dragula spills as the same primary release before DOM drop handling.
   window.addEventListener('pointerup', releaseTabDrag, true)
   stopTransferCommands = transfer.bind(acknowledgeTransferCommand)
-  stopTransferRecovery = transfer.bindRecovery(async (payload) => openTransferPayload(payload))
+  stopTransferRecovery = transfer.bindRecovery(async (message: TransferRecoveryMessage) => { await openTransferPayload(message.payload, message.transferId) })
   stopCrashRecovery = window.electron.ipcRenderer.on('mt::workspace::crash-recovery', async (_event, payload) => { await openCrashDraft(payload as CrashDraftRecoveryPayload) })
 })
 let stopTransferCommands: (() => void) | undefined

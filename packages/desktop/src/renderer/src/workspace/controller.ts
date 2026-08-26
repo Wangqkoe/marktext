@@ -65,6 +65,13 @@ interface CapabilityRecord {
   readonly ownerFence: string
   used: boolean
 }
+interface TransferFence {
+  readonly documentId: DocumentId
+  readonly viewId: ViewId
+  readonly documentRevision: number
+  readonly ownerFence: string
+  used: boolean
+}
 
 interface PendingDocumentIo {
   readonly request: DocumentIoSaveRequest
@@ -119,6 +126,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private readonly leases = new WeakSet<object>()
   /** Object identity makes a capability an opaque, controller-issued bearer. */
   private readonly capabilities = new WeakMap<WorkspaceCapability, CapabilityRecord>()
+  private readonly transferFences = new Map<string, TransferFence>()
   private readonly pendingDocumentIo = new Map<string, PendingDocumentIo>()
   private readonly listeners = new Set<(projection: WorkspaceProjection) => void>()
   private warnings: WorkspaceWarning[] = []
@@ -148,6 +156,46 @@ export class WorkspaceController implements WorkspaceControllerContract {
   execute(command: WorkspaceCommand): Promise<WorkspaceResult> {
     if (this.disposed) return Promise.resolve(this.rejected('workspace controller is disposed'))
     return this.enqueue(async() => this.apply(command))
+  }
+
+  /** Internal Move edge: flushes the leased source and installs a one-shot release fence. */
+  prepareTransfer(transferId: string, documentId: DocumentId, viewId: ViewId, expectedRevision: number): Promise<number | undefined> {
+    return this.enqueue(async() => {
+      const pane = this.paneForView(viewId)
+      const view = this.views.get(viewId)
+      const document = this.documents.get(documentId)
+      if (!pane || !view || view.documentId !== documentId || !document) return undefined
+      await this.flushPane(pane.id)
+      if (document.revision !== expectedRevision) return undefined
+      this.transferFences.set(transferId, {
+        documentId,
+        viewId,
+        documentRevision: document.revision,
+        ownerFence: document.ownerFence,
+        used: false
+      })
+      return document.revision
+    })
+  }
+
+  /** Only a pre-authorized Move fence may release a dirty source without a dialog. */
+  releaseTransfer(transferId: string, documentId: DocumentId, viewId: ViewId): Promise<WorkspaceResult> {
+    return this.enqueue(async() => {
+      const fence = this.transferFences.get(transferId)
+      const view = this.views.get(viewId)
+      const document = this.documents.get(documentId)
+      if (!fence || fence.used || !view || !document ||
+        fence.documentId !== documentId || fence.viewId !== viewId || view.documentId !== documentId ||
+        fence.documentRevision !== document.revision || fence.ownerFence !== document.ownerFence) {
+        return this.rejected('stale transfer release fence')
+      }
+      const result = await this.removeView(viewId)
+      if (result.status === 'applied') {
+        fence.used = true
+        this.transferFences.delete(transferId)
+      }
+      return result
+    })
   }
 
   getProjection(): WorkspaceProjection {
@@ -679,6 +727,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
         viewId: view.id,
         documentId: document.id,
         ...(document.fileKey ? { fileKey: document.fileKey } : {}),
+        ...(document.observedDiskRevision ? { observedDiskRevision: document.observedDiskRevision } : {}),
+        documentRevision: document.revision,
         title: document.title,
         markdown: document.markdown,
         portableHistory: clone(document.history),
