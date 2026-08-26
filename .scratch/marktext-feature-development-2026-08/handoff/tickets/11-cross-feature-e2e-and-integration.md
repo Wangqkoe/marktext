@@ -1,9 +1,13 @@
 # T11 — Cross-feature E2E and coordination-branch integration
 
-Wave: 8 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T03–T10,
+Wave: 9 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T03–T10,
 including T04b and T02 production completion
 
 ## Result
+
+T06's automated integration prerequisite is now satisfied and T11 is unblocked
+to proceed. T11 is not complete: it still owns composed dual-surface/E2E
+evidence, temporary-fallback removal, and its stated integration checks.
 
 Add only end-to-end/integration evidence that exercises the composed product and
 re-run proportional checks after every coordination-branch merge. No production

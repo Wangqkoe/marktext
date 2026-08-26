@@ -95,7 +95,7 @@ findings after three historical blocking review/repair rounds.
 | A05 capsule/fence/capability/unique owner | Passed | Covered by `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-core.spec.ts`; Windows local T05 worktree; selected suite passed as part of 3 files / 32 tests, exit 0; console evidence, no retained trace. |
 | A06 WAL intent/observed and crash/replay gaps | Passed | Covered by `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-recovery.spec.ts`; Windows local T05 worktree; selected suite passed as part of 3 files / 32 tests, exit 0; console evidence, no retained trace. |
 | T05 core portion of A07 — MoveRecovery owner migration/tombstone/GC | Passed | Covered by `pnpm -C packages/desktop exec vitest run test/unit/specs/tab-transfer-emergency-recovery.spec.ts`; Windows local T05 worktree; selected suite passed as part of 3 files / 32 tests, exit 0; console evidence, no retained trace. This is the deterministic T05 core portion only; it does not include production Electron IPC/E2E evidence. |
-| A07 T06 Electron portion — production transfer/recovery E2E | Untested | `pnpm -C packages/desktop exec playwright test test/e2e/workspace-transfer-electron.spec.ts` has not been run for the production Electron IPC path; no production Electron IPC/E2E evidence is available. T06 is the follow-up owner. |
+| A07 T06 Electron portion — production transfer/recovery E2E | Passed | T06 integration report: startup+transfer Electron E2E ran single-worker with 20/20 passed on candidate final HEAD `0343cb5f56f537584d60ea219268ea04c13292c5`; merge `dde3f49a89877d68dc07171b62bb19eb87002217`. |
 | T05 typecheck | Passed | `pnpm -C packages/desktop typecheck`; Windows local T05 worktree; exit 0; console evidence, no separate artifact. |
 | T05 scoped ESLint | Passed | `pnpm -C packages/desktop exec eslint src/main/tabTransfer/index.ts src/main/tabTransfer/memory.ts src/main/tabTransfer/types.ts test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-recovery.spec.ts test/unit/specs/tab-transfer-emergency-recovery.spec.ts`; Windows local T05 worktree; exit 0; only `MODULE_TYPELESS_PACKAGE_JSON` performance warning, no retained trace. |
 | T05 integrated diff check | Passed | `git diff 4728129a0790b2def5e96a22172746e0fff6750b...3d6790cf5397dfde9b8dafbd92c0f63d3cba0a6a --check`; Windows local T05 worktree; exit 0; console evidence, no retained trace. |
@@ -130,6 +130,28 @@ waiter anonymous type; and exceptional failed-refresh waiter resilience. Prior
 default three-worker Electron launch timeouts are environment/runner records;
 the authoritative deterministic gate is the successful single-worker 11/11 run.
 
+## T06 Electron transfer/startup integration evidence — 2026-08-26
+
+See the [T06 integration report](evidence/t06-integration-2026-08-26.md). T06 is
+locally integrated and independently reviewed / Passed for the automated scope
+at merge `dde3f49a89877d68dc07171b62bb19eb87002217`, candidate final HEAD
+`0343cb5f56f537584d60ea219268ea04c13292c5`, fixed review point
+`86cf7b8e962bf94791efeba29e9ba8ccbcefa02f`.
+
+| Evidence | Status | Exact command, environment, result, artifact/trace |
+| --- | --- | --- |
+| A07 Electron portion | Passed | Startup+transfer Electron E2E, single worker; 20/20 passed. |
+| A08 automation | Passed | Build and typecheck passed; startup+transfer Electron E2E 20/20; seven focused/direct unit files 101/101; three-file new-line rerun 64/64. |
+| Independent Standards review | Passed | Third-round independent `gpt-5.6-terra` / `high`; 0 blockers. |
+| Independent Spec review | Passed | Third-round independent `gpt-5.6-terra` / `high`; 0 blockers. |
+| Diff/worktree/process hygiene | Passed | `git diff --check` passed; clean worktree; no residual Electron/Node processes. |
+
+Manual power-loss/Windows trial evidence is not claimed. A11/A12, full
+repository `pnpm lint`, and final T12 acceptance remain pending. Scoped ESLint
+has checkpoint-preceding historical source-style errors as a non-blocking record
+item; new lines have no hard-lint errors. The transfer-fence/move-action
+assembly-surface range remains a non-blocking record item.
+
 ## Status rules
 
 | Status | Rule |
@@ -156,6 +178,6 @@ required `Passed` evidence.
 2. **Document I/O:** T04b passes the A04b real coordinator/typed transport harness, including sender authentication, teardown cleanup/inert late effects, ordinary-Save durable-ACK state guards, CAS/ACK identity, Save As/rename rollback and observer conflict evidence before T02 production completion. It does not claim real dual-window/UI evidence.
 3. **Workspace:** T02/T03 pass no-restore live-pane isolation before Electron transfer integration.
 4. **Transfer:** T05 passes every WAL/recovery test and independent terra/high Standards + Spec review before T06.
-5. **Platform:** T06/T07 pass supported Electron/Windows evidence; unavailable configurations must pass disablement fallback.
+5. **Platform:** T06's automated Electron portion is Passed; T07 and the remaining supported Electron/Windows evidence still require their own gates and unavailable configurations must pass disablement fallback.
 6. **Presentation:** T08–T10 pass their independent surfaces; prototypes remain evidence only.
 7. **Integration/readiness:** T11 and T12 deliver evidence after coordination-branch integration, including T04b transport use, default-off restart, explicit-target priority, unchanged dirty exit, and always-on emergency recovery. The coordination task, not T12, creates independent terra/high Standards + Spec review, resolves defects, requests user Acceptance, and declares completion only after Windows trial and critical defects = 0.
