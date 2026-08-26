@@ -287,6 +287,62 @@ describe('TabTransfer recovery', () => {
     expect((await journal.records()).filter(record => record.phase === 'completed' && record.kind === 'observed')).toHaveLength(1)
   })
 
+  it('releases an internal replay attempt before its public pending promise, so recover can retry and resolve it', async() => {
+    const journal = new MemoryTransferJournal()
+    const capsules = new MemoryCapsuleStorage()
+    const transport = new MemoryTransferTransport()
+    await seedRestart(journal, capsules, transport, 'commit-authorized')
+    transport.plan('source-released', { status: 'timeout' })
+    const coordinator = new TabTransferCoordinator(journal, capsules, transport)
+    const replay = coordinator.run(intent(transport))
+    await settle()
+    expect(transport.commands.filter(command => command.operation === 'release')).toHaveLength(1)
+    await expect(coordinator.recover()).resolves.toEqual([{ status: 'applied', transferId: 'transfer' }])
+    await expect(replay).resolves.toEqual({ status: 'applied', transferId: 'transfer' })
+    expect(transport.commands.filter(command => command.operation === 'release')).toHaveLength(2)
+    expect((await journal.records()).filter(record => record.phase === 'completed' && record.kind === 'observed')).toHaveLength(1)
+  })
+
+  it('reuses the persisted reservation after migration fsync crashes before materialization', async() => {
+    const journal = new MemoryTransferJournal()
+    const capsules = new MemoryCapsuleStorage()
+    const transport = new MemoryTransferTransport()
+    await seedRestart(journal, capsules, transport, 'commit-authorized')
+    transport.kill('target-1')
+    journal.blockNextMigration = true
+    const _crashed = new TabTransferCoordinator(journal, capsules, transport).recover()
+    await settle()
+    const migration = journal.migrations[0]
+    expect(migration).toBeDefined()
+    await expect(new TabTransferCoordinator(journal, capsules, transport).recover()).resolves.toEqual([{ status: 'applied', transferId: 'transfer' }])
+    expect(journal.migrations).toHaveLength(1)
+    expect(transport.recoveryCalls).toEqual([`reserve:${migration?.recoveryWindow.sessionId}`, `materialize:${migration?.recoveryWindow.sessionId}`])
+    expect(transport.materializedRecovery).toMatchObject([{ endpoint: migration?.recoveryWindow }])
+    const completed = (await journal.records()).filter(record => record.phase === 'completed' && record.kind === 'observed')
+    expect(completed).toMatchObject([{ ownerSessionId: migration?.recoveryWindow.sessionId }])
+    expect(completed[0]?.target).toEqual(migration?.recoveryWindow)
+  })
+
+  it('reuses an already materialized migration after a crash before source-released observed', async() => {
+    const journal = new MemoryTransferJournal()
+    const capsules = new MemoryCapsuleStorage()
+    const transport = new MemoryTransferTransport()
+    await seedRestart(journal, capsules, transport, 'commit-authorized')
+    transport.kill('target-1')
+    transport.blockNextMaterialize = true
+    const _crashed = new TabTransferCoordinator(journal, capsules, transport).recover()
+    await settle()
+    const migration = journal.migrations[0]
+    expect(transport.materializedRecovery).toHaveLength(1)
+    await expect(new TabTransferCoordinator(journal, capsules, transport).recover()).resolves.toEqual([{ status: 'applied', transferId: 'transfer' }])
+    expect(journal.migrations).toHaveLength(1)
+    expect(transport.recoveryCalls).toEqual([`reserve:${migration?.recoveryWindow.sessionId}`, `materialize:${migration?.recoveryWindow.sessionId}`])
+    expect(transport.materializedRecovery).toMatchObject([{ endpoint: migration?.recoveryWindow }])
+    const completed = (await journal.records()).filter(record => record.phase === 'completed' && record.kind === 'observed')
+    expect(completed).toMatchObject([{ ownerSessionId: migration?.recoveryWindow.sessionId }])
+    expect(completed[0]?.target).toEqual(migration?.recoveryWindow)
+  })
+
   it.each([
     { phase: 'source-prepared' as const, operation: 'prepare' as const },
     { phase: 'target-staged' as const, operation: 'stage' as const },

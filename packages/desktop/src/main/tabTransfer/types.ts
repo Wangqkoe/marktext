@@ -141,8 +141,14 @@ export interface TransferJournal {
     readonly transferId: string
     readonly ownerSessionId: string
     readonly recoveryWindowSessionId: string
+    readonly recoveryWindow: TransferEndpoint
   }): Promise<void>
-  ownerMigrations(): Promise<readonly { readonly transferId: string; readonly ownerSessionId: string; readonly recoveryWindowSessionId: string }[]>
+  ownerMigrations(): Promise<readonly {
+    readonly transferId: string
+    readonly ownerSessionId: string
+    readonly recoveryWindowSessionId: string
+    readonly recoveryWindow: TransferEndpoint
+  }[]>
 }
 
 export type TabTransferResult =
@@ -175,6 +181,7 @@ export interface RecoveredTransfer {
   readonly target?: TransferEndpoint
   readonly ownerSessionId: string
   readonly recoveryWindowSessionId?: string
+  readonly recoveryWindow?: TransferEndpoint
   readonly documentRevision: number
   readonly isLastSourceTab: boolean
   readonly sourceReconciled?: true

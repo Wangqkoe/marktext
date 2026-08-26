@@ -52,7 +52,7 @@ export class TabTransferCoordinator implements TabTransfer {
   private readonly requests = new Map<string, { fingerprint: string; result: Promise<TabTransferResult> }>()
   private readonly warnings = new Map<string, string>()
   private readonly recoveryStates = new Map<string, RecoveredTransfer>()
-  private readonly pending = new Map<string, (result: TabTransferResult) => void>()
+  private readonly pending = new Map<string, { readonly promise: Promise<TabTransferResult>; readonly resolve: (result: TabTransferResult) => void }>()
   private readonly recoveringTransfers = new Map<string, Promise<TabTransferResult>>()
 
   constructor(
@@ -82,7 +82,7 @@ export class TabTransferCoordinator implements TabTransfer {
         return { status: 'rejected', reason: 'request id was replayed with a different transfer fingerprint' }
       }
       if (persisted.phase === 'completed') return { status: 'applied', transferId: persisted.transferId }
-      return this.advanceExisting(persisted, false)
+      return this.publicAttempt(persisted)
     }
     if (!this.transport.authenticate(intent.source)) {
       return { status: 'rejected', reason: 'unauthenticated source endpoint epoch' }
@@ -103,10 +103,10 @@ export class TabTransferCoordinator implements TabTransfer {
     const results: TabTransferResult[] = []
     for (const transfer of await this.loadTransfers()) {
       if (transfer.phase === 'completed') continue
-      const result = await this.advanceExisting(transfer, true)
+      const result = await this.advanceExisting(transfer)
       results.push(result)
       if (result.status === 'applied') {
-        this.pending.get(transfer.transferId)?.(result)
+        this.pending.get(transfer.transferId)?.resolve(result)
         this.pending.delete(transfer.transferId)
       }
     }
@@ -147,13 +147,13 @@ export class TabTransferCoordinator implements TabTransfer {
       await this.capsules.putRecovery(transferId, recoveryPayload(intent.capsule))
       await this.capsules.put(transferId, bytes, capsuleDigest)
       await this.observe(initial, 'requested')
-      return this.advance(initial, false)
+      return this.publicAttempt(initial)
     } catch (error) {
       return { status: 'failed', reason: `durable transfer setup failed: ${message(error)}` }
     }
   }
 
-  private async advance(transfer: RecoveredTransfer, recovering: boolean): Promise<TabTransferResult> {
+  private async advance(transfer: RecoveredTransfer): Promise<TabTransferResult> {
     const stored = await this.capsules.get(transfer.transferId)
     let salvage: TransferRecoveryPayload | undefined
     let capsule: TransferIntent['capsule'] | undefined
@@ -162,7 +162,7 @@ export class TabTransferCoordinator implements TabTransfer {
         return this.abort(transfer, 'capsule is missing or corrupt; source remains owner')
       }
       salvage = await this.capsules.getRecovery(transfer.transferId)
-      if (!salvage) return this.pendingAfterAuthorization(transfer, recovering, 'post-authorization capsule corruption has no durable salvage payload')
+      if (!salvage) return this.pendingAfterAuthorization(transfer, 'post-authorization capsule corruption has no durable salvage payload')
       this.warnings.set(transfer.transferId, 'Move capsule is corrupt; title, content, options and View were salvaged; history was cleared.')
     } else {
       try {
@@ -170,7 +170,7 @@ export class TabTransferCoordinator implements TabTransfer {
       } catch {
         if (preAuthorizationPhases.has(transfer.phase)) return this.abort(transfer, 'capsule decoding failed; source remains owner')
         salvage = await this.capsules.getRecovery(transfer.transferId)
-        if (!salvage) return this.pendingAfterAuthorization(transfer, recovering, 'post-authorization capsule decoding has no durable salvage payload')
+        if (!salvage) return this.pendingAfterAuthorization(transfer, 'post-authorization capsule decoding has no durable salvage payload')
         this.warnings.set(transfer.transferId, 'Move capsule could not be decoded; title, content, options and View were salvaged; history was cleared.')
       }
     }
@@ -201,36 +201,44 @@ export class TabTransferCoordinator implements TabTransfer {
       if (phaseIndex(current.phase) < phaseIndex('commit-authorized')) {
         current = await this.observe(current, 'commit-authorized', stagedTarget.sessionId)
       }
-      const result = await this.finish(current, recovering, salvage)
-      if (result.status === 'failed' && !recovering) return this.waitForRecovery(current.transferId)
-      return result
+      return this.finish(current, salvage)
     } catch (error) {
       if (preAuthorizationPhases.has(current.phase)) return this.abort(current, message(error))
       this.warnings.set(current.transferId, `Move recovery is pending: ${message(error)}`)
-      return this.pendingAfterAuthorization(current, recovering, 'post-authorization recovery is pending')
+      return this.pendingAfterAuthorization(current, 'post-authorization recovery is pending')
     }
   }
 
   private async finish(
     transfer: RecoveredTransfer,
-    recovering: boolean,
     salvage?: TransferRecoveryPayload
   ): Promise<TabTransferResult> {
     let current = transfer
     try {
       if (salvage || !current.target || !this.transport.authenticate(current.target)) {
-        const recoveryWindow = await this.transport.reserveRecoveryWindow(current.transferId)
-        // Identity reservation is inert. Owner migration must reach durable journal before materialization.
-        await this.journal.migrateOwner({
-          transferId: current.transferId,
-          ownerSessionId: recoveryWindow.sessionId,
-          recoveryWindowSessionId: recoveryWindow.sessionId
-        })
-        current = { ...current, target: recoveryWindow, ownerSessionId: recoveryWindow.sessionId, recoveryWindowSessionId: recoveryWindow.sessionId }
-        await this.transport.materializeRecoveryWindow(
-          recoveryWindow,
-          salvage ?? await this.requiredRecoveryPayload(current.transferId)
-        )
+        const recoveryWindow = current.recoveryWindow ?? await this.transport.reserveRecoveryWindow(current.transferId)
+        if (!current.recoveryWindow) {
+          // Identity reservation is inert. Owner migration must reach durable journal before materialization.
+          await this.journal.migrateOwner({
+            transferId: current.transferId,
+            ownerSessionId: recoveryWindow.sessionId,
+            recoveryWindowSessionId: recoveryWindow.sessionId,
+            recoveryWindow
+          })
+          current = {
+            ...current,
+            target: recoveryWindow,
+            ownerSessionId: recoveryWindow.sessionId,
+            recoveryWindowSessionId: recoveryWindow.sessionId,
+            recoveryWindow
+          }
+        }
+        if (!this.transport.authenticate(recoveryWindow)) {
+          await this.transport.materializeRecoveryWindow(
+            recoveryWindow,
+            salvage ?? await this.requiredRecoveryPayload(current.transferId)
+          )
+        }
       }
       if (phaseIndex(current.phase) < phaseIndex('source-released')) {
         if (this.transport.authenticate(current.source)) {
@@ -271,9 +279,7 @@ export class TabTransferCoordinator implements TabTransfer {
       return { status: 'applied', transferId: current.transferId }
     } catch (error) {
       this.warnings.set(current.transferId, `Move is recovering after authorization: ${message(error)}`)
-      // No public recovering result exists. A Controller caller keeps its promise pending by retrying recover().
-      if (!recovering) return { status: 'failed', reason: 'post-authorization recovery is pending' }
-      return { status: 'failed', reason: 'recovery retry is still pending' }
+      return this.pendingAfterAuthorization(current, 'post-authorization recovery is pending')
     }
   }
 
@@ -341,13 +347,10 @@ export class TabTransferCoordinator implements TabTransfer {
     return { status: 'failed', reason: `transfer aborted before authorization: ${reason}` }
   }
 
-  private waitForRecovery(transferId: string): Promise<TabTransferResult> {
-    return new Promise(resolve => this.pending.set(transferId, resolve))
-  }
-
-  private pendingAfterAuthorization(transfer: RecoveredTransfer, recovering: boolean, reason: string): Promise<TabTransferResult> {
+  private pendingAfterAuthorization(transfer: RecoveredTransfer, reason: string): TabTransferResult {
     this.recoveryStates.set(transfer.transferId, transfer)
-    return recovering ? Promise.resolve({ status: 'failed', reason }) : this.waitForRecovery(transfer.transferId)
+    this.pendingFor(transfer.transferId)
+    return { status: 'failed', reason }
   }
 
   private async intent(transfer: RecoveredTransfer, phase: TransferPhase): Promise<void> {
@@ -408,7 +411,13 @@ export class TabTransferCoordinator implements TabTransfer {
         source: record.source,
         ...(record.target ? { target: record.target } : {}),
         ownerSessionId: migration?.ownerSessionId ?? record.ownerSessionId,
-        ...(migration ? { recoveryWindowSessionId: migration.recoveryWindowSessionId } : {}),
+        ...(migration
+          ? {
+            target: migration.recoveryWindow,
+            recoveryWindowSessionId: migration.recoveryWindowSessionId,
+            recoveryWindow: migration.recoveryWindow
+          }
+          : {}),
         documentRevision: record.documentRevision,
         isLastSourceTab: record.isLastSourceTab,
         ...(record.sourceReconciled ? { sourceReconciled: true } : {})
@@ -416,12 +425,30 @@ export class TabTransferCoordinator implements TabTransfer {
     })
   }
 
-  private advanceExisting(transfer: RecoveredTransfer, recovering: boolean): Promise<TabTransferResult> {
+  private advanceExisting(transfer: RecoveredTransfer): Promise<TabTransferResult> {
     const existing = this.recoveringTransfers.get(transfer.transferId)
     if (existing) return existing
-    const operation = this.advance(transfer, recovering).finally(() => this.recoveringTransfers.delete(transfer.transferId))
+    // This tracks only one bounded internal attempt, never the public recovery waiter.
+    const operation = this.advance(transfer).finally(() => this.recoveringTransfers.delete(transfer.transferId))
     this.recoveringTransfers.set(transfer.transferId, operation)
     return operation
+  }
+
+  private async publicAttempt(transfer: RecoveredTransfer): Promise<TabTransferResult> {
+    const result = await this.advanceExisting(transfer)
+    return result.status === 'failed' && this.pending.has(transfer.transferId)
+      ? this.pendingFor(transfer.transferId).promise
+      : result
+  }
+
+  private pendingFor(transferId: string): { readonly promise: Promise<TabTransferResult>; readonly resolve: (result: TabTransferResult) => void } {
+    const existing = this.pending.get(transferId)
+    if (existing) return existing
+    let resolvePending!: (result: TabTransferResult) => void
+    const promise = new Promise<TabTransferResult>(resolve => { resolvePending = resolve })
+    const pending = { promise, resolve: resolvePending }
+    this.pending.set(transferId, pending)
+    return pending
   }
 
   private async requiredRecoveryPayload(transferId: string): Promise<TransferRecoveryPayload> {

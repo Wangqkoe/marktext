@@ -13,8 +13,9 @@ import type {
 
 export class MemoryTransferJournal implements TransferJournal {
   readonly entries: JournalRecord[] = []
-  readonly migrations: { transferId: string; ownerSessionId: string; recoveryWindowSessionId: string }[] = []
+  readonly migrations: { transferId: string; ownerSessionId: string; recoveryWindowSessionId: string; recoveryWindow: TransferEndpoint }[] = []
   failNextAppend = false
+  blockNextMigration = false
 
   async append(record: JournalRecord): Promise<void> {
     if (this.failNextAppend) {
@@ -32,11 +33,15 @@ export class MemoryTransferJournal implements TransferJournal {
     return this.entries.map(entry => ({ ...entry }))
   }
 
-  async migrateOwner(record: { transferId: string; ownerSessionId: string; recoveryWindowSessionId: string }): Promise<void> {
+  async migrateOwner(record: { transferId: string; ownerSessionId: string; recoveryWindowSessionId: string; recoveryWindow: TransferEndpoint }): Promise<void> {
     this.migrations.push({ ...record })
+    if (this.blockNextMigration) {
+      this.blockNextMigration = false
+      return new Promise<void>(() => undefined)
+    }
   }
 
-  async ownerMigrations(): Promise<readonly { transferId: string; ownerSessionId: string; recoveryWindowSessionId: string }[]> {
+  async ownerMigrations(): Promise<readonly { transferId: string; ownerSessionId: string; recoveryWindowSessionId: string; recoveryWindow: TransferEndpoint }[]> {
     return this.migrations.map(entry => ({ ...entry }))
   }
 }
@@ -95,6 +100,7 @@ export class MemoryTransferTransport implements TransferTransport {
   readonly recoveryCalls: string[] = []
   readonly materializedRecovery: { endpoint: TransferEndpoint; payload: TransferRecoveryPayload }[] = []
   onMaterialize?: () => void
+  blockNextMaterialize = false
   private readonly endpoints = new Map<string, TransferEndpoint>()
   private readonly plans = new Map<string, PlannedAck[]>()
   private readonly successful = new Map<string, TransferAck>()
@@ -212,6 +218,10 @@ export class MemoryTransferTransport implements TransferTransport {
     this.recoveryCalls.push(`materialize:${endpoint.sessionId}`)
     this.endpoints.set(endpoint.sessionId, endpoint)
     this.materializedRecovery.push({ endpoint, payload: structuredClone(payload) })
+    if (this.blockNextMaterialize) {
+      this.blockNextMaterialize = false
+      return new Promise<void>(() => undefined)
+    }
   }
 
   private consumeCapability(capability: TransferCapability, command: TransferCommand): boolean {
