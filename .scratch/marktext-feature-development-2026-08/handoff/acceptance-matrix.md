@@ -30,13 +30,15 @@ verification environment. It is not a blanket pass for later gates.
 
 | Evidence | Status | Command / environment / result |
 | --- | --- | --- |
-| A03 split Electron proof | Passed | `pnpm -C packages/desktop exec playwright test test/e2e/split-workspace.spec.ts` in Electron: 4/4 passed, including two independent pane compositions against one Controller, focused-pane command isolation, and the split geometry/focus cases |
-| Workspace runtime | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts` in Node/Vitest: 42/42 |
-| DocumentIO/coordinator/routing | Passed | Related Node/Vitest coordinator and routing checks: 17/17 |
-| Source/#781 regression | Passed | Related source-mode regression: 9/9 |
-| Tab history/caret/scroll | Passed | Related tab regression: 3/3 |
-| Auto-focus/body/blank/overflow | Passed | Related UI regression: 4/4 |
-| Typecheck/build/diff/lint | Passed | `vue-tsc`, desktop build, `git diff --check`, and changed-line lint passed on the verified implementation/integration evidence |
+| A03 split Electron proof ([evidence](evidence/t03-integration-2026-08-25.md)) | Passed | `pnpm -C packages/desktop exec playwright test test/e2e/split-workspace.spec.ts` in Windows Electron: 4/4 passed, including two independent pane compositions against one Controller, focused-pane command isolation, and the split geometry/focus cases |
+| Workspace runtime ([evidence](evidence/t03-integration-2026-08-25.md)) | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts` in Node/Vitest: 42/42 |
+| DocumentIO/coordinator/routing ([evidence](evidence/t03-integration-2026-08-25.md)) | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/document-io-coordinator.spec.ts test/unit/specs/document-io-electron-adapter.spec.ts` in Node/Vitest: 17/17 |
+| Source/#781 regression ([evidence](evidence/t03-integration-2026-08-25.md)) | Untested | Task record reports 9/9, but the exact test-selection command is not recoverable; record item, not a Passed gate |
+| Tab history/caret/scroll ([evidence](evidence/t03-integration-2026-08-25.md)) | Untested | Task record reports 3/3, but the exact test-selection command is not recoverable; record item, not a Passed gate |
+| Auto-focus/body/blank/overflow ([evidence](evidence/t03-integration-2026-08-25.md)) | Untested | Task record reports 4/4, but the exact test-selection command is not recoverable; record item, not a Passed gate |
+| Typecheck ([evidence](evidence/t03-integration-2026-08-25.md)) | Passed | `pnpm -C packages/desktop typecheck` passed on the verified implementation/integration evidence |
+| Desktop build ([evidence](evidence/t03-integration-2026-08-25.md)) | Passed | `pnpm -C packages/desktop build` passed on the verified implementation/integration evidence |
+| Diff check ([evidence](evidence/t03-integration-2026-08-25.md)) | Passed | `git diff --check` passed on the verified implementation/integration evidence |
 
 The integration worktree had no `node_modules`, so repeated commands were
 unavailable there. Integration was fast-forward-only to the same already
@@ -44,7 +46,7 @@ verified SHA, and `git diff --check` passed on the integration branch. This is
 an environment limitation with inherited evidence, not a code-test failure.
 The broad legacy tabs history test remains a record item because its
 `getMarkdownContent` helper forces repeated Source round-trips; authoritative
-no-perturbation Item 252 passed. Later gates remain Untested/Unfinished unless
+no-perturbation Item 252 passed. Later gates remain Untested unless
 their own evidence is recorded.
 
 ## Status rules

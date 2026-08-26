@@ -36,13 +36,25 @@ emergency recovery. This map does not implement product changes.
   of temporary fallbacks. Normal workspace restore remains neither a prerequisite
   nor an implementation target.
 
-## Next implementation frontier
+## Historical implementation frontier (archived baseline)
+
+The following section is retained as a historical pre-integration baseline; it
+is not the current frontier.
 
 1. Integrate/verify T01 and T04 core at their declared seams.
 2. Deliver T04b's authenticated Electron DocumentIO adapter and coordinator.
 3. Resume T02 R2 only for the production projection facade and Controller-owned
    save/options command migration; leave R3's dual-surface/E2E/fallback removal
    to its later integration stage.
+
+## Current implementation frontier — 2026-08-25
+
+T03 is integrated at `1aa17aac6da3ef23610067b7f264bb38a835da4e`; its verified
+evidence is recorded in the [T03 evidence report](handoff/evidence/t03-integration-2026-08-25.md).
+T03 does not complete V1. T10 is its direct newly unlocked ticket. T05 retains
+its own MoveRecovery/WAL gate; T06 remains dependent on T05 and the earlier
+T02/T04/T04b prerequisites; T07 and T08 remain later tickets. The remaining V1
+frontier is therefore not complete.
 
 ## Decisions so far
 
@@ -77,14 +89,12 @@ emergency recovery. This map does not implement product changes.
   320px split-pane minimum, and missing A03 Electron evidence. The accepted
   `set-split-ratio` Controller-owned seam is required by V1 WindowWorkspace;
   the ticket's “唯一 typed exception” wording remains a minor record item.
-- Evidence inherited from the verified integration: workspace runtime 42/42;
-  DocumentIO/coordinator/routing 17/17; split Electron 4/4; source/#781 9/9;
-  tab history/caret/scroll 3/3; auto-focus/body/blank/overflow 4/4; plus
-  `vue-tsc`, desktop build, diff-check, and changed-line lint. The integration
-  worktree had no `node_modules`, so repeated commands were unavailable there;
-  integration was fast-forward-only to the same verified SHA and
-  `git diff --check` passed on the integration branch. This is an environment
-  limitation/evidence inheritance, not a code failure.
+- Evidence inherited from the verified integration is recorded in the [T03
+  evidence report](handoff/evidence/t03-integration-2026-08-25.md). Only its
+  precisely confirmed commands are Passed; aggregate source/#781, tab, and UI
+  regression counts whose exact selections are unavailable remain record items.
+- The integration worktree had no `node_modules`, so repeated commands were
+  unavailable there; integration was fast-forward-only to the same verified SHA.
 - T03 does not complete V1. T10 is now unblocked as the next direct dependent;
   T07 native detach, T08 menu work (including Split Right), T05/T06, and all
   other tickets retain their actual frontier state.

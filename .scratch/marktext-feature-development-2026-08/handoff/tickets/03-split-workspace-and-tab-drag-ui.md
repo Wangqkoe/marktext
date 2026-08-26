@@ -64,14 +64,16 @@ the focused-pane command guard.
 - Independent Standards Review: Passed. Independent Spec Review: Passed.
 - Closed blocking findings: canonical-left collapse adapter/Vue-key ownership;
   split-pane minimum of 320px; and missing real Electron A03 evidence.
-- Verification evidence: workspace runtime 42/42; DocumentIO/coordinator/routing
-  17/17; split Electron 4/4; source/#781 9/9; tab history/caret/scroll 3/3;
-  auto-focus/body/blank/overflow 4/4; `vue-tsc`, desktop build, diff-check,
-  and changed-line lint passed. The integration worktree had no `node_modules`,
-  so repeated commands were unavailable there; because integration was
-  fast-forward-only to the same verified SHA, this is evidence inheritance and
-  an environment limitation, not a code failure. `git diff --check` passed on
-  the integration branch.
+- Verification evidence is recorded in the [T03 integration evidence report](../evidence/t03-integration-2026-08-25.md):
+  workspace runtime 42/42; DocumentIO/coordinator/routing 17/17; split Electron
+  4/4; `pnpm -C packages/desktop typecheck`; `pnpm -C packages/desktop build`;
+  and `git diff --check`. The task record also reports source/#781 9/9,
+  tab history/caret/scroll 3/3, and auto-focus/body/blank/overflow 4/4, but
+  their exact selections are unavailable and they remain record items, not
+  Passed gates. The integration worktree had no `node_modules`, so repeated
+  commands were unavailable there; because integration was fast-forward-only to
+  the same verified SHA, this is evidence inheritance and an environment
+  limitation, not a code failure.
 - Required Controller seam: `set-split-ratio` is V1 WindowWorkspace's
   Controller-owned seam. The “唯一 typed exception” wording is mildly
   ambiguous and is retained as a non-blocking record item; no behavior changes.
