@@ -1,0 +1,399 @@
+import { createHash, randomUUID } from 'node:crypto'
+import type { MoveRecoveryRecord } from '@shared/workspace'
+import type {
+  CapsuleStorage,
+  JournalRecord,
+  RecoveredTransfer,
+  RecoveryProjection,
+  TabTransfer,
+  TabTransferResult,
+  TransferAck,
+  TransferCapability,
+  TransferCommand,
+  TransferEndpoint,
+  TransferIntent,
+  TransferJournal,
+  TransferOperation,
+  TransferPhase,
+  TransferTransport
+} from './types'
+import { toMoveRecoveryRecord, transferPhases } from './types'
+
+export * from './memory'
+export * from './types'
+
+const preAuthorizationPhases = new Set<TransferPhase>(['requested', 'source-prepared', 'target-staged'])
+const phaseCommand: Record<Exclude<TransferPhase, 'requested' | 'commit-authorized' | 'completed'>, TransferOperation> = {
+  'source-prepared': 'prepare',
+  'target-staged': 'stage',
+  'source-released': 'release',
+  'target-activated': 'activate'
+}
+
+const timeout = { timeoutMs: 15_000, retryCadenceMs: 5_000 } as const
+
+const digest = (bytes: Uint8Array): string => {
+  const hash = createHash('sha256')
+  // Deliberately update in chunks: the digest is defined over stored bytes, not an object.
+  for (let offset = 0; offset < bytes.length; offset += 64 * 1024) hash.update(bytes.subarray(offset, offset + 64 * 1024))
+  return hash.digest('hex')
+}
+
+const encodeCapsule = (capsule: TransferIntent['capsule']): Uint8Array =>
+  new TextEncoder().encode(JSON.stringify(capsule))
+
+const decodeCapsule = (bytes: Uint8Array): TransferIntent['capsule'] => JSON.parse(new TextDecoder().decode(bytes)) as TransferIntent['capsule']
+
+const phaseIndex = (phase: TransferPhase): number => transferPhases.indexOf(phase)
+
+export class TabTransferCoordinator implements TabTransfer {
+  private readonly requests = new Map<string, { fingerprint: string; result: Promise<TabTransferResult> }>()
+  private readonly warnings = new Map<string, string>()
+  private readonly recoveryStates = new Map<string, RecoveredTransfer>()
+  private readonly pending = new Map<string, (result: TabTransferResult) => void>()
+
+  constructor(
+    private readonly journal: TransferJournal,
+    private readonly capsules: CapsuleStorage,
+    private readonly transport: TransferTransport,
+    private readonly ids: () => string = randomUUID
+  ) {}
+
+  async run(intent: TransferIntent): Promise<TabTransferResult> {
+    const existing = this.requests.get(intent.requestId)
+    if (existing) {
+      return existing.fingerprint === intent.fingerprint
+        ? existing.result
+        : { status: 'rejected', reason: 'request id was replayed with a different transfer fingerprint' }
+    }
+    const operation = this.runFresh(intent)
+    // Install the promise before the first journal read so concurrent command delivery remains business-once.
+    this.requests.set(intent.requestId, { fingerprint: intent.fingerprint, result: operation })
+    return operation
+  }
+
+  private async runFresh(intent: TransferIntent): Promise<TabTransferResult> {
+    const persisted = (await this.loadTransfers()).find(transfer => transfer.requestId === intent.requestId)
+    if (persisted) {
+      if (persisted.fingerprint !== intent.fingerprint) {
+        return { status: 'rejected', reason: 'request id was replayed with a different transfer fingerprint' }
+      }
+      if (persisted.phase === 'completed') return { status: 'applied', transferId: persisted.transferId }
+      return this.advance(persisted, false)
+    }
+    if (!this.transport.authenticate(intent.source)) {
+      return { status: 'rejected', reason: 'unauthenticated source endpoint epoch' }
+    }
+    if (intent.capsule.documentRevision !== intent.documentRevision || intent.capsule.sourceSessionId !== intent.source.sessionId) {
+      return { status: 'rejected', reason: 'capsule does not match the sealed source identity' }
+    }
+    try {
+      if (containsNonJson(intent.capsule.history.value)) throw new Error('history is not JSON-safe')
+      encodeCapsule(intent.capsule)
+    } catch {
+      return { status: 'rejected', reason: 'portable history cannot be encoded' }
+    }
+    return this.start(intent)
+  }
+
+  async recover(): Promise<readonly TabTransferResult[]> {
+    const results: TabTransferResult[] = []
+    for (const transfer of await this.loadTransfers()) {
+      if (transfer.phase === 'completed') continue
+      const result = await this.advance(transfer, true)
+      results.push(result)
+      if (result.status === 'applied') {
+        this.pending.get(transfer.transferId)?.(result)
+        this.pending.delete(transfer.transferId)
+      }
+    }
+    return results
+  }
+
+  async scan(): Promise<readonly MoveRecoveryRecord[]> {
+    return (await this.loadTransfers()).filter(transfer => transfer.phase !== 'completed').map(toMoveRecoveryRecord)
+  }
+
+  getRecoveryProjection(): RecoveryProjection {
+    return {
+      transfers: [...this.warnings.entries()].map(([transferId, warning]) => ({
+        transferId,
+        phase: this.recoveryStates.get(transferId)?.phase ?? 'commit-authorized',
+        ownerSessionId: this.recoveryStates.get(transferId)?.ownerSessionId ?? 'recovery-pending',
+        warning
+      }))
+    }
+  }
+
+  private async start(intent: TransferIntent): Promise<TabTransferResult> {
+    const transferId = this.ids()
+    const bytes = encodeCapsule(intent.capsule)
+    const capsuleDigest = digest(bytes)
+    const initial: RecoveredTransfer = {
+      transferId,
+      requestId: intent.requestId,
+      fingerprint: intent.fingerprint,
+      phase: 'requested',
+      capsuleDigest,
+      source: intent.source,
+      ownerSessionId: intent.source.sessionId,
+      documentRevision: intent.documentRevision,
+      isLastSourceTab: intent.isLastSourceTab
+    }
+    try {
+      await this.capsules.put(transferId, bytes, capsuleDigest)
+      await this.observe(initial, 'requested')
+      return this.advance(initial, false)
+    } catch (error) {
+      return { status: 'failed', reason: `durable transfer setup failed: ${message(error)}` }
+    }
+  }
+
+  private async advance(transfer: RecoveredTransfer, recovering: boolean): Promise<TabTransferResult> {
+    const stored = await this.capsules.get(transfer.transferId)
+    if (!stored || digest(stored.bytes) !== transfer.capsuleDigest) {
+      if (preAuthorizationPhases.has(transfer.phase)) {
+        await this.capsules.tombstone(transfer.transferId)
+        return { status: 'failed', reason: 'capsule is missing or corrupt before authorization; source remains owner' }
+      }
+      this.warnings.set(transfer.transferId, 'Move capsule is corrupt; content/view recovery requires a recovery window and history is cleared.')
+      return this.pendingAfterAuthorization(transfer, recovering, 'post-authorization capsule corruption requires content salvage')
+    }
+    let capsule: TransferIntent['capsule']
+    try {
+      capsule = decodeCapsule(stored.bytes)
+    } catch {
+      return preAuthorizationPhases.has(transfer.phase)
+        ? { status: 'failed', reason: 'capsule decoding failed before authorization' }
+        : this.pendingAfterAuthorization(transfer, recovering, 'post-authorization capsule decoding requires salvage')
+    }
+    if (!capsule.history || typeof capsule.history.version !== 'number') {
+      if (preAuthorizationPhases.has(transfer.phase)) return { status: 'rejected', reason: 'portable history is corrupt before authorization' }
+      this.warnings.set(transfer.transferId, 'Portable history was corrupt and has been cleared during Move recovery.')
+    }
+    let current = transfer
+    try {
+      if (phaseIndex(current.phase) < phaseIndex('source-prepared')) {
+        const target = await this.transport.createTarget(current.transferId)
+        current = { ...current, target }
+        const ack = await this.command(current, 'source-prepared', current.source)
+        if (!isSealed(ack, current.documentRevision)) return this.abort(current, 'source revision fence was not sealed')
+        current = this.advanceState(current, 'source-prepared')
+      }
+      const stagedTarget = current.target
+      if (!stagedTarget) return { status: 'failed', reason: 'target endpoint was not durably recorded' }
+      if (phaseIndex(current.phase) < phaseIndex('target-staged')) {
+        const ack = await this.command(current, 'target-staged', stagedTarget)
+        if (ack.status !== 'ok') return this.abort(current, `target staging ${ackReason(ack)}`)
+        // The sealed source ACK must still match immediately before authorization.
+        const sealed = await this.command(current, 'source-prepared', current.source)
+        if (!isSealed(sealed, current.documentRevision)) return this.abort(current, 'source revision changed before authorization')
+        current = this.advanceState(current, 'target-staged')
+      }
+      if (phaseIndex(current.phase) < phaseIndex('commit-authorized')) {
+        current = await this.observe(current, 'commit-authorized', stagedTarget.sessionId)
+      }
+      const result = await this.finish(current, recovering)
+      if (result.status === 'failed' && !recovering) return this.waitForRecovery(current.transferId)
+      return result
+    } catch (error) {
+      if (preAuthorizationPhases.has(current.phase)) return this.abort(current, message(error))
+      this.warnings.set(current.transferId, `Move recovery is pending: ${message(error)}`)
+      return this.pendingAfterAuthorization(current, recovering, 'post-authorization recovery is pending')
+    }
+  }
+
+  private async finish(transfer: RecoveredTransfer, recovering: boolean): Promise<TabTransferResult> {
+    let current = transfer
+    try {
+      if (!current.target || !this.transport.authenticate(current.target)) {
+        const recoveryWindow = await this.transport.createRecoveryWindow(current.transferId)
+        // Window allocation is not sufficient evidence: journal migration is fsynced first.
+        await this.journal.migrateOwner({
+          transferId: current.transferId,
+          ownerSessionId: recoveryWindow.sessionId,
+          recoveryWindowSessionId: recoveryWindow.sessionId
+        })
+        current = { ...current, target: recoveryWindow, ownerSessionId: recoveryWindow.sessionId, recoveryWindowSessionId: recoveryWindow.sessionId }
+      }
+      if (phaseIndex(current.phase) < phaseIndex('source-released')) {
+        await this.requirePostAuthorization(current, 'source-released', current.source)
+        current = this.advanceState(current, 'source-released', current.ownerSessionId)
+      }
+      if (!current.target) return { status: 'failed', reason: 'no recovery target' }
+      const activatedTarget = current.target
+      if (phaseIndex(current.phase) < phaseIndex('target-activated')) {
+        await this.requirePostAuthorization(current, 'target-activated', activatedTarget)
+        current = this.advanceState(current, 'target-activated', current.ownerSessionId)
+      }
+      const checkpoint = this.capability(current, 'checkpoint', 'target')
+      const checkpointAck = await this.transport.command({
+        transferId: current.transferId,
+        phase: 'target-activated',
+        operation: 'checkpoint',
+        endpoint: activatedTarget,
+        capability: checkpoint,
+        capsuleDigest: current.capsuleDigest,
+        documentRevision: current.documentRevision,
+        isLastSourceTab: current.isLastSourceTab
+      }, timeout)
+      if (checkpointAck.status !== 'ok') throw new Error(`session checkpoint ${ackReason(checkpointAck)}`)
+      current = await this.observe(current, 'completed', current.ownerSessionId)
+      await this.capsules.tombstone(current.transferId)
+      try {
+        await this.capsules.gc()
+      } catch {
+        // A completed target session is already authoritative; retain a bounded tombstone for retry.
+      }
+      return { status: 'applied', transferId: current.transferId }
+    } catch (error) {
+      this.warnings.set(current.transferId, `Move is recovering after authorization: ${message(error)}`)
+      // No public recovering result exists. A Controller caller keeps its promise pending by retrying recover().
+      if (!recovering) return { status: 'failed', reason: 'post-authorization recovery is pending' }
+      return { status: 'failed', reason: 'recovery retry is still pending' }
+    }
+  }
+
+  private async command(transfer: RecoveredTransfer, phase: 'source-prepared' | 'target-staged', endpoint: TransferEndpoint): Promise<TransferAck> {
+    const operation = phaseCommand[phase]
+    await this.intent(transfer, phase)
+    let ack: TransferAck = { status: 'timeout' }
+    for (let attempt = 0; attempt < 3 && ack.status === 'timeout'; attempt += 1) {
+      const capability = phase === 'target-staged' ? this.capability(transfer, operation, 'target') : undefined
+      ack = await this.transport.command(this.commandFor(transfer, phase, operation, endpoint, capability), timeout)
+    }
+    if (ack.status === 'ok') await this.observed(transfer, phase)
+    return ack
+  }
+
+  private async requirePostAuthorization(transfer: RecoveredTransfer, phase: 'source-released' | 'target-activated', endpoint: TransferEndpoint): Promise<void> {
+    const operation = phaseCommand[phase]
+    await this.intent(transfer, phase)
+    const role = phase === 'source-released' ? 'source' : 'target'
+    const ack = await this.transport.command(this.commandFor(transfer, phase, operation, endpoint, this.capability(transfer, operation, role)), timeout)
+    if (ack.status !== 'ok') throw new Error(`${phase} ${ackReason(ack)}`)
+    await this.observed(transfer, phase)
+  }
+
+  private capability(transfer: RecoveredTransfer, operation: TransferOperation, role: 'source' | 'target'): TransferCapability {
+    if (!transfer.target) throw new Error('target is unavailable')
+    return this.transport.issueCapability({
+      transferId: transfer.transferId,
+      operation,
+      role,
+      source: transfer.source,
+      target: transfer.target,
+      capsuleDigest: transfer.capsuleDigest,
+      documentRevision: transfer.documentRevision
+    })
+  }
+
+  private commandFor(
+    transfer: RecoveredTransfer,
+    phase: TransferCommand['phase'],
+    operation: TransferOperation,
+    endpoint: TransferEndpoint,
+    capability?: TransferCapability
+  ): TransferCommand {
+    return {
+      transferId: transfer.transferId,
+      phase,
+      operation,
+      endpoint,
+      ...(capability ? { capability } : {}),
+      capsuleDigest: transfer.capsuleDigest,
+      documentRevision: transfer.documentRevision,
+      isLastSourceTab: transfer.isLastSourceTab
+    }
+  }
+
+  private async abort(transfer: RecoveredTransfer, reason: string): Promise<TabTransferResult> {
+    await this.capsules.tombstone(transfer.transferId)
+    try {
+      await this.capsules.gc()
+    } catch {
+      // Retain the tombstone; pre-authorization source ownership remains intact.
+    }
+    return { status: 'failed', reason: `transfer aborted before authorization: ${reason}` }
+  }
+
+  private waitForRecovery(transferId: string): Promise<TabTransferResult> {
+    return new Promise(resolve => this.pending.set(transferId, resolve))
+  }
+
+  private pendingAfterAuthorization(transfer: RecoveredTransfer, recovering: boolean, reason: string): Promise<TabTransferResult> {
+    this.recoveryStates.set(transfer.transferId, transfer)
+    return recovering ? Promise.resolve({ status: 'failed', reason }) : this.waitForRecovery(transfer.transferId)
+  }
+
+  private async intent(transfer: RecoveredTransfer, phase: TransferPhase): Promise<void> {
+    await this.journal.append(this.record(transfer, phase, 'intent'))
+  }
+
+  private async observed(transfer: RecoveredTransfer, phase: TransferPhase): Promise<void> {
+    await this.journal.append(this.record(transfer, phase, 'observed'))
+  }
+
+  private async observe(transfer: RecoveredTransfer, phase: TransferPhase, ownerSessionId = transfer.ownerSessionId): Promise<RecoveredTransfer> {
+    await this.intent(transfer, phase)
+    await this.observed(transfer, phase)
+    return this.advanceState(transfer, phase, ownerSessionId)
+  }
+
+  private advanceState(transfer: RecoveredTransfer, phase: TransferPhase, ownerSessionId = transfer.ownerSessionId): RecoveredTransfer {
+    const observed = { ...transfer, phase, ownerSessionId }
+    this.recoveryStates.set(observed.transferId, observed)
+    return observed
+  }
+
+  private record(transfer: RecoveredTransfer, phase: TransferPhase, kind: 'intent' | 'observed'): JournalRecord {
+    return {
+      transferId: transfer.transferId,
+      requestId: transfer.requestId,
+      fingerprint: transfer.fingerprint,
+      phase,
+      kind,
+      capsuleDigest: transfer.capsuleDigest,
+      source: transfer.source,
+      ...(transfer.target ? { target: transfer.target } : {}),
+      ownerSessionId: transfer.ownerSessionId,
+      ...(transfer.recoveryWindowSessionId ? { recoveryWindowSessionId: transfer.recoveryWindowSessionId } : {}),
+      documentRevision: transfer.documentRevision,
+      isLastSourceTab: transfer.isLastSourceTab
+    }
+  }
+
+  private async loadTransfers(): Promise<readonly RecoveredTransfer[]> {
+    const records = await this.journal.records()
+    const latest = new Map<string, JournalRecord>()
+    for (const record of records) if (record.kind === 'observed') latest.set(record.transferId, record)
+    const migrations = await this.journal.ownerMigrations()
+    return [...latest.values()].map(record => {
+      const migration = migrations.filter(value => value.transferId === record.transferId).at(-1)
+      return {
+        transferId: record.transferId,
+        requestId: record.requestId,
+        fingerprint: record.fingerprint,
+        phase: record.phase,
+        capsuleDigest: record.capsuleDigest,
+        source: record.source,
+        ...(record.target ? { target: record.target } : {}),
+        ownerSessionId: migration?.ownerSessionId ?? record.ownerSessionId,
+        ...(migration ? { recoveryWindowSessionId: migration.recoveryWindowSessionId } : {}),
+        documentRevision: record.documentRevision,
+        isLastSourceTab: record.isLastSourceTab
+      }
+    })
+  }
+}
+
+const isSealed = (ack: TransferAck, revision: number): boolean => ack.status === 'ok' && ack.sealedRevision === revision
+const ackReason = (ack: TransferAck): string => ack.status === 'nack' ? `was rejected: ${ack.reason}` : 'timed out'
+const message = (error: unknown): string => error instanceof Error ? error.message : String(error)
+
+const containsNonJson = (value: unknown): boolean => {
+  if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) return false
+  if (Array.isArray(value)) return value.some(containsNonJson)
+  if (typeof value !== 'object') return true
+  return Object.values(value as Record<string, unknown>).some(containsNonJson)
+}
