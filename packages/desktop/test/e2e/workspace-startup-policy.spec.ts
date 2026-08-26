@@ -129,8 +129,11 @@ test('recovers a dirty saved document after a forced Electron termination withou
     await expect(first.page.locator('body')).toContainText('edited before crash')
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try {
+        return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json'))
+      } catch {
+        return false
+      }
     }).toBe(true)
     await forceTerminate(first.app)
     killed = true
@@ -158,8 +161,11 @@ test('recovers a dirty untitled document with a stable recovery identity after a
     await typeIntoEditor(first.page, '# Untitled before crash')
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try {
+        return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json'))
+      } catch {
+        return false
+      }
     }).toBe(true)
     await forceTerminate(first.app)
     killed = true
@@ -196,8 +202,11 @@ test('opens an explicit target alongside a forced-crash draft recovery', async()
     await typeIntoEditor(first.page, ' recovery survives')
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try {
+        return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json'))
+      } catch {
+        return false
+      }
     }).toBe(true)
     await forceTerminate(first.app)
     killed = true
@@ -255,8 +264,7 @@ test('recovers a conflicted saved draft without overwriting a changed disk file'
     await typeIntoEditor(first.page, ' recovery copy')
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
     }).toBe(true)
     await forceTerminate(first.app)
     killed = true
@@ -288,8 +296,7 @@ test('normal dirty Save tombstones its durable crash draft before the window clo
     await typeIntoEditor(first.page, ' persisted by Save')
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
     }).toBe(true)
     await first.app.evaluate(({ dialog }) => {
       dialog.showMessageBox = async() => ({ response: 0, checkboxChecked: false })
@@ -323,8 +330,7 @@ test('normal dirty Discard tombstones its durable crash draft before the window 
     await typeIntoEditor(first.page, ' discarded by close')
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
     }).toBe(true)
     await first.app.evaluate(({ dialog }) => {
       dialog.showMessageBox = async() => ({ response: 1, checkboxChecked: false })
@@ -355,8 +361,7 @@ test('normal dirty Cancel keeps the document and durable crash draft open', asyn
     await typeIntoEditor(first.page, ' retained after Cancel')
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
     }).toBe(true)
     await first.app.evaluate(({ dialog }) => {
       dialog.showMessageBox = async() => ({ response: 2, checkboxChecked: false })
@@ -386,8 +391,7 @@ test('recovered saved draft Save tombstones its original crash identity', async(
     await typeIntoEditor(first.page, marker)
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
     }).toBe(true)
     await forceTerminate(first.app)
     firstKilled = true
@@ -426,8 +430,7 @@ test('recovered saved draft Discard tombstones its original crash identity', asy
     await typeIntoEditor(first.page, marker)
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
     }).toBe(true)
     await forceTerminate(first.app)
     firstKilled = true
@@ -465,8 +468,7 @@ test('recovered saved draft Cancel keeps its original crash draft', async() => {
     await typeIntoEditor(first.page, marker)
     const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) }
-      catch { return false }
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
     }).toBe(true)
     await forceTerminate(first.app)
     firstKilled = true
