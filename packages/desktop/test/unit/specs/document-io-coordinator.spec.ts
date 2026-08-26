@@ -51,6 +51,13 @@ describe('DocumentIOCoordinator', () => {
     expect(real).toMatchObject({ status: 'durable-success', ownerFence: bound.ownerFence })
   })
 
+  it('returns a nullable baseline when the bound file was observed missing', async() => {
+    const { coordinator } = setup()
+    await expect(bind(coordinator)).resolves.toMatchObject({
+      status: 'bound', observedDiskRevision: null
+    })
+  })
+
   it('keeps failed and conflicted ordinary saves dirty, then accepts the matching durable ACK once', async() => {
     const { coordinator, hub, storage } = setup()
     const canonical = await hub.canonicalFileKey(file)

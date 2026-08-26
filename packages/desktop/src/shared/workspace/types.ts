@@ -78,7 +78,7 @@ export interface PortableHistory {
 export interface WorkspaceDocumentInput {
   readonly documentId?: DocumentId
   readonly fileKey?: FileKey
-  readonly observedDiskRevision?: DiskRevision
+  readonly observedDiskRevision?: DiskRevision | null
   /** Monotonic document revision supplied only by emergency/transfer adoption. */
   readonly documentRevision?: number
   readonly markdown?: string
@@ -114,7 +114,7 @@ export type WorkspaceSeed =
 export interface CrashDraftCheckpoint {
   readonly documentId: DocumentId
   readonly fileKey?: FileKey
-  readonly observedDiskRevision?: DiskRevision
+  readonly observedDiskRevision?: DiskRevision | null
   readonly documentRevision: number
   readonly markdown: string
   readonly view: Pick<ViewState, 'cursor' | 'selection'>
@@ -271,7 +271,7 @@ export interface WorkspaceFacadeDocument {
   readonly viewId: ViewId
   readonly documentId: DocumentId
   readonly fileKey?: FileKey
-  readonly observedDiskRevision?: DiskRevision
+  readonly observedDiskRevision?: DiskRevision | null
   readonly documentRevision: number
   readonly title: string
   readonly markdown: string
@@ -310,7 +310,7 @@ export interface EditorBindingSnapshot {
   readonly document: {
     readonly documentId: DocumentId
     readonly fileKey?: FileKey
-    readonly observedDiskRevision?: DiskRevision
+    readonly observedDiskRevision?: DiskRevision | null
     readonly ownerFence: string
     readonly markdown: string
     readonly dirty: boolean

@@ -551,7 +551,7 @@ export class PaneEditorComposition {
       if (!snapshot?.document.dirty) return
       // A saved draft is recoverable only against bytes DocumentIO actually
       // observed. Do not manufacture a baseline from the current disk later.
-      if (snapshot.document.fileKey && !snapshot.document.observedDiskRevision) return
+      if (snapshot.document.fileKey && snapshot.document.observedDiskRevision === undefined) return
       const current = this.crashReceipts.get(snapshot.documentId)
       if (current?.revision === snapshot.documentRevision) return
       const response = await this.crashDraft.request({

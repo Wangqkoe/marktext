@@ -29,7 +29,7 @@ export interface TransferCapsule {
   readonly sourcePreflightId?: string
   readonly documentRevision: number
   readonly fileKey?: string
-  readonly observedDiskRevision?: DiskRevision
+  readonly observedDiskRevision?: DiskRevision | null
   readonly title: string
   readonly markdown: string
   readonly dirty: boolean
@@ -46,7 +46,7 @@ export interface TransferRecoveryPayload {
   readonly sourceLineage: string
   readonly documentRevision: number
   readonly fileKey?: string
-  readonly observedDiskRevision?: DiskRevision
+  readonly observedDiskRevision?: DiskRevision | null
   readonly title: string
   readonly markdown: string
   readonly dirty: boolean

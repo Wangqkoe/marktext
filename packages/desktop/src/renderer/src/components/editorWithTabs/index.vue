@@ -255,7 +255,7 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
     const staged = stagedTransfers.get(command.transferId)
     const document = staged && controller.getFacadeSnapshot().documents.find((candidate) => candidate.documentId === staged.documentId)
     if (!document) return { status: 'nack', reason: 'target checkpoint document is unavailable' }
-    if (document.fileKey && !document.observedDiskRevision) {
+    if (document.fileKey && document.observedDiskRevision === undefined) {
       return { status: 'nack', reason: 'target checkpoint disk baseline is unavailable' }
     }
     const pane = controller.getProjection().panes.find((candidate) => candidate.tabs.some((tab) => tab.viewId === document.viewId))

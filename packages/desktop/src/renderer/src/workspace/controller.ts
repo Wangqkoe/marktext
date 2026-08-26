@@ -29,7 +29,7 @@ import type { DocumentIoSaveRequest, DocumentSaveAck } from '@shared/workspace/d
 interface DocumentRecord {
   id: DocumentId
   fileKey?: string
-  observedDiskRevision?: string
+  observedDiskRevision?: string | null
   markdown: string
   savedMarkdown: string
   dirty: boolean
@@ -82,7 +82,7 @@ export interface TransferSourceSnapshot {
   readonly documentRevision: number
   readonly isLastSourceTab: boolean
   readonly fileKey?: string
-  readonly observedDiskRevision?: string
+  readonly observedDiskRevision?: string | null
   readonly title: string
   readonly markdown: string
   readonly dirty: boolean
@@ -799,7 +799,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
         viewId: view.id,
         documentId: document.id,
         ...(document.fileKey ? { fileKey: document.fileKey } : {}),
-        ...(document.observedDiskRevision ? { observedDiskRevision: document.observedDiskRevision } : {}),
+        ...(document.observedDiskRevision !== undefined ? { observedDiskRevision: document.observedDiskRevision } : {}),
         documentRevision: document.revision,
         title: document.title,
         markdown: document.markdown,
@@ -836,7 +836,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       return this.rejected('stale document I/O bind acknowledgement')
     }
     document.ownerFence = command.ownerFence
-    document.observedDiskRevision = command.observedDiskRevision ?? undefined
+    document.observedDiskRevision = command.observedDiskRevision
     for (const bound of this.adapters.values()) {
       if (bound.snapshot?.documentId === document.id) this.updateBoundSnapshot(bound)
     }
@@ -885,7 +885,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       document.title = pending.targetTitle
     }
     if (pending.request.ownerFence === undefined) document.ownerFence = ack.ownerFence!
-    document.observedDiskRevision = ack.observedDiskRevision
+    if (ack.observedDiskRevision !== undefined) document.observedDiskRevision = ack.observedDiskRevision
     document.dirty = false
     document.savedMarkdown = document.markdown
     document.conflict = false
@@ -1094,7 +1094,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       documentRevision: document.revision,
       isLastSourceTab: pane.viewIds.length === 1,
       ...(document.fileKey ? { fileKey: document.fileKey } : {}),
-      ...(document.observedDiskRevision ? { observedDiskRevision: document.observedDiskRevision } : {}),
+      ...(document.observedDiskRevision !== undefined ? { observedDiskRevision: document.observedDiskRevision } : {}),
       title: document.title,
       markdown: document.markdown,
       dirty: document.dirty,
@@ -1217,7 +1217,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       document: {
         documentId: document.id,
         ...(document.fileKey ? { fileKey: document.fileKey } : {}),
-        ...(document.observedDiskRevision ? { observedDiskRevision: document.observedDiskRevision } : {}),
+        ...(document.observedDiskRevision !== undefined ? { observedDiskRevision: document.observedDiskRevision } : {}),
         ownerFence: document.ownerFence,
         markdown: document.markdown,
         dirty: document.dirty,
@@ -1242,7 +1242,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return {
       id,
       ...(input.fileKey ? { fileKey: input.fileKey } : {}),
-      ...(input.observedDiskRevision ? { observedDiskRevision: input.observedDiskRevision } : {}),
+      ...(input.observedDiskRevision !== undefined ? { observedDiskRevision: input.observedDiskRevision } : {}),
       markdown: input.markdown ?? '',
       savedMarkdown: input.savedMarkdown ?? input.markdown ?? '',
       dirty: input.dirty ?? false,

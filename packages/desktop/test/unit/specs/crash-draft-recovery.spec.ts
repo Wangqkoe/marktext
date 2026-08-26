@@ -80,6 +80,16 @@ describe('CrashDraftStore', () => {
     expect(recovered?.draft.markdown).toBe('safe')
   })
 
+  it('durably preserves an observed missing-file baseline and conflicts only if the file later appears', async() => {
+    const store = new CrashDraftStore('/drafts', new MemoryStorage())
+    await expect(store.checkpoint({ ...checkpoint(1, 'missing-file edits'), observedDiskRevision: null })).resolves.toEqual({ durable: true })
+    const [missing] = await store.recover(async() => null)
+    expect(missing?.draft.observedDiskRevision).toBeNull()
+    expect(missing?.conflict).toBeUndefined()
+    const [appeared] = await store.recover(async() => 'disk-after-crash')
+    expect(appeared?.conflict).toBe(true)
+  })
+
   it('keeps untitled identity without a disk baseline and never clears on cancel', async() => {
     const store = new CrashDraftStore('/drafts', new MemoryStorage())
     const write = store.beginCheckpoint({ documentId: 'untitled-1', documentRevision: 1, markdown: 'unsaved', view: { cursor: { line: 0, column: 0 }, selection: null } })
