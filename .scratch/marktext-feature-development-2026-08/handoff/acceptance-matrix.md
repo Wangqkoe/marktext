@@ -26,8 +26,11 @@ integration branch; `Passed` may be claimed only with all four.
 
 See [T12 Windows trial readiness evidence](evidence/t12-windows-trial-readiness-2026-08-27.md).
 At `e5d1a85ab96cffa58c77696006ad8a2a2753f347`, a Windows 11 x64
-frozen-lockfile install retry and `pnpm build:win:x64` both passed; signed ZIP,
-NSIS installer, and blockmap hashes are recorded in that evidence. The first
+frozen-lockfile install retry and `pnpm build:win:x64` both passed; ZIP, NSIS
+installer, and blockmap artifacts were generated and their hashes are recorded
+in that evidence. The NSIS installer is `NotSigned` by Authenticode and is for
+controlled local trials only; release signing/distribution approval remain
+`Untested` and unapproved, so this evidence cannot authorize publication. The first
 install attempt had a transient `native-keymap/build` `EBUSY` during postinstall;
 the identical retry succeeded without source or lockfile changes.
 

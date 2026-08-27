@@ -29,7 +29,7 @@ that installation.
 
 Build output included Vite dynamic-import notices and electron-builder duplicate
 dependency/platform-optional-dependency notices only; it exited zero and created
-the signed x64 artifacts below.
+the x64 artifacts below.
 
 ## Artifacts
 
@@ -38,6 +38,13 @@ the signed x64 artifacts below.
 | `dist/marktext-win-x64-0.20.0-rc.1.zip` | 172,762,409 | 2026-08-27T03:05:25.1602676Z | `6A2A4522514B642060CD81A42383B83E8B1E84E73300431C4EBBAD80DC487503` |
 | `dist/marktext-win-x64-0.20.0-rc.1-setup.exe` | 125,325,839 | 2026-08-27T03:05:54.7115072Z | `5A105177B5FEF6FB69D4FEF14179AD776AF094088CE39B7A1A478811D0196409` |
 | `dist/marktext-win-x64-0.20.0-rc.1-setup.exe.blockmap` | 131,481 | 2026-08-27T03:06:00.8802324Z | `09649AD93551932934C86FB2183A80D6B898C101F6B8E1BFE64608962D369EFA` |
+
+`Get-AuthenticodeSignature` reports the NSIS installer
+`dist/marktext-win-x64-0.20.0-rc.1-setup.exe` as `NotSigned`; its SHA-256 remains
+`5A105177B5FEF6FB69D4FEF14179AD776AF094088CE39B7A1A478811D0196409`.
+This does not block local A14 automated build readiness, but the installer is
+for controlled local trials only. Release signing and distribution approval are
+`Untested` and unapproved; this evidence cannot authorize publication.
 
 ## Read-only environment observation
 
