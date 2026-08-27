@@ -204,6 +204,11 @@ const openTransferPayload = async (
   transferId: string,
   portableHistory?: PortableHistory
 ): Promise<StagedTransfer> => {
+  const bootstrap = controller.getFacadeSnapshot().documents
+  const bootstrapViewId = bootstrap.length === 1 &&
+    !bootstrap[0].fileKey && !bootstrap[0].dirty && !bootstrap[0].markdown.trim()
+    ? bootstrap[0].viewId
+    : undefined
   const staged = stagedTransfers.get(transferId) ?? {
     // Document IDs are window-local. Source identity remains lineage metadata,
     // never an adopted target document identity.
@@ -226,6 +231,10 @@ const openTransferPayload = async (
     }
   })
   if (opened.status !== 'applied') throw new Error(workspaceReason(opened))
+  if (bootstrapViewId) {
+    const closed = await controller.execute({ kind: 'close-view', viewId: bootstrapViewId })
+    if (closed.status !== 'applied') throw new Error(workspaceReason(closed))
+  }
   stagedTransfers.set(transferId, staged)
   return staged
 }
@@ -314,8 +323,8 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
     }
     const pane = controller.getProjection().panes.find((candidate) => candidate.tabs.some((tab) => tab.viewId === document.viewId))
     const composition = pane?.paneId === 'left' ? left : pane?.paneId === 'right' ? right : undefined
-    if (document.dirty && composition) {
-      const durable = await composition.hasDurableCrashDraft(document.documentId, document.documentRevision)
+    if (composition) {
+      const durable = await composition.checkpointTransferTarget(document.documentId, document.documentRevision)
       return durable
         ? { status: 'ok' }
         : { status: 'nack', reason: 'target crash-draft checkpoint was not durable' }

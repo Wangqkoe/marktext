@@ -43,13 +43,13 @@ for (const scenario of [
       expect(target).toBeTruthy()
       await expect(target!.locator('.editor-with-tabs')).toBeVisible()
       await expect(target!.locator('body')).toContainText(kind === 'untitled' ? 'Untitled move content' : 'Move action content')
-    // A newly created window owns its bootstrap New Tab as well as the moved
-    // view.  The active item must be the local target view, never the source
-    // document identity supplied by the intent.
-      await expect(target!.locator('.tabs-container li')).toHaveCount(2)
+    // A transfer target owns only the local target view, never its startup
+    // bootstrap tab or the source document identity supplied by the intent.
+      await expect(target!.locator('.tabs-container li')).toHaveCount(1)
       const activeTargetTab = target!.locator('.tabs-container li.active')
       await expect(activeTargetTab).toHaveCount(1)
       await expect(activeTargetTab).not.toHaveAttribute('data-id', tabId!)
+      await expect(activeTargetTab).toHaveAttribute('data-id', /^transfer-target:/)
       await expect(activeTargetTab).toHaveClass(expectedDirty ? /unsaved/ : /active/)
       await expect(page.locator('.tabs-container li')).toHaveCount(1)
       await expect(page.locator('.tabs-container li')).toContainText('New Tab')
@@ -59,6 +59,101 @@ for (const scenario of [
     }
   })
 }
+
+test('moves the last saved tab into a singleton target and closes that target through File Close Tab', async() => {
+  test.setTimeout(60_000)
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-transfer-singleton-target-'))
+  const file = path.join(profile, 'move.md')
+  fs.writeFileSync(file, '# Singleton transfer target\n')
+  const { app, page } = await launchElectron([file], { userDataDir: profile, userDataDirOwnership: 'caller' })
+  const child = app.process()
+  try {
+    await expect(page.locator('.editor-with-tabs')).toBeVisible()
+    const tabId = await page.locator('.tabs-container li').first().getAttribute('data-id')
+    expect(tabId).toBeTruthy()
+    await expect(page.evaluate(async(id) => {
+      const driver = window as unknown as {
+        __mtMoveTabToNewWindow?: (input: { tabId: string; paneId: 'left' | 'right' }) => Promise<unknown>
+      }
+      return driver.__mtMoveTabToNewWindow?.({ tabId: id!, paneId: 'left' })
+    }, tabId)).resolves.toMatchObject({ status: 'applied' })
+
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
+    await expect(page.locator('.tabs-container li')).toHaveCount(1)
+    await expect(page.locator('.tabs-container li')).toContainText('New Tab')
+
+    const targetId = await app.evaluate(async({ BrowserWindow }, marker) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (await window.webContents.executeJavaScript(`document.body.innerText.includes(${JSON.stringify(marker)})`)) return window.id
+      }
+      return undefined
+    }, 'Singleton transfer target')
+    if (!targetId) throw new Error('moved target window was not found')
+    const target = (await app.windows()).find(candidate => candidate !== page)
+    if (!target) throw new Error('moved target Playwright page was not found')
+    await expect(target.locator('.tabs-container li')).toHaveCount(1)
+    await expect(target.locator('.tabs-container li')).toHaveAttribute('data-id', /^transfer-target:/)
+    await expect(target.locator('.tabs-container li')).not.toContainText('Untitled-1')
+
+    const closeTarget = target.waitForEvent('close')
+    await app.evaluate(({ BrowserWindow, Menu }, windowId) => {
+      const window = BrowserWindow.fromId(windowId)
+      const fileMenu = Menu.getApplicationMenu()?.items.find(item => item.submenu?.items.some(entry => entry.label === 'Close Tab'))
+      const closeTab = fileMenu?.submenu?.items.find(item => item.label === 'Close Tab')
+      if (!window || !closeTab) throw new Error('File > Close Tab is unavailable')
+      closeTab.click(undefined, window, window.webContents)
+    }, targetId)
+    await closeTarget
+    await expect.poll(() => app.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId) === null, targetId)).toBe(true)
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+
+    const sourceId = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.id)
+    if (!sourceId) throw new Error('source window was not retained after closing the target')
+    await app.evaluate(({ BrowserWindow, Menu }, windowId) => {
+      const window = BrowserWindow.fromId(windowId)
+      const fileMenu = Menu.getApplicationMenu()?.items.find(item => item.submenu?.items.some(entry => entry.label === 'Close Tab'))
+      const closeTab = fileMenu?.submenu?.items.find(item => item.label === 'Close Tab')
+      if (!window || !closeTab) throw new Error('File > Close Tab is unavailable')
+      closeTab.click(undefined, window, window.webContents)
+    }, sourceId)
+    await expect.poll(() => child.exitCode, { timeout: 5_000 }).toBe(0)
+  } finally {
+    if (child.exitCode === null) await forceTerminate(app)
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
+test('keeps ordinary New Window and Open in new window isolated from the source', async() => {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-ordinary-new-window-'))
+  const file = path.join(profile, 'open.md')
+  fs.writeFileSync(file, '# Open in new window\n')
+  const { app, page } = await launchElectron([file], { userDataDir: profile, userDataDirOwnership: 'caller' })
+  try {
+    await expect(page.locator('.editor-with-tabs')).toBeVisible()
+    const blankWindow = app.waitForEvent('window')
+    await app.evaluate(({ BrowserWindow, Menu }) => {
+      const window = BrowserWindow.getFocusedWindow()
+      const fileMenu = Menu.getApplicationMenu()?.items.find(item => item.submenu?.items.some(entry => entry.label === 'New Window'))
+      const newWindow = fileMenu?.submenu?.items.find(item => item.label === 'New Window')
+      if (!window || !newWindow) throw new Error('File > New Window is unavailable')
+      newWindow.click(undefined, window, window.webContents)
+    })
+    const blank = await blankWindow
+    await expect(blank.locator('.tabs-container li')).toHaveCount(1)
+    await expect(blank.locator('.tabs-container li')).toContainText('Untitled-1')
+    await expect(page.locator('body')).toContainText('Open in new window')
+
+    const openedWindow = app.waitForEvent('window')
+    await page.evaluate(filePath => window.electron.ipcRenderer.send('mt::cmd-open-file-in-new-window', filePath), file)
+    const opened = await openedWindow
+    await expect(opened.locator('.tabs-container li')).toHaveCount(1)
+    await expect(opened.locator('body')).toContainText('Open in new window')
+    await expect(page.locator('body')).toContainText('Open in new window')
+  } finally {
+    await forceTerminate(app)
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
 
 test('restores dirty saved-tab history in the target after a last-tab Move', async() => {
   test.setTimeout(60_000)
