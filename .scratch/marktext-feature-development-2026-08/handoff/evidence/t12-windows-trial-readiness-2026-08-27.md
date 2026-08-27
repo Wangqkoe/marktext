@@ -74,7 +74,7 @@ physical versus remote input, and a defect reference for every `Failed` item.
 | Physical external release, Move/Open, last tab, dirty/untitled/history | Untested | On supported Windows single-primary physical input, prove only trusted outside left-up detaches; test re-entry, Escape, source clean New Tab, history, and conflict behavior. |
 | Unsupported/mixed-DPI fallback and menu Move | Untested | On multi-display or mixed-DPI configuration, prove detach is disabled and the menu Move action remains usable. |
 | Split/display/scale/motion/keyboard/theme/reduced motion | Untested | Check 720px fallback, divider constraints, display-scale behavior, 180ms/0ms motion, keyboard routing and light/dark themes. |
-| Details accessibility and reader/PDF export | Untested | Mouse/focus/Enter/Space and screen-reader semantics; inspect exported HTML/PDF for standard `details`/`open` markup and no editor styling. |
+| Details source/preview, accessibility, and reader/PDF export | Untested | From details preview, enter source then use Escape or Preview to return to preview; after a theme change, verify state and peer-pane ownership. With `disableHtml`, verify escaped source and no native disclosure, then re-enable it and verify preview returns. Confirm Markdown round-trip before/after preserves original `details`/`open` semantics; also check mouse/focus/Enter/Space, screen-reader semantics, and exported HTML/PDF has standard markup with no editor styling. |
 
 ## Gate result and coordinator handoff
 
