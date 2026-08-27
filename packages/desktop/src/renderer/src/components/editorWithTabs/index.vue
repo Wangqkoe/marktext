@@ -324,6 +324,7 @@ onMounted(async () => {
   window.addEventListener('pointerup', releaseTabDrag, true)
   // T06 test/automation seam; this invokes the exact action future T08 UI will import.
   moveActionDriver.__mtMoveTabToNewWindow = ({ tabId, paneId }) => moveTabToNewWindow(tabId, paneId)
+  moveActionDriver.__mtWorkspaceSnapshot = () => structuredClone(controller.getFacadeSnapshot())
   stopTransferCommands = transfer.bind(acknowledgeTransferCommand)
   stopTransferRecovery = transfer.bindRecovery(async (message: TransferRecoveryMessage) => {
     await openTransferPayload(message.payload, message.transferId)
@@ -337,6 +338,7 @@ let stopTransferCommands: (() => void) | undefined
 let stopTransferRecovery: (() => void) | undefined
 type MoveActionDriver = Window & {
   __mtMoveTabToNewWindow?: (input: { readonly tabId: string; readonly paneId: 'left' | 'right' }) => Promise<unknown>
+  __mtWorkspaceSnapshot?: () => ReturnType<typeof controller.getFacadeSnapshot>
 }
 const moveActionDriver = window as MoveActionDriver
 onBeforeUnmount(() => {
@@ -352,6 +354,7 @@ onBeforeUnmount(() => {
   stopTransferCommands?.()
   stopTransferRecovery?.()
   delete moveActionDriver.__mtMoveTabToNewWindow
+  delete moveActionDriver.__mtWorkspaceSnapshot
 })
 </script>
 

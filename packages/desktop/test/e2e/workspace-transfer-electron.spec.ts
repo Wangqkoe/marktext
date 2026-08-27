@@ -268,19 +268,12 @@ test('forwards an authorized Move through startup recovery without restoring inj
       }
     }
     if (!recovered) throw new Error('recovered window was not found')
-    const recoveredId = await second.app.evaluate(async({ BrowserWindow }, marker) => {
-      for (const window of BrowserWindow.getAllWindows()) {
-        if (await window.webContents.executeJavaScript(`document.body.innerText.includes(${JSON.stringify(marker)})`)) return window.id
+    await expect.poll(() => recovered!.evaluate((marker) => {
+      const driver = window as unknown as {
+        __mtWorkspaceSnapshot?: () => { documents: Array<{ markdown: string; portableHistory: unknown }> }
       }
-      return undefined
-    }, 'recovery history must not restore')
-    if (!recoveredId) throw new Error('recovered BrowserWindow was not found')
-    await second.app.evaluate(async({ BrowserWindow }, windowId) => {
-      const contents = BrowserWindow.fromId(windowId)?.webContents
-      contents?.send('mt::editor-edit-action', 'undo')
-      await contents?.executeJavaScript('Promise.resolve()')
-    }, recoveredId)
-    await expect(recovered.locator('.editor-component')).toContainText('recovery history must not restore')
+      return driver.__mtWorkspaceSnapshot?.().documents.find(document => document.markdown.includes(marker))?.portableHistory
+    }, 'recovery history must not restore')).toEqual({ version: 1, value: [] })
   } finally {
     if (!firstKilled) await forceTerminate(first.app)
     await forceTerminate(secondApp)
