@@ -124,9 +124,11 @@ class HTMLBlock extends Parent {
 
     private _exitSourceEditing() {
         // The source content may still own the browser focus. Move it back to
-        // the editor root before clearing the block state, otherwise the
-        // deferred content-focus update can immediately reactivate this block.
+        // the editor root before clearing the block state. Clear its native
+        // selection too: a forced rebuild (such as a theme change) restores
+        // that range into the new tree and would otherwise reopen raw source.
         this.firstContentInDescendant()?.domNode?.blur();
+        this.muya.editor.selection.clear();
         this.muya.domNode.focus();
         if (this._escapeListenerId) {
             this.muya.eventCenter.detachDOMEvent(this._escapeListenerId);

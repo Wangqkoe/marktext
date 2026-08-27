@@ -24,7 +24,7 @@ function bootDetails(source: string) {
     const block = figure[BLOCK_DOM_PROPERTY] as HTMLBlock;
     const content = block.firstContentInDescendant()!;
 
-    return { block, content, figure };
+    return { muya, block, content, figure };
 }
 
 function nextFrame() {
@@ -107,5 +107,26 @@ describe('raw HTML details disclosure sanitization', () => {
         await nextFrame();
         expect(block.active).toBe(true);
         expect(figure.classList.contains('mu-active')).toBe(true);
+    });
+
+    it('keeps escaped source in preview through a forced option re-render', async () => {
+        const { muya, block, content } = bootDetails(
+            '<details><summary>More</summary>Body</details>\n',
+        );
+
+        block.enterSourceEditing();
+        await nextFrame();
+        expect(block.active).toBe(true);
+        content.domNode!.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Escape',
+            bubbles: true,
+            cancelable: true,
+        }));
+
+        muya.setOptions({ mermaidTheme: 'dark', vegaTheme: 'dark' }, true);
+
+        const rebuilt = muya.domNode.querySelector<HTMLElement>('figure.mu-html-block')!;
+        expect(rebuilt.classList.contains('mu-active')).toBe(false);
+        expect(rebuilt.querySelector('.mu-html-preview details')).not.toBeNull();
     });
 });
