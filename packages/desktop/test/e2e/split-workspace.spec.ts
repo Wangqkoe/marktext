@@ -1,8 +1,16 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
+import { execFileSync, type ChildProcess } from 'node:child_process'
 import { launchElectron, launchWithMarkdown, sendIpcToRenderer, waitForEditor, waitForMenuReady } from './helpers'
 
 const tabSelector = '.tabs-container > li'
+
+const terminate = async(child: ChildProcess): Promise<void> => {
+  if (child.exitCode !== null) return
+  const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
+  try { execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' }) } catch {}
+  await Promise.race([exited, new Promise<void>(resolve => setTimeout(resolve, 5_000))])
+}
 
 const workspaceBox = async(page: Page) => {
   const box = await page.locator('.editor-with-tabs').boundingBox()
@@ -68,7 +76,15 @@ test.describe('Split workspace', () => {
     await expect(page.locator(tabSelector)).toHaveCount(2)
   })
 
-  test.afterEach(async() => { await app?.close() })
+  test.afterEach(async() => {
+    if (!app) return
+    const child = app.process()
+    try {
+      await Promise.race([app.close(), new Promise<void>(resolve => setTimeout(resolve, 5_000))])
+    } finally {
+      await terminate(child)
+    }
+  })
 
   test('previews edge candidates, cancels invalid gestures, and splits only on document-area release', async() => {
     const root = await workspaceBox(page)
