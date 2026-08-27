@@ -106,6 +106,14 @@ physical versus remote input, and a defect reference for every `Failed` item.
 
 ## Gate result and coordinator handoff
 
+### Split-workspace teardown follow-up — 2026-08-27
+
+The focused split cleanup repair was checked against the integration baseline:
+the whole `split-workspace.spec.ts` suite passed 4/4 and
+`last-tab-window-close.spec.ts` passed 5/5. This is Electron/Playwright fixture
+evidence only; it does not replace the required packaged Windows dirty-exit
+manual trial.
+
 | Gate | Status | Evidence / next action |
 | --- | --- | --- |
 | A14 automated clean Windows-build readiness | Passed | Frozen install retry and `build:win:x64` passed at the provenance commit; artifacts and hashes above. |

@@ -68,6 +68,19 @@ both original T11 reproductions:
 
 ## Disposition
 
+## Split-workspace teardown follow-up — 2026-08-27
+
+At integration baseline `f8179476e449fd40d975300455594593fd065d3f`, the second
+`split-workspace.spec.ts` case reproducibly completed its functional assertions
+then timed out in `afterEach` at Playwright `app.close()` (two runs, 30 seconds
+each). A one-window main-process probe ruled out a surviving `BrowserWindow`;
+the final state had dirty tabs, but a close-dialog probe was not entered, and
+disabling the native-gesture begin path did not change the timeout. The split
+fixture now waits up to five seconds for normal Playwright closure and then
+terminates only the Electron child process tree it launched. No production close
+or dirty-exit logic changed. Focused regression passed in 12.3 seconds and the
+full split suite passed 4/4 in 23.9 seconds.
+
 The two T11-owned real-Electron composition tests and their required T06/Move
 prerequisites pass at integration HEAD
 `66749ef1bd4da946094bd4351f0f02378ca7308c`. T11 automated composition
