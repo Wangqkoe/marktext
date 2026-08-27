@@ -1116,40 +1116,7 @@ export const useEditorStore = defineStore('editor', {
       if (target === null) return
       const workspace = workspaceFor(this)
       if (workspace) {
-        const pane = this.workspaceProjection?.panes.find(
-          (candidate) => candidate.paneId === this.workspaceProjection?.focusedPaneId
-        )
-        const view = pane?.tabs.find((tab) => tab.documentId === target.id)
-        if (!pane || !view) return
-        const close = await workspace.execute({ kind: 'close-view', viewId: view.viewId })
-        if (close.status !== 'needs-decision') return
-        const decision = await workspace.confirmClose(view.viewId)
-        if (decision === 'cancel') return
-        if (decision === 'discard') {
-          await workspace.execute({ kind: 'commit-authorized', capability: close.capability })
-          return
-        }
-        const save = target.pathname
-          ? await workspace.execute({ kind: 'save', paneId: pane.paneId, viewId: view.viewId })
-          : await workspace.chooseSaveTarget(view.viewId).then((pathname) =>
-            pathname
-              ? workspace.execute({
-                kind: 'save-as',
-                paneId: pane.paneId,
-                viewId: view.viewId,
-                fileKey: pathname,
-                title: window.path.basename(pathname)
-              })
-              : undefined
-          )
-        if (!save || save.status !== 'applied') return
-        const committed = await workspace.execute({ kind: 'commit-authorized', capability: close.capability })
-        if (committed.status === 'rejected') {
-          // Binding an untitled Save As intentionally rotates the owner fence,
-          // invalidating the old close capability. The durable save is clean,
-          // so a fresh controller close is the only safe continuation.
-          await workspace.execute({ kind: 'close-view', viewId: view.viewId })
-        }
+        await workspace.closeTab(target.id)
         return
       }
 

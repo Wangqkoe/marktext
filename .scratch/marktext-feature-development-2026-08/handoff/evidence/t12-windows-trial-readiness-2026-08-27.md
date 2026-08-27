@@ -68,7 +68,7 @@ physical versus remote input, and a defect reference for every `Failed` item.
 | Required trial | Status | Minimum observation to record |
 | --- | --- | --- |
 | Default-off startup and explicit associated/CLI target startup | Untested | Normal restart gives one clean New Tab; explicit launch opens only its targets; no inert restore setting; legacy `editorBufferStore` remains untouched. |
-| Normal and dirty exit | Untested | Clean exit restores no old tabs/split; dirty save/discard/cancel prompt behavior is unchanged. |
+| Normal and dirty exit | Untested | Clean exit restores no old tabs/split; dirty save/discard/cancel prompt behavior is unchanged. New 2026-08-26 product decision: when a window has its final tab, its tab close button/tab-close command, Alt+F4, and Windows title-bar X close the window rather than leave a New Tab; Cancel keeps the window/document open and Save/Discard close only after the existing durable path succeeds. This row remains untested by a human Windows trial. |
 | CrashDraft recovery and power-loss path | Untested | After dirty saved and untitled edits, force a controlled crash/power loss; verify recovery under both normal and explicit target launch, corrupt-latest warning/fallback where fault tooling permits, and changed-disk recovered copy. |
 | MoveRecovery | Untested | Interrupt an authorized Move and verify safe recovery; explicit targets must not suppress it. |
 | Physical external release, Move/Open, last tab, dirty/untitled/history | Untested | On supported Windows single-primary physical input, prove only trusted outside left-up detaches; test re-entry, Escape, source clean New Tab, history, and conflict behavior. |

@@ -152,7 +152,7 @@ const selectAdjacentTab = (file: IFileState, offset: -1 | 1): void => {
 }
 
 const removeFileInTab = (file: IFileState) => {
-  props.composition.closeLegacyTab(file.id).catch((error) => {
+  props.composition.closeTab(file.id).catch((error) => {
     console.error('Failed to close workspace pane tab:', error)
   })
 }
@@ -199,7 +199,7 @@ const handleTabScroll = (event: WheelEvent) => {
 const closeTab = (tabId: unknown) => {
   const tab = tabs.value.find((f) => f.id === tabId)
   if (tab) {
-    props.composition.closeLegacyTab(tab.id).catch((error) => {
+    props.composition.closeTab(tab.id).catch((error) => {
       console.error('Failed to close workspace pane tab:', error)
     })
   }

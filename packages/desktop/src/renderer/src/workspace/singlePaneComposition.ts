@@ -446,6 +446,20 @@ export class PaneEditorComposition {
       : retry
   }
 
+  /**
+   * A last-tab command is a window-exit request, not an empty-workspace
+   * transition. The native close path keeps dirty confirmation and CrashDraft
+   * durability checks in one place.
+   */
+  async closeTab(documentId: string): Promise<WorkspaceResult> {
+    const runtime = this.runtime
+    if (runtime?.getFacadeSnapshot().documents.length === 1) {
+      window.electron.ipcRenderer.send('mt::cmd-close-window')
+      return { status: 'applied', workspaceRevision: runtime.getProjection().workspaceRevision }
+    }
+    return this.closeLegacyTab(documentId)
+  }
+
   async closeMatchingTabs(match: (documentId: string, dirty: boolean) => boolean): Promise<void> {
     const tabs = this.runtime
       ?.getProjection()

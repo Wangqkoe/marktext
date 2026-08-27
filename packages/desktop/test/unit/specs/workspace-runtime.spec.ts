@@ -261,6 +261,51 @@ function tabAt(pane: WorkspaceProjectionPane, index: number): WorkspaceProjectio
 }
 
 describe('WorkspaceRuntime', () => {
+  it('uses window exit only for a singleton tab close, not multi-tab or batch closes', async() => {
+    const testWindow = window as unknown as {
+      electron?: { ipcRenderer?: { send?: (...args: unknown[]) => void } }
+    }
+    const originalElectron = testWindow.electron
+    const send = vi.fn()
+    testWindow.electron = {
+      ...originalElectron,
+      ipcRenderer: { ...originalElectron?.ipcRenderer, send }
+    }
+
+    try {
+      const singleton = createWorkspaceRuntime([{ documentId: 'only', fileKey: '/only.md' }])
+      const singletonComposition = createPaneEditorComposition({ paneId: 'left', controller: singleton })
+      await singletonComposition.closeTab('only')
+      expect(send).toHaveBeenCalledWith('mt::cmd-close-window')
+
+      send.mockClear()
+      const multiTab = createWorkspaceRuntime([
+        { documentId: 'first', fileKey: '/first.md' },
+        { documentId: 'second', fileKey: '/second.md' }
+      ])
+      const multiTabComposition = createPaneEditorComposition({ paneId: 'left', controller: multiTab })
+      await multiTabComposition.closeTab('first')
+      expect(send).not.toHaveBeenCalledWith('mt::cmd-close-window')
+      expect(paneAt(multiTab.getProjection(), 0).tabs.map((tab) => tab.documentId)).toEqual(['second'])
+
+      for (const [name, match] of [
+        ['Close Saved', (_documentId: string, dirty: boolean) => !dirty],
+        ['Close All', () => true]
+      ] as const) {
+        send.mockClear()
+        const batch = createWorkspaceRuntime([{ documentId: name, fileKey: `/${name}.md` }])
+        const batchComposition = createPaneEditorComposition({ paneId: 'left', controller: batch })
+        await batchComposition.closeMatchingTabs(match)
+        expect(send, name).not.toHaveBeenCalledWith('mt::cmd-close-window')
+        const remaining = paneAt(batch.getProjection(), 0).tabs
+        expect(remaining).toHaveLength(1)
+        expect(remaining[0]).toMatchObject({ title: 'New Tab', dirty: false })
+      }
+    } finally {
+      testWindow.electron = originalElectron
+    }
+  })
+
   it('routes the mounted production facade through one T04b port and releases its binding', async () => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'note', fileKey: '/note.md', markdown: 'one', title: 'note.md' }
