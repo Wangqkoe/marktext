@@ -23,8 +23,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import { createElectronCrashDraftPort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
-import type { TransferAck, TransferCommand, TransferIntent, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
-import type { CrashDraftRecoveryPayload } from '@shared/workspace'
+import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
+import type { CrashDraftRecoveryPayload, PortableHistory } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { usePreferencesStore } from '@/store/preferences'
@@ -150,7 +150,11 @@ const startDivider = (event: PointerEvent) => {
   window.addEventListener('pointercancel', endDivider)
 }
 let legacyCommandPane: 'left' | 'right' | undefined
-const openTransferPayload = async (payload: TransferRecoveryPayload | TransferIntent['capsule'], transferId: string): Promise<StagedTransfer> => {
+const openTransferPayload = async (
+  payload: TransferRecoveryPayload,
+  transferId: string,
+  portableHistory?: PortableHistory
+): Promise<StagedTransfer> => {
   const staged = stagedTransfers.get(transferId) ?? {
     // Document IDs are window-local. Source identity remains lineage metadata,
     // never an adopted target document identity.
@@ -166,7 +170,7 @@ const openTransferPayload = async (payload: TransferRecoveryPayload | TransferIn
       markdown: payload.markdown,
       savedMarkdown: payload.dirty ? '' : payload.markdown,
       dirty: payload.dirty,
-      ...('history' in payload ? { portableHistory: payload.history } : {}),
+      ...(portableHistory ? { portableHistory } : {}),
       title: payload.title,
       ...(payload.fileKey ? { fileKey: payload.fileKey, observedDiskRevision: payload.observedDiskRevision } : {}),
       conflict: payload.conflict
@@ -234,7 +238,7 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
   if (command.operation === 'stage') {
     const response = await transfer.payload(command.transferId, command.capability)
     if (!response.durable) return { status: 'nack', reason: response.reason }
-    await openTransferPayload(response.payload, command.transferId)
+    await openTransferPayload(response.payload, command.transferId, response.payload.history)
     return { status: 'ok' }
   }
   if (command.operation === 'release') {
