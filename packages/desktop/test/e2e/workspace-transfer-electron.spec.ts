@@ -128,10 +128,26 @@ test('moves the last saved tab into a singleton target and closes that target th
 
     const second = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
     restarted = second.app
-    await expect(second.page.locator('.tabs-container li')).toHaveCount(1)
-    await expect(second.page.locator('.tabs-container li')).not.toHaveClass(/unsaved/)
-    await expect(second.page.locator('.editor-component')).toHaveText('')
-    await expect(second.page.locator('body')).not.toContainText('Singleton transfer target')
+    await expect(second.page.locator('.editor-with-tabs')).toBeVisible()
+    // Recovery windows are launched asynchronously, so let startup settle before
+    // proving the profile has only its clean startup bootstrap window.
+    await second.page.waitForTimeout(1_000)
+    await expect.poll(() => second.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+    const restartedWindows = await second.app.windows()
+    expect(restartedWindows).toHaveLength(1)
+    for (const window of restartedWindows) {
+      const tabs = window.locator('.tabs-container > li')
+      await expect(tabs).toHaveCount(1)
+      await expect(tabs).not.toHaveClass(/unsaved/)
+      await expect(tabs).not.toHaveAttribute('data-id', /^(?:transfer-target|crash-recovery):/)
+      // Cold startup renders the pristine bootstrap with this distinct label;
+      // do not conflate it with the Move source's replacement New Tab.
+      await expect(tabs.locator('.tab-filename')).toHaveText('Untitled-1')
+      await expect(window.locator('.editor-component')).toHaveText('')
+      await expect(window.locator('body')).not.toContainText('Singleton transfer target')
+      await expect(window.locator('body')).not.toContainText('move.md')
+      await expect(window.locator('body')).not.toContainText('Recovered Draft')
+    }
   } finally {
     if (child.exitCode === null) await forceTerminate(app)
     await forceTerminate(restarted)
