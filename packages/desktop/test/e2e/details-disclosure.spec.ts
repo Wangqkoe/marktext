@@ -7,6 +7,7 @@ import {
   clickMenuById,
   getMarkdownContent,
   launchWithMarkdown,
+  sendIpcToRenderer,
   setSourceMarkdown
 } from './helpers'
 
@@ -16,6 +17,18 @@ const disclosure = (page: Page) => page.locator('.editor-component .mu-html-prev
 const summary = (page: Page) => disclosure(page).locator('summary')
 const sourceAction = (page: Page) =>
   page.locator('.editor-component .mu-html-preview .mu-details-source-action')
+const tabSelector = '.tabs-container > li'
+
+const splitAtLeftEdge = async(page: Page, tab: ReturnType<Page['locator']>): Promise<void> => {
+  const tabBox = await tab.boundingBox()
+  const workspace = await page.locator('.editor-with-tabs').boundingBox()
+  if (!tabBox || !workspace) throw new Error('workspace or tab is not visible')
+  await page.mouse.move(tabBox.x + Math.min(12, tabBox.width / 2), tabBox.y + tabBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(workspace.x + 4, workspace.y + workspace.height * 0.55, { steps: 8 })
+  await page.mouse.up()
+  await expect(page.locator('.workspace-pane')).toHaveCount(2)
+}
 
 const restorePreview = async(page: Page): Promise<void> => {
   if (await disclosure(page).isVisible()) return
@@ -192,4 +205,30 @@ test.describe('raw HTML details disclosure in the desktop editor', () => {
     expect(output).not.toContain('details-disclosure')
     fs.rmSync(outputPath)
   })
+})
+
+test('keeps the escaped details block in preview through a split-pane theme change', async() => {
+  const { app, page } = await launchWithMarkdown(CLOSED)
+  try {
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, '# Other pane\n')
+    await expect(page.locator(tabSelector)).toHaveCount(2)
+    await splitAtLeftEdge(page, page.locator(tabSelector).nth(1))
+
+    const detailsPane = page.locator('.workspace-pane').nth(1)
+    const detailsDisclosure = detailsPane.locator('.mu-html-preview details')
+    await expect(detailsDisclosure).toBeVisible()
+
+    await detailsPane.click()
+    await detailsPane.locator('.mu-details-source-action').click()
+    await expect(detailsPane.locator('.mu-html-block')).toHaveClass(/mu-active/)
+    await page.keyboard.press('Escape')
+    await expect(detailsDisclosure).toBeVisible()
+
+    await clickMenuById(app, 'dracula')
+    await expect(detailsDisclosure).toBeVisible()
+    await expect(detailsPane.locator('.mu-html-block')).not.toHaveClass(/mu-active/)
+    await clickMenuById(app, 'light')
+  } finally {
+    await app.close().catch(() => {})
+  }
 })
