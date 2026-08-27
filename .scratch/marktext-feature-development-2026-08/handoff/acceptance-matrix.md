@@ -22,6 +22,24 @@ integration branch; `Passed` may be claimed only with all four.
 | A13 | cross-feature regression, default-off startup and two-source emergency recovery — T11 | `pnpm -C packages/desktop exec playwright test test/e2e/workspace-transfer.spec.ts test/e2e/workspace-details-composition.spec.ts test/e2e/workspace-startup-policy.spec.ts`; `pnpm -C packages/desktop typecheck`; `pnpm lint` | tabs/split/Move/Open/details plus CrashDraft kill recovery, corrupt-latest warning/disk-conflict copy, MoveRecovery, explicit-only file, clean no-restore, dirty-exit decision and retained legacy data | required |
 | A14 | clean Windows-build readiness evidence — T12 | `pnpm install --frozen-lockfile`; `pnpm build:win:x64` (clean Windows builder) | trial records default-off clean/explicit startup, no inert setting, clean/dirty exit outcomes, CrashDraft durable-failure fallback/conflict copy and Move recovery, legacy-data retention, display/scale/motion and defects; coordinator—not T12—requests Acceptance | readiness |
 
+## T12 Windows trial readiness evidence — 2026-08-27
+
+See [T12 Windows trial readiness evidence](evidence/t12-windows-trial-readiness-2026-08-27.md).
+At `e5d1a85ab96cffa58c77696006ad8a2a2753f347`, a Windows 11 x64
+frozen-lockfile install retry and `pnpm build:win:x64` both passed; ZIP, NSIS
+installer, and blockmap artifacts were generated and their hashes are recorded
+in that evidence. The NSIS installer is `NotSigned` by Authenticode and is for
+controlled local trials only; release signing/distribution approval remain
+`Untested` and unapproved, so this evidence cannot authorize publication. The first
+install attempt had a transient `native-keymap/build` `EBUSY` during postinstall;
+the identical retry succeeded without source or lockfile changes.
+
+| Evidence | Status | Exact result / remaining condition |
+| --- | --- | --- |
+| A14 automated clean Windows-build readiness | Passed | `pnpm install --frozen-lockfile` passed on retry; `pnpm build:win:x64` exit 0 on Windows 11 Pro 10.0.26200, Node 24.18.0, pnpm 10.33.4. |
+| A14 manual Windows trial | Untested | Startup/exit, CrashDraft power-loss/fallback/conflict, MoveRecovery, physical external release, unsupported fallback/menu Move, display/scale/motion, accessibility, and PDF checks have not been executed. |
+| T12 final acceptance | Untested | T12 does not request or declare Acceptance. The coordinator must complete the manual trial, final independent reviews, defect disposition, and user Acceptance. |
+
 ## T03 integration evidence — 2026-08-25
 
 The A03 evidence below is recorded from the locally integrated commit
