@@ -6,6 +6,7 @@
       :pane="pane"
       :focused="focused"
       @tab-drag="$emit('tab-drag', $event)"
+      @tab-press="$emit('tab-press', $event)"
     />
     <div v-if="activeFile" class="container">
       <editor
@@ -68,6 +69,7 @@ defineEmits<{
     x?: number
     y?: number
   }]
+  'tab-press': [event: { viewId?: string; button: number }]
 }>()
 
 const paneFiles = computed(() => props.pane.tabs.flatMap((tab) => {

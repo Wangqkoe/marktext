@@ -42,3 +42,14 @@ both automatic flag cases and disablement fallback must be Passed. Commit only
 owned adapter/package/resource/tests. Independent terra/high Standards + Spec
 review verifies no crossing/blur/timeout bypass, helper signing/packaging, resource
 cleanup, process exit, and fault-default-disable behavior.
+
+## T07 local execution evidence — 2026-08-26
+
+| Evidence | Status | Exact result / limitation |
+| --- | --- | --- |
+| Native adapter contract | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts`; Windows Node/Vitest; 1 file / 8 passed. It covers both injected-flag values, inside-up, re-entry, Escape, crossing/blur/timeout, stale endpoint epoch, replacement session, unsupported capability, and hit-test failure. |
+| T06/Move unit regression | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-emergency-recovery.spec.ts`; 3 files / 18 passed. |
+| Typecheck | Passed | `pnpm -C packages/desktop typecheck`; exit 0. |
+| Scoped ESLint | Passed | Targeted T07 files exit 0; 9 existing Vue attribute-format warnings in `editorWithTabs/index.vue` and `pane.vue`, no errors. |
+| Windows package smoke | Unavailable | `pnpm build:win:x64` completed locale minification, Electron rebuild (including `uiohook-napi`) and Electron-Vite bundle. `electron-builder` then remained in `searching for node modules` with no artifact or exit result and its controlled process tree was terminated. It is not a package pass. |
+| Real physical smoke | Untested | Run the Windows 11 single-primary 2560×1440 / 96-DPI scenario: tab left-down, leave window and release; inside-up; re-entry then inside-up; Escape then outside-up; blur/timeout while held. Also record remote/assistive availability. |

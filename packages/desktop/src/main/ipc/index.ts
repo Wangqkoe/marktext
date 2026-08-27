@@ -8,7 +8,7 @@ import { registerShellHandlers } from './shell'
 import { registerWindowHandlers } from './window'
 import { registerCmdHandlers } from './cmd'
 import { registerI18nHandlers } from './i18n'
-import { ipcMain } from 'electron'
+import { app, ipcMain } from 'electron'
 import {
   createProductionDocumentIoAdapter,
   registerDocumentIoIpc,
@@ -20,6 +20,8 @@ import {
   type CrashDraftElectronAdapter
 } from './crashDraft'
 import { createProductionTransferAdapter, registerTransferIpc, type TabTransferElectronAdapter } from './transfer'
+import { registerNativeGestureIpc } from './nativeGesture'
+import { ElectronNativeGestureAdapter } from '../nativeGesture/electron'
 export { configureTransferTargetFactory } from './transfer'
 
 let documentIoDispose: (() => void) | undefined
@@ -28,11 +30,14 @@ let crashDraftDispose: (() => void) | undefined
 let crashDraftAdapter: CrashDraftElectronAdapter | undefined
 let transferDispose: (() => void) | undefined
 let transferAdapter: TabTransferElectronAdapter | undefined
+let nativeGestureDispose: (() => void) | undefined
+let nativeGestureAdapter: ElectronNativeGestureAdapter | undefined
 
 /** T06 window/session assembly reuses this T04b adapter; it may not redefine its routes. */
 export const getDocumentIoAdapter = (): DocumentIoElectronAdapter | undefined => documentIoAdapter
 export const getCrashDraftAdapter = (): CrashDraftElectronAdapter | undefined => crashDraftAdapter
 export const getTransferAdapter = (): TabTransferElectronAdapter | undefined => transferAdapter
+export const getNativeGestureAdapter = (): ElectronNativeGestureAdapter | undefined => nativeGestureAdapter
 
 export const registerSandboxIpcHandlers = (): void => {
   registerBootInfo()
@@ -56,4 +61,12 @@ export const registerSandboxIpcHandlers = (): void => {
   transferDispose?.()
   transferAdapter = createProductionTransferAdapter()
   transferDispose = registerTransferIpc(ipcMain, transferAdapter)
+  nativeGestureDispose?.()
+  nativeGestureAdapter?.dispose()
+  nativeGestureAdapter = new ElectronNativeGestureAdapter(() => {
+    if (!transferAdapter) throw new Error('transfer adapter is unavailable')
+    return transferAdapter
+  })
+  nativeGestureDispose = registerNativeGestureIpc(ipcMain, nativeGestureAdapter)
+  app.once('before-quit', () => nativeGestureAdapter?.dispose())
 }

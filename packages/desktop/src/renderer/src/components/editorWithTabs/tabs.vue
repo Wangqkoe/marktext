@@ -26,6 +26,7 @@
             :aria-selected="currentFile?.id === file.id"
             :tabindex="currentFile?.id === file.id ? 0 : -1"
             @click.stop="selectFile(file)"
+            @pointerdown="beginTabGesture($event, file)"
             @keydown.left.prevent="selectAdjacentTab(file, -1)"
             @keydown.right.prevent="selectAdjacentTab(file, 1)"
           >
@@ -87,6 +88,7 @@ const emit = defineEmits<{
     x?: number
     y?: number
   }]
+  'tab-press': [event: { viewId?: string; button: number }]
 }>()
 
 const editorStore = useEditorStore()
@@ -137,6 +139,11 @@ const selectFile = (file: IFileState) => {
       console.error('Failed to activate workspace pane tab:', error)
     })
   }
+}
+
+const beginTabGesture = (event: PointerEvent, file: IFileState): void => {
+  const viewId = props.pane?.tabs.find((tab) => tab.documentId === file.id)?.viewId
+  emit('tab-press', { viewId, button: event.button })
 }
 
 const selectAdjacentTab = (file: IFileState, offset: -1 | 1): void => {
