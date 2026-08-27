@@ -60,6 +60,34 @@ physical-input evidence.
 `git diff --check` exited 0 after the build. A process scan found no residual
 Node/Electron process whose command line referenced this worktree.
 
+## Final-window exit corrective evidence — 2026-08-27
+
+The user manually tested a fresh-profile Windows x64 package built from baseline
+`499de31d7687c86614c47578ac05f99aa5e5405b`. The clean New Tab's Alt+F4 path
+**Failed**: the window returned to New Tab and the same main process later
+showed an extra `Untitled-1` window. The isolated profile had written
+`clean-shutdown.json` and had no unresolved CrashDraft, so this was not a
+dirty-exit or recovery result.
+
+The earlier `last-tab-window-close.spec.ts` result was a false positive: its
+four assertions waited only for the original Playwright `Page` to close. It did
+not prove that Electron's main child exited or that no subsequent
+`BrowserWindow` was created. The regression now records the spawned child
+before closing, requires it to exit within 5 seconds, and rejects every
+replacement window. It retains the tab button, tab command, title-bar, and
+native `BrowserWindow.close()` (Alt+F4) close entries. Because the unpackaged
+Playwright runner does not itself deliver Windows `activate` after its final
+window closes, the native-close regression also narrowly replays that documented
+main-process event at `window-all-closed`; baseline reproducibly failed with
+`Replacement BrowserWindow appeared before main-process exit: <closed>`.
+
+| Evidence | Status | Command / observed result |
+| --- | --- | --- |
+| Baseline fresh-profile Windows x64 package: clean New Tab Alt+F4 | Failed | User report against `499de31d`: returned to New Tab, then created `Untitled-1`; no unresolved CrashDraft. This blocks the baseline manual exit claim. |
+| Legacy automated last-tab test | Failed as acceptance evidence | Old `4/4` Page-close-only assertions could not observe main-process lifetime or a replacement window. |
+| Corrected Electron regression after the minimal fix | Passed | `pnpm -C packages/desktop exec -- playwright test test/e2e/last-tab-window-close.spec.ts --workers=1` — `5 passed` (tab button, command, title-bar control, native Alt+F4 seam, and controlled Windows-activation replay); every case proved child-process exit and no replacement window. |
+| Repaired packaged Windows manual Alt+F4/title-bar/tab-close trial | Untested | A user must retest a package built from the repaired commit. Automated proof does not replace this row. |
+
 ## Short manual Windows trial checklist
 
 Record tester, UTC time, installed artifact/hash, display count/resolution/scale,
@@ -68,7 +96,7 @@ physical versus remote input, and a defect reference for every `Failed` item.
 | Required trial | Status | Minimum observation to record |
 | --- | --- | --- |
 | Default-off startup and explicit associated/CLI target startup | Untested | Normal restart gives one clean New Tab; explicit launch opens only its targets; no inert restore setting; legacy `editorBufferStore` remains untouched. |
-| Normal and dirty exit | Untested | Clean exit restores no old tabs/split; dirty save/discard/cancel prompt behavior is unchanged. New 2026-08-26 product decision: when a window has its final tab, its tab close button/tab-close command, Alt+F4, and Windows title-bar X close the window rather than leave a New Tab; Cancel keeps the window/document open and Save/Discard close only after the existing durable path succeeds. This row remains untested by a human Windows trial. |
+| Normal and dirty exit (repaired candidate) | Untested | Baseline clean New Tab Alt+F4 is recorded Failed above. Retest the repaired package: clean exit restores no old tabs/split; dirty save/discard/cancel prompt behavior is unchanged. The final tab's tab button/tab-close command, Alt+F4, and Windows title-bar X must close the window rather than leave a New Tab; Cancel keeps the window/document open and Save/Discard close only after the existing durable path succeeds. |
 | CrashDraft recovery and power-loss path | Untested | After dirty saved and untitled edits, force a controlled crash/power loss; verify recovery under both normal and explicit target launch, corrupt-latest warning/fallback where fault tooling permits, and changed-disk recovered copy. |
 | MoveRecovery | Untested | Interrupt an authorized Move and verify safe recovery; explicit targets must not suppress it. |
 | Physical external release, Move/Open, last tab, dirty/untitled/history | Untested | On supported Windows single-primary physical input, prove only trusted outside left-up detaches; test re-entry, Escape, source clean New Tab, history, and conflict behavior. |
