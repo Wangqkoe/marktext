@@ -70,7 +70,7 @@ const wrapWorkspaceClick = (
   const click = item.click
   return {
     ...item,
-    click: async () => {
+    click: async() => {
       await actions.activate(target)
       if (click) click(includeTabId ? { _tabId: target.documentId } : {}, null)
     }

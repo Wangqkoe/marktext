@@ -58,7 +58,7 @@ describe('workspace tab context menu', () => {
     expect(actions.splitRight).toHaveBeenCalledWith(clicked)
   })
 
-  it('activates the clicked pane before legacy tab actions and retains batch semantics', async () => {
+  it('activates the clicked pane before legacy tab actions and retains batch semantics', async() => {
     const activate = vi.fn()
     const actions: WorkspaceTabMenuActions = { activate, move: vi.fn(), open: vi.fn(), splitRight: vi.fn() }
     const emit = vi.spyOn(bus, 'emit')
