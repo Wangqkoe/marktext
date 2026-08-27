@@ -36,7 +36,7 @@ checks run on the integration branch.
 | T06/Move regression and coordinate handoff | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-recovery.spec.ts test/unit/specs/tab-transfer-emergency-recovery.spec.ts test/unit/specs/move-action-preflight.spec.ts`; 5 files / 50 passed. Native outside-up coordinates are asserted through Move intent and the initial T06 `createTarget` seam. |
 | Typecheck | Passed | `pnpm -C packages/desktop typecheck`; exit 0. |
 | Desktop build | Passed | `pnpm -C packages/desktop build`; exit 0; existing Vite dynamic-import chunk warnings only. |
-| Windows package smoke | Unavailable | `pnpm build:win:x64` rebuilt `uiohook-napi` for Electron 42.1.0 and completed Electron-Vite, but `electron-builder` remained in `searching for node modules` without an artifact/exit result; its controlled process tree was stopped. This is not Passed evidence. |
+| Windows package smoke | Passed | Diagnostic rerun at `f8179476e449fd40d975300455594593fd065d3f` used the frozen lockfile, Electron rebuild, Electron-Vite and `pnpm build:win:x64`; the final bounded run reached `__BUILD_EXIT__=0` after the long silent asar/ZIP/NSIS phases. The ZIP contains `resources/app.asar.unpacked/node_modules/uiohook-napi/bin/win32-x64-146/uiohook-napi.node`; its SHA-256 is `99106A650B256E174941FA446A489F25C903C7BA24E20959322EEC5B0E4A2727`. |
 | Windows physical release and remote/assistive smoke | Untested | No user-operated physical scenario was run. The required manual row remains unclaimed. |
 
 ## T12 Windows trial readiness evidence — 2026-08-27
