@@ -198,11 +198,7 @@
       "paste": "Einfügen",
       "rename": "Umbenennen",
       "moveToTrash": "In Papierkorb verschieben",
-      "showInFolder": "Im Ordner anzeigen",
-      "moveToNewWindow": "In neues Fenster verschieben",
-      "openInNewWindow": "In neuem Fenster öffnen",
-      "openDiskCopyInNewWindow": "Datenträgerkopie in neuem Fenster öffnen",
-      "splitRight": "Rechts teilen"
+      "showInFolder": "Im Ordner anzeigen"
     },
     "tabs": {
       "close": "Schließen",
@@ -211,7 +207,11 @@
       "closeAllTabs": "Alle Tabs schließen",
       "rename": "Umbenennen",
       "copyPath": "Pfad kopieren",
-      "showInFolder": "Im Ordner anzeigen"
+      "showInFolder": "Im Ordner anzeigen",
+      "moveToNewWindow": "In neues Fenster verschieben",
+      "openInNewWindow": "In neuem Fenster öffnen",
+      "openDiskCopyInNewWindow": "Datenträgerkopie in neuem Fenster öffnen",
+      "splitRight": "Rechts teilen"
     }
   },
   "search": {

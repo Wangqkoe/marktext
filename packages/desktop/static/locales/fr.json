@@ -198,11 +198,7 @@
       "paste": "Coller",
       "rename": "Renommer",
       "moveToTrash": "Déplacer vers la corbeille",
-      "showInFolder": "Afficher dans le dossier",
-      "moveToNewWindow": "Déplacer vers une nouvelle fenêtre",
-      "openInNewWindow": "Ouvrir dans une nouvelle fenêtre",
-      "openDiskCopyInNewWindow": "Ouvrir la copie sur disque dans une nouvelle fenêtre",
-      "splitRight": "Scinder à droite"
+      "showInFolder": "Afficher dans le dossier"
     },
     "tabs": {
       "close": "Fermer",
@@ -211,7 +207,11 @@
       "closeAllTabs": "Fermer tous les onglets",
       "rename": "Renommer",
       "copyPath": "Copier le chemin",
-      "showInFolder": "Afficher dans le dossier"
+      "showInFolder": "Afficher dans le dossier",
+      "moveToNewWindow": "Déplacer vers une nouvelle fenêtre",
+      "openInNewWindow": "Ouvrir dans une nouvelle fenêtre",
+      "openDiskCopyInNewWindow": "Ouvrir la copie sur disque dans une nouvelle fenêtre",
+      "splitRight": "Scinder à droite"
     }
   },
   "search": {

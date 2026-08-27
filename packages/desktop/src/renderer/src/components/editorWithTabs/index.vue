@@ -45,7 +45,7 @@ const transfer = createElectronTransferPort()
 const moveTabToNewWindow = createMoveTabToNewWindowAction(controller, transfer, {
   flushSource: (paneId, tabId) => (paneId === 'left' ? left : right).flushTransferSource(tabId)
 })
-const activateWorkspaceMenuTarget = async(target: WorkspaceTabMenuTarget) => {
+const activateWorkspaceMenuTarget = async (target: WorkspaceTabMenuTarget) => {
   const pane = controller.getProjection().panes.find(candidate => candidate.paneId === target.paneId)
   const tab = pane?.tabs.find(candidate =>
     candidate.viewId === target.viewId && candidate.documentId === target.documentId
@@ -54,13 +54,13 @@ const activateWorkspaceMenuTarget = async(target: WorkspaceTabMenuTarget) => {
   return controller.execute({ kind: 'activate-view', paneId: target.paneId, viewId: target.viewId })
 }
 const workspaceTabActions: WorkspaceTabMenuActions = {
-  move: async(target) => {
+  move: async (target) => {
     const activated = await activateWorkspaceMenuTarget(target)
     return activated.status === 'applied'
       ? moveTabToNewWindow(target.documentId, target.paneId)
       : activated
   },
-  open: async(target) => {
+  open: async (target) => {
     const activated = await activateWorkspaceMenuTarget(target)
     if (activated.status !== 'applied') return activated
     if (!target.fileKey) return { status: 'rejected', reason: 'untitled tabs have no disk copy to open' }
@@ -69,7 +69,7 @@ const workspaceTabActions: WorkspaceTabMenuActions = {
     window.electron.ipcRenderer.send('mt::cmd-open-file-in-new-window', target.fileKey)
     return { status: 'applied' }
   },
-  splitRight: async(target) => {
+  splitRight: async (target) => {
     const activated = await activateWorkspaceMenuTarget(target)
     return activated.status === 'applied'
       ? controller.execute({ kind: 'split-pane', targetPaneId: 'right' })

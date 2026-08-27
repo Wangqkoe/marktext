@@ -198,11 +198,7 @@
       "paste": "貼り付け",
       "rename": "名前を変更",
       "moveToTrash": "ゴミ箱に移動",
-      "showInFolder": "フォルダで表示",
-      "moveToNewWindow": "新しいウィンドウに移動",
-      "openInNewWindow": "新しいウィンドウで開く",
-      "openDiskCopyInNewWindow": "ディスク上のコピーを新しいウィンドウで開く",
-      "splitRight": "右に分割"
+      "showInFolder": "フォルダで表示"
     },
     "tabs": {
       "close": "閉じる",
@@ -211,7 +207,11 @@
       "closeAllTabs": "すべてのタブを閉じる",
       "rename": "名前を変更",
       "copyPath": "パスをコピー",
-      "showInFolder": "フォルダで表示"
+      "showInFolder": "フォルダで表示",
+      "moveToNewWindow": "新しいウィンドウに移動",
+      "openInNewWindow": "新しいウィンドウで開く",
+      "openDiskCopyInNewWindow": "ディスク上のコピーを新しいウィンドウで開く",
+      "splitRight": "右に分割"
     }
   },
   "search": {

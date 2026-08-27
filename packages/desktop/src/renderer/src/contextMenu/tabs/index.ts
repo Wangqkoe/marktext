@@ -81,14 +81,14 @@ export const createWorkspaceTabMenuItems = (
   })
 
   return [
-    closeThis,
-    closeOthers,
-    closeSaved,
-    closeAll,
+    closeThis as MenuItemShape,
+    closeOthers as MenuItemShape,
+    closeSaved as MenuItemShape,
+    closeAll as MenuItemShape,
     SEPARATOR,
-    rename,
-    copyPath,
-    showInFolder,
+    rename as MenuItemShape,
+    copyPath as MenuItemShape,
+    showInFolder as MenuItemShape,
     SEPARATOR,
     workspaceItem('moveTabToNewWindow', t('contextMenu.tabs.moveToNewWindow'), true, () => actions.move(target)),
     workspaceItem(
