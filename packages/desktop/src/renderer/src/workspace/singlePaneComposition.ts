@@ -466,7 +466,7 @@ export class PaneEditorComposition {
       .panes.find((candidate) => candidate.paneId === this.paneId)
       ?.tabs
       .filter((tab) => match(tab.documentId, tab.dirty)) ?? []
-    for (const tab of tabs) await this.closeTab(tab.documentId)
+    for (const tab of tabs) await this.closeLegacyTab(tab.documentId)
   }
 
   /**

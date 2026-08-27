@@ -409,19 +409,22 @@ test.describe('Tab management', () => {
         .toEqual([keepId])
 
       // --- close-saved: every saved tab closes ---
-      // Top up to several SAVED tabs again, then close-saved -> none survive.
+      // Top up to several SAVED tabs again, then close-saved leaves its
+      // existing replacement New Tab.
       await openSavedTabs(['saved A\n', 'saved B\n'])
       ids = await readTabIds(cPage)
       expect(ids.length).toBeGreaterThanOrEqual(3)
       expect(await callEditorStoreAction(cPage, 'CLOSE_SAVED_TABS')).toBe(true)
-      await expect.poll(() => readTabIds(cPage), { timeout: 5000 }).toEqual([])
+      await expect.poll(() => readTabIds(cPage), { timeout: 5000 }).toHaveLength(1)
+      await expect(cPage.locator(`${tabSelector} .tab-filename`)).toHaveText('New Tab')
 
-      // --- close-all: all remaining tabs close ---
+      // --- close-all: all remaining tabs close, leaving a replacement New Tab ---
       await openSavedTabs(['final A\n', 'final B\n', 'final C\n'])
       ids = await readTabIds(cPage)
       expect(ids.length).toBeGreaterThanOrEqual(3)
       expect(await callEditorStoreAction(cPage, 'CLOSE_ALL_TABS')).toBe(true)
-      await expect.poll(() => readTabIds(cPage), { timeout: 5000 }).toEqual([])
+      await expect.poll(() => readTabIds(cPage), { timeout: 5000 }).toHaveLength(1)
+      await expect(cPage.locator(`${tabSelector} .tab-filename`)).toHaveText('New Tab')
     } finally {
       await cApp.close()
     }
