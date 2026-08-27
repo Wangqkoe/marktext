@@ -24,7 +24,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import { createElectronCrashDraftPort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
 import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
-import type { CrashDraftRecoveryPayload } from '@shared/workspace'
+import type { CrashDraftRecoveryPayload, PortableHistory } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { usePreferencesStore } from '@/store/preferences'
@@ -150,7 +150,11 @@ const startDivider = (event: PointerEvent) => {
   window.addEventListener('pointercancel', endDivider)
 }
 let legacyCommandPane: 'left' | 'right' | undefined
-const openTransferPayload = async (payload: TransferRecoveryPayload, transferId: string): Promise<StagedTransfer> => {
+const openTransferPayload = async (
+  payload: TransferRecoveryPayload,
+  transferId: string,
+  portableHistory?: PortableHistory
+): Promise<StagedTransfer> => {
   const staged = stagedTransfers.get(transferId) ?? {
     // Document IDs are window-local. Source identity remains lineage metadata,
     // never an adopted target document identity.
@@ -166,6 +170,7 @@ const openTransferPayload = async (payload: TransferRecoveryPayload, transferId:
       markdown: payload.markdown,
       savedMarkdown: payload.dirty ? '' : payload.markdown,
       dirty: payload.dirty,
+      ...(portableHistory ? { portableHistory } : {}),
       title: payload.title,
       ...(payload.fileKey ? { fileKey: payload.fileKey, observedDiskRevision: payload.observedDiskRevision } : {}),
       conflict: payload.conflict
@@ -233,7 +238,7 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
   if (command.operation === 'stage') {
     const response = await transfer.payload(command.transferId, command.capability)
     if (!response.durable) return { status: 'nack', reason: response.reason }
-    await openTransferPayload(response.payload, command.transferId)
+    await openTransferPayload(response.payload, command.transferId, response.payload.history)
     return { status: 'ok' }
   }
   if (command.operation === 'release') {
@@ -311,7 +316,7 @@ const unsubscribe = controller.subscribe(() => {
 })
 editorStore.ATTACH_WORKSPACE_FACADE(controller)
 syncLegacyCommandEdge()
-onMounted(async() => {
+onMounted(async () => {
   observer = new ResizeObserver(updateWidth)
   if (root.value) observer.observe(root.value)
   updateWidth()
@@ -319,6 +324,7 @@ onMounted(async() => {
   window.addEventListener('pointerup', releaseTabDrag, true)
   // T06 test/automation seam; this invokes the exact action future T08 UI will import.
   moveActionDriver.__mtMoveTabToNewWindow = ({ tabId, paneId }) => moveTabToNewWindow(tabId, paneId)
+  moveActionDriver.__mtWorkspaceSnapshot = () => structuredClone(controller.getFacadeSnapshot())
   stopTransferCommands = transfer.bind(acknowledgeTransferCommand)
   stopTransferRecovery = transfer.bindRecovery(async (message: TransferRecoveryMessage) => {
     await openTransferPayload(message.payload, message.transferId)
@@ -332,6 +338,7 @@ let stopTransferCommands: (() => void) | undefined
 let stopTransferRecovery: (() => void) | undefined
 type MoveActionDriver = Window & {
   __mtMoveTabToNewWindow?: (input: { readonly tabId: string; readonly paneId: 'left' | 'right' }) => Promise<unknown>
+  __mtWorkspaceSnapshot?: () => ReturnType<typeof controller.getFacadeSnapshot>
 }
 const moveActionDriver = window as MoveActionDriver
 onBeforeUnmount(() => {
@@ -347,6 +354,7 @@ onBeforeUnmount(() => {
   stopTransferCommands?.()
   stopTransferRecovery?.()
   delete moveActionDriver.__mtMoveTabToNewWindow
+  delete moveActionDriver.__mtWorkspaceSnapshot
 })
 </script>
 
