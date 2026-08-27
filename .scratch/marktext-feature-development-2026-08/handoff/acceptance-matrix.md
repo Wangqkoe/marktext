@@ -37,7 +37,7 @@ the identical retry succeeded without source or lockfile changes.
 | Evidence | Status | Exact result / remaining condition |
 | --- | --- | --- |
 | A14 automated clean Windows-build readiness | Passed | `pnpm install --frozen-lockfile` passed on retry; `pnpm build:win:x64` exit 0 on Windows 11 Pro 10.0.26200, Node 24.18.0, pnpm 10.33.4. |
-| A14 manual Windows trial | Untested | Startup/exit, CrashDraft power-loss/fallback/conflict, MoveRecovery, physical external release, unsupported fallback/menu Move, display/scale/motion, accessibility, and PDF checks have not been executed. |
+| A14 manual Windows trial | Untested | The baseline `499de31d` fresh-profile clean-New-Tab Alt+F4 trial is Failed: it returned to New Tab and later created `Untitled-1`. The repaired package still requires a new user trial; startup/exit, CrashDraft power-loss/fallback/conflict, MoveRecovery, physical external release, unsupported fallback/menu Move, display/scale/motion, accessibility, and PDF checks remain unexecuted. |
 | T12 final acceptance | Untested | T12 does not request or declare Acceptance. The coordinator must complete the manual trial, final independent reviews, defect disposition, and user Acceptance. |
 
 ## T03 integration evidence — 2026-08-25
@@ -57,6 +57,8 @@ verification environment. It is not a blanket pass for later gates.
 | Typecheck ([evidence](evidence/t03-integration-2026-08-25.md)) | Passed | `pnpm -C packages/desktop typecheck` passed on the verified implementation/integration evidence |
 | Desktop build ([evidence](evidence/t03-integration-2026-08-25.md)) | Passed | `pnpm -C packages/desktop build` passed on the verified implementation/integration evidence |
 | Diff check ([evidence](evidence/t03-integration-2026-08-25.md)) | Passed | `git diff --check` passed on the verified implementation/integration evidence |
+| Corrected final-window Electron regression ([T12 evidence](evidence/t12-windows-trial-readiness-2026-08-27.md#final-window-exit-corrective-evidence--2026-08-27)) | Passed | `pnpm -C packages/desktop exec -- playwright test test/e2e/last-tab-window-close.spec.ts --workers=1` — 5/5 passed after replacing the old Page-close-only false positive with main-child exit and replacement-window assertions for tab button/command, title-bar, native Alt+F4 seam, and a controlled Windows-activate replay. |
+| Baseline manual final-window Alt+F4 | Failed | Fresh-profile Windows x64 package from `499de31d` returned to New Tab and later created `Untitled-1`; the repaired package's manual Windows retest remains Untested. |
 
 The integration worktree had no `node_modules`, so repeated commands were
 unavailable there. Integration was fast-forward-only to the same already
