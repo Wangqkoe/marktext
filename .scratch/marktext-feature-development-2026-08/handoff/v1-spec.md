@@ -108,6 +108,14 @@ menus, shortcuts, find and formatting; autosave, observation and recovery run fo
 every Document. Switching a tab flushes/refreshes only its pane. This V1 preserves
 workspace state only for the live runtime; ordinary restart does not restore pane
 count, tab membership, focus, active tab, split ratio, scroll, or mode.
+**Product decision (2026-08-26):** closing the window's final tab through a tab
+close button or tab-close command requests the ordinary window-exit transaction;
+it must close the window after the existing dirty Save/Discard confirmation and
+CrashDraft durability boundary, rather than reveal a replacement New Tab. The
+same final-window behavior applies to Alt+F4 and the Windows title-bar close
+control. This narrow exit rule does not alter the ordinary empty-workspace
+replacement invariant, including the clean source tab left after a successful
+cross-window Move.
 CrashDraftRecovery is governed by its independent crash-draft store and safe
 recovery flow; MoveRecovery alone is governed by the Move WAL/journal. The complete
 runtime invariant source is [Issue 04](../issues/04-design-pane-scoped-workspace-model.md),
