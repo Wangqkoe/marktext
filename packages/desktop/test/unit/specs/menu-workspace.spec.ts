@@ -17,7 +17,7 @@ const target = (overrides: Partial<WorkspaceTabMenuTarget> = {}): WorkspaceTabMe
 
 describe('workspace tab context menu', () => {
   const createActions = (): WorkspaceTabMenuActions => ({
-    activate: vi.fn(), move: vi.fn(), open: vi.fn(), splitRight: vi.fn()
+    activate: vi.fn(async() => ({ status: 'applied' as const, workspaceRevision: 1 })), move: vi.fn(), open: vi.fn(), splitRight: vi.fn()
   })
   it('places the flat workspace group after a divider in the accepted order', () => {
     const actions = createActions()
@@ -43,7 +43,7 @@ describe('workspace tab context menu', () => {
 
   it('labels dirty Open as a disk copy and routes every action to the clicked pane/view', async() => {
     const actions: WorkspaceTabMenuActions = {
-      activate: vi.fn(),
+      activate: vi.fn(async() => ({ status: 'applied' as const, workspaceRevision: 1 })),
       move: vi.fn(),
       open: vi.fn(),
       splitRight: vi.fn()
@@ -59,7 +59,7 @@ describe('workspace tab context menu', () => {
   })
 
   it('activates the clicked pane before legacy tab actions and retains batch semantics', async() => {
-    const activate = vi.fn()
+    const activate = vi.fn(async() => ({ status: 'applied' as const, workspaceRevision: 1 }))
     const actions: WorkspaceTabMenuActions = { activate, move: vi.fn(), open: vi.fn(), splitRight: vi.fn() }
     const emit = vi.spyOn(bus, 'emit')
     const clicked = target({ paneId: 'right', viewId: 'right-view', documentId: 'right-document', fileKey: '/right.md' })
@@ -82,6 +82,20 @@ describe('workspace tab context menu', () => {
     expect(emit).toHaveBeenCalledWith('TABS::show-in-folder', 'right-document')
     expect(emit).toHaveBeenCalledWith('TABS::close-saved')
     expect(emit).toHaveBeenCalledWith('TABS::close-all')
+    emit.mockRestore()
+  })
+
+  it('fails closed when the clicked tab can no longer be activated', async() => {
+    const activate = vi.fn(async() => ({ status: 'rejected' as const, reason: 'missing pane view' }))
+    const actions: WorkspaceTabMenuActions = { activate, move: vi.fn(), open: vi.fn(), splitRight: vi.fn() }
+    const emit = vi.spyOn(bus, 'emit')
+    const items = createWorkspaceTabMenuItems(target({ fileKey: '/gone.md' }), actions)
+
+    await items.find(item => item.id === 'closeThisTab')?.click?.({}, null)
+    await items.find(item => item.id === 'closeSavedTabs')?.click?.({}, null)
+
+    expect(activate).toHaveBeenCalledTimes(2)
+    expect(emit).not.toHaveBeenCalled()
     emit.mockRestore()
   })
 

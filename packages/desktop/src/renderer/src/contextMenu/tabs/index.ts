@@ -11,6 +11,7 @@ import {
 import { popupContextMenu } from '../popupMenu'
 import type { ContextMenuItem } from '../popupMenu'
 import { t } from '../../i18n'
+import type { WorkspaceResult } from '@shared/workspace'
 
 type MenuItemShape = {
   type?: string
@@ -47,7 +48,7 @@ export interface WorkspaceTabMenuTarget {
 }
 
 export interface WorkspaceTabMenuActions {
-  activate(target: WorkspaceTabMenuTarget): void | Promise<unknown>
+  activate(target: WorkspaceTabMenuTarget): Promise<WorkspaceResult>
   move(target: WorkspaceTabMenuTarget): void | Promise<unknown>
   open(target: WorkspaceTabMenuTarget): void | Promise<unknown>
   splitRight(target: WorkspaceTabMenuTarget): void | Promise<unknown>
@@ -71,7 +72,13 @@ const wrapWorkspaceClick = (
   return {
     ...item,
     click: async() => {
-      await actions.activate(target)
+      let activated: WorkspaceResult
+      try {
+        activated = await actions.activate(target)
+      } catch {
+        return
+      }
+      if (activated.status !== 'applied') return
       if (click) click(includeTabId ? { _tabId: target.documentId } : {}, null)
     }
   }
