@@ -47,6 +47,7 @@ export interface WorkspaceTabMenuTarget {
 }
 
 export interface WorkspaceTabMenuActions {
+  activate(target: WorkspaceTabMenuTarget): void | Promise<unknown>
   move(target: WorkspaceTabMenuTarget): void | Promise<unknown>
   open(target: WorkspaceTabMenuTarget): void | Promise<unknown>
   splitRight(target: WorkspaceTabMenuTarget): void | Promise<unknown>
@@ -58,6 +59,23 @@ const workspaceItem = (
   enabled: boolean,
   click: () => void | Promise<unknown>
 ): MenuItemShape => ({ id, label, enabled, click })
+
+const wrapWorkspaceClick = (
+  item: MenuItemShape,
+  target: WorkspaceTabMenuTarget,
+  actions: WorkspaceTabMenuActions,
+  includeTabId = true
+): MenuItemShape => {
+  if (!item || item.type === 'separator') return item
+  const click = item.click
+  return {
+    ...item,
+    click: async () => {
+      await actions.activate(target)
+      if (click) click(includeTabId ? { _tabId: target.documentId } : {}, null)
+    }
+  }
+}
 
 /**
  * Builds the tab menu with a captured pane/view target.  The callbacks never
@@ -98,7 +116,12 @@ export const createWorkspaceTabMenuItems = (
       () => actions.open(target)
     ),
     workspaceItem('splitTabRight', t('contextMenu.tabs.splitRight'), true, () => actions.splitRight(target))
-  ]
+  ].map((item, index) => wrapWorkspaceClick(
+    item as MenuItemShape,
+    target,
+    actions,
+    index !== 2 && index !== 3
+  ))
 }
 
 export const showContextMenu = (

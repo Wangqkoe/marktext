@@ -54,6 +54,7 @@ const activateWorkspaceMenuTarget = async (target: WorkspaceTabMenuTarget) => {
   return controller.execute({ kind: 'activate-view', paneId: target.paneId, viewId: target.viewId })
 }
 const workspaceTabActions: WorkspaceTabMenuActions = {
+  activate: activateWorkspaceMenuTarget,
   move: async (target) => {
     const activated = await activateWorkspaceMenuTarget(target)
     return activated.status === 'applied'

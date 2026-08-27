@@ -6,6 +6,7 @@ import {
   type WorkspaceTabMenuActions,
   type WorkspaceTabMenuTarget
 } from '@/contextMenu/tabs'
+import bus from '@/bus'
 
 const target = (overrides: Partial<WorkspaceTabMenuTarget> = {}): WorkspaceTabMenuTarget => ({
   paneId: 'left',
@@ -15,8 +16,11 @@ const target = (overrides: Partial<WorkspaceTabMenuTarget> = {}): WorkspaceTabMe
 })
 
 describe('workspace tab context menu', () => {
+  const createActions = (): WorkspaceTabMenuActions => ({
+    activate: vi.fn(), move: vi.fn(), open: vi.fn(), splitRight: vi.fn()
+  })
   it('places the flat workspace group after a divider in the accepted order', () => {
-    const actions: WorkspaceTabMenuActions = { move: vi.fn(), open: vi.fn(), splitRight: vi.fn() }
+    const actions = createActions()
     const items = createWorkspaceTabMenuItems(target({ fileKey: '/note.md' }), actions)
 
     expect(items.map(item => item.type === 'separator' ? 'separator' : item.id)).toEqual([
@@ -29,7 +33,7 @@ describe('workspace tab context menu', () => {
   })
 
   it('disables Open for an untitled tab but keeps Move and Split Right available', () => {
-    const actions: WorkspaceTabMenuActions = { move: vi.fn(), open: vi.fn(), splitRight: vi.fn() }
+    const actions = createActions()
     const items = createWorkspaceTabMenuItems(target(), actions)
 
     expect(items.find(item => item.id === 'moveTabToNewWindow')?.enabled).not.toBe(false)
@@ -39,6 +43,7 @@ describe('workspace tab context menu', () => {
 
   it('labels dirty Open as a disk copy and routes every action to the clicked pane/view', async() => {
     const actions: WorkspaceTabMenuActions = {
+      activate: vi.fn(),
       move: vi.fn(),
       open: vi.fn(),
       splitRight: vi.fn()
@@ -51,6 +56,33 @@ describe('workspace tab context menu', () => {
     expect(actions.move).toHaveBeenCalledWith(clicked)
     expect(actions.open).toHaveBeenCalledWith(clicked)
     expect(actions.splitRight).toHaveBeenCalledWith(clicked)
+  })
+
+  it('activates the clicked pane before legacy tab actions and retains batch semantics', async () => {
+    const activate = vi.fn()
+    const actions: WorkspaceTabMenuActions = { activate, move: vi.fn(), open: vi.fn(), splitRight: vi.fn() }
+    const emit = vi.spyOn(bus, 'emit')
+    const clicked = target({ paneId: 'right', viewId: 'right-view', documentId: 'right-document', fileKey: '/right.md' })
+    const items = createWorkspaceTabMenuItems(clicked, actions)
+
+    await items.find(item => item.id === 'closeThisTab')?.click?.({}, null)
+    await items.find(item => item.id === 'closeOtherTabs')?.click?.({}, null)
+    await items.find(item => item.id === 'renameFile')?.click?.({}, null)
+    await items.find(item => item.id === 'copyPath')?.click?.({}, null)
+    await items.find(item => item.id === 'showInFolder')?.click?.({}, null)
+    await items.find(item => item.id === 'closeSavedTabs')?.click?.({}, null)
+    await items.find(item => item.id === 'closeAllTabs')?.click?.({}, null)
+
+    expect(activate).toHaveBeenCalledTimes(7)
+    expect(activate).toHaveBeenCalledWith(clicked)
+    expect(emit).toHaveBeenCalledWith('TABS::close-this', 'right-document')
+    expect(emit).toHaveBeenCalledWith('TABS::close-others', 'right-document')
+    expect(emit).toHaveBeenCalledWith('TABS::rename', 'right-document')
+    expect(emit).toHaveBeenCalledWith('TABS::copy-path', 'right-document')
+    expect(emit).toHaveBeenCalledWith('TABS::show-in-folder', 'right-document')
+    expect(emit).toHaveBeenCalledWith('TABS::close-saved')
+    expect(emit).toHaveBeenCalledWith('TABS::close-all')
+    emit.mockRestore()
   })
 
   it('provides every workspace menu and command string in the desktop locales', () => {
