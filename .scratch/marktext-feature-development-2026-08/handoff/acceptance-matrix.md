@@ -154,6 +154,19 @@ assembly-surface range remains a non-blocking record item.
 
 ## Status rules
 
+## T11 composed Electron evidence — 2026-08-26
+
+See [T11 cross-feature Electron evidence](evidence/t11-cross-feature-e2e-2026-08-26.md).
+At T09/T11-02 integration HEAD `66749ef1bd4da946094bd4351f0f02378ca7308c`,
+the single-worker T11 automated collection passed 23/23: T06 startup-policy
+14/14, T11's two new real-Electron composition specs 2/2, and existing Move
+Electron regression 7/7. The original details preview/theme and last-tab Move
+portable-history reproductions are resolved. The existing details export suite's
+post-assertion `afterAll` `app.close()` hang remains a non-blocking T10/T09
+record item: it has no assertion failure, predates T11, and is not a T11-owned
+details/theme or Move/history acceptance gap. This evidence does not claim
+manual acceptance, final review, coordination-branch integration, or T12.
+
 | Status | Rule |
 | --- | --- |
 | Passed | Ran in named environment, assertion passed, and evidence artifact/location is linked. |
