@@ -9,6 +9,8 @@ import {
   getShowInFolder
 } from './menuItems'
 import { popupContextMenu } from '../popupMenu'
+import type { ContextMenuItem } from '../popupMenu'
+import { t } from '../../i18n'
 
 type MenuItemShape = {
   type?: string
@@ -36,7 +38,81 @@ interface TabLike {
   pathname?: string | null
 }
 
-export const showContextMenu = (event: ContextMenuClickEvent, tab: TabLike): void => {
+export interface WorkspaceTabMenuTarget {
+  readonly paneId: 'left' | 'right'
+  readonly viewId: string
+  readonly documentId: string
+  readonly fileKey?: string
+  readonly dirty?: boolean
+}
+
+export interface WorkspaceTabMenuActions {
+  move(target: WorkspaceTabMenuTarget): void | Promise<unknown>
+  open(target: WorkspaceTabMenuTarget): void | Promise<unknown>
+  splitRight(target: WorkspaceTabMenuTarget): void | Promise<unknown>
+}
+
+const workspaceItem = (
+  id: string,
+  label: string,
+  enabled: boolean,
+  click: () => void | Promise<unknown>
+): MenuItemShape => ({ id, label, enabled, click })
+
+/**
+ * Builds the tab menu with a captured pane/view target.  The callbacks never
+ * consult the legacy currentFile; callers receive the tab the user clicked.
+ */
+export const createWorkspaceTabMenuItems = (
+  target: WorkspaceTabMenuTarget,
+  actions: WorkspaceTabMenuActions
+): MenuItemShape[] => {
+  const pathname = target.fileKey
+  const closeThis = getCloseThis()
+  const closeOthers = getCloseOthers()
+  const closeSaved = getCloseSaved()
+  const closeAll = getCloseAll()
+  const rename = getRENAME()
+  const copyPath = getCopyPath()
+  const showInFolder = getShowInFolder()
+
+  ;([rename, copyPath, showInFolder] as MenuItemShape[]).forEach((item) => {
+    item.enabled = !!pathname
+  })
+
+  return [
+    closeThis,
+    closeOthers,
+    closeSaved,
+    closeAll,
+    SEPARATOR,
+    rename,
+    copyPath,
+    showInFolder,
+    SEPARATOR,
+    workspaceItem('moveTabToNewWindow', t('contextMenu.tabs.moveToNewWindow'), true, () => actions.move(target)),
+    workspaceItem(
+      'openTabInNewWindow',
+      t(target.dirty ? 'contextMenu.tabs.openDiskCopyInNewWindow' : 'contextMenu.tabs.openInNewWindow'),
+      !!pathname,
+      () => actions.open(target)
+    ),
+    workspaceItem('splitTabRight', t('contextMenu.tabs.splitRight'), true, () => actions.splitRight(target))
+  ]
+}
+
+export const showContextMenu = (
+  event: ContextMenuClickEvent,
+  tab: TabLike,
+  workspace?: { readonly target: WorkspaceTabMenuTarget; readonly actions: WorkspaceTabMenuActions }
+): void => {
+  if (workspace) {
+    popupContextMenu(createWorkspaceTabMenuItems(workspace.target, workspace.actions) as ContextMenuItem[], {
+      x: event.clientX,
+      y: event.clientY
+    })
+    return
+  }
   const { pathname } = tab
   const closeThis = getCloseThis()
   const closeOthers = getCloseOthers()

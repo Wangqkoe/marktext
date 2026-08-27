@@ -696,8 +696,8 @@ class App {
       event.reply('mt::current-language', language || 'en')
     })
 
-    ipcMain.on('app-create-editor-window', () => {
-      this._createEditorWindow()
+    ipcMain.on('app-create-editor-window', (_event, filePath?: string) => {
+      this._createEditorWindow(null, filePath ? [filePath] : [])
     })
 
     onInternalChannel('screen-capture', async(win: BrowserWindow) => {

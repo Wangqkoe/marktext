@@ -198,7 +198,11 @@
       "paste": "貼り付け",
       "rename": "名前を変更",
       "moveToTrash": "ゴミ箱に移動",
-      "showInFolder": "フォルダで表示"
+      "showInFolder": "フォルダで表示",
+      "moveToNewWindow": "新しいウィンドウに移動",
+      "openInNewWindow": "新しいウィンドウで開く",
+      "openDiskCopyInNewWindow": "ディスク上のコピーを新しいウィンドウで開く",
+      "splitRight": "右に分割"
     },
     "tabs": {
       "close": "閉じる",
@@ -734,6 +738,11 @@
     "copyrightContributors": "著作権貢献者"
   },
   "commands": {
+    "workspace": {
+      "moveToNewWindow": "タブを新しいウィンドウに移動",
+      "openInNewWindow": "ディスク上のコピーを新しいウィンドウで開く",
+      "splitRight": "右に分割"
+    },
     "mt": {
       "hide": "MarkTextを隠す",
       "hideOthers": "他を隠す"

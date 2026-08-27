@@ -662,6 +662,13 @@ ipcMain.on('mt::cmd-new-editor-window', () => {
   newEditorWindow()
 })
 
+// A tab-menu Open is intentionally a fresh window containing only the saved
+// disk file. It never carries the renderer's dirty buffer across the boundary.
+ipcMain.on('mt::cmd-open-file-in-new-window', (_e, filePath: string) => {
+  const resolvedPath = normalizeAndResolvePath(filePath)
+  if (isFile(resolvedPath)) ipcMain.emit('app-create-editor-window', undefined, resolvedPath)
+})
+
 ipcMain.on('mt::cmd-open-folder', (e) => {
   const win = BrowserWindow.fromWebContents(e.sender)
   openFolder(win)

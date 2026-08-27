@@ -198,7 +198,11 @@
       "paste": "Einfügen",
       "rename": "Umbenennen",
       "moveToTrash": "In Papierkorb verschieben",
-      "showInFolder": "Im Ordner anzeigen"
+      "showInFolder": "Im Ordner anzeigen",
+      "moveToNewWindow": "In neues Fenster verschieben",
+      "openInNewWindow": "In neuem Fenster öffnen",
+      "openDiskCopyInNewWindow": "Datenträgerkopie in neuem Fenster öffnen",
+      "splitRight": "Rechts teilen"
     },
     "tabs": {
       "close": "Schließen",
@@ -734,6 +738,11 @@
     "copyrightContributors": "Urheberrecht Mitwirkende"
   },
   "commands": {
+    "workspace": {
+      "moveToNewWindow": "Tab in neues Fenster verschieben",
+      "openInNewWindow": "Datenträgerkopie in neuem Fenster öffnen",
+      "splitRight": "Rechts teilen"
+    },
     "mt": {
       "hide": "MarkText ausblenden",
       "hideOthers": "Andere ausblenden"

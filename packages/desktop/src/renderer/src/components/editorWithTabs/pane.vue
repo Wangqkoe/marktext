@@ -5,6 +5,7 @@
       :composition="composition"
       :pane="pane"
       :focused="focused"
+      :workspace-actions="workspaceActions"
       @tab-drag="$emit('tab-drag', $event)"
     />
     <div v-if="activeFile" class="container">
@@ -42,6 +43,7 @@ import type { IFileState } from '@shared/types/files'
 import type { WorkspaceFacadeDocument, WorkspaceProjectionPane } from '@shared/workspace'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import type { PaneEditorComposition } from '@/workspace'
+import type { WorkspaceTabMenuActions } from '@/contextMenu/tabs'
 import Tabs from './tabs.vue'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
@@ -52,6 +54,7 @@ const props = defineProps<{
   documents: readonly WorkspaceFacadeDocument[]
   composition: PaneEditorComposition
   focused: boolean
+  workspaceActions: WorkspaceTabMenuActions
   /** Legacy global mode is only allowed to hide the focused source surface. */
   sourceCode: boolean
   caretSession: CaretSession

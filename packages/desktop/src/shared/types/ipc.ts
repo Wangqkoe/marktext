@@ -142,6 +142,7 @@ export interface IpcSendChannels {
   'mt::close-window-confirm': [unsavedFiles: UnsavedFile[]]
   'mt::cmd-close-window': []
   'mt::cmd-import-file': []
+  'mt::cmd-open-file-in-new-window': [filePath: string]
   'mt::cmd-new-editor-window': []
   'mt::cmd-open-file': []
   'mt::cmd-open-folder': []

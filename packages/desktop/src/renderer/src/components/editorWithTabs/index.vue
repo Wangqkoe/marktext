@@ -7,6 +7,7 @@
       :documents="snapshot.documents"
       :composition="compositionFor(pane.paneId)"
       :focused="snapshot.projection.focusedPaneId === pane.paneId"
+      :workspace-actions="workspaceTabActions"
       :source-code="sourceCode"
       :caret-session="caretSession"
       :tab-bar-visible="tabBarVisible"
@@ -23,6 +24,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import { createElectronCrashDraftPort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
+import type { WorkspaceTabMenuActions, WorkspaceTabMenuTarget } from '@/contextMenu/tabs'
 import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload, PortableHistory } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
@@ -43,6 +45,37 @@ const transfer = createElectronTransferPort()
 const moveTabToNewWindow = createMoveTabToNewWindowAction(controller, transfer, {
   flushSource: (paneId, tabId) => (paneId === 'left' ? left : right).flushTransferSource(tabId)
 })
+const activateWorkspaceMenuTarget = async(target: WorkspaceTabMenuTarget) => {
+  const pane = controller.getProjection().panes.find(candidate => candidate.paneId === target.paneId)
+  const tab = pane?.tabs.find(candidate =>
+    candidate.viewId === target.viewId && candidate.documentId === target.documentId
+  )
+  if (!tab) return { status: 'rejected' as const, reason: 'clicked workspace tab is unavailable' }
+  return controller.execute({ kind: 'activate-view', paneId: target.paneId, viewId: target.viewId })
+}
+const workspaceTabActions: WorkspaceTabMenuActions = {
+  move: async(target) => {
+    const activated = await activateWorkspaceMenuTarget(target)
+    return activated.status === 'applied'
+      ? moveTabToNewWindow(target.documentId, target.paneId)
+      : activated
+  },
+  open: async(target) => {
+    const activated = await activateWorkspaceMenuTarget(target)
+    if (activated.status !== 'applied') return activated
+    if (!target.fileKey) return { status: 'rejected', reason: 'untitled tabs have no disk copy to open' }
+    // Only the canonical saved path crosses this boundary. Dirty editor text is
+    // deliberately not sent, so the target opens the last disk version.
+    window.electron.ipcRenderer.send('mt::cmd-open-file-in-new-window', target.fileKey)
+    return { status: 'applied' }
+  },
+  splitRight: async(target) => {
+    const activated = await activateWorkspaceMenuTarget(target)
+    return activated.status === 'applied'
+      ? controller.execute({ kind: 'split-pane', targetPaneId: 'right' })
+      : activated
+  }
+}
 const crashDraft = createElectronCrashDraftPort()
 interface StagedTransfer { readonly documentId: string; readonly sourceDocumentId: string; readonly sourceViewId: string }
 const stagedTransfers = new Map<string, StagedTransfer>()
