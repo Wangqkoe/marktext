@@ -23,7 +23,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import { createElectronCrashDraftPort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
-import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
+import type { TransferAck, TransferCommand, TransferIntent, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
@@ -150,7 +150,7 @@ const startDivider = (event: PointerEvent) => {
   window.addEventListener('pointercancel', endDivider)
 }
 let legacyCommandPane: 'left' | 'right' | undefined
-const openTransferPayload = async (payload: TransferRecoveryPayload, transferId: string): Promise<StagedTransfer> => {
+const openTransferPayload = async (payload: TransferRecoveryPayload | TransferIntent['capsule'], transferId: string): Promise<StagedTransfer> => {
   const staged = stagedTransfers.get(transferId) ?? {
     // Document IDs are window-local. Source identity remains lineage metadata,
     // never an adopted target document identity.
@@ -166,6 +166,7 @@ const openTransferPayload = async (payload: TransferRecoveryPayload, transferId:
       markdown: payload.markdown,
       savedMarkdown: payload.dirty ? '' : payload.markdown,
       dirty: payload.dirty,
+      ...('history' in payload ? { portableHistory: payload.history } : {}),
       title: payload.title,
       ...(payload.fileKey ? { fileKey: payload.fileKey, observedDiskRevision: payload.observedDiskRevision } : {}),
       conflict: payload.conflict
@@ -311,7 +312,7 @@ const unsubscribe = controller.subscribe(() => {
 })
 editorStore.ATTACH_WORKSPACE_FACADE(controller)
 syncLegacyCommandEdge()
-onMounted(async() => {
+onMounted(async () => {
   observer = new ResizeObserver(updateWidth)
   if (root.value) observer.observe(root.value)
   updateWidth()

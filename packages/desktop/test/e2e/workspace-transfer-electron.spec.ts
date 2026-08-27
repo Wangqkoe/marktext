@@ -60,6 +60,47 @@ for (const scenario of [
   })
 }
 
+test('restores dirty saved-tab history in the target after a last-tab Move', async() => {
+  test.setTimeout(60_000)
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-transfer-history-'))
+  const file = path.join(profile, 'move.md')
+  fs.writeFileSync(file, '# Move history source\n')
+  const { app, page } = await launchElectron([file], { userDataDir: profile, userDataDirOwnership: 'caller' })
+  try {
+    await expect(page.locator('.editor-with-tabs')).toBeVisible()
+    await typeIntoEditor(page, ' unsaved target history')
+    await expect(page.locator('.editor-component')).toContainText('unsaved target history')
+    const tabId = await page.locator('.tabs-container li').first().getAttribute('data-id')
+    expect(tabId).toBeTruthy()
+    await expect(page.evaluate(async(id) => {
+      const driver = window as unknown as {
+        __mtMoveTabToNewWindow?: (input: { tabId: string; paneId: 'left' | 'right' }) => Promise<unknown>
+      }
+      return driver.__mtMoveTabToNewWindow?.({ tabId: id!, paneId: 'left' })
+    }, tabId)).resolves.toMatchObject({ status: 'applied' })
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
+    await expect(page.locator('.tabs-container li')).toContainText('New Tab')
+
+    const target = (await app.windows()).find(candidate => candidate !== page)
+    expect(target).toBeTruthy()
+    await expect(target!.locator('.editor-component')).toContainText('unsaved target history')
+    const targetId = await app.evaluate(async({ BrowserWindow }, marker) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        if (await window.webContents.executeJavaScript(`document.body.innerText.includes(${JSON.stringify(marker)})`)) return window.id
+      }
+      return undefined
+    }, 'unsaved target history')
+    if (!targetId) throw new Error('moved target window was not found')
+    await app.evaluate(({ BrowserWindow }, windowId) => {
+      BrowserWindow.fromId(windowId)?.webContents.send('mt::editor-edit-action', 'undo')
+    }, targetId)
+    await expect.poll(() => target!.locator('.editor-component').innerText()).not.toContain('unsaved target history')
+  } finally {
+    await forceTerminate(app)
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
 test('rebinds the crash-draft endpoint after renderer reload', async() => {
   const { app, page } = await launchElectron()
   try {
