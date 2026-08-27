@@ -111,3 +111,39 @@ physical versus remote input, and a defect reference for every `Failed` item.
 | A14 automated clean Windows-build readiness | Passed | Frozen install retry and `build:win:x64` passed at the provenance commit; artifacts and hashes above. |
 | A14 manual Windows trial | Untested | All required manual rows remain outstanding; remote/virtual-display context cannot substitute for physical external-release proof. |
 | T12 / final acceptance | Untested | Coordinator must arrange the trial, classify defects, run final independent reviews, and request user Acceptance only after all required manual gates pass and critical defects are zero. |
+
+## Packaging diagnostic rerun — 2026-08-27
+
+At `f8179476e449fd40d975300455594593fd065d3f` on Windows 11 Pro
+10.0.26200 x64 (Node `v24.18.0`, pnpm `10.33.4`, Electron `42.1.0`,
+electron-builder `26.15.3`), `pnpm install --frozen-lockfile`,
+`pnpm typecheck`, and `pnpm -C packages/desktop exec vitest run
+test/unit/specs/native-gesture.spec.ts` passed (the native suite was 11/11).
+
+Two short direct `electron-builder --win --x64 --dir` probes appeared to stop
+after `searching for node modules`, but debug output had already enumerated the
+pnpm graph and native modules. The full staged app has 22,041 files; an isolated
+temporary `@electron/asar` probe completed its archive in 206 seconds. A full builder run
+then produced all targets. The final bounded `pnpm build:win:x64` completed with
+`__BUILD_EXIT__=0` after 223 seconds. Therefore no source, lockfile, builder,
+or asar configuration change was justified: the prior stop window cut off a
+normally silent asar/ZIP/NSIS interval.
+
+One immediate post-smoke rerun returned `EBUSY` while electron-builder opened
+`dist/win-unpacked/marktext.exe`; the subsequent process probe found no
+worktree-owned MarkText process, and the final retry passed. The available
+evidence cannot distinguish a transient file handle from endpoint protection,
+so this is a non-blocking environment record rather than a configuration cause.
+
+| Artifact | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `dist/marktext-win-x64-0.20.0-rc.1.zip` | 173,336,116 | `313606DF837C6B922C9198B9F971766EFA64C3311473DB455D81F7CB6C0D80E4` |
+| `dist/marktext-win-x64-0.20.0-rc.1-setup.exe` | 125,800,750 | `0351460520A2A9CB8833C790CAB9BBBD1ED022A3AAD1399D9FFDE6C4EF66AFAA` |
+| `dist/marktext-win-x64-0.20.0-rc.1-setup.exe.blockmap` | 131,391 | `3E80A45ACF56744B5410083DF577E8BBEE941DDA2F4BBD28756C2FCEE89D9BCE` |
+| unpacked `uiohook-napi/bin/win32-x64-146/uiohook-napi.node` | 173,056 | `99106A650B256E174941FA446A489F25C903C7BA24E20959322EEC5B0E4A2727` |
+
+`tar -tf` verified that the ZIP contains the unpacked x64 Electron-42 uiohook
+binary, and an isolated-profile unpacked-app smoke remained alive for 12 seconds
+after launch. This package check does not replace the required physical Windows
+external-release/assistive trial or any T12 manual row: all manual rows and
+final acceptance remain **Untested**.
