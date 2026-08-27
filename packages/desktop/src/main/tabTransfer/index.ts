@@ -147,13 +147,13 @@ export class TabTransferCoordinator implements TabTransfer {
       await this.capsules.putRecovery(transferId, recoveryPayload(intent.capsule))
       await this.capsules.put(transferId, bytes, capsuleDigest)
       await this.observe(initial, 'requested')
-      return this.publicAttempt(initial)
+      return this.publicAttempt(initial, intent.releasePoint)
     } catch (error) {
       return { status: 'failed', reason: `durable transfer setup failed: ${message(error)}` }
     }
   }
 
-  private async advance(transfer: RecoveredTransfer): Promise<TabTransferResult> {
+  private async advance(transfer: RecoveredTransfer, releasePoint?: TransferIntent['releasePoint']): Promise<TabTransferResult> {
     const stored = await this.capsules.get(transfer.transferId)
     let salvage: TransferRecoveryPayload | undefined
     let capsule: TransferIntent['capsule'] | undefined
@@ -182,7 +182,7 @@ export class TabTransferCoordinator implements TabTransfer {
     let current = transfer
     try {
       if (phaseIndex(current.phase) < phaseIndex('source-prepared')) {
-        const target = current.target ?? await this.transport.createTarget(current.transferId)
+        const target = current.target ?? await this.transport.createTarget(current.transferId, releasePoint)
         current = { ...current, target }
         const ack = await this.command(current, 'source-prepared', current.source)
         if (!isSealed(ack, current.documentRevision)) return this.abort(current, 'source revision fence was not sealed')
@@ -425,17 +425,17 @@ export class TabTransferCoordinator implements TabTransfer {
     })
   }
 
-  private advanceExisting(transfer: RecoveredTransfer): Promise<TabTransferResult> {
+  private advanceExisting(transfer: RecoveredTransfer, releasePoint?: TransferIntent['releasePoint']): Promise<TabTransferResult> {
     const existing = this.recoveringTransfers.get(transfer.transferId)
     if (existing) return existing
     // This tracks only one bounded internal attempt, never the public recovery waiter.
-    const operation = this.advance(transfer).finally(() => this.recoveringTransfers.delete(transfer.transferId))
+    const operation = this.advance(transfer, releasePoint).finally(() => this.recoveringTransfers.delete(transfer.transferId))
     this.recoveringTransfers.set(transfer.transferId, operation)
     return operation
   }
 
-  private async publicAttempt(transfer: RecoveredTransfer): Promise<TabTransferResult> {
-    const result = await this.advanceExisting(transfer)
+  private async publicAttempt(transfer: RecoveredTransfer, releasePoint?: TransferIntent['releasePoint']): Promise<TabTransferResult> {
+    const result = await this.advanceExisting(transfer, releasePoint)
     return result.status === 'failed' && this.pending.has(transfer.transferId)
       ? this.pendingFor(transfer.transferId).promise
       : result

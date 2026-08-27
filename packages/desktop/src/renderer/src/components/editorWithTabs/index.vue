@@ -14,6 +14,7 @@
       :platform="platform"
       @caret-position="$emit('caret-position', $event)"
       @tab-drag="handleTabDrag"
+      @tab-press="handleTabPress(pane.paneId, $event)"
     />
     <div v-if="panes.length === 2" class="workspace-divider" title="Reset split" @pointerdown="startDivider" @dblclick="controller.execute({ kind: 'set-split-ratio', ratio: 0.5 })" />
   </div>
@@ -22,7 +23,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
-import { createElectronCrashDraftPort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
+import { createElectronCrashDraftPort, createElectronNativeGesturePort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
 import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload, PortableHistory } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
@@ -40,6 +41,7 @@ const controller = createWorkspaceRuntime(seed ? [{ documentId: seed.id, markdow
 const left = createPaneEditorComposition({ paneId: 'left', controller })
 const right = createPaneEditorComposition({ paneId: 'right', controller })
 const transfer = createElectronTransferPort()
+const nativeGesture = createElectronNativeGesturePort()
 const moveTabToNewWindow = createMoveTabToNewWindowAction(controller, transfer, {
   flushSource: (paneId, tabId) => (paneId === 'left' ? left : right).flushTransferSource(tabId)
 })
@@ -53,6 +55,7 @@ const ratio = computed(() => snapshot.value.projection.splitRatio ?? 0.5)
 const splitPreview = ref<'left' | 'right' | null>(null)
 let draggedViewId: string | undefined
 let committedDragViewId: string | undefined
+let nativeDrag: { readonly gestureId: string; readonly tabId: string; readonly paneId: 'left' | 'right' } | undefined
 const snapshot = ref(controller.getFacadeSnapshot())
 const panes = computed(() => snapshot.value.projection.panes)
 let legacySourceProjectionKey = `${snapshot.value.projection.focusedPaneId}:${snapshot.value.projection.panes.find((pane) => pane.paneId === snapshot.value.projection.focusedPaneId)?.activeViewId ?? ''}`
@@ -102,6 +105,18 @@ const handleTabDrag = (event: {
     draggedViewId = undefined
     committedDragViewId = undefined
   }
+}
+const handleTabPress = (paneId: 'left' | 'right', event: { viewId?: string; button: number; trusted: boolean }) => {
+  if (!event.trusted || event.button !== 0 || !event.viewId) return
+  const tab = controller.getProjection().panes.find((pane) => pane.paneId === paneId)?.tabs.find((candidate) => candidate.viewId === event.viewId)
+  if (!tab) return
+  const gestureId = crypto.randomUUID()
+  nativeDrag = { gestureId, tabId: tab.documentId, paneId }
+  nativeGesture.begin(gestureId).then((enabled) => {
+    if (!enabled && nativeDrag?.gestureId === gestureId) nativeDrag = undefined
+  }).catch(() => {
+    if (nativeDrag?.gestureId === gestureId) nativeDrag = undefined
+  })
 }
 const releaseTabDrag = (event: PointerEvent) => {
   const target = candidateAt(event.clientX, event.clientY)
@@ -326,6 +341,12 @@ onMounted(async () => {
   moveActionDriver.__mtMoveTabToNewWindow = ({ tabId, paneId }) => moveTabToNewWindow(tabId, paneId)
   moveActionDriver.__mtWorkspaceSnapshot = () => structuredClone(controller.getFacadeSnapshot())
   stopTransferCommands = transfer.bind(acknowledgeTransferCommand)
+  stopNativeGestureCommit = nativeGesture.bindCommit(({ gestureId, releasePoint }) => {
+    const drag = nativeDrag
+    if (!drag || drag.gestureId !== gestureId) return
+    nativeDrag = undefined
+    moveTabToNewWindow(drag.tabId, drag.paneId, releasePoint).catch(() => undefined)
+  })
   stopTransferRecovery = transfer.bindRecovery(async (message: TransferRecoveryMessage) => {
     await openTransferPayload(message.payload, message.transferId)
     await transfer.recoveryMaterialized(message.transferId)
@@ -336,6 +357,7 @@ onMounted(async () => {
 })
 let stopTransferCommands: (() => void) | undefined
 let stopTransferRecovery: (() => void) | undefined
+let stopNativeGestureCommit: (() => void) | undefined
 type MoveActionDriver = Window & {
   __mtMoveTabToNewWindow?: (input: { readonly tabId: string; readonly paneId: 'left' | 'right' }) => Promise<unknown>
   __mtWorkspaceSnapshot?: () => ReturnType<typeof controller.getFacadeSnapshot>
@@ -353,6 +375,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerup', releaseTabDrag, true)
   stopTransferCommands?.()
   stopTransferRecovery?.()
+  stopNativeGestureCommit?.()
   delete moveActionDriver.__mtMoveTabToNewWindow
   delete moveActionDriver.__mtWorkspaceSnapshot
 })

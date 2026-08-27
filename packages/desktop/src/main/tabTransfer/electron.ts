@@ -4,6 +4,7 @@ import type {
   TransferCapability,
   TransferCommand,
   TransferEndpoint,
+  NativeExternalReleasePoint,
   TransferRecoveryMessage,
   TransferRecoveryPayload,
   TransferTransport
@@ -18,7 +19,7 @@ export interface TransferWebContents {
 }
 
 export interface TransferTargetFactory {
-  createTarget(transferId: string, recovery: boolean, reserved?: TransferEndpoint): Promise<TransferEndpoint>
+  createTarget(transferId: string, recovery: boolean, reserved?: TransferEndpoint, releasePoint?: NativeExternalReleasePoint): Promise<TransferEndpoint>
 }
 
 interface RegisteredEndpoint { readonly endpoint: TransferEndpoint; readonly webContents: TransferWebContents }
@@ -99,7 +100,10 @@ export class ElectronTransferTransport implements TransferTransport {
     })
   }
 
-  createTarget(transferId: string): Promise<TransferEndpoint> { return this.targets.createTarget(transferId, false) }
+  createTarget(transferId: string, releasePoint?: NativeExternalReleasePoint): Promise<TransferEndpoint> {
+    return this.targets.createTarget(transferId, false, undefined, releasePoint)
+  }
+
   async reserveRecoveryWindow(transferId: string): Promise<TransferEndpoint> {
     // Reservation is intentionally inert: it cannot authenticate or receive a
     // command until the T05 journal has durably migrated ownership.

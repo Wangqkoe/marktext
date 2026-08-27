@@ -72,6 +72,7 @@ export interface IpcInvokeChannels {
   'mt::workspace::tab-transfer-payload': { args: [request: unknown]; ret: unknown }
   'mt::workspace::tab-transfer-ready': { args: []; ret: boolean }
   'mt::workspace::tab-transfer-recovery-ready': { args: [transferId: string]; ret: boolean }
+  'mt::workspace::native-gesture-begin': { args: [request: unknown]; ret: boolean }
   'mt::fs-trash-item': { args: [pathname: string]; ret: void }
   'mt::fs::copy': { args: [src: string, dest: string]; ret: void }
   'mt::fs::empty-dir': { args: [path: string]; ret: void }
@@ -251,6 +252,7 @@ export interface IpcMainEventChannels {
   'mt::workspace::document-io-observation': [observation: DocumentIoObservation]
   'mt::workspace::transfer-command': [command: unknown]
   'mt::workspace::transfer-recovery': [payload: unknown]
+  'mt::workspace::native-gesture-commit': [payload: unknown]
   'mt::workspace::crash-recovery': [payload: unknown]
   'mt::UPDATE_DOWNLOADED': [info?: unknown]
   'mt::UPDATE_ERROR': [error: unknown]

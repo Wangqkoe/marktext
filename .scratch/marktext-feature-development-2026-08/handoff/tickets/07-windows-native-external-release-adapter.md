@@ -20,9 +20,10 @@ transport registration seam if required. If a production native helper/module is
 needed, this ticket may also own its isolated source/resource directory,
 `packages/desktop/package.json`, the matching `pnpm-lock.yaml` entries, and
 `packages/desktop/electron-builder.yml` only for declared packaged resources.
-If no dependency/resource is needed, do not touch manifests. No renderer tab
-implementation, transfer WAL, menu/locales or prototype files may change; never
-copy the PowerShell/Add-Type prototype helper into production.
+If no dependency/resource is needed, do not touch manifests. Apart from the
+minimal trusted-primary-press guard and native release-point handoff, no renderer
+tab implementation, transfer WAL, menu/locales or prototype files may change;
+never copy the PowerShell/Add-Type prototype helper into production.
 
 Implement trusted left-down session creation, native move/up/Escape input,
 per-event DIP→physical hit-test snapshot, re-entry/re-arm, Escape cancel, endpoint
@@ -42,3 +43,15 @@ both automatic flag cases and disablement fallback must be Passed. Commit only
 owned adapter/package/resource/tests. Independent terra/high Standards + Spec
 review verifies no crossing/blur/timeout bypass, helper signing/packaging, resource
 cleanup, process exit, and fault-default-disable behavior.
+
+## T07 local execution evidence — 2026-08-26
+
+| Evidence | Status | Exact result / limitation |
+| --- | --- | --- |
+| Native adapter contract | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts`; expanded deterministic suite is included in the 5-file command below. It covers both injected-flag values, inside-up, re-entry, Escape, crossing/blur/timeout, stale endpoint epoch, replacement session, unsupported capability, hit-test failure, trusted-primary press gating, malformed IPC fail-closed before adapter begin, and work-area clamp. |
+| T06/Move unit regression and release-point handoff | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-recovery.spec.ts test/unit/specs/tab-transfer-emergency-recovery.spec.ts test/unit/specs/move-action-preflight.spec.ts`; 5 files / 50 passed. It asserts native release coordinates flow through Move intent and the initial T06 target seam. |
+| Typecheck | Passed | `pnpm -C packages/desktop typecheck`; exit 0. |
+| Scoped ESLint | Passed | Targeted T07/T06 seam files exit 0 with 34 baseline warnings (Vue attribute formatting and existing non-null assertions), no errors. |
+| Desktop build | Passed | `pnpm -C packages/desktop build`; exit 0. Existing Vite dynamic-import chunk warnings only. |
+| Windows package smoke | Unavailable | `pnpm build:win:x64` completed locale minification, Electron rebuild (including `uiohook-napi`) and Electron-Vite bundle. `electron-builder` then remained in `searching for node modules` with no artifact or exit result and its controlled process tree was terminated. It is not a package pass. |
+| Real physical smoke | Untested | Run the Windows 11 single-primary 2560×1440 / 96-DPI scenario: tab left-down, leave window and release; inside-up; re-entry then inside-up; Escape then outside-up; blur/timeout while held. Also record remote/assistive availability. |

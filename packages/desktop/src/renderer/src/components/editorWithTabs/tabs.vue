@@ -26,6 +26,7 @@
             :aria-selected="currentFile?.id === file.id"
             :tabindex="currentFile?.id === file.id ? 0 : -1"
             @click.stop="selectFile(file)"
+            @pointerdown="beginTabGesture($event, file)"
             @keydown.left.prevent="selectAdjacentTab(file, -1)"
             @keydown.right.prevent="selectAdjacentTab(file, 1)"
           >
@@ -71,6 +72,7 @@ import { showContextMenu } from '../../contextMenu/tabs'
 import bus from '../../bus'
 import type { IFileState } from '@shared/types/files'
 import type { PaneEditorComposition } from '@/workspace'
+import { isTrustedPrimaryTabPress } from '@/workspace/nativeGestureEndpoint'
 
 type TabRow = IFileState & { viewId?: string }
 
@@ -87,6 +89,7 @@ const emit = defineEmits<{
     x?: number
     y?: number
   }]
+  'tab-press': [event: { viewId?: string; button: number; trusted: true }]
 }>()
 
 const editorStore = useEditorStore()
@@ -137,6 +140,12 @@ const selectFile = (file: IFileState) => {
       console.error('Failed to activate workspace pane tab:', error)
     })
   }
+}
+
+const beginTabGesture = (event: PointerEvent, file: IFileState): void => {
+  if (!isTrustedPrimaryTabPress(event)) return
+  const viewId = props.pane?.tabs.find((tab) => tab.documentId === file.id)?.viewId
+  emit('tab-press', { viewId, button: event.button, trusted: true })
 }
 
 const selectAdjacentTab = (file: IFileState, offset: -1 | 1): void => {

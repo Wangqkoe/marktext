@@ -85,4 +85,20 @@ describe('Move action preflight fence', () => {
       captured!.documentRevision, captured!.capsule.sourcePreflightId!
     )).resolves.toBeUndefined()
   })
+
+  it('carries a native outside-up release point into the T06 transfer intent', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'untitled', markdown: '', title: 'New Tab' }])
+    const tab = firstTab(workspace)
+    let captured: TransferIntent | undefined
+    const action = createMoveTabToNewWindowAction(workspace, {
+      run: async(intent) => {
+        captured = intent
+        return { status: 'rejected', reason: 'test-only stop after intent assembly' }
+      }
+    })
+    const releasePoint = { x: 1875, y: 945 }
+
+    await expect(action(tab.viewId, 'left', releasePoint)).resolves.toMatchObject({ status: 'rejected' })
+    expect(captured?.releasePoint).toEqual(releasePoint)
+  })
 })

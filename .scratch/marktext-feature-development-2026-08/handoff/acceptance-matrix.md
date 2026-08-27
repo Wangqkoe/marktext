@@ -22,6 +22,17 @@ integration branch; `Passed` may be claimed only with all four.
 | A13 | cross-feature regression, default-off startup and two-source emergency recovery — T11 | `pnpm -C packages/desktop exec playwright test test/e2e/workspace-transfer.spec.ts test/e2e/workspace-details-composition.spec.ts test/e2e/workspace-startup-policy.spec.ts`; `pnpm -C packages/desktop typecheck`; `pnpm lint` | tabs/split/Move/Open/details plus CrashDraft kill recovery, corrupt-latest warning/disk-conflict copy, MoveRecovery, explicit-only file, clean no-restore, dirty-exit decision and retained legacy data | required |
 | A14 | clean Windows-build readiness evidence — T12 | `pnpm install --frozen-lockfile`; `pnpm build:win:x64` (clean Windows builder) | trial records default-off clean/explicit startup, no inert setting, clean/dirty exit outcomes, CrashDraft durable-failure fallback/conflict copy and Move recovery, legacy-data retention, display/scale/motion and defects; coordinator—not T12—requests Acceptance | readiness |
 
+## T07 native external-release execution evidence — 2026-08-26
+
+| Evidence | Status | Exact result / limitation |
+| --- | --- | --- |
+| A09 deterministic adapter contract | Passed | Expanded `native-gesture.spec.ts` coverage was run in the 5-file command below. Both injected-flag cases commit under the same trusted session; inside-up, re-entry, Escape, crossing/blur/timeout, stale epoch/replaced session, unsupported capability and hit-test failure do not. It also rejects untrusted/non-left tab presses, rejects malformed begin IPC before adapter begin, and clamps release placement deterministically. |
+| T06/Move regression and coordinate handoff | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-recovery.spec.ts test/unit/specs/tab-transfer-emergency-recovery.spec.ts test/unit/specs/move-action-preflight.spec.ts`; 5 files / 50 passed. Native outside-up coordinates are asserted through Move intent and the initial T06 `createTarget` seam. |
+| Typecheck | Passed | `pnpm -C packages/desktop typecheck`; exit 0. |
+| Desktop build | Passed | `pnpm -C packages/desktop build`; exit 0; existing Vite dynamic-import chunk warnings only. |
+| Windows package smoke | Unavailable | `pnpm build:win:x64` rebuilt `uiohook-napi` for Electron 42.1.0 and completed Electron-Vite, but `electron-builder` remained in `searching for node modules` without an artifact/exit result; its controlled process tree was stopped. This is not Passed evidence. |
+| Windows physical release and remote/assistive smoke | Untested | No user-operated physical scenario was run. The required manual row remains unclaimed. |
+
 ## T12 Windows trial readiness evidence — 2026-08-27
 
 See [T12 Windows trial readiness evidence](evidence/t12-windows-trial-readiness-2026-08-27.md).
