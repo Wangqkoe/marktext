@@ -67,8 +67,11 @@ test('moves the last saved tab into a singleton target and closes that target th
   fs.writeFileSync(file, '# Singleton transfer target\n')
   const { app, page } = await launchElectron([file], { userDataDir: profile, userDataDirOwnership: 'caller' })
   const child = app.process()
+  let restarted: ElectronApplication | undefined
   try {
     await expect(page.locator('.editor-with-tabs')).toBeVisible()
+    const sourceId = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.id)
+    if (!sourceId) throw new Error('source window was not found')
     const tabId = await page.locator('.tabs-container li').first().getAttribute('data-id')
     expect(tabId).toBeTruthy()
     await expect(page.evaluate(async(id) => {
@@ -94,6 +97,13 @@ test('moves the last saved tab into a singleton target and closes that target th
     await expect(target.locator('.tabs-container li')).toHaveCount(1)
     await expect(target.locator('.tabs-container li')).toHaveAttribute('data-id', /^transfer-target:/)
     await expect(target.locator('.tabs-container li')).not.toContainText('Untitled-1')
+    await expect.poll(() => {
+      try {
+        return fs.readdirSync(path.join(profile, 'crash-drafts')).filter(name => name.endsWith('.draft.json'))
+      } catch {
+        return []
+      }
+    }).toEqual([])
 
     const closeTarget = target.waitForEvent('close')
     await app.evaluate(({ BrowserWindow, Menu }, windowId) => {
@@ -106,9 +116,7 @@ test('moves the last saved tab into a singleton target and closes that target th
     await closeTarget
     await expect.poll(() => app.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId) === null, targetId)).toBe(true)
     await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
-
-    const sourceId = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.id)
-    if (!sourceId) throw new Error('source window was not retained after closing the target')
+    await expect.poll(() => app.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId)?.id, sourceId)).toBe(sourceId)
     await app.evaluate(({ BrowserWindow, Menu }, windowId) => {
       const window = BrowserWindow.fromId(windowId)
       const fileMenu = Menu.getApplicationMenu()?.items.find(item => item.submenu?.items.some(entry => entry.label === 'Close Tab'))
@@ -117,8 +125,16 @@ test('moves the last saved tab into a singleton target and closes that target th
       closeTab.click(undefined, window, window.webContents)
     }, sourceId)
     await expect.poll(() => child.exitCode, { timeout: 5_000 }).toBe(0)
+
+    const second = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
+    restarted = second.app
+    await expect(second.page.locator('.tabs-container li')).toHaveCount(1)
+    await expect(second.page.locator('.tabs-container li')).not.toHaveClass(/unsaved/)
+    await expect(second.page.locator('.editor-component')).toHaveText('')
+    await expect(second.page.locator('body')).not.toContainText('Singleton transfer target')
   } finally {
     if (child.exitCode === null) await forceTerminate(app)
+    await forceTerminate(restarted)
     fs.rmSync(profile, { recursive: true, force: true })
   }
 })

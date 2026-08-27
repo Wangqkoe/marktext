@@ -321,10 +321,11 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
     if (document.fileKey && document.observedDiskRevision === undefined) {
       return { status: 'nack', reason: 'target checkpoint disk baseline is unavailable' }
     }
+    if (!document.dirty) return { status: 'ok' }
     const pane = controller.getProjection().panes.find((candidate) => candidate.tabs.some((tab) => tab.viewId === document.viewId))
     const composition = pane?.paneId === 'left' ? left : pane?.paneId === 'right' ? right : undefined
     if (composition) {
-      const durable = await composition.checkpointTransferTarget(document.documentId, document.documentRevision)
+      const durable = await composition.hasDurableCrashDraft(document.documentId, document.documentRevision)
       return durable
         ? { status: 'ok' }
         : { status: 'nack', reason: 'target crash-draft checkpoint was not durable' }

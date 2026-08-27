@@ -482,9 +482,6 @@ export class PaneEditorComposition {
     for (const documentId of documentIds) {
       const result = await this.closeLegacyTab(documentId)
       if (result.status !== 'applied') return false
-      // Move checkpoints exist even for clean transferred documents. Closing
-      // that document must tombstone its receipt before clean shutdown.
-      await this.resolveCrashDraft(documentId)
     }
     await this.crashDraftTail
     return (await this.crashDraft.request({ kind: 'mark-clean' })).durable
@@ -558,33 +555,6 @@ export class PaneEditorComposition {
 
   async checkpointCrashDraft(): Promise<void> {
     await this.syncCrashDraft()
-  }
-
-  /** Move checkpoints clean targets too, so their receipt must remain owned by this pane. */
-  async checkpointTransferTarget(documentId: string, documentRevision: number): Promise<boolean> {
-    await this.syncCrashDraft()
-    const lease = this.binding?.getLease()
-    const snapshot = lease ? this.binding?.getSnapshot(lease) : undefined
-    if (!snapshot || snapshot.documentId !== documentId || snapshot.documentRevision !== documentRevision) return false
-    const observedDiskRevision = snapshot.document.observedDiskRevision
-    if (snapshot.document.fileKey && observedDiskRevision === undefined) return false
-    const current = this.crashReceipts.get(documentId)
-    if (current?.revision === documentRevision) return true
-    const response = await this.crashDraft.request({
-      kind: 'checkpoint',
-      checkpoint: {
-        documentId: this.crashDraftLineage.get(documentId) ?? documentId,
-        ...(snapshot.document.fileKey
-          ? { fileKey: snapshot.document.fileKey, observedDiskRevision }
-          : {}),
-        documentRevision,
-        markdown: snapshot.document.markdown,
-        view: { cursor: snapshot.view.cursor, selection: snapshot.view.selection }
-      }
-    })
-    if (!response.durable || !response.receipt) return false
-    this.crashReceipts.set(documentId, { revision: documentRevision, receipt: response.receipt })
-    return true
   }
 
   /** Emergency state derives from the controller's live bound snapshot only. */
