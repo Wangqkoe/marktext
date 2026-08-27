@@ -1,5 +1,5 @@
 import type { PaneId } from '@shared/workspace'
-import type { TabTransferResult, TransferIntent } from 'main_renderer/tabTransfer'
+import type { NativeExternalReleasePoint, TabTransferResult, TransferIntent } from 'main_renderer/tabTransfer'
 import type { WorkspaceController } from './controller'
 
 export interface RendererTransferPort {
@@ -15,7 +15,7 @@ export const createMoveTabToNewWindowAction = (
   controller: WorkspaceController,
   transfer: RendererTransferPort,
   sourceFlusher?: MoveSourceFlusher
-) => async(tabId: string, paneId: PaneId): Promise<unknown> => {
+) => async(tabId: string, paneId: PaneId, releasePoint?: NativeExternalReleasePoint): Promise<unknown> => {
   const requestId = crypto.randomUUID()
   if (sourceFlusher && !await sourceFlusher.flushSource(paneId, tabId)) {
     return { status: 'rejected', reason: 'explicit source tab is unavailable' }
@@ -32,6 +32,7 @@ export const createMoveTabToNewWindowAction = (
     sourceLineage: source.sourceLineage,
     documentRevision: source.documentRevision,
     isLastSourceTab: source.isLastSourceTab,
+    ...(releasePoint ? { releasePoint } : {}),
     capsule: {
       version: 1,
       sourceDocumentId: source.documentId,

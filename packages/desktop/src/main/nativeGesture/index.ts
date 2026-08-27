@@ -1,4 +1,4 @@
-import type { TransferEndpoint } from '../tabTransfer/types'
+import type { NativeExternalReleasePoint, TransferEndpoint } from '../tabTransfer/types'
 
 export interface NativeGestureRect { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 
@@ -38,7 +38,11 @@ export interface NativeGestureHitTest {
   }
 }
 
-export interface NativeGestureCommit { readonly gestureId: string; readonly hitTest: NativeGestureHitTest }
+export interface NativeGestureCommit {
+  readonly gestureId: string
+  readonly releasePoint: NativeExternalReleasePoint
+  readonly hitTest: NativeGestureHitTest
+}
 
 export interface NativeGestureBegin {
   readonly gestureId: string
@@ -117,7 +121,7 @@ export class NativeGestureAdapter {
     }
     this.active = undefined
     if (active.candidate && !hitTest.inside) {
-      try { active.commit({ gestureId: active.gestureId, hitTest }) } catch {}
+      try { active.commit({ gestureId: active.gestureId, releasePoint: { x: input.x, y: input.y }, hitTest }) } catch {}
     }
   }
 

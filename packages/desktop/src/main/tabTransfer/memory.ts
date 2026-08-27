@@ -6,6 +6,7 @@ import type {
   TransferCapability,
   TransferCommand,
   TransferEndpoint,
+  NativeExternalReleasePoint,
   TransferJournal,
   TransferTransport,
   TransferRecoveryPayload
@@ -93,6 +94,7 @@ type PlannedAck = TransferAck & { readonly late?: boolean }
 
 /** Deterministic transport: plans model loss, duplicate/reorder, restarts and late ACKs. */
 export class MemoryTransferTransport implements TransferTransport {
+  readonly targetRequests: { readonly transferId: string; readonly releasePoint?: NativeExternalReleasePoint }[] = []
   readonly commands: TransferCommand[] = []
   readonly lateEvents: TransferCommand[] = []
   /** Effects that became durable before their ACK was deliberately lost. */
@@ -159,7 +161,8 @@ export class MemoryTransferTransport implements TransferTransport {
     return endpoint
   }
 
-  async createTarget(_transferId: string): Promise<TransferEndpoint> {
+  async createTarget(transferId: string, releasePoint?: NativeExternalReleasePoint): Promise<TransferEndpoint> {
+    this.targetRequests.push({ transferId, ...(releasePoint ? { releasePoint } : {}) })
     const sessionId = `target-${this.nextEndpoint++}`
     const endpoint = { sessionId, epoch: 1 }
     this.endpoints.set(sessionId, endpoint)

@@ -1,10 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   NativeGestureAdapter,
   type NativeGestureCapability,
   type NativeGestureCommit,
   type NativeGestureSource
 } from 'main_renderer/nativeGesture'
+import { clampNativeExternalReleasePoint } from 'main_renderer/nativeGesture/placement'
+import { registerNativeGestureIpc, type NativeGestureIpcMain } from 'main_renderer/ipc/nativeGesture'
+import { isTrustedPrimaryTabPress } from '@/workspace'
 
 const primaryCapability: NativeGestureCapability = {
   platform: 'win32',
@@ -46,6 +49,7 @@ describe('Windows native external-release gesture adapter', () => {
     expect(commits).toHaveLength(1)
     expect(commits[0]).toMatchObject({
       gestureId: 'gesture-1',
+      releasePoint: outside,
       hitTest: {
         inside: false,
         eventPoint: { ...outside, units: 'physical-screen-pixels' },
@@ -121,5 +125,41 @@ describe('Windows native external-release gesture adapter', () => {
     adapter.input({ kind: 'move', ...outside })
     adapter.input({ kind: 'left-up', ...outside })
     expect(commits).toHaveLength(0)
+  })
+
+  it('allows only a trusted primary tab press to begin a native gesture', () => {
+    expect(isTrustedPrimaryTabPress({ button: 0, isTrusted: false })).toBe(false)
+    expect(isTrustedPrimaryTabPress({ button: 1, isTrusted: true })).toBe(false)
+    expect(isTrustedPrimaryTabPress({ button: 0, isTrusted: true })).toBe(true)
+  })
+
+  it('rejects malformed native-gesture IPC before adapter begin can start the global hook', () => {
+    let handler: Parameters<NativeGestureIpcMain['handle']>[1] | undefined
+    const ipc: NativeGestureIpcMain = {
+      handle: (_channel, listener) => { handler = listener }
+    }
+    const begin = vi.fn(() => true)
+    registerNativeGestureIpc(ipc, { begin })
+    const event = { sender: {} as never }
+
+    expect(handler?.(event, null)).toBe(false)
+    expect(handler?.(event, { gestureId: '' })).toBe(false)
+    expect(handler?.(event, { gestureId: 42 })).toBe(false)
+    expect(begin).not.toHaveBeenCalled()
+    expect(handler?.(event, { gestureId: 'gesture-1' })).toBe(true)
+    expect(begin).toHaveBeenCalledTimes(1)
+  })
+
+  it('clamps a native release-point target window to the proven primary work area', () => {
+    expect(clampNativeExternalReleasePoint(
+      { x: 2500, y: 1400 },
+      { width: 800, height: 600 },
+      { x: 0, y: 0, width: 2560, height: 1392 }
+    )).toEqual({ x: 1760, y: 792 })
+    expect(clampNativeExternalReleasePoint(
+      { x: 700, y: 300 },
+      { width: 800, height: 600 },
+      { x: 0, y: 0, width: 2560, height: 1392 }
+    )).toEqual({ x: 700, y: 300 })
   })
 })

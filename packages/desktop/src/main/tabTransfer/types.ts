@@ -19,6 +19,9 @@ export interface TransferEndpoint {
   readonly epoch: number
 }
 
+/** Physical screen pixels from T07's already-proven single-primary native release. */
+export interface NativeExternalReleasePoint { readonly x: number; readonly y: number }
+
 export interface TransferCapsule {
   readonly version: 1
   readonly sourceDocumentId: string
@@ -72,6 +75,8 @@ export interface TransferIntent {
   readonly sourceLineage: string
   readonly documentRevision: number
   readonly isLastSourceTab: boolean
+  /** Present only for a current T07 native outside-up; never a general placement API. */
+  readonly releasePoint?: NativeExternalReleasePoint
   readonly capsule: TransferCapsule
 }
 
@@ -103,7 +108,7 @@ export type TransferAck =
   | { readonly status: 'timeout' }
 
 export interface TransferTransport {
-  createTarget(transferId: string): Promise<TransferEndpoint>
+  createTarget(transferId: string, releasePoint?: NativeExternalReleasePoint): Promise<TransferEndpoint>
   authenticate(endpoint: TransferEndpoint): boolean
   issueCapability(input: Omit<TransferCapability, 'id'>): TransferCapability
   command(command: TransferCommand, timeout: { readonly timeoutMs: number; readonly retryCadenceMs: number }): Promise<TransferAck>

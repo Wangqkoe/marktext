@@ -69,7 +69,7 @@ defineEmits<{
     x?: number
     y?: number
   }]
-  'tab-press': [event: { viewId?: string; button: number }]
+  'tab-press': [event: { viewId?: string; button: number; trusted: true }]
 }>()
 
 const paneFiles = computed(() => props.pane.tabs.flatMap((tab) => {

@@ -9,7 +9,11 @@ import {
 import { ElectronTransferTransport, type TransferWebContents } from 'main_renderer/tabTransfer/electron'
 import type { TransferCommand, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 
-const makeIntent = (transport: MemoryTransferTransport, requestId = 'request-1'): TransferIntent => ({
+const makeIntent = (
+  transport: MemoryTransferTransport,
+  requestId = 'request-1',
+  releasePoint?: { readonly x: number; readonly y: number }
+): TransferIntent => ({
   requestId,
   fingerprint: 'source:view:revision-4',
   source: transport.endpoint(),
@@ -18,6 +22,7 @@ const makeIntent = (transport: MemoryTransferTransport, requestId = 'request-1')
   sourceLineage: 'lineage-1',
   documentRevision: 4,
   isLastSourceTab: true,
+  ...(releasePoint ? { releasePoint } : {}),
   capsule: {
     version: 1,
     sourceDocumentId: 'document-1',
@@ -100,6 +105,14 @@ describe('TabTransfer core', () => {
     transport.lateNextAck('target-staged', { status: 'ok', sealedRevision: 4 })
     await expect(coordinator.run(makeIntent(transport))).resolves.toMatchObject({ status: 'applied' })
     expect(transport.lateEvents).toHaveLength(1)
+  })
+
+  it('passes the authenticated native release point through the initial T06 target seam', async() => {
+    const { transport, coordinator } = setup()
+    const releasePoint = { x: 1875, y: 945 }
+
+    await expect(coordinator.run(makeIntent(transport, 'native-release', releasePoint))).resolves.toMatchObject({ status: 'applied' })
+    expect(transport.targetRequests).toEqual([{ transferId: 'transfer-1', releasePoint }])
   })
 })
 

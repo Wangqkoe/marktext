@@ -3,7 +3,7 @@ import { app } from 'electron'
 import { TabTransferCoordinator } from '../tabTransfer'
 import { ElectronTransferTransport, type TransferTargetFactory, type TransferWebContents } from '../tabTransfer/electron'
 import { NodeCapsuleStorage, NodeTransferJournal } from '../tabTransfer/node'
-import type { TabTransferResult, TransferAck, TransferCapability, TransferCommand, TransferEndpoint, TransferIntent } from '../tabTransfer/types'
+import type { NativeExternalReleasePoint, TabTransferResult, TransferAck, TransferCapability, TransferCommand, TransferEndpoint, TransferIntent } from '../tabTransfer/types'
 
 export interface TransferIpcMain {
   handle(channel: 'mt::workspace::tab-transfer', listener: (event: { readonly sender: TransferWebContents }, intent: TransferIntent) => Promise<TabTransferResult>): void
@@ -17,15 +17,15 @@ export interface TransferReceipt { readonly transferId: string; readonly phase: 
 export interface TransferPayloadRequest { readonly transferId: string; readonly capability?: TransferCapability }
 export type TransferPayloadResponse = { readonly durable: true; readonly payload: TransferIntent['capsule'] } | { readonly durable: false; readonly reason: string }
 
-let createWindow: ((transferId: string, recovery: boolean, reserved?: TransferEndpoint) => Promise<TransferEndpoint>) | undefined
+let createWindow: ((transferId: string, recovery: boolean, reserved?: TransferEndpoint, releasePoint?: NativeExternalReleasePoint) => Promise<TransferEndpoint>) | undefined
 const targets: TransferTargetFactory = {
-  createTarget: async(transferId, recovery, reserved) => {
+  createTarget: async(transferId, recovery, reserved, releasePoint) => {
     if (!createWindow) throw new Error('transfer target factory is not ready')
-    return createWindow(transferId, recovery, reserved)
+    return createWindow(transferId, recovery, reserved, releasePoint)
   }
 }
 
-export const configureTransferTargetFactory = (factory: (transferId: string, recovery: boolean, reserved?: TransferEndpoint) => Promise<TransferEndpoint>): void => { createWindow = factory }
+export const configureTransferTargetFactory = (factory: (transferId: string, recovery: boolean, reserved?: TransferEndpoint, releasePoint?: NativeExternalReleasePoint) => Promise<TransferEndpoint>): void => { createWindow = factory }
 
 export class TabTransferElectronAdapter {
   readonly transport = new ElectronTransferTransport(targets)

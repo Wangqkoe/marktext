@@ -106,8 +106,8 @@ const handleTabDrag = (event: {
     committedDragViewId = undefined
   }
 }
-const handleTabPress = (paneId: 'left' | 'right', event: { viewId?: string; button: number }) => {
-  if (event.button !== 0 || !event.viewId) return
+const handleTabPress = (paneId: 'left' | 'right', event: { viewId?: string; button: number; trusted: boolean }) => {
+  if (!event.trusted || event.button !== 0 || !event.viewId) return
   const tab = controller.getProjection().panes.find((pane) => pane.paneId === paneId)?.tabs.find((candidate) => candidate.viewId === event.viewId)
   if (!tab) return
   const gestureId = crypto.randomUUID()
@@ -341,11 +341,11 @@ onMounted(async () => {
   moveActionDriver.__mtMoveTabToNewWindow = ({ tabId, paneId }) => moveTabToNewWindow(tabId, paneId)
   moveActionDriver.__mtWorkspaceSnapshot = () => structuredClone(controller.getFacadeSnapshot())
   stopTransferCommands = transfer.bind(acknowledgeTransferCommand)
-  stopNativeGestureCommit = nativeGesture.bindCommit(({ gestureId }) => {
+  stopNativeGestureCommit = nativeGesture.bindCommit(({ gestureId, releasePoint }) => {
     const drag = nativeDrag
     if (!drag || drag.gestureId !== gestureId) return
     nativeDrag = undefined
-    moveTabToNewWindow(drag.tabId, drag.paneId).catch(() => undefined)
+    moveTabToNewWindow(drag.tabId, drag.paneId, releasePoint).catch(() => undefined)
   })
   stopTransferRecovery = transfer.bindRecovery(async (message: TransferRecoveryMessage) => {
     await openTransferPayload(message.payload, message.transferId)

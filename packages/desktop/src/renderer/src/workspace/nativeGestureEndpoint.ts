@@ -1,4 +1,10 @@
-export interface NativeGestureCommitMessage { readonly gestureId: string }
+import type { NativeExternalReleasePoint } from 'main_renderer/tabTransfer'
+
+export interface NativeGestureCommitMessage { readonly gestureId: string; readonly releasePoint: NativeExternalReleasePoint }
+
+/** Scripted PointerEvents cannot establish the native global-gesture session. */
+export const isTrustedPrimaryTabPress = (event: Pick<PointerEvent, 'button' | 'isTrusted'>): boolean =>
+  event.isTrusted === true && event.button === 0
 
 /** T07's renderer edge exposes only source-press registration and native commit. */
 export const createElectronNativeGesturePort = (): {

@@ -3,7 +3,7 @@ import fsPromises from 'fs/promises'
 import { exec } from 'child_process'
 import dayjs from 'dayjs'
 import log from 'electron-log'
-import { app, BrowserWindow, clipboard, dialog, nativeTheme, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, nativeTheme, screen, shell, ipcMain } from 'electron'
 import { createHash } from 'crypto'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import { isChildOfDirectory } from 'common/filesystem/paths'
@@ -26,6 +26,7 @@ import { configureTransferTargetFactory, getCrashDraftAdapter, getTransferAdapte
 import { NodeFileObservationStorage } from '../filesystem/fileObservation'
 import type { CrashDraftRecoveryPayload } from '@shared/workspace'
 import { getNativeThemeSource, isDarkApplicationTheme } from './nativeTheme'
+import { clampNativeExternalReleasePoint } from '../nativeGesture/placement'
 import type Accessor from './accessor'
 import type WindowManager from './windowManager'
 
@@ -68,7 +69,7 @@ class App {
 
     // Initialize main process language
     this._initializeLanguage()
-    configureTransferTargetFactory(async(_transferId, _recovery, reserved) => {
+    configureTransferTargetFactory(async(_transferId, recovery, reserved, releasePoint) => {
       if (consumeTransferTestFault('target-create-once')) {
         throw new Error('test injected target creation failure')
       }
@@ -82,6 +83,12 @@ class App {
       // listener, not race it, or its epoch is immediately revoked.
       await new Promise<void>(resolve => setImmediate(resolve))
       const window = editor.browserWindow
+      if (window && !recovery && releasePoint && supportsNativeExternalReleasePlacement()) {
+        const [width, height] = window.getSize()
+        const workArea = screen.getPrimaryDisplay().workArea
+        const position = clampNativeExternalReleasePoint(releasePoint, { width, height }, workArea)
+        window.setPosition(position.x, position.y)
+      }
       if (window && reserved) {
         const adapter = getTransferAdapter()
         // The window reached its renderer-ready lifecycle before the inert
@@ -879,6 +886,14 @@ class App {
       return shell.trashItem(fullPath)
     })
   }
+}
+
+const supportsNativeExternalReleasePlacement = (): boolean => {
+  if (!isWindows || screen.getAllDisplays().length !== 1) return false
+  const primary = screen.getPrimaryDisplay()
+  return primary.scaleFactor === 1 &&
+    primary.bounds.x === 0 && primary.bounds.y === 0 &&
+    primary.bounds.width === 2560 && primary.bounds.height === 1440
 }
 
 export default App

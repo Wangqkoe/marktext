@@ -26,9 +26,10 @@ integration branch; `Passed` may be claimed only with all four.
 
 | Evidence | Status | Exact result / limitation |
 | --- | --- | --- |
-| A09 deterministic adapter contract | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts`; Windows Node/Vitest; 1 file / 8 passed. Both injected-flag cases commit under the same trusted session; inside-up, re-entry, Escape, crossing/blur/timeout, stale epoch/replaced session, unsupported capability and hit-test failure do not. |
-| T06/Move regression | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-emergency-recovery.spec.ts`; 3 files / 18 passed. |
+| A09 deterministic adapter contract | Passed | Expanded `native-gesture.spec.ts` coverage was run in the 5-file command below. Both injected-flag cases commit under the same trusted session; inside-up, re-entry, Escape, crossing/blur/timeout, stale epoch/replaced session, unsupported capability and hit-test failure do not. It also rejects untrusted/non-left tab presses, rejects malformed begin IPC before adapter begin, and clamps release placement deterministically. |
+| T06/Move regression and coordinate handoff | Passed | `pnpm -C packages/desktop exec vitest run test/unit/specs/native-gesture.spec.ts test/unit/specs/tab-transfer-core.spec.ts test/unit/specs/tab-transfer-recovery.spec.ts test/unit/specs/tab-transfer-emergency-recovery.spec.ts test/unit/specs/move-action-preflight.spec.ts`; 5 files / 50 passed. Native outside-up coordinates are asserted through Move intent and the initial T06 `createTarget` seam. |
 | Typecheck | Passed | `pnpm -C packages/desktop typecheck`; exit 0. |
+| Desktop build | Passed | `pnpm -C packages/desktop build`; exit 0; existing Vite dynamic-import chunk warnings only. |
 | Windows package smoke | Unavailable | `pnpm build:win:x64` rebuilt `uiohook-napi` for Electron 42.1.0 and completed Electron-Vite, but `electron-builder` remained in `searching for node modules` without an artifact/exit result; its controlled process tree was stopped. This is not Passed evidence. |
 | Windows physical release and remote/assistive smoke | Untested | No user-operated physical scenario was run. The required manual row remains unclaimed. |
 

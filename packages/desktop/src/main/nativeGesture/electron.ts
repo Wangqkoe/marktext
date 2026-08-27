@@ -1,6 +1,7 @@
 import { BrowserWindow, screen, type WebContents } from 'electron'
 import { UiohookKey, uIOhook, type UiohookKeyboardEvent, type UiohookMouseEvent } from 'uiohook-napi'
 import type { TabTransferElectronAdapter } from '../ipc/transfer'
+import type { NativeExternalReleasePoint } from '../tabTransfer/types'
 import {
   NativeGestureAdapter,
   isSupportedWindowsNativeGestureCapability,
@@ -9,7 +10,7 @@ import {
 } from './index'
 
 export interface NativeGestureBeginRequest { readonly gestureId: string }
-export interface NativeGestureCommitMessage { readonly gestureId: string }
+export interface NativeGestureCommitMessage { readonly gestureId: string; readonly releasePoint: NativeExternalReleasePoint }
 
 /**
  * Windows-only uiohook bridge. It is intentionally one process-global observer:
@@ -56,8 +57,8 @@ export class ElectronNativeGestureAdapter {
     }
   }
 
-  begin(sender: WebContents, request: NativeGestureBeginRequest): boolean {
-    if (!this.start() || !validGestureId(request.gestureId)) return false
+  begin(sender: WebContents, request: unknown): boolean {
+    if (!isNativeGestureBeginRequest(request) || !this.start()) return false
     const endpoint = this.transfer().endpointFor(sender as never)
     const window = BrowserWindow.fromWebContents(sender)
     if (!endpoint || !window || window.isDestroyed()) return false
@@ -68,9 +69,9 @@ export class ElectronNativeGestureAdapter {
         getBounds: () => window.getBounds(),
         dipToPhysical: bounds => screen.dipToScreenRect(window, bounds)
       },
-      commit: ({ gestureId }) => {
+      commit: ({ gestureId, releasePoint }) => {
         if (!this.transfer().transport.authenticate(endpoint) || sender.isDestroyed()) return
-        sender.send('mt::workspace::native-gesture-commit', { gestureId } satisfies NativeGestureCommitMessage)
+        sender.send('mt::workspace::native-gesture-commit', { gestureId, releasePoint } satisfies NativeGestureCommitMessage)
       }
     })
   }
@@ -114,3 +115,7 @@ export class ElectronNativeGestureAdapter {
 }
 
 const validGestureId = (gestureId: string): boolean => gestureId.length > 0 && gestureId.length <= 128
+
+export const isNativeGestureBeginRequest = (request: unknown): request is NativeGestureBeginRequest =>
+  typeof request === 'object' && request !== null &&
+  'gestureId' in request && typeof request.gestureId === 'string' && validGestureId(request.gestureId)
