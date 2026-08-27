@@ -207,7 +207,11 @@
       "closeAllTabs": "Tüm sekmeleri kapat",
       "rename": "Yeniden Adlandır",
       "copyPath": "Yolu kopyala",
-      "showInFolder": "Klasörde göster"
+      "showInFolder": "Klasörde göster",
+      "moveToNewWindow": "Yeni pencereye taşı",
+      "openInNewWindow": "Yeni pencerede aç",
+      "openDiskCopyInNewWindow": "Disk kopyasını yeni pencerede aç",
+      "splitRight": "Sağa böl"
     }
   },
   "search": {
@@ -734,6 +738,11 @@
     "copyrightContributors": "Github Katkıda Bulunanlar tarafından <3 ile yapıldı"
   },
   "commands": {
+    "workspace": {
+      "moveToNewWindow": "Sekmeyi yeni pencereye taşı",
+      "openInNewWindow": "Disk kopyasını yeni pencerede aç",
+      "splitRight": "Sağa böl"
+    },
     "mt": {
       "hide": "MarkText'i Gizle",
       "hideOthers": "Diğerlerini Gizle"

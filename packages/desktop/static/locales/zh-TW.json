@@ -207,7 +207,11 @@
       "closeAllTabs": "關閉所有標籤頁",
       "rename": "重新命名",
       "copyPath": "複製路徑",
-      "showInFolder": "在資料夾中顯示"
+      "showInFolder": "在資料夾中顯示",
+      "moveToNewWindow": "移至新視窗",
+      "openInNewWindow": "在新視窗中開啟",
+      "openDiskCopyInNewWindow": "在新視窗中開啟磁碟副本",
+      "splitRight": "向右分割"
     }
   },
   "search": {
@@ -734,6 +738,11 @@
     "copyrightContributors": "版權貢獻者"
   },
   "commands": {
+    "workspace": {
+      "moveToNewWindow": "將分頁移至新視窗",
+      "openInNewWindow": "在新視窗中開啟磁碟副本",
+      "splitRight": "向右分割"
+    },
     "mt": {
       "hide": "隱藏 MarkText",
       "hideOthers": "隱藏其他"

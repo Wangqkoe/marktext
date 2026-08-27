@@ -37,3 +37,11 @@ dirty Open decision, keyboard/tab-menu route to the focused pane, and no new
 application-menu item. Regression: existing tab context menu and existing main-menu
 focused-document routing. Commit only owned menu/locale/tests; an
 independent review verifies no menu bypasses controller preconditions.
+
+## Implementation evidence — 2026-08-26
+
+Status: **Untested**. The T08 branch adds the targeted menu-workspace and locale
+regression suite, but this worktree has not yet completed its dependency install,
+so Vitest, locale minification, lint, and typecheck are not claimed as Passed.
+`git diff --check` and JSON parsing of all ten desktop locales passed locally.
+Manual menu, Electron window, and application-menu checks remain untested.

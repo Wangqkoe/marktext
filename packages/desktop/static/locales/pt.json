@@ -207,7 +207,11 @@
       "closeAllTabs": "Fechar todas as abas",
       "rename": "Renomear",
       "copyPath": "Copiar caminho",
-      "showInFolder": "Mostrar na pasta"
+      "showInFolder": "Mostrar na pasta",
+      "moveToNewWindow": "Mover para uma nova janela",
+      "openInNewWindow": "Abrir em uma nova janela",
+      "openDiskCopyInNewWindow": "Abrir cópia do disco em uma nova janela",
+      "splitRight": "Dividir à direita"
     }
   },
   "search": {
@@ -734,6 +738,11 @@
     "copyrightContributors": "Copyright Contribuidores"
   },
   "commands": {
+    "workspace": {
+      "moveToNewWindow": "Mover aba para uma nova janela",
+      "openInNewWindow": "Abrir cópia do disco em uma nova janela",
+      "splitRight": "Dividir à direita"
+    },
     "mt": {
       "hide": "Ocultar MarkText",
       "hideOthers": "Ocultar Outros"

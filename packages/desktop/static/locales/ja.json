@@ -207,7 +207,11 @@
       "closeAllTabs": "すべてのタブを閉じる",
       "rename": "名前を変更",
       "copyPath": "パスをコピー",
-      "showInFolder": "フォルダで表示"
+      "showInFolder": "フォルダで表示",
+      "moveToNewWindow": "新しいウィンドウに移動",
+      "openInNewWindow": "新しいウィンドウで開く",
+      "openDiskCopyInNewWindow": "ディスク上のコピーを新しいウィンドウで開く",
+      "splitRight": "右に分割"
     }
   },
   "search": {
@@ -734,6 +738,11 @@
     "copyrightContributors": "著作権貢献者"
   },
   "commands": {
+    "workspace": {
+      "moveToNewWindow": "タブを新しいウィンドウに移動",
+      "openInNewWindow": "ディスク上のコピーを新しいウィンドウで開く",
+      "splitRight": "右に分割"
+    },
     "mt": {
       "hide": "MarkTextを隠す",
       "hideOthers": "他を隠す"

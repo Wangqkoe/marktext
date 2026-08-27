@@ -207,7 +207,11 @@
       "closeAllTabs": "모든 탭 닫기",
       "rename": "이름 바꾸기",
       "copyPath": "경로 복사",
-      "showInFolder": "폴더에서 보기"
+      "showInFolder": "폴더에서 보기",
+      "moveToNewWindow": "새 창으로 이동",
+      "openInNewWindow": "새 창에서 열기",
+      "openDiskCopyInNewWindow": "디스크 사본을 새 창에서 열기",
+      "splitRight": "오른쪽으로 분할"
     }
   },
   "search": {
@@ -734,6 +738,11 @@
     "copyrightContributors": "저작권 기여자"
   },
   "commands": {
+    "workspace": {
+      "moveToNewWindow": "탭을 새 창으로 이동",
+      "openInNewWindow": "디스크 사본을 새 창에서 열기",
+      "splitRight": "오른쪽으로 분할"
+    },
     "mt": {
       "hide": "MarkText 숨기기",
       "hideOthers": "다른 앱 숨기기"

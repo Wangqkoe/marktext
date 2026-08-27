@@ -207,7 +207,11 @@
       "closeAllTabs": "关闭所有标签页",
       "rename": "重命名",
       "copyPath": "复制路径",
-      "showInFolder": "在文件夹中显示"
+      "showInFolder": "在文件夹中显示",
+      "moveToNewWindow": "移动到新窗口",
+      "openInNewWindow": "在新窗口中打开",
+      "openDiskCopyInNewWindow": "在新窗口中打开磁盘副本",
+      "splitRight": "向右拆分"
     }
   },
   "search": {
@@ -734,6 +738,11 @@
     "copyrightContributors": "版权贡献者"
   },
   "commands": {
+    "workspace": {
+      "moveToNewWindow": "将标签页移动到新窗口",
+      "openInNewWindow": "在新窗口中打开磁盘副本",
+      "splitRight": "向右拆分"
+    },
     "mt": {
       "hide": "隐藏 MarkText",
       "hideOthers": "隐藏其他"

@@ -68,7 +68,7 @@ import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
 import dragula from 'dragula'
 import { Plus, Close } from '@element-plus/icons-vue'
-import { showContextMenu } from '../../contextMenu/tabs'
+import { showContextMenu, type WorkspaceTabMenuActions } from '../../contextMenu/tabs'
 import bus from '../../bus'
 import type { IFileState } from '@shared/types/files'
 import type { PaneEditorComposition } from '@/workspace'
@@ -80,6 +80,7 @@ const props = defineProps<{
   composition: PaneEditorComposition
   pane?: import('@shared/workspace').WorkspaceProjectionPane
   focused?: boolean
+  workspaceActions?: WorkspaceTabMenuActions
 }>()
 const emit = defineEmits<{
   'tab-drag': [event: {
@@ -268,7 +269,20 @@ const showInFolder = (tabId: unknown) => {
 
 const handleContextMenu = (event: MouseEvent, tab: IFileState) => {
   if (tab.id) {
-    showContextMenu(event, tab)
+    const paneId = props.pane?.paneId
+    const viewId = (tab as TabRow).viewId
+    showContextMenu(event, tab, paneId && viewId && props.workspaceActions
+      ? {
+          target: {
+            paneId,
+            viewId,
+            documentId: tab.id,
+            ...(tab.pathname ? { fileKey: tab.pathname } : {}),
+            dirty: !tab.isSaved
+          },
+          actions: props.workspaceActions
+        }
+      : undefined)
   }
 }
 

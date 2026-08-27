@@ -207,7 +207,11 @@
       "closeAllTabs": "Close all tabs",
       "rename": "Rename",
       "copyPath": "Copy path",
-      "showInFolder": "Show in folder"
+      "showInFolder": "Show in folder",
+      "moveToNewWindow": "Move to new window",
+      "openInNewWindow": "Open in new window",
+      "openDiskCopyInNewWindow": "Open disk copy in new window",
+      "splitRight": "Split Right"
     }
   },
   "search": {
@@ -734,6 +738,11 @@
     "copyrightContributors": "Made with <3 by Github Contributors"
   },
   "commands": {
+    "workspace": {
+      "moveToNewWindow": "Move tab to new window",
+      "openInNewWindow": "Open disk copy in new window",
+      "splitRight": "Split Right"
+    },
     "mt": {
       "hide": "Hide MarkText",
       "hideOthers": "Hide Others"

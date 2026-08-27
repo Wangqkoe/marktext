@@ -29,6 +29,11 @@ const COMMAND_KEY_MAP: Record<string, string> = {
   'file.rename-file': 'commands.file.renameFile',
   'file.toggle-auto-save': 'commands.file.toggleAutoSave',
 
+  // Workspace tab context actions
+  'workspace.move-to-new-window': 'commands.workspace.moveToNewWindow',
+  'workspace.open-in-new-window': 'commands.workspace.openInNewWindow',
+  'workspace.split-right': 'commands.workspace.splitRight',
+
   // File settings
   'file.change-encoding': 'commands.file.changeEncoding',
   'file.line-ending': 'commands.file.changeLineEnding',
