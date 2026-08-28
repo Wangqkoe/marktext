@@ -79,17 +79,18 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 ## STAB-002 — opening a valid Markdown document fails or opens New Tab
 
-- Severity / rationale: P1 candidate, unconfirmed; an explicit-file startup is a
-  supported core workflow and prevents Move when only New Tab appears.
-- Status / owner: `Reproducing`; scope narrowed to native File Open and actual
-  file-association boundaries, with no fixing ticket.
-- Environment and profile: the target `.md` exists; the reported profile had a
-  renderer-crash record and may have been affected by an old instance/profile.
-- Artifact and source SHA: `fdda9330` packaged Windows artifact; its exact
-  artifact, final trace, and unique profile are captured in the final valid
-  `run-2026-08-28T05-19-09-123Z` evidence below.
-- Reproduction rate: the asserted renderer pathname/sentinel cases pass 5/5;
-  native-entry cases remain unavailable rather than reproduced.
+- Severity / rationale: P1 confirmed; File > Open is a supported core workflow,
+  and a valid selected document remains a blank New Tab rather than opening.
+- Status / owner: `Red-capable / Fix in progress`.
+- Environment and profile: Windows packaged artifact with fresh profiles and a
+  controlled ASCII Markdown fixture.
+- Artifact and source SHA: current product artifact source `18ddfe27`; subsequent
+  `8ed527e6` and `2412f6af` are documentation-only. Its SHA-256 values are
+  `MarkText.exe` `A9BB4C10BEB24D00983F99BCA0E4945F308F136C54D26203208415E4FDAA46B1`
+  and `app.asar` `5FBB2D7F27D27DBECBAC04761A2D5D25EB1437443DD0E2156AA9F3A241A5E7B6`.
+- Reproduction rate: real File > Open is red 2/2 across two fresh profiles; the
+  same exact fixture through CLI is green. Prior CLI, quoting, spaced/Chinese-path,
+  and second-instance diagnostic cases remain green 5/5.
 - Accurate entry and steps: use the same valid absolute `.md` through (1) a
   command-line explicit target with a fresh unique profile, (2) File > Open or
   Ctrl+O, (3) Windows file association/double-click, and (4) delivery to an
@@ -97,17 +98,33 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   and rendered/source content rather than inferring success from window text.
 - Expected / actual: requested file opens / reported path displays only New Tab;
   Move cannot be exercised if only New Tab is present.
-- Evidence: actually run `node C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91\launch-assert.mjs C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91`. The final valid 5/5 trace is `C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91\run-2026-08-28T05-19-09-123Z\results.json`; `run-2026-08-28T05-14-53-283Z` and `run-2026-08-28T05-18-01-561Z` are also valid five-case green controls. Exclude `run-2026-08-28T05-11-10-943Z`, the first-round six-case harness failure, from passing evidence. Renderer pathname plus sentinel assertions passed 5/5: CLI profile-first, file-first, strictly quoted PowerShell, spaced/Chinese absolute path, and second-file delivery to an existing instance (same-window tab visible). File > Open/Ctrl+O truly invoked the native dialog but is `Unavailable` because Windows automation cannot operate its Explorer-owned filename control. `.md` UserChoice is `MarkText.Document`, but this unpacked environment has no open command, so association/double-click is `Unavailable`.
-- Red command: no red exists. The command above is a green scope-narrowing probe,
-  not a failure reproduction.
-- Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
-- Acceptance / required regression: before any repair, manually select a
-  controlled fixture through native File Open and record active pathname/sentinel,
-  or create a controllable dialog acceptance. Then test a usable association
-  boundary. Use the same artifact/profile package for black-box replay.
-- Record items / exclusions: current evidence does not support a CLI or
-  single-instance opening defect; do not assign renderer, old-instance, or profile
-  root cause.
+- Evidence: root `C:\Users\1407\AppData\Local\Temp\marktext-stab002-18ddfe27-13eb199c49d444198a92f08a84df1ed0`.
+  In two fresh-profile File > Open runs, the user selected the controlled ASCII
+  fixture in the real native dialog; both remain `Untitled-1`, with empty active
+  pathname and missing sentinel. `main-trace-final-2026-08-28T08-59-43-362Z.json`
+  records `canceled=false` and the correct path, while both `app-open-files-by-id`
+  and main `webContents.send('mt::open-new-tab')` carry the correct document; after
+  21 seconds Workspace still shows the original blank tab. The prior valid CLI
+  controls remain: the final 5/5 trace is `C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91\run-2026-08-28T05-19-09-123Z\results.json`, with CLI profile-first, file-first, strictly quoted PowerShell, spaced/Chinese absolute path, and second-file delivery to an existing instance all green.
+- Red command: use the evidence-root native-dialog replay above; it is a real
+  File > Open reproduction, not the prior CLI scope-narrowing probe.
+- Root-cause boundary: evidence supports a regression boundary where renderer
+  `LISTEN_FOR_NEW_TAB -> NEW_TAB_WITH_CONTENT` still writes the legacy editor
+  store while the current Workspace UI uses the WorkspaceController facade.
+  `NEW_UNTITLED_TAB` has a Workspace route, but the content path does not. This
+  identifies the observed boundary and regression source, not a specific repair design.
+- Related commit(s): current product source `18ddfe27`; `8ed527e6` and `2412f6af`
+  are documentation-only.
+- Acceptance / required regression: real File > Open on the current artifact must
+  pass 2/2 with pathname and sentinel. Add Electron E2E coverage for controlled
+  native-dialog response -> public command -> Workspace; cover clean blank
+  replacement, dirty/non-empty tab retention, duplicate activation, and focused
+  split pane. Run CLI/second-instance/no-restore/dirty/Split/Move adjacency plus
+  typecheck, lint, and build. Windows association remains `Unavailable`; do not
+  classify it as pass/fail or modify the registry.
+- Record items / exclusions: evidence does not support a CLI or single-instance
+  opening defect. Windows association/double-click is `Unavailable` and is not a
+  verdict for this ticket.
 
 ## STAB-004 — tab reorder versus Split hit area
 
