@@ -60,6 +60,76 @@ for (const scenario of [
   })
 }
 
+test('moves a tab once when its native context menu closes before the selected click arrives', async() => {
+  test.setTimeout(60_000)
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-transfer-context-menu-'))
+  const file = path.join(profile, 'move.md')
+  fs.writeFileSync(file, '# Context menu Move\n')
+  const { app, page } = await launchElectron([file], { userDataDir: profile, userDataDirOwnership: 'caller' })
+  try {
+    await expect(page.locator('.editor-with-tabs')).toBeVisible()
+    await expect(page.locator('.tabs-container li')).toHaveCount(1)
+
+    // The first real tab-menu popup is dismissed. The second replays the
+    // native lifecycle observed on Windows: its close notification reaches
+    // the renderer before the selected item notification.
+    await app.evaluate(({ ipcMain }) => {
+      let popupCount = 0
+      const moveItemId = (items: Array<{ id?: string, submenu?: unknown }>): string | undefined => {
+        for (const item of items) {
+          if (item.id?.startsWith('moveTabToNewWindow-')) return item.id
+          if (item.submenu) {
+            const found = moveItemId(item.submenu as Array<{ id?: string, submenu?: unknown }>)
+            if (found) return found
+          }
+        }
+        return undefined
+      }
+      ipcMain.removeAllListeners('mt::menu::popup')
+      ipcMain.on('mt::menu::popup', (event, template, _position, popupId) => {
+        popupCount += 1
+        const id = moveItemId(template as Array<{ id?: string, submenu?: unknown }>)
+        if (popupCount === 1) {
+          event.sender.send('mt::menu::closed', { popupId, selected: false })
+          return
+        }
+        event.sender.send('mt::menu::closed', { popupId, selected: true })
+        setTimeout(() => event.sender.send('mt::menu::click', { id, popupId }), 30)
+      })
+    })
+
+    const sourceTab = page.locator('.tabs-container li').first()
+    const openSourceMenu = async(): Promise<void> => {
+      await sourceTab.evaluate((element) => {
+        const bounds = element.getBoundingClientRect()
+        element.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: bounds.left + 5,
+          clientY: bounds.top + 5
+        }))
+      })
+    }
+    await openSourceMenu()
+    await page.waitForTimeout(100)
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+
+    await openSourceMenu()
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
+    await expect(page.locator('.tabs-container li')).toHaveCount(1)
+    await expect(page.locator('body')).not.toContainText('Context menu Move')
+
+    const target = (await app.windows()).find(candidate => candidate !== page)
+    if (!target) throw new Error('moved target window was not found')
+    await expect(target.locator('body')).toContainText('Context menu Move')
+    await page.waitForTimeout(100)
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
+  } finally {
+    await forceTerminate(app)
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
 test('moves the last saved tab into a singleton target and closes that target through File Close Tab', async() => {
   test.setTimeout(60_000)
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-transfer-singleton-target-'))

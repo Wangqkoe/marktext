@@ -23,6 +23,7 @@ export interface ContextMenuItem {
 
 let nextId = 1
 const nextItemId = (): string => `mi-${nextId++}`
+const nextPopupId = (): string => `popup-${nextId++}`
 
 const serialize = (
   items: Array<ContextMenuItem | null | undefined>,
@@ -55,6 +56,7 @@ export const popupContextMenu = (
   position: MenuPopupPosition,
   payload: unknown = {}
 ): void => {
+  const popupId = nextPopupId()
   const handlers = new Map<string, MenuClickHandler | undefined>()
   const template = serialize(items, handlers)
 
@@ -74,9 +76,11 @@ export const popupContextMenu = (
   }
 
   offClick = window.electron.ipcRenderer.on('mt::menu::click', (_e, message) => {
-    // Main process actually sends `{ windowId, id }` (see src/main/ipc/window.ts);
-    // the contract `[menuId: string]` is intentionally narrowed at the boundary.
-    const id = (message as unknown as { id?: string } | undefined)?.id ?? ''
+    // Main process sends the popup session together with the selected item
+    // (see src/main/ipc/window.ts), so an earlier menu cannot consume this click.
+    const clicked = message as unknown as { id?: string, popupId?: string } | undefined
+    if (clicked?.popupId !== popupId) return
+    const id = clicked.id ?? ''
     const handler = handlers.get(id)
     if (typeof handler === 'function') {
       try {
@@ -84,9 +88,14 @@ export const popupContextMenu = (
       } catch (err) {
         console.error(err)
       }
+      cleanup()
     }
   })
-  offClosed = window.electron.ipcRenderer.on('mt::menu::closed', () => cleanup())
+  offClosed = window.electron.ipcRenderer.on('mt::menu::closed', (_e, message) => {
+    const closed = message as unknown as { popupId?: string, selected?: boolean } | undefined
+    if (closed?.popupId !== popupId || closed.selected) return
+    cleanup()
+  })
 
-  window.electron.windowControl.popupMenu(template, position)
+  window.electron.windowControl.popupMenu(template, position, popupId)
 }

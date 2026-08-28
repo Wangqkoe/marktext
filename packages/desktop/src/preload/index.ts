@@ -102,8 +102,8 @@ const windowControlAPI = {
   toggleFullScreen: () => send('mt::win::toggle-fullscreen'),
   isMaximized: () => invoke('mt::win::is-maximized'),
   isFullScreen: () => invoke('mt::win::is-fullscreen'),
-  popupMenu: (template: unknown, position?: { x: number; y: number }) =>
-    send('mt::menu::popup', template as never, position),
+  popupMenu: (template: unknown, position?: { x: number; y: number }, popupId?: string) =>
+    send('mt::menu::popup', template as never, position, popupId),
   popupApplicationMenu: (position?: { x: number; y: number }) =>
     send('mt::menu::popup-application', position)
 }

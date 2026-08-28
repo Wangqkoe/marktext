@@ -59,12 +59,12 @@ test.describe('New File on a collapsed folder (#3439)', () => {
         return null
       }
       ipcMain.removeAllListeners('mt::menu::popup')
-      ipcMain.on('mt::menu::popup', (event, template) => {
+      ipcMain.on('mt::menu::popup', (event, template, _position, popupId) => {
         const id = findId(template as Array<{ id?: string }>)
         if (id) {
           setTimeout(() => {
             try {
-              event.sender.send('mt::menu::click', { id })
+              event.sender.send('mt::menu::click', { id, popupId })
             } catch { /* window gone */ }
           }, 30)
         }

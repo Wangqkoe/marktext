@@ -73,7 +73,7 @@ declare global {
     toggleFullScreen(): void
     isMaximized(): Promise<boolean>
     isFullScreen(): Promise<boolean>
-    popupMenu(template: MenuTemplate, position?: MenuPopupPosition): void
+    popupMenu(template: MenuTemplate, position?: MenuPopupPosition, popupId?: string): void
     popupApplicationMenu(position?: MenuPopupPosition): void
   }
 

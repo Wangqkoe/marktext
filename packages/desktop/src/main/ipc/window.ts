@@ -14,10 +14,12 @@ const windowFromEvent = (event: IpcMainEvent): BrowserWindow | null =>
 
 interface PopupEntry {
   sender: WebContents
+  popupId: string
+  selected: boolean
 }
 const popups = new Map<number, PopupEntry>()
 
-const buildMenu = (template: MenuTemplate | undefined, windowId: number): Menu => {
+const buildMenu = (template: MenuTemplate | undefined, windowId: number, popup: PopupEntry): Menu => {
   const menu = new Menu()
   for (const item of template || []) {
     if (item.type === 'separator') {
@@ -33,14 +35,15 @@ const buildMenu = (template: MenuTemplate | undefined, windowId: number): Menu =
         enabled: item.enabled !== false,
         checked: !!item.checked,
         click: () => {
-          const sender = popups.get(windowId)?.sender
+          if (popups.get(windowId) !== popup) return
+          popup.selected = true
           try {
-            sender?.send('mt::menu::click', { windowId, id })
+            popup.sender.send('mt::menu::click', { windowId, id, popupId: popup.popupId })
           } catch {
             /* sender destroyed */
           }
         },
-        submenu: item.submenu ? buildMenu(item.submenu as MenuTemplateItem[], windowId) : undefined
+        submenu: item.submenu ? buildMenu(item.submenu as MenuTemplateItem[], windowId, popup) : undefined
       })
     )
   }
@@ -87,31 +90,37 @@ export const registerWindowHandlers = (): void => {
     return !!win && win.isFullScreen()
   })
 
-  ipcMain.on('mt::menu::popup', (event, template: MenuTemplate, position?: MenuPopupPosition) => {
+  ipcMain.on('mt::menu::popup', (event, template: MenuTemplate, position?: MenuPopupPosition, popupId?: string) => {
     const win = windowFromEvent(event)
     if (!win) return
     // Stash sender BEFORE menu.popup so buildMenu click handlers can resolve
     // it, but make sure we still clean up the map entry if menu.popup throws
     // — otherwise the entry leaks and a later popup for the same window could
     // route clicks to a dead sender.
-    popups.set(win.id, { sender: event.sender })
+    const popup: PopupEntry = { sender: event.sender, popupId: popupId || '', selected: false }
+    popups.set(win.id, popup)
     try {
-      const menu = buildMenu(template, win.id)
+      const menu = buildMenu(template, win.id, popup)
       menu.popup({
         window: win,
         x: position?.x,
         y: position?.y,
         callback: () => {
+          if (popups.get(win.id) !== popup) return
           popups.delete(win.id)
           try {
-            event.sender.send('mt::menu::closed', { windowId: win.id })
+            event.sender.send('mt::menu::closed', {
+              windowId: win.id,
+              popupId: popup.popupId,
+              selected: popup.selected
+            })
           } catch {
             /* destroyed */
           }
         }
       })
     } catch (err) {
-      popups.delete(win.id)
+      if (popups.get(win.id) === popup) popups.delete(win.id)
       log.error('menu popup failed:', err)
     }
   })
