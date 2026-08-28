@@ -85,8 +85,8 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   in progress.
 - Integrated repair / provenance: production commits `64695b24` and `c0feefc6`.
   Follow-up lint-only `cd64cfc3` is not in this worktree; its independent review
-  passed Standards and Spec with 0 blockers, Workspace runtime passed 47/47, and
-  its scoped lint had 0 errors. The complete code change also passed independent
+  was a mechanical/Standards PASS, Workspace runtime passed 47/47, and its scoped
+  lint had 0 errors. The complete code change also passed independent
   Standards and Spec review with 0 blockers.
 - Independent integration verification: at `379fa6e5`,
   `workspace-native-file-open.spec.ts --repeat-each=5` passed 20/20 through the
@@ -110,13 +110,14 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 - Severity / rationale: P2 confirmed; the separated `--user-data-dir` form can
   show an error dialog and prevent a file from being delivered to an existing
-  instance, but the documented/user and harness equals form is green.
+  instance, while the user command and existing harness use the green equals form.
 - Status / owner: `Red-capable / Deferred record`; it does not block STAB-002 and
   is not part of the current repair.
 - Actual red: the exact integration artifact with separated argv
   `--user-data-dir`, `<profile>`, `<file>` produced `ArgError: option requires
   argument: --user-data-dir` in the second instance and did not deliver the file,
-  1/1.
+  1/1. Verified profile evidence is
+  `C:\Users\1407\AppData\Local\Temp\marktext-stab002-independent-1518fe8750934b5d9db8afba8bcd7d9c\profile-1`.
 - Green control: with fresh profiles, primary
   `--user-data-dir=<profile> file1` and secondary
   `file2 --user-data-dir=<same-profile>` passed consecutively 2/2: two documents
