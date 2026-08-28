@@ -4,6 +4,13 @@ This is the execution order for the tickets; normative behavior remains in the
 [V1 Spec](v1-spec.md), and pass/fail evidence remains in the
 [acceptance matrix](acceptance-matrix.md).
 
+## Stabilization frontier — 2026-08-27
+
+`fdda9330` is frozen as the stabilization baseline. T12, final Review/Acceptance,
+and release judgement are blocked while the local [stabilization ledger](../../marktext-workspace-stabilization/README.md)
+drives P0/P1 reproduction, repair, review, and manual replay. This does not alter
+or erase the Passed automated evidence recorded below; no feature work is open.
+
 | Wave | Tickets that may run together | Integration frontier / gate |
 | --- | --- | --- |
 | 1 | [T01](tickets/01-workspace-runtime-no-restore.md), [T09](tickets/09-muya-details-engine-and-roundtrip.md) | runtime DefaultStartupPolicy/EmergencyRecovery boundary and details semantics pass; no normal codec/session adapter is claimed |

@@ -4,6 +4,12 @@ Wave: 10 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T11
 
 ## Result
 
+**Paused for stabilization (2026-08-27).** T12 must not advance toward final
+Review/Acceptance or release judgement until the [stabilization ledger](../../../marktext-workspace-stabilization/README.md)
+has P0/P1 = 0 and its complete manual regression matrix passes on one traceable
+artifact. Existing evidence remains historical evidence; it does not override a
+packaged/manual failure.
+
 T12 remains locked behind T11 and manual acceptance. T06's automated gate does
 not unlock or complete this ticket; the Windows trial, clean-build readiness,
 and coordinator-requested Acceptance remain outstanding.

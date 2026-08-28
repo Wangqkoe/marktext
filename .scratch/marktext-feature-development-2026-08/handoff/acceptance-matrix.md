@@ -4,6 +4,13 @@ Requirement sources are the [V1 Spec](v1-spec.md) and its linked resolved Issues
 The evidence owner records command, environment, artifact/trace and status on the
 integration branch; `Passed` may be claimed only with all four.
 
+> **Stabilization block (2026-08-27):** automated passing evidence does not
+> override packaged/manual failures. The final gate is `Failed/Blocked` while
+> [STAB-001 or STAB-002](../../marktext-workspace-stabilization/defects/index.md)
+> remains unclosed; do not claim final `Passed`. T12, final Review/Acceptance,
+> and release judgement are paused pending that ledger's P0/P1 zero condition and
+> complete same-artifact manual matrix.
+
 | ID | Requirement / evidence owner | Exact automated command / environment | Manual verification | Gate |
 | --- | --- | --- | --- | --- |
 | A01 | WorkspaceController runtime invariants, immutable projection, lease rejection — T01/T02 | `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts` (Node/Vitest) | two panes: edit/switch/focus without leakage | required |
