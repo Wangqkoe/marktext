@@ -3,7 +3,8 @@
 1. STAB-001: create the minimal fixing ticket from the red-capable packaged loop.
 2. STAB-002: wait for a manual/native-entry red or controllable dialog acceptance;
    do not open a fixing ticket from the current green probe.
-3. STAB-004: begin its independent packaged diagnosis now.
+3. STAB-004: after STAB-001, create its minimal fixing ticket from the
+   red-capable packaged loop; do not keep both implementation worktrees active.
 4. Close the incorrect test chain in STAB-P001 immediately: File > Move To is a
    filesystem move, not window Move; use tab-context Move or out-of-window drag.
 5. STAB-R001 remains `Manual-retest` for Move-specific source replacement; it is

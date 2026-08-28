@@ -60,8 +60,9 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   file-association boundaries, with no fixing ticket.
 - Environment and profile: the target `.md` exists; the reported profile had a
   renderer-crash record and may have been affected by an old instance/profile.
-- Artifact and source SHA: `fdda9330` packaged Windows artifact; exact artifact
-  and profile must be captured by the diagnosing task.
+- Artifact and source SHA: `fdda9330` packaged Windows artifact; its exact
+  artifact, final trace, and unique profile are captured in the final valid
+  `run-2026-08-28T05-19-09-123Z` evidence below.
 - Reproduction rate: the asserted renderer pathname/sentinel cases pass 5/5;
   native-entry cases remain unavailable rather than reproduced.
 - Accurate entry and steps: use the same valid absolute `.md` through (1) a
@@ -85,13 +86,16 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 ## STAB-004 — tab reorder versus Split hit area
 
-- Severity / rationale: P1 candidate; unexpected Split or failed reordering would
-  make a core workspace tab gesture unreliable.
-- Status / owner: `Triaged`; needs a real red-capable packaged reproduction.
+- Severity / rationale: P1 confirmed; tab-bar dragging triggers Split rather than
+  reliably reordering a core workspace tab gesture.
+- Status / owner: `Red-capable`; schedule the minimal fixing task after STAB-001
+  to avoid two long-lived implementation worktrees.
 - Environment and profile: current `fdda9330` Windows artifact with a unique
   profile; record window size and tab-count state.
 - Artifact and source SHA: `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
-- Reproduction rate: not established.
+- Reproduction rate: tab right-to-left and left-to-right reorders are red 2/2;
+  title-bar left and right edge cases are each red 2/2, across independent fresh
+  profiles.
 - Accurate entry and steps: with multiple tabs, drag within the tab/title bar to
   reorder; drag into the document display area's left and right edges and release
   to Split; repeat at a narrow window; drag out of the window to initiate Move.
@@ -101,17 +105,30 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   Splits; only release below the title bar in the document display area's left or
   right edge triggers Split; narrow windows disable Split; an out-of-window Move
   is never treated as Split.
-- Evidence: code reading shows `candidateAt()` uses the workspace root's full
-  vertical range and does not exclude the tab/title region. This is risk evidence,
-  not a confirmed product failure.
-- Red command: unavailable today; diagnosing task must add and run a packaged
-  unique-profile loop that records pointer target, window bounds, tab state and
-  observed reorder/Split/Move outcome.
+- Evidence: actually run `node C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\stab004-drag-harness.mjs C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be title-edge-left-a`. Representative red trace: `C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\run-2026-08-28T05-33-52-535Z\title-edge-left-b.console.log`; representative green document-edge trace: `C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\run-2026-08-28T05-35-20-974Z\document-edge-left.console.log`.
+  Initial one-to-two-tab state changes computed tab-bar hidden to visible as
+  expected. Within the tab bar (30-56px), left edge at y=43 and right edge both
+  show Split preview and commit 1 -> 2 panes instead of reordering. The first
+  erroneous transition is tab-bar release y=43 -> `preview=true` before mouse-up
+  -> pane count 1 -> 2. Document-area left/right edges pass 2/2 with correct
+  target pane/active target; root 719px passes with no preview, one pane and
+  reordering, while 720px permits preview/Split.
+- Red command: actually run as above; the two independent fresh-profile repeats
+  establish the red-capable result.
+- Root-cause boundary: narrowed only to the Split candidate/hit-test and tab-drag
+  boundary, consistent with `candidateAt()` not excluding tab/title vertical
+  space; no repair location or implementation is asserted.
 - Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
-- Acceptance / required regression: reproduce first, then add focused regression
-  and current-artifact manual replay for all stated boundaries.
-- Record items / exclusions: do not modify code in this documentation task; do
-  not classify single-tab hidden/multi-tab visible behavior as a separate bug.
+- Acceptance / required regression: first add a red regression at the existing
+  split/tab public UI seam. Any left/right drag in tab/title space must only
+  reorder, keep preview empty, and keep one pane; document-area edges must still
+  Split; 719px must disable Split while reordering, and 720px must permit Split.
+  Do not add an abstraction or test hook. Follow with current-artifact manual
+  replay.
+- Record items / exclusions: single-tab hidden/multi-tab visible is a green state,
+  not a separate bug. Physical drag-out-window Move is `Unavailable` under CDP;
+  retain a manual "Move only, never also Split" replay. GPU/network/Crashpad logs
+  have no stable correlation.
 
 ## STAB-P001 — distinguish filesystem Move To from window Move
 
@@ -139,8 +156,9 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 - Expected / actual: no causality claim / renderer killed, network-service
   crash/restart, GPU exit, Crashpad `CreateFile` `0x2`, and `No buffer store found`
   have been seen in logs.
-- Evidence: STAB-001 and STAB-002 diagnostics found no stable renderer, network,
-  GPU, Crashpad, or No-buffer relationship to their failures or unavailable paths.
+- Evidence: STAB-001, STAB-002, and STAB-004 diagnostics found no stable renderer,
+  network, GPU, Crashpad, or No-buffer relationship to their failures or
+  unavailable paths.
 - Red command: none; upgrade only if a stable time relationship before failure is
   demonstrated by a recorded run.
 - Related commit(s): none established.
