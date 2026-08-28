@@ -105,7 +105,7 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   Splits; only release below the title bar in the document display area's left or
   right edge triggers Split; narrow windows disable Split; an out-of-window Move
   is never treated as Split.
-- Evidence: actually run `node C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\stab004-drag-harness.mjs C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be title-edge-left-a`. Representative red trace: `C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\run-2026-08-28T05-33-52-535Z\title-edge-left-b.console.log`; representative green document-edge trace: `C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\run-2026-08-28T05-35-20-974Z\document-edge-left.console.log`.
+- Evidence: actually run `node C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\stab004-drag-harness.mjs C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be title-edge-left-a`. Representative red verdict trace: `C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\run-2026-08-28T05-33-52-535Z\results.json`; representative green document-edge verdict trace: `C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\run-2026-08-28T05-35-20-974Z\results.json`.
   Initial one-to-two-tab state changes computed tab-bar hidden to visible as
   expected. Within the tab bar (30-56px), left edge at y=43 and right edge both
   show Split preview and commit 1 -> 2 panes instead of reordering. The first
