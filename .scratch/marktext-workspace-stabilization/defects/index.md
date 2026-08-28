@@ -130,47 +130,33 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 - Severity / rationale: P1 confirmed; tab-bar dragging triggers Split rather than
   reliably reordering a core workspace tab gesture.
-- Status / owner: `Red-capable`; schedule the minimal fixing task after STAB-001
-  to avoid two long-lived implementation worktrees.
-- Environment and profile: current `fdda9330` Windows artifact with a unique
-  profile; record window size and tab-count state.
-- Artifact and source SHA: `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
-- Reproduction rate: tab right-to-left and left-to-right reorders are red 2/2;
-  title-bar left and right edge cases are each red 2/2, across independent fresh
-  profiles.
-- Accurate entry and steps: with multiple tabs, drag within the tab/title bar to
-  reorder; drag into the document display area's left and right edges and release
-  to Split; repeat at a narrow window; drag out of the window to initiate Move.
-  Record the hidden-single-tab to visible-multi-tab transition as state, not as a
-  defect by itself.
-- Expected / actual: tab/title-bar drag only reorders existing tabs and never
-  Splits; only release below the title bar in the document display area's left or
-  right edge triggers Split; narrow windows disable Split; an out-of-window Move
-  is never treated as Split.
-- Evidence: actually run `node C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\stab004-drag-harness.mjs C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be title-edge-left-a`. Representative red verdict trace: `C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\run-2026-08-28T05-33-52-535Z\results.json`; representative green document-edge verdict trace: `C:\Users\1407\AppData\Local\Temp\marktext-stab004-78dbd815090545368eb98b84007041be\run-2026-08-28T05-35-20-974Z\results.json`.
-  Initial one-to-two-tab state changes computed tab-bar hidden to visible as
-  expected. Within the tab bar (30-56px), left edge at y=43 and right edge both
-  show Split preview and commit 1 -> 2 panes instead of reordering. The first
-  erroneous transition is tab-bar release y=43 -> `preview=true` before mouse-up
-  -> pane count 1 -> 2. Document-area left/right edges pass 2/2 with correct
-  target pane/active target; root 719px passes with no preview, one pane and
-  reordering, while 720px permits preview/Split.
-- Red command: actually run as above; the two independent fresh-profile repeats
-  establish the red-capable result.
-- Root-cause boundary: narrowed only to the Split candidate/hit-test and tab-drag
-  boundary, consistent with `candidateAt()` not excluding tab/title vertical
-  space; no repair location or implementation is asserted.
-- Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
-- Acceptance / required regression: first add a red regression at the existing
-  split/tab public UI seam. Any left/right drag in tab/title space must only
-  reorder, keep preview empty, and keep one pane; document-area edges must still
-  Split; 719px must disable Split while reordering, and 720px must permit Split.
-  Do not add an abstraction or test hook. Follow with current-artifact manual
-  replay.
+- Status / owner: `Verified / Closed`; the repair is integrated and independent
+  Standards and Spec reviews both PASS with 0 blockers. The overall Workspace
+  stabilization stage remains in progress.
+- Integrated repair / provenance: production change `abfdb3f9` and the two-tab
+  regression `4b489a7f` are integrated at `5cd3c0b57fa6d45f2e724219a2c60f1f6cb9afa0`.
+- Required behavior: exactly two tabs dragged within title/tab space only reorder,
+  show no Split preview, and release with one pane. A release below title space at
+  the document area's left/right edge Splits; 719px disables Split while 720px
+  permits it.
+- Independent integration verification: `split-workspace.spec.ts` with
+  `--repeat-each=10` passed 50/50. Two-tab title-bar reorders passed in both
+  directions 10/10 with no preview and one pane after release; document left/right,
+  title, and 719/720 cases each passed 10/10. `native-gesture` plus
+  `move-action-preflight` passed 15/15. Desktop typecheck, scoped lint, and the
+  Windows x64 build passed.
+- Artifact hashes (Windows x64 integration build): zip
+  `C6F150F74BAB11DECF1113C75C384E2B76EEFDD0646E8560FC95E14F89FB0E31`; setup
+  `7303076613608B60F25D870E1501B8E8273B4FF9D02B19786C1054563DD1E65E`; blockmap
+  `7D281874D1DD4E79CE4CB25299D3679DE961B29B48FEEC203B9B976EEB549EDC`.
+- Evidence boundary: integration verification found no directly reusable packaged
+  harness, so this entry makes no packaged-automation claim. The repair task's
+  temporary artifact harness recorded consecutive 10/10 passes in each reorder
+  direction and two all-green rounds for title/document/719/720; that is repair-
+  branch evidence only. Real OS drag-out-of-window Move remains a manual boundary
+  and adjacency scope, not an unpassed requirement for this ticket.
 - Record items / exclusions: single-tab hidden/multi-tab visible is a green state,
-  not a separate bug. Physical drag-out-window Move is `Unavailable` under CDP;
-  retain a manual "Move only, never also Split" replay. GPU/network/Crashpad logs
-  have no stable correlation.
+  not a separate defect. GPU/network/Crashpad logs have no stable correlation.
 
 ## STAB-P001 — distinguish filesystem Move To from window Move
 
