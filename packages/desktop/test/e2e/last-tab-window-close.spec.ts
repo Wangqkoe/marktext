@@ -109,3 +109,39 @@ test('exits rather than recreating a New Tab when Windows activates after native
     await terminate(child)
   }
 })
+
+test('exits after closing two clean one-tab windows across native and title-bar close', async() => {
+  const { app, page } = await launchElectron()
+  const child = app.process()
+  const replacementWindows: Page[] = []
+  try {
+    await expect(page.locator('.editor-with-tabs')).toBeVisible()
+    await expect(page.locator('.tabs-container li')).toHaveCount(1)
+
+    // Packaged startup races the authenticated endpoint refresh against the
+    // renderer's hash route. Replaying that public same-document navigation
+    // after readiness makes the close handoff deterministic in source E2E.
+    await page.evaluate(() => { window.location.hash = '#/editor?close-handoff=1' })
+    await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#/editor?close-handoff=1')
+
+    const secondWindow = app.waitForEvent('window')
+    await page.evaluate(() => window.electron.ipcRenderer.send('mt::cmd-new-editor-window'))
+    const second = await secondWindow
+    await expect(second.locator('.editor-with-tabs')).toBeVisible()
+    await expect(second.locator('.tabs-container li')).toHaveCount(1)
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
+
+    const secondWindowId = Number(new URL(second.url()).searchParams.get('wid'))
+    if (!secondWindowId) throw new Error('second BrowserWindow id is missing')
+    const secondClosed = second.waitForEvent('close', { timeout: 5_000 })
+    await app.evaluate(({ BrowserWindow }, windowId) => BrowserWindow.fromId(windowId)?.close(), secondWindowId)
+    await secondClosed
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+
+    app.on('window', window => replacementWindows.push(window))
+    await page.locator('.frameless-titlebar-close').click()
+    await assertMainProcessExitedWithoutReplacement(app, child, replacementWindows)
+  } finally {
+    await terminate(child)
+  }
+})

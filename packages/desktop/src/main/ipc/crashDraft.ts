@@ -17,8 +17,10 @@ export type CrashDraftResponse =
 
 export interface CrashDraftWebContents {
   readonly id: number
-  on?(event: 'destroyed' | 'did-start-navigation', listener: () => void): void
-  removeListener?(event: 'destroyed' | 'did-start-navigation', listener: () => void): void
+  on?(event: 'destroyed', listener: () => void): void
+  on?(event: 'did-start-navigation', listener: (details: { readonly isSameDocument: boolean }) => void): void
+  removeListener?(event: 'destroyed', listener: () => void): void
+  removeListener?(event: 'did-start-navigation', listener: (details: { readonly isSameDocument: boolean }) => void): void
 }
 
 export interface CrashDraftIpcMain {
@@ -45,14 +47,17 @@ export class CrashDraftElectronAdapter {
       if (this.endpointEpochs.get(id) === endpointEpoch) this.endpointEpochs.delete(id)
       for (const [receipt, pending] of this.receipts) if (pending.endpointEpoch === endpointEpoch) this.receipts.delete(receipt)
       webContents.removeListener?.('destroyed', destroy)
-      webContents.removeListener?.('did-start-navigation', detach)
+      webContents.removeListener?.('did-start-navigation', navigation)
     }
     const destroy = (): void => {
       this.startupRecoveries.delete(id)
       detach()
     }
+    const navigation = (details: { readonly isSameDocument: boolean }): void => {
+      if (!details.isSameDocument) detach()
+    }
     webContents.on?.('destroyed', destroy)
-    webContents.on?.('did-start-navigation', detach)
+    webContents.on?.('did-start-navigation', navigation)
     return detach
   }
 
