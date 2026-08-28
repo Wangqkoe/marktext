@@ -28,10 +28,12 @@ manual defect.
 | P3 | Minor or cosmetic defect | Track; does not by itself block stabilization. |
 
 A `P0 candidate` or `P1 candidate` counts as its stated P0/P1 blocking item
-until evidence downgrades it or it reaches `Closed` or `Deferred`. A `pending`
-log record does not count as P0/P1 unless it is linked to a user-visible defect
-and classified. `Resolved in code` is not a severity: an unmet `Manual-retest`
-continues to block through the manual gate.
+until evidence downgrades it to P2, P3, or non-defect, or the defect is truly
+`Closed`. `Deferred` does not remove that block unless the same decision records
+an evidence-supported severity downgrade; it remains available for already
+downgraded minor items. A `pending` log record does not count as P0/P1 unless it
+is linked to a user-visible defect and classified. `Resolved in code` is not a
+severity: an unmet `Manual-retest` continues to block through the manual gate.
 
 Allowed states are `New`, `Triaged`, `Reproducing`, `Red-capable`, `Fixing`,
 `Review`, `Integrated`, `Manual-retest`, `Closed`, and `Deferred`.
