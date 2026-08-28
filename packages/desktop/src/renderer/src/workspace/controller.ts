@@ -533,7 +533,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
         case 'new-tab':
           return await this.newTab(command.paneId ?? this.focusedPaneId, command.markdown)
         case 'open-document':
-          return await this.openDocument(command.document, command.selected)
+          return await this.openDocument(command.document, command.selected, command.replacePristineBlank)
         case 'activate-view':
           return await this.activate(command.paneId, command.viewId, true)
         case 'focus-pane':
@@ -611,7 +611,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.applied()
   }
 
-  private async openDocument(input: WorkspaceDocumentInput, selected: boolean = true): Promise<WorkspaceResult> {
+  private async openDocument(
+    input: WorkspaceDocumentInput,
+    selected: boolean = true,
+    replacePristineBlank: boolean = false
+  ): Promise<WorkspaceResult> {
     if (input.fileKey) {
       const existing = [...this.documents.values()].find(
         (document) => document.fileKey === input.fileKey
@@ -624,9 +628,21 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
     const pane = this.requirePane(this.focusedPaneId)
     await this.flushPane(pane.id)
+    let replaceableBlankViewId: ViewId | undefined
+    if (selected && replacePristineBlank) {
+      const activeView = this.views.get(pane.activeViewId)
+      const activeDocument = activeView && this.documents.get(activeView.documentId)
+      if (activeDocument && !activeDocument.fileKey && !activeDocument.dirty && !activeDocument.markdown.trim()) {
+        replaceableBlankViewId = activeView.id
+      }
+    }
     const doc = this.makeDocument(input)
     const view = this.makeView(doc.id, input.view)
     if (selected) await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
+    if (replaceableBlankViewId) {
+      pane.viewIds = pane.viewIds.filter((viewId) => viewId !== replaceableBlankViewId)
+      this.removeDocumentAndView(replaceableBlankViewId)
+    }
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)

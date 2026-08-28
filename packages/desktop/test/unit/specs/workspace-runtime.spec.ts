@@ -1253,6 +1253,29 @@ describe('WorkspaceRuntime', () => {
     expect(pane.tabs.find((tab) => tab.viewId === pane.activeViewId)?.documentId).toBe('first')
   })
 
+  it('atomically replaces a pristine blank once for a selected native file-open batch target', async () => {
+    const workspace = createWorkspaceRuntime()
+    const [second, first] = await Promise.all([
+      workspace.execute({
+        kind: 'open-document',
+        document: { documentId: 'second', fileKey: '/second.md', markdown: 'second' },
+        selected: false,
+        replacePristineBlank: true
+      }),
+      workspace.execute({
+        kind: 'open-document',
+        document: { documentId: 'first', fileKey: '/first.md', markdown: 'first' },
+        selected: true,
+        replacePristineBlank: true
+      })
+    ])
+    expect(second.status).toBe('applied')
+    expect(first.status).toBe('applied')
+    const pane = paneAt(workspace.getProjection(), 0)
+    expect(pane.tabs.map((tab) => tab.fileKey)).toEqual(['/second.md', '/first.md'])
+    expect(pane.tabs.find((tab) => tab.viewId === pane.activeViewId)?.fileKey).toBe('/first.md')
+  })
+
   it('replaces a stale lease through the same binding after a successful controller transition', async () => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()

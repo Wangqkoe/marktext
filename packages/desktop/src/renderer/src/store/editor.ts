@@ -1428,12 +1428,33 @@ export const useEditorStore = defineStore('editor', {
     },
 
     SWITCH_TAB_BY_FILEPATH(filePath: string): void {
-      const { tabs } = this
-
       if (!filePath) {
         console.warn('Invalid file path:', filePath)
         return
       }
+
+      const workspace = workspaceFor(this)
+      if (workspace) {
+        const snapshot = workspace.getController()?.getFacadeSnapshot()
+        const pane = snapshot?.projection.panes.find((candidate) =>
+          candidate.tabs.some((tab) => tab.fileKey === filePath)
+        )
+        const tab = pane?.tabs.find((candidate) => candidate.fileKey === filePath)
+        if (!pane || !tab) {
+          console.error('Cannot find workspace tab with pathname:', filePath)
+          return
+        }
+        workspace.execute({ kind: 'activate-view', paneId: pane.paneId, viewId: tab.viewId }).then((result) => {
+          if (result.status !== 'applied') {
+            console.error('Failed to activate workspace tab:', 'reason' in result ? result.reason : result)
+          }
+        }).catch((error) => {
+          console.error('Failed to activate workspace tab:', error)
+        })
+        return
+      }
+
+      const { tabs } = this
 
       const nextTabIndex = tabs.findIndex((t) => t.pathname === filePath)
       if (nextTabIndex === -1) {
@@ -1532,24 +1553,13 @@ export const useEditorStore = defineStore('editor', {
 
       const workspace = workspaceFor(this)
       if (workspace) {
-        const controller = workspace.getController()
-        const before = controller?.getFacadeSnapshot()
-        const focusedPane = before?.projection.panes.find((pane) => pane.paneId === before.projection.focusedPaneId)
-        const activeView = focusedPane?.tabs.find((tab) => tab.viewId === focusedPane.activeViewId)
-        const activeDocument = before?.documents.find((document) => document.viewId === activeView?.viewId)
-        const replaceableBlankViewId = activeView && activeDocument &&
-          !activeDocument.fileKey && !activeDocument.dirty && !activeDocument.markdown.trim()
-          ? activeView.viewId
-          : undefined
         workspace.execute({
           kind: 'open-document',
           document: workspaceDocumentInput(markdownDocument, options),
-          selected
-        }).then(async(result) => {
+          selected,
+          replacePristineBlank: true
+        }).then((result) => {
           if (result.status !== 'applied') throw new Error('reason' in result ? result.reason : 'workspace open was rejected')
-          if (!replaceableBlankViewId) return
-          const closed = await workspace.execute({ kind: 'close-view', viewId: replaceableBlankViewId })
-          if (closed.status !== 'applied') throw new Error('reason' in closed ? closed.reason : 'workspace blank-tab replacement was rejected')
         }).catch((error) => {
           console.error('Failed to open workspace document:', error)
           notice.notify({

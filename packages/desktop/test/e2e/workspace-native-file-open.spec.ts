@@ -6,10 +6,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { launchElectron, typeIntoEditor, waitForMenuReady } from './helpers'
 
-const openFixture = async(app: ElectronApplication, fixture: string): Promise<void> => {
-  await app.evaluate(({ dialog }, filePath) => {
-    dialog.showOpenDialog = async() => ({ canceled: false, filePaths: [filePath] })
-  }, fixture)
+const openFixtures = async(app: ElectronApplication, fixtures: readonly string[]): Promise<void> => {
+  await app.evaluate(({ dialog }, filePaths) => {
+    dialog.showOpenDialog = async() => ({ canceled: false, filePaths: [...filePaths] })
+  }, fixtures)
   await app.evaluate(({ BrowserWindow, Menu }) => {
     const win = BrowserWindow.getFocusedWindow()
     const fileMenu = Menu.getApplicationMenu()?.items.find((item) =>
@@ -20,6 +20,8 @@ const openFixture = async(app: ElectronApplication, fixture: string): Promise<vo
     open.click(undefined, win, win.webContents)
   })
 }
+
+const openFixture = async(app: ElectronApplication, fixture: string): Promise<void> => openFixtures(app, [fixture])
 
 test('opens a native File > Open selection into the focused workspace pane', async() => {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-open-'))
@@ -172,6 +174,102 @@ test('opens a native File > Open selection in the currently focused split pane',
         otherPaths: snapshot?.projection.panes.filter((pane) => pane.paneId !== focusedPane?.paneId).flatMap((pane) => pane.tabs.map((tab) => documentForView.get(tab.viewId))).sort()
       }
     }), { timeout: 5_000 }).toEqual({ focusedPaths: [first, focused].sort(), otherPaths: [second] })
+  } finally {
+    const child = app.process()
+    if (child.exitCode === null) {
+      const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+      const mainPid = await app.evaluate(() => process.pid)
+      execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
+      await exited
+    }
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
+test('opens a native multi-selection without retaining or double-closing the pristine blank', async() => {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-open-batch-'))
+  const first = path.join(profile, 'first.md')
+  const second = path.join(profile, 'second.md')
+  fs.writeFileSync(first, '# First batch file\n')
+  fs.writeFileSync(second, '# Second batch file\n')
+  const { app, page } = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
+  try {
+    await waitForMenuReady(app)
+    await openFixtures(app, [first, second])
+    await expect.poll(() => page.evaluate(() => {
+      const driver = window as unknown as {
+        __mtWorkspaceSnapshot?: () => {
+          projection: { focusedPaneId: string; panes: Array<{ paneId: string; activeViewId: string; tabs: Array<{ viewId: string }> }> }
+          documents: Array<{ viewId: string; fileKey?: string; title: string }>
+        }
+      }
+      const snapshot = driver.__mtWorkspaceSnapshot?.()
+      const pane = snapshot?.projection.panes.find((candidate) => candidate.paneId === snapshot.projection.focusedPaneId)
+      const activeViewId = pane?.activeViewId
+      return {
+        paths: snapshot?.documents.map((document) => document.fileKey).sort(),
+        titles: snapshot?.documents.map((document) => document.title).sort(),
+        activePath: snapshot?.documents.find((document) => document.viewId === activeViewId)?.fileKey,
+        tabCount: pane?.tabs.length,
+        notification: document.body.innerText.includes('Cannot open tab')
+      }
+    }), { timeout: 5_000 }).toEqual({
+      paths: [first, second].sort(),
+      titles: ['first.md', 'second.md'],
+      activePath: first,
+      tabCount: 2,
+      notification: false
+    })
+  } finally {
+    const child = app.process()
+    if (child.exitCode === null) {
+      const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+      const mainPid = await app.evaluate(() => process.pid)
+      execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
+      await exited
+    }
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
+test('activates an already-open file in a non-focused pane through native File > Open', async() => {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-open-duplicate-split-'))
+  const first = path.join(profile, 'first.md')
+  const second = path.join(profile, 'second.md')
+  fs.writeFileSync(first, '# First duplicate file\n')
+  fs.writeFileSync(second, '# Second duplicate file\n')
+  const { app, page } = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
+  try {
+    await waitForMenuReady(app)
+    await openFixture(app, first)
+    await openFixture(app, second)
+    const root = await page.locator('.editor-with-tabs').boundingBox()
+    const tab = page.locator('.tabs-container > li').nth(1)
+    const tabBox = await tab.boundingBox()
+    if (!root || !tabBox) throw new Error('split controls are unavailable')
+    await page.mouse.move(tabBox.x + Math.min(12, tabBox.width / 2), tabBox.y + tabBox.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(root.x + 4, root.y + root.height * 0.55, { steps: 8 })
+    await page.mouse.up()
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+    await page.locator('.workspace-pane').nth(0).click()
+    await openFixture(app, first)
+    await expect.poll(() => page.evaluate(() => {
+      const driver = window as unknown as {
+        __mtWorkspaceSnapshot?: () => {
+          projection: { focusedPaneId: string; panes: Array<{ paneId: string; activeViewId: string; tabs: Array<{ viewId: string; fileKey?: string }> }> }
+          documents: Array<{ viewId: string; fileKey?: string }>
+        }
+      }
+      const snapshot = driver.__mtWorkspaceSnapshot?.()
+      const focused = snapshot?.projection.panes.find((pane) => pane.paneId === snapshot.projection.focusedPaneId)
+      const active = focused?.tabs.find((tab) => tab.viewId === focused.activeViewId)
+      return {
+        focusedPaths: focused?.tabs.map((tab) => tab.fileKey).sort(),
+        activePath: active?.fileKey,
+        documentCount: snapshot?.documents.length
+      }
+    }), { timeout: 5_000 }).toEqual({ focusedPaths: [first], activePath: first, documentCount: 2 })
   } finally {
     const child = app.process()
     if (child.exitCode === null) {
