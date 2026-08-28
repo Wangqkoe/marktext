@@ -5,11 +5,11 @@ The evidence owner records command, environment, artifact/trace and status on th
 integration branch; `Passed` may be claimed only with all four.
 
 > **Stabilization block (2026-08-27):** automated passing evidence does not
-> override packaged/manual failures. The final gate is `Failed/Blocked` while
-> [STAB-001 or STAB-002](../../marktext-workspace-stabilization/defects/index.md)
-> remains unclosed; do not claim final `Passed`. T12, final Review/Acceptance,
-> and release judgement are paused pending that ledger's P0/P1 zero condition and
-> complete same-artifact manual matrix.
+> override packaged/manual failures. The final gate is `Failed/Blocked` until the
+> [stabilization ledger](../../marktext-workspace-stabilization/defects/index.md)
+> has no unclosed P0/P1, every required `Manual-retest` (including STAB-R001) is
+> passed, and the complete same-artifact manual matrix passes. Do not claim final
+> `Passed`; T12, final Review/Acceptance, and release judgement remain paused.
 
 | ID | Requirement / evidence owner | Exact automated command / environment | Manual verification | Gate |
 | --- | --- | --- | --- | --- |

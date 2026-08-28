@@ -4,6 +4,7 @@
 
 The frozen stabilization baseline is `fdda9330780edd11a79b84c6467eaed1cf1df61a`
 (`fdda9330`). The local integration branch is
+`codex/marktext-feature-development-2026-08`; the ledger task branch is
 `codex/marktext-workspace-stabilization-ledger`. The target artifact is the
 Windows unpacked package recorded in [STAB-001](defects/index.md#stab-001).
 
