@@ -8,7 +8,8 @@
   lead or a guessed root cause.
 - Active P1: STAB-006 — fresh-profile tab-context `Move to new window` completed with no target window or ownership change on the current exact artifact. Reproduce/diagnose before any repair.
 - Active P1: STAB-007 — fresh untitled dirty document does not respond to Ctrl+S or File > Save, and no requested target file is created. Reproduce/diagnose before any repair.
-- P2 records from this round: WYSIWYG Details disclosure arrow changes state without hiding the body; `File > Move To` moves data safely but leaves the visible title stale.
+- Active P1: STAB-008 — Details summary disclosure changes its arrow but does not hide/show the body as required by V1 Spec/A11. Reproduce/diagnose before any repair.
+- P2 record from this round: STAB-009 — `File > Move To` moves data safely but leaves the visible title stale.
 
 Accept and normalize further user reports.
 

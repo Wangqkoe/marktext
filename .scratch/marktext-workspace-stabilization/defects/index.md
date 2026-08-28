@@ -206,7 +206,8 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 - Artifact hashes: `marktext.exe` `C388054D20B8A271C2B2759219BAC7136042A914D5A5534666ADF596B86E21DA`; `resources\app.asar` `ED53C8D11EAF20EFF5BAAE953ECF85662034494598DFB0DCBE43D3178167E9E7`.
 - Accurate entry and reproduction: direct exact-artifact launch at `2026-08-28T08:41:31-07:00`, main PID `37800`; Ctrl+O opened `C:\Users\1407\AppData\Local\Temp\marktext-final-native-open-9d3e0cc3.md` with sentinel `FINAL_NATIVE_OPEN_SENTINEL_9D3E0CC3`. User right-clicked that file tab and selected `Move to new window`. After three seconds, at `2026-08-28T08:42:25-07:00`, only the original window remained; no target window was created and source ownership was unchanged. Exact artifact main, renderer, GPU, utility and Crashpad processes remained; no cleanup was used.
 - Expected / actual: a target window containing the file/sentinel and a source replacement clean tab with no old-file copy / no target window and no ownership change.
-- Red-capable command actually run: `& 'C:\Users\1407\.codex\worktrees\98fa\Marktext\dist\win-unpacked\marktext.exe' '--user-data-dir=C:\Users\1407\AppData\Local\Temp\marktext-final-move-repro-95b3e0a4a9c043b386f0a422d2df2923'`, followed by the stated native menu action.
+- Manual reproduction entry actually run: `& 'C:\Users\1407\.codex\worktrees\98fa\Marktext\dist\win-unpacked\marktext.exe' '--user-data-dir=C:\Users\1407\AppData\Local\Temp\marktext-final-move-repro-95b3e0a4a9c043b386f0a422d2df2923'`, followed by the stated native menu action.
+- Diagnostic boundary: this is not a deterministic red-capable command. Before repair, establish and run an automated or otherwise deterministic diagnostic loop that asserts no target window/ownership migration.
 - Scope boundary: `Open in new window` was separately user-confirmed in a different fresh profile. Physical drag-out and filesystem `File > Move To` are untested and are not inferred from this result.
 
 ## STAB-007 — dirty untitled document cannot invoke Save
@@ -217,12 +218,13 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 - Artifact hashes: `marktext.exe` `C388054D20B8A271C2B2759219BAC7136042A914D5A5534666ADF596B86E21DA`; `resources\app.asar` `ED53C8D11EAF20EFF5BAAE953ECF85662034494598DFB0DCBE43D3178167E9E7`.
 - Accurate entry and reproduction: user entered `DIRTY_SAVE_SENTINEL`, invoked Ctrl+S, then File > Save; neither action opened a save dialog. At `2026-08-28T09:52:11-07:00`, expected target `C:\Users\1407\AppData\Local\Temp\marktext-final-dirty-save.md` did not exist while exact main, renderer, GPU, utility and Crashpad processes remained running.
 - Expected / actual: save dialog followed by a file containing the dirty sentinel / no UI response and no file.
-- Red-capable command actually run: `& 'C:\Users\1407\.codex\worktrees\98fa\Marktext\dist\win-unpacked\marktext.exe' '--user-data-dir=C:\Users\1407\AppData\Local\Temp\marktext-final-dirty-save-d062b44e0c764d6bb510249bfd4e91f5'`, followed by the stated UI actions.
+- Manual reproduction entry actually run: `& 'C:\Users\1407\.codex\worktrees\98fa\Marktext\dist\win-unpacked\marktext.exe' '--user-data-dir=C:\Users\1407\AppData\Local\Temp\marktext-final-dirty-save-d062b44e0c764d6bb510249bfd4e91f5'`, followed by the stated UI actions.
+- Diagnostic boundary: this is not a deterministic red-capable command. Before repair, establish and run an automated or otherwise deterministic diagnostic loop that asserts save-dialog/file creation for a dirty untitled document.
 
 ## STAB-008 — Details disclosure indicator does not hide body
 
-- Severity / rationale: P2. In the fresh Details fixture, the disclosure indicator changed from down to right but `DETAILS_BODY_SENTINEL_4BDE701A` remained visible; source mode and source→editor round-trip retained the original markup.
-- Status / owner: `New` record; no repair in this task.
+- Severity / rationale: P1 confirmed. V1 Spec 209-213 and A11 require the Details summary control to hide/show its body; the indicator changed from down to right but `DETAILS_BODY_SENTINEL_4BDE701A` remained visible. Source mode and source→editor round-trip retained the original markup.
+- Status / owner: `New`; no repair in this task.
 - Environment / evidence: current unpacked artifact; fresh profile `marktext-final-details-99662edb0981431ea10e16809de5d986`; user screenshots at the recorded manual interaction.
 
 ## STAB-009 — File Move To leaves visible title stale after successful rename
