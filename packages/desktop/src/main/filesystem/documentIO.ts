@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { encodeMarkdown } from './markdown'
 import {
-  FileObservationHub,
+  type FileObservationHub,
   type DiskChange,
   type FileObservationLease,
   type FileObservationSubscriber,
@@ -144,7 +144,6 @@ export class DocumentIOCoordinator {
         return rejected(request, 'stale document revision')
       }
       const ownerFence = randomUUID()
-      let binding!: Binding
       const subscriber: FileObservationSubscriber = {
         documentId: request.documentId,
         documentRevision: request.documentRevision,
@@ -161,7 +160,7 @@ export class DocumentIOCoordinator {
         this.bindings.delete(latest.ownerFence)
       }
       if (!lease || !this.isCurrentReservation(reservation)) return rejected(request, 'stale bind')
-      binding = {
+      const binding: Binding = {
         endpoint,
         documentId: request.documentId,
         ownerFence,
@@ -253,7 +252,6 @@ export class DocumentIOCoordinator {
         return this.notDurable(request, 'Save As was superseded before durable acknowledgment')
       }
       const ownerFence = randomUUID()
-      let binding!: Binding
       const successor = await this.hub.subscribe({
         documentId: request.documentId,
         documentRevision: request.documentRevision,
@@ -261,7 +259,7 @@ export class DocumentIOCoordinator {
         getState: () => (binding.dirty ? 'dirty' : 'clean'),
         onDiskChange: (change) => this.notify(binding, change)
       })
-      binding = {
+      const binding: Binding = {
         endpoint,
         documentId: request.documentId,
         ownerFence,
@@ -324,7 +322,6 @@ export class DocumentIOCoordinator {
     targetKey: CanonicalFileKey
   ): Promise<DocumentSaveAck> {
     const temporaryId = `${binding.documentId}:rebind:${randomUUID()}`
-    let temporaryBinding!: Binding
     const temporaryLease = await this.hub.subscribe({
       documentId: temporaryId,
       documentRevision: request.documentRevision,
@@ -332,7 +329,7 @@ export class DocumentIOCoordinator {
       getState: () => 'dirty',
       onDiskChange: (change) => this.notify(temporaryBinding, change)
     })
-    temporaryBinding = { ...binding, fileKey: targetKey, lease: temporaryLease, documentId: temporaryId }
+    const temporaryBinding = { ...binding, fileKey: targetKey, lease: temporaryLease, documentId: temporaryId }
     try {
       const expected = null
       let result: GuardedSaveResult

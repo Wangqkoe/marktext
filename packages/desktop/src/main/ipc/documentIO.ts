@@ -95,12 +95,20 @@ export class DocumentIoElectronAdapter {
     const window = BrowserWindow.fromWebContents(sender as unknown as WebContents)
     const result = window
       ? await dialog.showMessageBox(window, {
-        type: 'warning', buttons: ['Save', "Don't Save", 'Cancel'], defaultId: 0, cancelId: 2,
-        message: `Save changes to ${request.title}?`, noLink: true
+        type: 'warning',
+        buttons: ['Save', "Don't Save", 'Cancel'],
+        defaultId: 0,
+        cancelId: 2,
+        message: `Save changes to ${request.title}?`,
+        noLink: true
       })
       : await dialog.showMessageBox({
-        type: 'warning', buttons: ['Save', "Don't Save", 'Cancel'], defaultId: 0, cancelId: 2,
-        message: `Save changes to ${request.title}?`, noLink: true
+        type: 'warning',
+        buttons: ['Save', "Don't Save", 'Cancel'],
+        defaultId: 0,
+        cancelId: 2,
+        message: `Save changes to ${request.title}?`,
+        noLink: true
       })
     return result.response === 0 ? 'save' : result.response === 1 ? 'discard' : 'cancel'
   }
