@@ -12,6 +12,7 @@ import {
 } from './helpers'
 
 const CLOSED = '<details>\n<summary>More</summary>\nBody\n</details>\n'
+const STAB_008 = '<details>\n<summary>摘要原文</summary>\n\nDETAILS_BODY_SENTINEL_4BDE701A\n\n</details>\n'
 
 const disclosure = (page: Page) => page.locator('.editor-component .mu-html-preview details')
 const summary = (page: Page) => disclosure(page).locator('summary')
@@ -228,6 +229,34 @@ test('keeps the escaped details block in preview through a split-pane theme chan
     await expect(detailsDisclosure).toBeVisible()
     await expect(detailsPane.locator('.mu-html-block')).not.toHaveClass(/mu-active/)
     await clickMenuById(app, 'light')
+  } finally {
+    await app.close().catch(() => {})
+  }
+})
+
+test('STAB-008 hides and restores the exact raw-HTML details body in Electron', async() => {
+  const { app, page } = await launchWithMarkdown(STAB_008)
+  try {
+    const details = page.locator('.editor-component .mu-html-preview details')
+    const bodyHeight = async() => page.evaluate(() => {
+      const details = document.querySelector('.editor-component .mu-html-preview details')!
+      const walker = document.createTreeWalker(details, NodeFilter.SHOW_TEXT)
+      let text = walker.nextNode()
+      while (text && !text.textContent!.includes('DETAILS_BODY_SENTINEL_4BDE701A')) {
+        text = walker.nextNode()
+      }
+      if (!text) throw new Error('details body sentinel text node is missing')
+      const range = document.createRange()
+      range.selectNode(text)
+      return range.getBoundingClientRect().height
+    })
+
+    await expect(details).not.toHaveAttribute('open', '')
+    expect(await bodyHeight()).toBe(0)
+    await details.locator('summary').click()
+    await expect(details).toHaveAttribute('open', '')
+    expect(await bodyHeight()).toBeGreaterThan(0)
+    expect(await getMarkdownContent(page, app)).toBe(STAB_008)
   } finally {
     await app.close().catch(() => {})
   }

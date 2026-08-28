@@ -3,7 +3,21 @@ import { expect, test } from '../fixtures/muya';
 import { getMarkdown } from '../helpers/api';
 import { editor } from '../helpers/selectors';
 
-const source = '<details>\n<summary>More</summary>\n\nBody\n</details>';
+const source = '<details>\n<summary>摘要原文</summary>\n\nDETAILS_BODY_SENTINEL_4BDE701A\n\n</details>';
+
+const bodyHeight = async(page: import('@playwright/test').Page) =>
+    await page.evaluate(() => {
+        const details = document.querySelector('.mu-html-preview details');
+        const walker = document.createTreeWalker(details!, NodeFilter.SHOW_TEXT);
+        let text = walker.nextNode();
+        while (text && !text.textContent!.includes('DETAILS_BODY_SENTINEL_4BDE701A'))
+            text = walker.nextNode();
+        if (!text)
+            throw new Error('details body sentinel text node is missing');
+        const range = document.createRange();
+        range.selectNode(text);
+        return range.getBoundingClientRect().height;
+    });
 
 test.describe('options / raw HTML details disclosure', () => {
     test('keeps native summary mouse and keyboard disclosure temporary', async ({ page }) => {
@@ -15,9 +29,11 @@ test.describe('options / raw HTML details disclosure', () => {
         const details = preview.locator('details');
         const summary = details.locator('summary');
         await expect(details).not.toHaveAttribute('open', '');
+        expect(await bodyHeight(page)).toBe(0);
 
         await summary.click();
         await expect(details).toHaveAttribute('open', '');
+        expect(await bodyHeight(page)).toBeGreaterThan(0);
         expect(await getMarkdown(page)).toBe(`${source}\n`);
 
         await summary.focus();
