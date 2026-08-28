@@ -13,6 +13,7 @@ const debug = logger('htmlPreview:');
 // than child nodes, so an empty tag body must not be treated as an empty block.
 const SELF_CONTAINED_MEDIA = new Set(['video', 'audio']);
 const DETAILS_SOURCE_ACTION = 'mu-details-source-action';
+const DETAILS_PREVIEW_BODY = 'mu-details-preview-body';
 
 // A single element with an empty body (`<div></div>`), except self-contained
 // media elements whose content lives in attributes (`<video src=...></video>`).
@@ -96,6 +97,20 @@ class HTMLPreview extends Parent {
             const doc = parser.parseFromString(htmlContent, 'text/html');
             const imgs = doc.documentElement.querySelectorAll('img');
 
+            // Keep source HTML untouched and give only visible direct text a
+            // preview-only element boundary for closed disclosure styling.
+            for (const details of doc.documentElement.querySelectorAll('details')) {
+                for (const child of Array.from(details.childNodes)) {
+                    if (child.nodeType !== Node.TEXT_NODE || !child.textContent?.trim())
+                        continue;
+
+                    const bodyText = doc.createElement('span');
+                    bodyText.className = DETAILS_PREVIEW_BODY;
+                    details.replaceChild(bodyText, child);
+                    bodyText.appendChild(child);
+                }
+            }
+
             for (const img of imgs) {
                 const src = img.getAttribute('src')!;
                 const imageSrc = getImageSrc(src);
@@ -104,6 +119,13 @@ class HTMLPreview extends Parent {
 
             this.domNode!.innerHTML
                 = doc.documentElement!.querySelector('body')!.innerHTML;
+
+            if (!disableHtml && this.domNode!.querySelector('details')) {
+                const disclosureStyle = document.createElement('style');
+                disclosureStyle.textContent
+                    = `details:not([open]) > .${DETAILS_PREVIEW_BODY} { display: none; }`;
+                this.domNode!.appendChild(disclosureStyle);
+            }
 
             // This editor-only control is deliberately appended after the
             // sanitized document fragment, never inside a native summary. It
