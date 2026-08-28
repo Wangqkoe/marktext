@@ -1239,6 +1239,20 @@ describe('WorkspaceRuntime', () => {
     ).toHaveLength(1)
   })
 
+  it('keeps the focused document active when a file-open batch adds an unselected document', async () => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'first', fileKey: '/first.md' }])
+    expect(
+      (await workspace.execute({
+        kind: 'open-document',
+        document: { documentId: 'second', fileKey: '/second.md', markdown: 'second' },
+        selected: false
+      })).status
+    ).toBe('applied')
+    const pane = paneAt(workspace.getProjection(), 0)
+    expect(pane.tabs.map((tab) => tab.documentId)).toEqual(['first', 'second'])
+    expect(pane.tabs.find((tab) => tab.viewId === pane.activeViewId)?.documentId).toBe('first')
+  })
+
   it('replaces a stale lease through the same binding after a successful controller transition', async () => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()

@@ -18,7 +18,7 @@ export interface MarkdownDocument {
   markdown: string
   filename: string
   pathname: string | null
-  encoding?: string
+  encoding?: FileEncoding
   lineEnding?: LineEnding
   adjustLineEndingOnSave?: boolean
   trimTrailingNewline?: number

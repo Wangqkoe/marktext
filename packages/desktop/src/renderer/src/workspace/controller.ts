@@ -533,7 +533,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
         case 'new-tab':
           return await this.newTab(command.paneId ?? this.focusedPaneId, command.markdown)
         case 'open-document':
-          return await this.openDocument(command.document)
+          return await this.openDocument(command.document, command.selected)
         case 'activate-view':
           return await this.activate(command.paneId, command.viewId, true)
         case 'focus-pane':
@@ -611,7 +611,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.applied()
   }
 
-  private async openDocument(input: WorkspaceDocumentInput): Promise<WorkspaceResult> {
+  private async openDocument(input: WorkspaceDocumentInput, selected: boolean = true): Promise<WorkspaceResult> {
     if (input.fileKey) {
       const existing = [...this.documents.values()].find(
         (document) => document.fileKey === input.fileKey
@@ -626,11 +626,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
     await this.flushPane(pane.id)
     const doc = this.makeDocument(input)
     const view = this.makeView(doc.id, input.view)
-    await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
+    if (selected) await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
-    pane.activeViewId = view.id
+    if (selected) pane.activeViewId = view.id
     this.commit()
     return this.applied()
   }

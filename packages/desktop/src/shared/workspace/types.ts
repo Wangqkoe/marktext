@@ -163,7 +163,7 @@ export interface EmergencyRecovery {
 
 export type WorkspaceCommand =
   | { readonly kind: 'new-tab'; readonly paneId?: PaneId; readonly markdown?: string }
-  | { readonly kind: 'open-document'; readonly document: WorkspaceDocumentInput }
+  | { readonly kind: 'open-document'; readonly document: WorkspaceDocumentInput; readonly selected?: boolean }
   | { readonly kind: 'activate-view'; readonly paneId: PaneId; readonly viewId: ViewId }
   | { readonly kind: 'focus-pane'; readonly paneId: PaneId }
   | { readonly kind: 'split-pane'; readonly targetPaneId: PaneId }

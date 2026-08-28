@@ -50,6 +50,43 @@ interface TocItem extends ListItem {
 
 type TocTreeNode = TreeNode<TocItem>
 
+const trailingNewlinePolicy = (value: number | undefined): 'trim' | 'ensure-one' | 'preserve' | 'disabled' => {
+  if (value === 0) return 'trim'
+  if (value === 1) return 'ensure-one'
+  if (value === 2) return 'preserve'
+  return 'disabled'
+}
+
+const workspaceDocumentInput = (markdownDocument: MarkdownDocument, options: TabOptions) => {
+  const optionValues = options as {
+    encoding?: MarkdownDocument['encoding'] | string
+    lineEnding?: LineEnding
+    adjustLineEndingOnSave?: boolean
+    trimTrailingNewline?: number
+  }
+  const encoding = optionValues.encoding ?? markdownDocument.encoding
+  const lineEnding = optionValues.lineEnding ?? markdownDocument.lineEnding
+  const trimTrailingNewline = optionValues.trimTrailingNewline ?? markdownDocument.trimTrailingNewline
+  return {
+    markdown: markdownDocument.markdown,
+    savedMarkdown: markdownDocument.markdown,
+    title: markdownDocument.filename,
+    ...(markdownDocument.pathname ? { fileKey: markdownDocument.pathname } : {}),
+    ...(encoding
+      ? {
+        encoding: typeof encoding === 'string'
+          ? { encoding, isBom: false }
+          : { encoding: encoding.encoding, isBom: encoding.isBom }
+      }
+      : {}),
+    ...(lineEnding === 'lf' || lineEnding === 'crlf' ? { lineEnding } : {}),
+    ...(typeof (optionValues.adjustLineEndingOnSave ?? markdownDocument.adjustLineEndingOnSave) === 'boolean'
+      ? { adjustLineEndingOnSave: optionValues.adjustLineEndingOnSave ?? markdownDocument.adjustLineEndingOnSave }
+      : {}),
+    ...(trimTrailingNewline === undefined ? {} : { trailingNewline: trailingNewlinePolicy(trimTrailingNewline) })
+  }
+}
+
 interface PushTabNotificationPayload {
   tabId: string
   msg: string
@@ -1491,6 +1528,37 @@ export const useEditorStore = defineStore('editor', {
 
       if (typeof selected === 'undefined') {
         selected = true
+      }
+
+      const workspace = workspaceFor(this)
+      if (workspace) {
+        const controller = workspace.getController()
+        const before = controller?.getFacadeSnapshot()
+        const focusedPane = before?.projection.panes.find((pane) => pane.paneId === before.projection.focusedPaneId)
+        const activeView = focusedPane?.tabs.find((tab) => tab.viewId === focusedPane.activeViewId)
+        const activeDocument = before?.documents.find((document) => document.viewId === activeView?.viewId)
+        const replaceableBlankViewId = activeView && activeDocument &&
+          !activeDocument.fileKey && !activeDocument.dirty && !activeDocument.markdown.trim()
+          ? activeView.viewId
+          : undefined
+        workspace.execute({
+          kind: 'open-document',
+          document: workspaceDocumentInput(markdownDocument, options),
+          selected
+        }).then(async(result) => {
+          if (result.status !== 'applied') throw new Error('reason' in result ? result.reason : 'workspace open was rejected')
+          if (!replaceableBlankViewId) return
+          const closed = await workspace.execute({ kind: 'close-view', viewId: replaceableBlankViewId })
+          if (closed.status !== 'applied') throw new Error('reason' in closed ? closed.reason : 'workspace blank-tab replacement was rejected')
+        }).catch((error) => {
+          console.error('Failed to open workspace document:', error)
+          notice.notify({
+            title: t('store.editor.errorLoadingTabTitle'),
+            type: 'error',
+            message: error instanceof Error ? error.message : String(error)
+          })
+        })
+        return
       }
 
       const { currentFile, tabs } = this
