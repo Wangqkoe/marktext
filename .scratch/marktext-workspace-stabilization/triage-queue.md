@@ -6,8 +6,9 @@
 3. STAB-004: begin its independent packaged diagnosis now.
 4. Close the incorrect test chain in STAB-P001 immediately: File > Move To is a
    filesystem move, not window Move; use tab-context Move or out-of-window drag.
-5. STAB-R001 remains `Manual-retest`; its final-tab replacement replay is related
-   to STAB-001's failure but is neither closed nor duplicated.
+5. STAB-R001 remains `Manual-retest` for Move-specific source replacement; it is
+   separate from ordinary close-tab/exit behavior and is neither closed nor
+   duplicated.
 6. Accept and normalize further user reports.
 
 STAB-003 is collected with every failing run; it is not an independent repair lead

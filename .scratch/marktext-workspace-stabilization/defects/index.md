@@ -22,12 +22,17 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   then on the final remaining window.
 - Expected / actual: application exits / window returns to or retains New Tab and
   the same executable child process remains.
-- Evidence: `events.ndjson` and `matrix.json` beside the command below record
-  two packaged rounds. A 1x2 native `SC_CLOSE` passed 2/2 and A 1x2 title-bar X
-  passed 2/2; last-tab replacement failed 2/2. The first erroneous transition is
-  two windows -> close one -> one window -> final title-bar close: expected zero
-  windows and zero exact-artifact processes, but the exact artifact remains alive.
-  Automated E2E's prior 29/29 pass does not demonstrate packaged exit.
+- Evidence: `events.ndjson` beside the command below records three runs plus one
+  harness/tool error. The valid A and B packaged rounds are traceable by their
+  existing stdout/events timestamps; `matrix.json` covers only the final round,
+  not both. A 1x2 native `SC_CLOSE` passed 2/2 and A 1x2 title-bar X passed 2/2.
+  The harness's `a-tab-last-semantic` expects a replacement New Tab after closing
+  the ordinary final tab, contrary to current product acceptance; exclude that
+  harness error from the failure matrix. Events show ordinary final-tab close
+  reaches zero window/process as required. The first actual erroneous transition
+  is two windows -> close one -> one window -> final title-bar close: expected
+  zero windows and zero exact-artifact processes, but the exact artifact remains
+  alive. Automated E2E's prior 29/29 pass does not demonstrate packaged exit.
 - Red command: actually run: `& 'C:\Users\1407\AppData\Local\Temp\stb001-96c37fafc05e49f5856901746a5bd549\stb001.ps1' -Mode full`.
 - Root-cause boundary: narrowed only to `EditorWindow native close ->
   mt::ask-for-close -> renderer workspace.closeForWindowExit() ->
@@ -43,8 +48,9 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   Tab, for at least five consecutive runs. Preserve dirty and emergency semantics.
   After a failed manual run force-clean only that exact executable process tree;
   cleanup is not normal-exit evidence.
-- Record items / exclusions: GPU/network/Crashpad/No-buffer logs have no stable
-  correlation with this failure.
+- Record items / exclusions: exclude the PowerShell/Get-FileHash tool error and
+  the erroneous ordinary-last-tab harness expectation. GPU/network/Crashpad/
+  No-buffer logs have no stable correlation with this failure.
 
 ## STAB-002 — opening a valid Markdown document fails or opens New Tab
 
@@ -65,7 +71,7 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   and rendered/source content rather than inferring success from window text.
 - Expected / actual: requested file opens / reported path displays only New Tab;
   Move cannot be exercised if only New Tab is present.
-- Evidence: actually run `node C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91\launch-assert.mjs C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91`; structured evidence is `results.json` in that directory. Renderer pathname plus sentinel assertions passed 5/5: CLI profile-first, file-first, strictly quoted PowerShell, spaced/Chinese absolute path, and second-file delivery to an existing instance (same-window tab visible). File > Open/Ctrl+O truly invoked the native dialog but is `Unavailable` because Windows automation cannot operate its Explorer-owned filename control. `.md` UserChoice is `MarkText.Document`, but this unpacked environment has no open command, so association/double-click is `Unavailable`.
+- Evidence: actually run `node C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91\launch-assert.mjs C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91`. The final valid 5/5 trace is `C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91\run-2026-08-28T05-19-09-123Z\results.json`; `run-2026-08-28T05-14-53-283Z` and `run-2026-08-28T05-18-01-561Z` are also valid five-case green controls. Exclude `run-2026-08-28T05-11-10-943Z`, the first-round six-case harness failure, from passing evidence. Renderer pathname plus sentinel assertions passed 5/5: CLI profile-first, file-first, strictly quoted PowerShell, spaced/Chinese absolute path, and second-file delivery to an existing instance (same-window tab visible). File > Open/Ctrl+O truly invoked the native dialog but is `Unavailable` because Windows automation cannot operate its Explorer-owned filename control. `.md` UserChoice is `MarkText.Document`, but this unpacked environment has no open command, so association/double-click is `Unavailable`.
 - Red command: no red exists. The command above is a green scope-narrowing probe,
   not a failure reproduction.
 - Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
@@ -150,11 +156,12 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 - Environment and profile: current `fdda9330` Windows artifact, fresh profile.
 - Artifact and source SHA: repair is integrated in `fdda9330`.
 - Reproduction rate: prior defect; current manual rate untested.
-- Accurate entry and steps: Move a tab to a target window and close the final tab;
-  verify no extra bootstrap Untitled target and the proper New Tab replacement
-  behavior where specified.
-- Expected / actual: target does not retain bootstrap Untitled; final-tab behavior
-  follows the integrated rule / current artifact manual result not yet recorded.
+- Accurate entry and steps: Move a tab to a target window when the source's last
+  tab is moved; verify the source-specific replacement behavior and no extra
+  bootstrap Untitled in the target. This is not ordinary close-tab behavior.
+- Expected / actual: target does not retain bootstrap Untitled; a source depleted
+  by a successful Move receives its clean New Tab replacement / current artifact
+  manual result not yet recorded.
 - Evidence: automatic Move, last-tab, and startup regressions passed; final
   Standards and Spec reviews passed.
 - Red command: historical red is resolved in automation; required evidence is a
