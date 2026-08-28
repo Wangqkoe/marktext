@@ -200,23 +200,22 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 ## STAB-R001 — Move bootstrap Untitled / final-tab replacement
 
-- Severity / rationale: resolved in code; manual replay remains a release blocker
-  for this behavior until confirmed on the current artifact.
-- Status / owner: `Manual-retest`; coordinator owns black-box replay.
-- Environment and profile: current `fdda9330` Windows artifact, fresh profile.
-- Artifact and source SHA: repair is integrated in `fdda9330`.
-- Reproduction rate: prior defect; current manual rate untested.
-- Accurate entry and steps: Move a tab to a target window when the source's last
-  tab is moved; verify the source-specific replacement behavior and no extra
-  bootstrap Untitled in the target. This is not ordinary close-tab behavior.
-- Expected / actual: target does not retain bootstrap Untitled; a source depleted
-  by a successful Move receives its clean New Tab replacement / current artifact
-  manual result not yet recorded.
-- Evidence: automatic Move, last-tab, and startup regressions passed; final
-  Standards and Spec reviews passed.
-- Red command: historical red is resolved in automation; required evidence is a
-  current-artifact manual replay, not a new root-cause assertion.
-- Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
-- Acceptance / required regression: manual replay on the traceable current
-  artifact, then record in the matrix before `Closed`.
-- Record items / exclusions: automated/review pass alone cannot close this item.
+- Severity / rationale: resolved behavior; the required current-artifact manual
+  black-box replay is complete.
+- Status / owner: `Verified / Closed`.
+- Environment and profile: fresh unique profile and fixture under
+  `C:\Users\1407\AppData\Local\Temp\marktext-stab-r001-rerun-59768bdffdac4b428c93551d4a50fbbe`.
+- Artifact and source SHA: runtime source `379fa6e5`; `marktext.exe`
+  SHA-256 `CDB66BCBF80F01610F66BCAD6F9776188A8D2259C7FF469C6698319684AC063A`;
+  `app.asar` SHA-256 `1F905007B6CF921FAA6E6A90B733B03F4CB20A23B22169B2B4BD24D9B8E31DC5`.
+- Reproduction / acceptance rate: manual current-artifact replay `1/1` passed.
+- Accurate entry and result: with `STABR001-move.md` (sentinel
+  `STABR001_MOVE_SENTINEL`) as the only real source file tab, right-clicking that
+  tab and selecting `Move to new window` produced exactly two windows. The target
+  had exactly the moved file document/tab with the correct pathname and sentinel,
+  and no bootstrap Untitled/New Tab. The source remained with exactly one clean
+  New Tab and no old-file copy; there was no duplicate document or third window.
+- Shutdown evidence: both windows closed normally and no process whose
+  `ExecutablePath` matched the exact artifact remained.
+- Record items / exclusions: this did not test ordinary close-last-tab and did
+  not use `File > Move To` or `Open in new window`.
