@@ -16,11 +16,17 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 - Reproduction rate: observed in the reported fresh smoke run; count not yet
   established across isolated runs.
 - Accurate entry and steps: launch that exact unpacked artifact, then use Alt+F4,
-  title-bar X, Ctrl+Shift+W, Ctrl+Q, or `CloseMainWindow`.
+  title-bar X, Ctrl+Shift+W, Ctrl+Q, or `CloseMainWindow`. Cover the reported
+  single-window packaged failure and the user-reported multi-window layouts with
+  logical tab counts 1x1, 1x2, 2x1, and 2x2. In each layout, exercise
+  representative close-tab, Alt+F4, and title-bar-X sequences on each window and
+  then on the final remaining window.
 - Expected / actual: application exits / window returns to or retains New Tab and
   the same executable child process remains.
 - Evidence: automated E2E reports 29/29 passed; that does not demonstrate
-  packaged exit. Capture timestamp, PID and window count on the next run.
+  packaged exit. Preserve both the single-window packaged failure and the user
+  multi-window report. Capture timestamp, PID, window count and logical tab
+  state on the next run.
 - Red command: unavailable today; diagnosis must add and run one packaged,
   unique-profile command that asserts main child-process exit for this exact SHA.
 - Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
@@ -29,28 +35,79 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   executable process tree. Such cleanup must never be recorded as normal exit.
 - Record items / exclusions: no root cause is asserted.
 
-## STAB-002 — explicit valid Markdown launch opens New Tab
+## STAB-002 — opening a valid Markdown document fails or opens New Tab
 
 - Severity / rationale: P1 candidate, unconfirmed; an explicit-file startup is a
   supported core workflow and prevents Move when only New Tab appears.
-- Status / owner: `New`; needs a fresh unique-profile comparison.
+- Status / owner: `New`; needs an entry-by-entry fresh unique-profile comparison.
 - Environment and profile: the target `.md` exists; the reported profile had a
   renderer-crash record and may have been affected by an old instance/profile.
 - Artifact and source SHA: `fdda9330` packaged Windows artifact; exact artifact
   and profile must be captured by the diagnosing task.
 - Reproduction rate: reported once; not established.
-- Accurate entry and steps: launch with the specified existing `.md` target and
-  inspect the initial tab; Move cannot be exercised if only New Tab is present.
-- Expected / actual: requested file opens / window displays only New Tab.
-- Evidence: user report; no fresh-profile comparison yet.
+- Accurate entry and steps: use the same valid absolute `.md` through (1) a
+  command-line explicit target with a fresh unique profile, (2) File > Open or
+  Ctrl+O, (3) Windows file association/double-click, and (4) delivery to an
+  already-running instance. For every entry, record actual opened path, title,
+  and rendered/source content rather than inferring success from window text.
+- Expected / actual: requested file opens / reported path displays only New Tab;
+  Move cannot be exercised if only New Tab is present.
+- Evidence: user explicitly reports that opening an `.md` document has a problem;
+  no fresh-profile, old-instance-isolated comparison yet.
 - Red command: unavailable today; diagnosis must run the same absolute file path
-  against fresh, unique profiles and record entry method, timestamps, PIDs and
-  window counts.
+  against fresh, unique profiles for all four entries and record entry method,
+  timestamps, PIDs, window/tab state, actual path/title/content and command
+  execution result.
 - Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
 - Acceptance / required regression: reproducible explicit-target startup test and
   black-box replay from the same artifact/profile package.
 - Record items / exclusions: do not assign a renderer, old-instance, or profile
   root cause before comparison evidence.
+
+## STAB-004 — tab reorder versus Split hit area
+
+- Severity / rationale: P1 candidate; unexpected Split or failed reordering would
+  make a core workspace tab gesture unreliable.
+- Status / owner: `Triaged`; needs a real red-capable packaged reproduction.
+- Environment and profile: current `fdda9330` Windows artifact with a unique
+  profile; record window size and tab-count state.
+- Artifact and source SHA: `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
+- Reproduction rate: not established.
+- Accurate entry and steps: with multiple tabs, drag within the tab/title bar to
+  reorder; drag into the document display area's left and right edges and release
+  to Split; repeat at a narrow window; drag out of the window to initiate Move.
+  Record the hidden-single-tab to visible-multi-tab transition as state, not as a
+  defect by itself.
+- Expected / actual: tab/title-bar drag only reorders existing tabs and never
+  Splits; only release below the title bar in the document display area's left or
+  right edge triggers Split; narrow windows disable Split; an out-of-window Move
+  is never treated as Split.
+- Evidence: code reading shows `candidateAt()` uses the workspace root's full
+  vertical range and does not exclude the tab/title region. This is risk evidence,
+  not a confirmed product failure.
+- Red command: unavailable today; diagnosing task must add and run a packaged
+  unique-profile loop that records pointer target, window bounds, tab state and
+  observed reorder/Split/Move outcome.
+- Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
+- Acceptance / required regression: reproduce first, then add focused regression
+  and current-artifact manual replay for all stated boundaries.
+- Record items / exclusions: do not modify code in this documentation task; do
+  not classify single-tab hidden/multi-tab visible behavior as a separate bug.
+
+## STAB-P001 — distinguish filesystem Move To from window Move
+
+- Classification / rationale: Confirmed process/test-guide record, not product
+  P1. It does not block release unless its own operation loses data.
+- Status / owner: `Closed` as the incorrect test chain; retain the filesystem
+  behavior check in the matrix.
+- Evidence: File > Move To sends `mt::editor-move-file`, then uses
+  `dialog.showSaveDialog` and `fsRename`; it moves the current file to a disk
+  path, so a save-style dialog is expected. Cross-window Move is the tab context
+  menu `Move to new window` or dragging the tab out of the window and releasing.
+- Corrected guidance: never use File > Move To to test window Move. Test it as a
+  filesystem rename/move operation, including data preservation, separately.
+- Acceptance / required regression: matrix separates filesystem Move To from
+  tab-context/drag cross-window Move.
 
 ## STAB-003 — process/log anomaly record
 
