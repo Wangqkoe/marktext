@@ -81,50 +81,53 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 - Severity / rationale: P1 confirmed; File > Open is a supported core workflow,
   and a valid selected document remains a blank New Tab rather than opening.
-- Status / owner: `Red-capable / Fix in progress`.
-- Environment and profile: Windows packaged artifact with fresh profiles and a
-  controlled ASCII Markdown fixture.
-- Artifact and source SHA: current product artifact source `18ddfe27`; subsequent
-  `8ed527e6` and `2412f6af` are documentation-only. Its SHA-256 values are
-  `MarkText.exe` `A9BB4C10BEB24D00983F99BCA0E4945F308F136C54D26203208415E4FDAA46B1`
-  and `app.asar` `5FBB2D7F27D27DBECBAC04761A2D5D25EB1437443DD0E2156AA9F3A241A5E7B6`.
-- Reproduction rate: real File > Open is red 2/2 across two fresh profiles; the
-  same exact fixture through CLI is green. Prior CLI, quoting, spaced/Chinese-path,
-  and second-instance diagnostic cases remain green 5/5.
-- Accurate entry and steps: use the same valid absolute `.md` through (1) a
-  command-line explicit target with a fresh unique profile, (2) File > Open or
-  Ctrl+O, (3) Windows file association/double-click, and (4) delivery to an
-  already-running instance. For every entry, record actual opened path, title,
-  and rendered/source content rather than inferring success from window text.
-- Expected / actual: requested file opens / reported path displays only New Tab;
-  Move cannot be exercised if only New Tab is present.
-- Evidence: root `C:\Users\1407\AppData\Local\Temp\marktext-stab002-18ddfe27-13eb199c49d444198a92f08a84df1ed0`.
-  In two fresh-profile File > Open runs, the user selected the controlled ASCII
-  fixture in the real native dialog; both remain `Untitled-1`, with empty active
-  pathname and missing sentinel. `main-trace-final-2026-08-28T08-59-43-362Z.json`
-  records `canceled=false` and the correct path, while both `app-open-files-by-id`
-  and main `webContents.send('mt::open-new-tab')` carry the correct document; after
-  21 seconds Workspace still shows the original blank tab. The prior valid CLI
-  controls remain: the final 5/5 trace is `C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91\run-2026-08-28T05-19-09-123Z\results.json`, with CLI profile-first, file-first, strictly quoted PowerShell, spaced/Chinese absolute path, and second-file delivery to an existing instance all green.
-- Red command: use the evidence-root native-dialog replay above; it is a real
-  File > Open reproduction, not the prior CLI scope-narrowing probe.
-- Root-cause boundary: evidence supports a regression boundary where renderer
-  `LISTEN_FOR_NEW_TAB -> NEW_TAB_WITH_CONTENT` still writes the legacy editor
-  store while the current Workspace UI uses the WorkspaceController facade.
-  `NEW_UNTITLED_TAB` has a Workspace route, but the content path does not. This
-  identifies the observed boundary and regression source, not a specific repair design.
-- Related commit(s): current product source `18ddfe27`; `8ed527e6` and `2412f6af`
-  are documentation-only.
-- Acceptance / required regression: real File > Open on the current artifact must
-  pass 2/2 with pathname and sentinel. Add Electron E2E coverage for controlled
-  native-dialog response -> public command -> Workspace; cover clean blank
-  replacement, dirty/non-empty tab retention, duplicate activation, and focused
-  split pane. Run CLI/second-instance/no-restore/dirty/Split/Move adjacency plus
-  typecheck, lint, and build. Windows association remains `Unavailable`; do not
-  classify it as pass/fail or modify the registry.
-- Record items / exclusions: evidence does not support a CLI or single-instance
-  opening defect. Windows association/double-click is `Unavailable` and is not a
-  verdict for this ticket.
+- Status / owner: `Verified / Closed`; the Workspace stabilization stage remains
+  in progress.
+- Integrated repair / provenance: production commits `64695b24` and `c0feefc6`.
+  Follow-up lint-only `cd64cfc3` is not in this worktree; its independent review
+  passed Standards and Spec with 0 blockers, Workspace runtime passed 47/47, and
+  its scoped lint had 0 errors. The complete code change also passed independent
+  Standards and Spec review with 0 blockers.
+- Independent integration verification: at `379fa6e5`,
+  `workspace-native-file-open.spec.ts --repeat-each=5` passed 20/20 through the
+  public-menu native-dialog response seam. Startup/no-restore/dirty/Split/Move and
+  STAB-001 close adjacency passed 35/35; Workspace units passed 81/81; desktop
+  typecheck and Windows x64 build passed. The integration unpacked artifact hashes
+  are exe `CDB66BCBF80F01610F66BCAD6F9776188A8D2259C7FF469C6698319684AC063A` and
+  `app.asar` `1F905007B6CF921FAA6E6A90B733B03F4CB20A23B22169B2B4BD24D9B8E31DC5`.
+- Packaged evidence boundary: the repair task's real native File > Open
+  fresh-profile 2/2 passed on its repair-branch artifact, hashes exe
+  `96A8C399AEADAF4FFD860CDC378867151C88A99FF250173E4B6B016AD082C4BB` and
+  `app.asar` `58A3CC22EDC6D8E70B2F36B42277A0221F8C037D4B77E76BBFDC1E92A65F8E68`.
+  The independent integration task's real native dialog remains `Unavailable`;
+  this is not an integration packaged 2/2 claim. Windows association/double-click
+  remains `Unavailable`; the registry was not modified.
+- Acceptance: clean blank replacement, dirty/non-empty retention, batch open,
+  duplicate activation, focused-pane routing, metadata preservation, and required
+  Workspace adjacencies are covered by the recorded automation and reviews.
+
+## STAB-005 — second-instance rejects separated --user-data-dir value
+
+- Severity / rationale: P2 confirmed; the separated `--user-data-dir` form can
+  show an error dialog and prevent a file from being delivered to an existing
+  instance, but the documented/user and harness equals form is green.
+- Status / owner: `Red-capable / Deferred record`; it does not block STAB-002 and
+  is not part of the current repair.
+- Actual red: the exact integration artifact with separated argv
+  `--user-data-dir`, `<profile>`, `<file>` produced `ArgError: option requires
+  argument: --user-data-dir` in the second instance and did not deliver the file,
+  1/1.
+- Green control: with fresh profiles, primary
+  `--user-data-dir=<profile> file1` and secondary
+  `file2 --user-data-dir=<same-profile>` passed consecutively 2/2: two documents
+  and two tabs, secondary active, and no Error window. Evidence roots are
+  `C:\Users\1407\AppData\Local\Temp\marktext-stab002-ab-A1-fa1c755fadd748cbbecc7154c63298de`
+  and `C:\Users\1407\AppData\Local\Temp\marktext-stab002-ab-A2-1a87f3bf7fd747f0a586653ab94fc767`.
+- Provenance / boundary: second-instance parse behavior and the parser spec date
+  to 2019, rather than this repair. User commands and the existing harness use
+  the equals form.
+- Future acceptance: both separated and equals argv forms must avoid an error
+  dialog and correctly deliver the requested file to the existing instance.
 
 ## STAB-004 — tab reorder versus Split hit area
 
