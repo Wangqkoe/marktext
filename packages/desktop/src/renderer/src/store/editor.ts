@@ -658,7 +658,7 @@ export const useEditorStore = defineStore('editor', {
       const workspace = workspaceFor(this)
       if (workspace) {
         this.flushActiveEditor()
-        workspace.execute({ kind: 'save' }).catch((error) => {
+        workspace.save().catch((error) => {
           console.error('Failed to save workspace document:', error)
         })
         return

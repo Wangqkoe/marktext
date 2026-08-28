@@ -509,6 +509,23 @@ export class PaneEditorComposition {
     return selection?.status === 'selected' ? selection.pathname : undefined
   }
 
+  /** Save the focused document through its typed DocumentIO path. */
+  async save(): Promise<WorkspaceResult> {
+    const document = this.documentForView()
+    if (!document) return { status: 'rejected', reason: 'missing focused document' }
+    if (document.fileKey) return this.execute({ kind: 'save', paneId: this.paneId, viewId: document.viewId })
+    const pathname = await this.chooseSaveTarget(document.viewId)
+    return pathname
+      ? this.execute({
+        kind: 'save-as',
+        paneId: this.paneId,
+        viewId: document.viewId,
+        fileKey: pathname,
+        title: pathname.split(/[\\/]/).at(-1) ?? pathname
+      })
+      : { status: 'rejected', reason: 'save cancelled' }
+  }
+
   async confirmClose(viewId: string): Promise<'save' | 'discard' | 'cancel'> {
     const document = this.documentForView(viewId)
     if (!document) return 'cancel'
