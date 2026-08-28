@@ -7,7 +7,9 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 - Severity / rationale: P1 confirmed; the packaged app can remain alive after the
   final supported window close, making a core lifecycle unavailable.
-- Status / owner: `Red-capable`; next owner is a minimal fixing task.
+- Status / owner: `Integrated / Awaiting integration verification`; the minimal
+  repair is integrated at `18ddfe27`, while independent integration verification
+  remains pending.
 - Environment and profile: Windows unpacked, fresh smoke profile.
 - Artifact and source SHA: `fdda9330`; `C:\Users\1407\.codex\worktrees\7d74\Marktext\dist\win-unpacked`.
   Exact executable SHA-256 `C2059DDF1D3EE1D163BD781B7C5F1F56EDB7C783981A817DDB94151DCC558878`;
@@ -41,7 +43,21 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   Alt+F4/mouse-X automation is `Unavailable`; packaged native WM_SYSCOMMAND/
   `SC_CLOSE` and existing renderer title-X/close/quit paths are valid substitutes,
   while a final physical manual retest remains required.
-- Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
+- Integrated repair and provenance: implementation branch commit `28afe83f` is
+  integrated by `18ddfe27db10fcea2412ac066ce6e6a20af2536f`
+  (`fix(desktop): preserve close handoff across hash navigation`). The recorded
+  implementation tests and build passed; the traceable artifact hashes are exe
+  `2A467D5F457A83695788242A15A3B43D994F222E87DA19C5D37CECC24A00A478` and
+  `app.asar` `C140C4CD70DB7BCE9B39FB8F59FD66DD747D493FF9649F22DA721D20DE8B26BB`.
+- Independent review: Standards PASS (0 blockers, 0 records); Spec PASS (0
+  blockers, 0 records). Spec notes that the test's active hash navigation is a
+  root-cause amplifier rather than a literal user step, but the baseline exact
+  red, repair 5/5, packaged scenario 5/5, and manual Alt+F4/title-bar-X passes
+  make the evidence sufficient.
+- Root-cause / behavior boundary: same-document/hash navigation retains the
+  close-handoff endpoint. Cross-document navigation and destroy still revoke or
+  clean it up. This does not change ordinary final-tab close semantics or the
+  replacement-page behavior when Move exhausts a source window.
 - Acceptance / required regression: add a 1x1 dual-window sequential-close
   regression: close the first window, then the final window; within five seconds
   BrowserWindow count and exact process count are zero, with no replacement New
