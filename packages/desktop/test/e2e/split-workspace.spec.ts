@@ -118,6 +118,37 @@ test.describe('Split workspace', () => {
     await expect.poll(() => paneText(page, 1)).toContain('alpha pane')
   })
 
+  test('reorders at tab-bar edges without previewing or committing a split', async() => {
+    for (let index = 0; index < 6; index++) {
+      await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, `tab ${index} pane\n`)
+    }
+    const root = await workspaceBox(page)
+    const tabs = page.locator(tabSelector)
+    const tabBar = page.locator('.editor-tabs')
+    const tabBarBox = await tabBar.boundingBox()
+    if (!tabBarBox) throw new Error('tab bar is not visible')
+    await expect(tabs).toHaveCount(8)
+
+    const initialOrder = await tabs.evaluateAll((items) => items.map((item) => item.getAttribute('data-id')))
+    const lastTabBox = await tabs.nth(7).boundingBox()
+    if (!lastTabBox) throw new Error('last tab is not visible')
+    const rightEdge = lastTabBox.x + lastTabBox.width - 4
+
+    await dragTabTo(page, tabs.nth(0), rightEdge, tabBarBox.y + tabBarBox.height / 2)
+    await expect(page.locator('.editor-with-tabs')).not.toHaveClass(/preview/)
+    await page.mouse.up()
+    await expect(page.locator('.workspace-pane')).toHaveCount(1)
+    await expect.poll(() => tabs.evaluateAll((items) => items.map((item) => item.getAttribute('data-id')))).toEqual([
+      ...initialOrder.slice(1), initialOrder[0]
+    ])
+
+    await dragTabTo(page, tabs.nth(7), root.x + 4, tabBarBox.y + tabBarBox.height / 2)
+    await expect(page.locator('.editor-with-tabs')).not.toHaveClass(/preview/)
+    await page.mouse.up()
+    await expect(page.locator('.workspace-pane')).toHaveCount(1)
+    await expect.poll(() => tabs.evaluateAll((items) => items.map((item) => item.getAttribute('data-id')))).toEqual(initialOrder)
+  })
+
   test('keeps editing, commands, ownership, and tabs pane-local through a collapse', async() => {
     const root = await workspaceBox(page)
     await releaseTabAt(page, page.locator(tabSelector).nth(1), root.x + 4, root.y + root.height * 0.55)

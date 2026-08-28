@@ -96,9 +96,14 @@ let legacySourceProjectionKey = `${snapshot.value.projection.focusedPaneId}:${sn
 const compositionFor = (paneId: 'left' | 'right'): PaneEditorComposition => paneId === 'left' ? left : right
 const candidateAt = (x?: number, y?: number): 'left' | 'right' | null => {
   const rect = root.value?.getBoundingClientRect()
+  const documentRects = [...(root.value?.querySelectorAll<HTMLElement>('.workspace-pane .editor-component') ?? [])]
   if (
     !rect || workspaceWidth.value < 720 || x === undefined || y === undefined ||
-    x < rect.left || x > rect.right || y < rect.top || y > rect.bottom
+    x < rect.left || x > rect.right || y < rect.top || y > rect.bottom ||
+    !documentRects.some((documentRect) => {
+      const bounds = documentRect.getBoundingClientRect()
+      return y >= bounds.top && y <= bounds.bottom
+    })
   ) return null
   if (x <= rect.left + rect.width * 0.31) return 'left'
   if (x >= rect.right - rect.width * 0.31) return 'right'
