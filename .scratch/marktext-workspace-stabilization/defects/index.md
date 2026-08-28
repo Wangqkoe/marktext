@@ -5,16 +5,15 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 ## STAB-001 — packaged Windows app does not exit on fresh smoke
 
-- Severity / rationale: P1 candidate; all ordinary supported exit paths leave the
-  packaged app running, making a core lifecycle unavailable.
-- Status / owner: `Triaged`; needs a packaged-loop diagnosing task to become
-  red-capable.
+- Severity / rationale: P1 confirmed; the packaged app can remain alive after the
+  final supported window close, making a core lifecycle unavailable.
+- Status / owner: `Red-capable`; next owner is a minimal fixing task.
 - Environment and profile: Windows unpacked, fresh smoke profile.
 - Artifact and source SHA: `fdda9330`; `C:\Users\1407\.codex\worktrees\7d74\Marktext\dist\win-unpacked`.
   Exact executable SHA-256 `C2059DDF1D3EE1D163BD781B7C5F1F56EDB7C783981A817DDB94151DCC558878`;
   `resources\app.asar` SHA-256 `73188C7FD3E34FDAF419BAFD69CE0654FAFEAA4A429EEE6EBD53DCCF8CD2445D`.
-- Reproduction rate: observed in the reported fresh smoke run; count not yet
-  established across isolated runs.
+- Reproduction rate: the minimum stable red is B 1x1, 2/2 failures; B 1x2 and
+  B 2x1 each failed 1/2, B 2x2 failed 2/2, and dual-window quit failed 1/2.
 - Accurate entry and steps: launch that exact unpacked artifact, then use Alt+F4,
   title-bar X, Ctrl+Shift+W, Ctrl+Q, or `CloseMainWindow`. Cover the reported
   single-window packaged failure and the user-reported multi-window layouts with
@@ -23,28 +22,42 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   then on the final remaining window.
 - Expected / actual: application exits / window returns to or retains New Tab and
   the same executable child process remains.
-- Evidence: automated E2E reports 29/29 passed; that does not demonstrate
-  packaged exit. Preserve both the single-window packaged failure and the user
-  multi-window report. Capture timestamp, PID, window count and logical tab
-  state on the next run.
-- Red command: unavailable today; diagnosis must add and run one packaged,
-  unique-profile command that asserts main child-process exit for this exact SHA.
+- Evidence: `events.ndjson` and `matrix.json` beside the command below record
+  two packaged rounds. A 1x2 native `SC_CLOSE` passed 2/2 and A 1x2 title-bar X
+  passed 2/2; last-tab replacement failed 2/2. The first erroneous transition is
+  two windows -> close one -> one window -> final title-bar close: expected zero
+  windows and zero exact-artifact processes, but the exact artifact remains alive.
+  Automated E2E's prior 29/29 pass does not demonstrate packaged exit.
+- Red command: actually run: `& 'C:\Users\1407\AppData\Local\Temp\stb001-96c37fafc05e49f5856901746a5bd549\stb001.ps1' -Mode full`.
+- Root-cause boundary: narrowed only to `EditorWindow native close ->
+  mt::ask-for-close -> renderer workspace.closeForWindowExit() ->
+  mt::close-window -> WindowManager.forceClose()` handoff; no specific code root
+  cause is asserted. Windows rejected physical `SetForegroundWindow`, so injected
+  Alt+F4/mouse-X automation is `Unavailable`; packaged native WM_SYSCOMMAND/
+  `SC_CLOSE` and existing renderer title-X/close/quit paths are valid substitutes,
+  while a final physical manual retest remains required.
 - Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
-- Acceptance / required regression: red-capable packaged loop plus manual replay
-  of every listed exit path; after a failed run force-clean only that exact
-  executable process tree. Such cleanup must never be recorded as normal exit.
-- Record items / exclusions: no root cause is asserted.
+- Acceptance / required regression: add a 1x1 dual-window sequential-close
+  regression: close the first window, then the final window; within five seconds
+  BrowserWindow count and exact process count are zero, with no replacement New
+  Tab, for at least five consecutive runs. Preserve dirty and emergency semantics.
+  After a failed manual run force-clean only that exact executable process tree;
+  cleanup is not normal-exit evidence.
+- Record items / exclusions: GPU/network/Crashpad/No-buffer logs have no stable
+  correlation with this failure.
 
 ## STAB-002 — opening a valid Markdown document fails or opens New Tab
 
 - Severity / rationale: P1 candidate, unconfirmed; an explicit-file startup is a
   supported core workflow and prevents Move when only New Tab appears.
-- Status / owner: `New`; needs an entry-by-entry fresh unique-profile comparison.
+- Status / owner: `Reproducing`; scope narrowed to native File Open and actual
+  file-association boundaries, with no fixing ticket.
 - Environment and profile: the target `.md` exists; the reported profile had a
   renderer-crash record and may have been affected by an old instance/profile.
 - Artifact and source SHA: `fdda9330` packaged Windows artifact; exact artifact
   and profile must be captured by the diagnosing task.
-- Reproduction rate: reported once; not established.
+- Reproduction rate: the asserted renderer pathname/sentinel cases pass 5/5;
+  native-entry cases remain unavailable rather than reproduced.
 - Accurate entry and steps: use the same valid absolute `.md` through (1) a
   command-line explicit target with a fresh unique profile, (2) File > Open or
   Ctrl+O, (3) Windows file association/double-click, and (4) delivery to an
@@ -52,17 +65,17 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   and rendered/source content rather than inferring success from window text.
 - Expected / actual: requested file opens / reported path displays only New Tab;
   Move cannot be exercised if only New Tab is present.
-- Evidence: user explicitly reports that opening an `.md` document has a problem;
-  no fresh-profile, old-instance-isolated comparison yet.
-- Red command: unavailable today; diagnosis must run the same absolute file path
-  against fresh, unique profiles for all four entries and record entry method,
-  timestamps, PIDs, window/tab state, actual path/title/content and command
-  execution result.
+- Evidence: actually run `node C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91\launch-assert.mjs C:\Users\1407\AppData\Local\Temp\marktext-stab002-75812bad9f064348a0d4ec53ad378c91`; structured evidence is `results.json` in that directory. Renderer pathname plus sentinel assertions passed 5/5: CLI profile-first, file-first, strictly quoted PowerShell, spaced/Chinese absolute path, and second-file delivery to an existing instance (same-window tab visible). File > Open/Ctrl+O truly invoked the native dialog but is `Unavailable` because Windows automation cannot operate its Explorer-owned filename control. `.md` UserChoice is `MarkText.Document`, but this unpacked environment has no open command, so association/double-click is `Unavailable`.
+- Red command: no red exists. The command above is a green scope-narrowing probe,
+  not a failure reproduction.
 - Related commit(s): `fdda9330780edd11a79b84c6467eaed1cf1df61a`.
-- Acceptance / required regression: reproducible explicit-target startup test and
-  black-box replay from the same artifact/profile package.
-- Record items / exclusions: do not assign a renderer, old-instance, or profile
-  root cause before comparison evidence.
+- Acceptance / required regression: before any repair, manually select a
+  controlled fixture through native File Open and record active pathname/sentinel,
+  or create a controllable dialog acceptance. Then test a usable association
+  boundary. Use the same artifact/profile package for black-box replay.
+- Record items / exclusions: current evidence does not support a CLI or
+  single-instance opening defect; do not assign renderer, old-instance, or profile
+  root cause.
 
 ## STAB-004 — tab reorder versus Split hit area
 
@@ -120,7 +133,8 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 - Expected / actual: no causality claim / renderer killed, network-service
   crash/restart, GPU exit, Crashpad `CreateFile` `0x2`, and `No buffer store found`
   have been seen in logs.
-- Evidence: the current Move red-light does not include these logs.
+- Evidence: STAB-001 and STAB-002 diagnostics found no stable renderer, network,
+  GPU, Crashpad, or No-buffer relationship to their failures or unavailable paths.
 - Red command: none; upgrade only if a stable time relationship before failure is
   demonstrated by a recorded run.
 - Related commit(s): none established.

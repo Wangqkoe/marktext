@@ -1,13 +1,14 @@
 # Stabilization triage queue
 
-1. First wave, parallel: STAB-001 packaged exit and STAB-002 entry-by-entry
-   document opening, both on the exact artifact with unique profiles.
-2. STAB-004 reorder-versus-Split follows immediately and may diagnose in parallel
-   because it has an independent gesture boundary.
-3. Close the incorrect test chain in STAB-P001 immediately: File > Move To is a
+1. STAB-001: create the minimal fixing ticket from the red-capable packaged loop.
+2. STAB-002: wait for a manual/native-entry red or controllable dialog acceptance;
+   do not open a fixing ticket from the current green probe.
+3. STAB-004: begin its independent packaged diagnosis now.
+4. Close the incorrect test chain in STAB-P001 immediately: File > Move To is a
    filesystem move, not window Move; use tab-context Move or out-of-window drag.
-4. STAB-R001 remains `Manual-retest`.
-5. Accept and normalize further user reports.
+5. STAB-R001 remains `Manual-retest`; its final-tab replacement replay is related
+   to STAB-001's failure but is neither closed nor duplicated.
+6. Accept and normalize further user reports.
 
 STAB-003 is collected with every failing run; it is not an independent repair lead
 or a guessed root cause.
