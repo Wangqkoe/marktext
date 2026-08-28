@@ -6,7 +6,7 @@ The frozen stabilization baseline is `fdda9330780edd11a79b84c6467eaed1cf1df61a`
 (`fdda9330`). The local integration branch is
 `codex/marktext-feature-development-2026-08`; the ledger task branch is
 `codex/marktext-workspace-stabilization-ledger`. The target artifact is the
-Windows unpacked package recorded in [STAB-001](defects/index.md#stab-001).
+Windows unpacked package recorded in the [STAB-001 entry](defects/index.md).
 
 This is **not** a release candidate. Stop "preparing to finish": T12, final
 Review/Acceptance, and release judgement are paused. No new feature work,
@@ -26,6 +26,12 @@ manual defect.
 | P1 | A core supported workflow is unavailable or unsafe | Blocks final gate; reproduce before repair. |
 | P2 | Material but non-core defect with a viable workaround | Track and disposition before release judgement. |
 | P3 | Minor or cosmetic defect | Track; does not by itself block stabilization. |
+
+A `P0 candidate` or `P1 candidate` counts as its stated P0/P1 blocking item
+until evidence downgrades it or it reaches `Closed` or `Deferred`. A `pending`
+log record does not count as P0/P1 unless it is linked to a user-visible defect
+and classified. `Resolved in code` is not a severity: an unmet `Manual-retest`
+continues to block through the manual gate.
 
 Allowed states are `New`, `Triaged`, `Reproducing`, `Red-capable`, `Fixing`,
 `Review`, `Integrated`, `Manual-retest`, `Closed`, and `Deferred`.
