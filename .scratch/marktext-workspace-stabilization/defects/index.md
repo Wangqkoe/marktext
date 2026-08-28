@@ -7,9 +7,9 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 - Severity / rationale: P1 confirmed; the packaged app can remain alive after the
   final supported window close, making a core lifecycle unavailable.
-- Status / owner: `Integrated / Awaiting integration verification`; the minimal
-  repair is integrated at `18ddfe27`, while independent integration verification
-  remains pending.
+- Status / owner: `Verified / Closed`; ticket-level automated acceptance and the
+  recorded physical manual-close acceptance are satisfied. The overall Workspace
+  stabilization stage remains in progress.
 - Environment and profile: Windows unpacked, fresh smoke profile.
 - Artifact and source SHA: `fdda9330`; `C:\Users\1407\.codex\worktrees\7d74\Marktext\dist\win-unpacked`.
   Exact executable SHA-256 `C2059DDF1D3EE1D163BD781B7C5F1F56EDB7C783981A817DDB94151DCC558878`;
@@ -41,14 +41,25 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   mt::close-window -> WindowManager.forceClose()` handoff; no specific code root
   cause is asserted. Windows rejected physical `SetForegroundWindow`, so injected
   Alt+F4/mouse-X automation is `Unavailable`; packaged native WM_SYSCOMMAND/
-  `SC_CLOSE` and existing renderer title-X/close/quit paths are valid substitutes,
-  while a final physical manual retest remains required.
+  `SC_CLOSE` and existing renderer title-X/close/quit paths are valid substitutes.
+  The physical manual retest is complete on the implementation-equivalent artifact:
+  the user used Ctrl+N to create a second window, then closed the two windows with
+  Alt+F4 and the title-bar X respectively; both windows and the process exited
+  normally. This records only those completed steps, not all close combinations.
 - Integrated repair and provenance: implementation branch commit `28afe83f` is
   integrated by `18ddfe27db10fcea2412ac066ce6e6a20af2536f`
   (`fix(desktop): preserve close handoff across hash navigation`). The recorded
   implementation tests and build passed; the traceable artifact hashes are exe
   `2A467D5F457A83695788242A15A3B43D994F222E87DA19C5D37CECC24A00A478` and
   `app.asar` `C140C4CD70DB7BCE9B39FB8F59FD66DD747D493FF9649F22DA721D20DE8B26BB`.
+- Independent integration verification: at integration HEAD `18ddfe27`, the new
+  dual-window E2E passed 5/5; adjacent CrashDraft/startup/MoveRecovery/tab-transfer
+  unit tests passed 64/64; the cross-document reload old-receipt-revocation E2E,
+  typecheck, and Windows x64 build all passed. The packaged dual-window close
+  scenario passed 3/3 with zero replacement windows, zero remaining `MarkText.exe`
+  processes, and no forced cleanup. Its distinct integration-artifact SHA-256 values
+  are `MarkText.exe` `A9BB4C10BEB24D00983F99BCA0E4945F308F136C54D26203208415E4FDAA46B1`
+  and `app.asar` `5FBB2D7F27D27DBECBAC04761A2D5D25EB1437443DD0E2156AA9F3A241A5E7B6`.
 - Independent review: Standards PASS (0 blockers, 0 records); Spec PASS (0
   blockers, 0 records). Spec notes that the test's active hash navigation is a
   root-cause amplifier rather than a literal user step, but the baseline exact
@@ -58,12 +69,10 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   close-handoff endpoint. Cross-document navigation and destroy still revoke or
   clean it up. This does not change ordinary final-tab close semantics or the
   replacement-page behavior when Move exhausts a source window.
-- Acceptance / required regression: add a 1x1 dual-window sequential-close
-  regression: close the first window, then the final window; within five seconds
-  BrowserWindow count and exact process count are zero, with no replacement New
-  Tab, for at least five consecutive runs. Preserve dirty and emergency semantics.
-  After a failed manual run force-clean only that exact executable process tree;
-  cleanup is not normal-exit evidence.
+- Acceptance / required regression: satisfied by the 5/5 dual-window E2E and the
+  3/3 packaged dual-window close validation: the first window and then the final
+  window close within five seconds, with zero BrowserWindows and exact processes,
+  and no replacement New Tab. Dirty and emergency semantics remain preserved.
 - Record items / exclusions: exclude the PowerShell/Get-FileHash tool error and
   the erroneous ordinary-last-tab harness expectation. GPU/network/Crashpad/
   No-buffer logs have no stable correlation with this failure.
