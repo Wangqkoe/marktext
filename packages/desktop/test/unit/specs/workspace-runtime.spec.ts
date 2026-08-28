@@ -107,16 +107,16 @@ class RecordingDocumentIoPort implements DocumentIoPort {
     this.requests.push(request)
     switch (request.kind) {
       case 'bind':
-        {
-          const ownerFence = `main-owner-fence:${++this.nextOwnerFence}`
-          this.ownerFences.set(request.documentId, ownerFence)
+      {
+        const ownerFence = `main-owner-fence:${++this.nextOwnerFence}`
+        this.ownerFences.set(request.documentId, ownerFence)
         return {
           status: 'bound',
           requestId: request.requestId,
           documentId: request.documentId,
           ownerFence
         }
-        }
+      }
       case 'save':
       case 'save-as':
       case 'rename':
@@ -306,7 +306,7 @@ describe('WorkspaceRuntime', () => {
     }
   })
 
-  it('routes the mounted production facade through one T04b port and releases its binding', async () => {
+  it('routes the mounted production facade through one T04b port and releases its binding', async() => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'note', fileKey: '/note.md', markdown: 'one', title: 'note.md' }
     ])
@@ -416,7 +416,7 @@ describe('WorkspaceRuntime', () => {
     expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(true)
   })
 
-  it('binds independently created pane compositions to one controller', async () => {
+  it('binds independently created pane compositions to one controller', async() => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'left-doc', markdown: 'left', title: 'left' },
       { documentId: 'right-doc', markdown: 'right', title: 'right' }
@@ -440,7 +440,7 @@ describe('WorkspaceRuntime', () => {
     expect(paneById(projection, 'right').status).toMatchObject({})
   })
 
-  it('hands a file-backed View between mounted compositions with one active DocumentIO fence', async () => {
+  it('hands a file-backed View between mounted compositions with one active DocumentIO fence', async() => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'left-doc', fileKey: '/left.md', markdown: 'left', title: 'left' },
       { documentId: 'right-doc', fileKey: '/right.md', markdown: 'right', title: 'right' }
@@ -496,7 +496,7 @@ describe('WorkspaceRuntime', () => {
     composition.unmount(surface)
   })
 
-  it('finishes an initially source pane bind with a source lease', async () => {
+  it('finishes an initially source pane bind with a source lease', async() => {
     const composition = createPaneEditorComposition({ paneId: 'left' })
     const surface = new MemoryPaneSurface()
     await composition.mount(surface, {
@@ -548,7 +548,7 @@ describe('WorkspaceRuntime', () => {
     expect(surface.cancelled).toHaveLength(1)
   })
 
-  it('routes the production pane adapter through its current lease only', async () => {
+  it('routes the production pane adapter through its current lease only', async() => {
     const workspace = createWorkspaceRuntime([{ markdown: 'first' }])
     const surface = new MemoryPaneSurface()
     const reporter = new PaneEditorLeaseReporter('left')
@@ -630,7 +630,7 @@ describe('WorkspaceRuntime', () => {
     await expect(cancelledSourceScope).resolves.toBeUndefined()
   })
 
-  it('cancels a late staged A refresh after B commits without replacing B scope or adapter state', async () => {
+  it('cancels a late staged A refresh after B commits without replacing B scope or adapter state', async() => {
     const workspace = createWorkspaceRuntime([{ markdown: 'A' }])
     const surface = new DeferredPaneSurface()
     const reporter = new PaneEditorLeaseReporter('left')
@@ -661,7 +661,7 @@ describe('WorkspaceRuntime', () => {
     expect((await bScope.flush()).status).toBe('applied')
   })
 
-  it('accepts only the controller-current snapshot object, never an old, copied, or forged generation', async () => {
+  it('accepts only the controller-current snapshot object, never an old, copied, or forged generation', async() => {
     const workspace = createWorkspaceRuntime([{ markdown: 'one' }])
     const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
     const lease = currentLease(binding)
@@ -685,7 +685,7 @@ describe('WorkspaceRuntime', () => {
     expect(binding.isSnapshotCurrent(current)).toBe(false)
   })
 
-  it('cancels a throwing commit, retains the prior current surface, and allows a later refresh', async () => {
+  it('cancels a throwing commit, retains the prior current surface, and allows a later refresh', async() => {
     const workspace = createWorkspaceRuntime([{ markdown: 'A' }])
     const surface = new FaultPaneSurface()
     const reporter = new PaneEditorLeaseReporter('left')
@@ -708,7 +708,7 @@ describe('WorkspaceRuntime', () => {
     expect(surface.current).toBe(second)
   })
 
-  it('cancels and restores the previous reporter scope when activation throws', async () => {
+  it('cancels and restores the previous reporter scope when activation throws', async() => {
     const workspace = createWorkspaceRuntime([{ markdown: 'A' }])
     const surface = new FaultPaneSurface()
     const reporter = new PaneEditorLeaseReporter('left')
@@ -733,7 +733,7 @@ describe('WorkspaceRuntime', () => {
     expect(surface.current).toBe(second)
   })
 
-  it('releases binding, adapter and controller resources idempotently', async () => {
+  it('releases binding, adapter and controller resources idempotently', async() => {
     const workspace = createWorkspaceRuntime()
     const surface = new MemoryPaneSurface()
     const reporter = new PaneEditorLeaseReporter('left')
@@ -760,7 +760,7 @@ describe('WorkspaceRuntime', () => {
     await expect(workspace.bindPaneEditor('left', new MemoryEditor())).rejects.toThrow('disposed')
   })
 
-  it('isolates both panes and flushes/refreshes every active-view transition', async () => {
+  it('isolates both panes and flushes/refreshes every active-view transition', async() => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'one', fileKey: '/one.md', markdown: 'one' },
       { documentId: 'two', fileKey: '/two.md', markdown: 'two' }
@@ -807,7 +807,7 @@ describe('WorkspaceRuntime', () => {
     expect(leftBinding.getSnapshot(leftLease)).toBeUndefined()
   })
 
-  it('flushes a dirty active tab before close, requires a single-use capability, and leaves a clean New Tab last', async () => {
+  it('flushes a dirty active tab before close, requires a single-use capability, and leaves a clean New Tab last', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
@@ -831,7 +831,7 @@ describe('WorkspaceRuntime', () => {
     expect(tabAt(pane, 0).dirty).toBe(false)
   })
 
-  it('moves a View rather than its Document and collapses an empty pane', async () => {
+  it('moves a View rather than its Document and collapses an empty pane', async() => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
     await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
     const right = tabAt(paneAt(workspace.getProjection(), 1), 0)
@@ -844,7 +844,7 @@ describe('WorkspaceRuntime', () => {
     expect(paneAt(projection, 0).tabs.map((tab) => tab.fileKey)).toEqual(['/one.md', '/two.md'])
   })
 
-  it('reorders a View within its pane without changing the active View', async () => {
+  it('reorders a View within its pane without changing the active View', async() => {
     const workspace = createWorkspaceRuntime([
       { fileKey: '/one.md' },
       { fileKey: '/two.md' },
@@ -859,7 +859,7 @@ describe('WorkspaceRuntime', () => {
     expect(after.activeViewId).toBe(active)
   })
 
-  it('updates source active state only when a non-collapse move removes its active View', async () => {
+  it('updates source active state only when a non-collapse move removes its active View', async() => {
     for (const movingKind of ['active', 'non-active'] as const) {
       const workspace = createWorkspaceRuntime([
         { fileKey: '/one.md' },
@@ -908,7 +908,7 @@ describe('WorkspaceRuntime', () => {
     }
   })
 
-  it('restores the source active adapter and lease target when non-collapse target refresh fails', async () => {
+  it('restores the source active adapter and lease target when non-collapse target refresh fails', async() => {
     const workspace = createWorkspaceRuntime([
       { fileKey: '/one.md' },
       { fileKey: '/two.md' },
@@ -936,7 +936,7 @@ describe('WorkspaceRuntime', () => {
 
   it.each(['active', 'non-active'] as const)(
     'flushes and preserves target edits before a non-collapse %s move',
-    async (movingKind) => {
+    async(movingKind) => {
       const workspace = createWorkspaceRuntime([
         { fileKey: '/one.md' },
         { fileKey: '/two.md' },
@@ -984,7 +984,7 @@ describe('WorkspaceRuntime', () => {
     }
   )
 
-  it('retains flushed target edits in the adapter rollback snapshot when non-collapse move refresh fails', async () => {
+  it('retains flushed target edits in the adapter rollback snapshot when non-collapse move refresh fails', async() => {
     const workspace = createWorkspaceRuntime([
       { fileKey: '/one.md' },
       { fileKey: '/two.md' },
@@ -1016,7 +1016,7 @@ describe('WorkspaceRuntime', () => {
     expect(currentLease(left).viewId).toBe(moving)
   })
 
-  it('flushes survivor edits before move/close collapse and target edits before focus refresh', async () => {
+  it('flushes survivor edits before move/close collapse and target edits before focus refresh', async() => {
     const moveWorkspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
     await moveWorkspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
     const moveLeftEditor = new MemoryEditor()
@@ -1110,7 +1110,7 @@ describe('WorkspaceRuntime', () => {
     expect(focusWorkspace.getProjection().status).toEqual({ wordCount: 7 })
   })
 
-  it('keeps the surviving binding continuous across collapse in both directions', async () => {
+  it('keeps the surviving binding continuous across collapse in both directions', async() => {
     for (const direction of ['right-to-left', 'left-to-right'] as const) {
       const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
       await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
@@ -1184,7 +1184,7 @@ describe('WorkspaceRuntime', () => {
     right.unmount(rightSurface)
   })
 
-  it('keeps controller and adapter aligned when a collapse refresh fails', async () => {
+  it('keeps controller and adapter aligned when a collapse refresh fails', async() => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
     await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
     const leftEditor = new MemoryEditor()
@@ -1210,7 +1210,7 @@ describe('WorkspaceRuntime', () => {
     expect(leftBinding.getLease()).toBeUndefined()
   })
 
-  it('keeps the survivor binding usable after closing the last tab in either pane', async () => {
+  it('keeps the survivor binding usable after closing the last tab in either pane', async() => {
     for (const closingPane of ['left', 'right'] as const) {
       const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
       await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
@@ -1228,7 +1228,7 @@ describe('WorkspaceRuntime', () => {
     }
   })
 
-  it('focuses an existing FileKey rather than creating a second Document', async () => {
+  it('focuses an existing FileKey rather than creating a second Document', async() => {
     const workspace = createWorkspaceRuntime([{ documentId: 'saved', fileKey: '/same.md' }])
     await workspace.execute({ kind: 'new-tab' })
     expect(
@@ -1239,7 +1239,7 @@ describe('WorkspaceRuntime', () => {
     ).toHaveLength(1)
   })
 
-  it('keeps the focused document active when a file-open batch adds an unselected document', async () => {
+  it('keeps the focused document active when a file-open batch adds an unselected document', async() => {
     const workspace = createWorkspaceRuntime([{ documentId: 'first', fileKey: '/first.md' }])
     expect(
       (await workspace.execute({
@@ -1253,7 +1253,7 @@ describe('WorkspaceRuntime', () => {
     expect(pane.tabs.find((tab) => tab.viewId === pane.activeViewId)?.documentId).toBe('first')
   })
 
-  it('atomically replaces a pristine blank once for a selected native file-open batch target', async () => {
+  it('atomically replaces a pristine blank once for a selected native file-open batch target', async() => {
     const workspace = createWorkspaceRuntime()
     const [second, first] = await Promise.all([
       workspace.execute({
@@ -1276,7 +1276,7 @@ describe('WorkspaceRuntime', () => {
     expect(pane.tabs.find((tab) => tab.viewId === pane.activeViewId)?.fileKey).toBe('/first.md')
   })
 
-  it('replaces a stale lease through the same binding after a successful controller transition', async () => {
+  it('replaces a stale lease through the same binding after a successful controller transition', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
@@ -1289,7 +1289,7 @@ describe('WorkspaceRuntime', () => {
     expect((await binding.flush(nextLease)).status).toBe('applied')
   })
 
-  it('revokes a previous generation before rebind and reissues it only after replacement staging fails', async () => {
+  it('revokes a previous generation before rebind and reissues it only after replacement staging fails', async() => {
     const workspace = createWorkspaceRuntime()
     const previousEditor = new MemoryEditor()
     const previousBinding = await workspace.bindPaneEditor('left', previousEditor)
@@ -1325,7 +1325,7 @@ describe('WorkspaceRuntime', () => {
     expect((await previousBinding.flush(restoredLease)).status).toBe('applied')
   })
 
-  it('compensates a same-instance staged bind failure with a successor lease', async () => {
+  it('compensates a same-instance staged bind failure with a successor lease', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
@@ -1358,7 +1358,7 @@ describe('WorkspaceRuntime', () => {
     expect((await binding.flush(restoredLease)).status).toBe('applied')
   })
 
-  it('invalidates a same-instance lease when staged bind recovery cannot restore its snapshot', async () => {
+  it('invalidates a same-instance lease when staged bind recovery cannot restore its snapshot', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
@@ -1373,7 +1373,7 @@ describe('WorkspaceRuntime', () => {
     expect((await binding.flush(lease)).status).toBe('rejected')
   })
 
-  it('serializes a suspended flush before a transition and rejects an interleaved report', async () => {
+  it('serializes a suspended flush before a transition and rejects an interleaved report', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
@@ -1395,7 +1395,7 @@ describe('WorkspaceRuntime', () => {
     expect(binding.getSnapshot(currentLease(binding))?.document.markdown).toBe('late old view edit')
   })
 
-  it('serializes a suspended mode handoff and never resurrects its old lease', async () => {
+  it('serializes a suspended mode handoff and never resurrects its old lease', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
@@ -1413,7 +1413,7 @@ describe('WorkspaceRuntime', () => {
     expect(currentLease(binding).mode).toBe('wysiwyg')
   })
 
-  it('keeps unaffected pane bindings isolated while global projection revisions remain monotonic', async () => {
+  it('keeps unaffected pane bindings isolated while global projection revisions remain monotonic', async() => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/left.md' }, { fileKey: '/right.md' }])
     await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
     const leftEditor = new MemoryEditor()
@@ -1463,7 +1463,7 @@ describe('WorkspaceRuntime', () => {
     )
   })
 
-  it('rotates leases on mode handoff and rolls back a staged mode refresh failure', async () => {
+  it('rotates leases on mode handoff and rolls back a staged mode refresh failure', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
@@ -1478,7 +1478,7 @@ describe('WorkspaceRuntime', () => {
     expect(binding.getLease()).toBeUndefined()
   })
 
-  it('rejects stale leases and failed staged refresh preserves a flushed edit without exposing a replacement lease', async () => {
+  it('rejects stale leases and failed staged refresh preserves a flushed edit without exposing a replacement lease', async() => {
     const workspace = createWorkspaceRuntime()
     const editor = new MemoryEditor()
     const binding = await workspace.bindPaneEditor('left', editor)
@@ -1496,7 +1496,7 @@ describe('WorkspaceRuntime', () => {
     expect(binding.report(lease, { markdown: 'must not apply' }).status).toBe('rejected')
   })
 
-  it('atomically rejects forged, kind-mismatched, stale, and replayed capabilities', async () => {
+  it('atomically rejects forged, kind-mismatched, stale, and replayed capabilities', async() => {
     const workspace = createWorkspaceRuntime()
     const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
     const lease = currentLease(binding)
@@ -1522,7 +1522,7 @@ describe('WorkspaceRuntime', () => {
     ).toBe('rejected')
   })
 
-  it('accepts a genuine capability once, rejects replay, and isolates subscriber exceptions', async () => {
+  it('accepts a genuine capability once, rejects replay, and isolates subscriber exceptions', async() => {
     const workspace = createWorkspaceRuntime()
     const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
     const lease = currentLease(binding)
@@ -1560,7 +1560,7 @@ describe('WorkspaceRuntime', () => {
     }).toThrow()
   })
 
-  it('routes JSON-only TOC/status through the focused pane and exposes assembly warnings immutably', async () => {
+  it('routes JSON-only TOC/status through the focused pane and exposes assembly warnings immutably', async() => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/left.md' }, { fileKey: '/right.md' }])
     await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
     const left = await workspace.bindPaneEditor('left', new MemoryEditor())
