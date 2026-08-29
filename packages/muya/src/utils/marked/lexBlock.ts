@@ -38,7 +38,7 @@ function detailsTagBalance(raw: string): number {
         else if (/^<\/details(?:\s|>)/i.test(tag))
             balance--;
 
-        const rawTextElement = /^<(script|style)(?:\s|>)/i.exec(tag);
+        const rawTextElement = /^<(script|style|textarea)(?:\s|>)/i.exec(tag);
         if (rawTextElement) {
             const closingTag = new RegExp(`</${rawTextElement[1]}\\s*>`, 'gi');
             closingTag.lastIndex = end + 1;

@@ -9,6 +9,7 @@ const source = '<details open>\n<summary>More</summary>\nBody\n</details>\n';
 const rawTextSource = '<details>\n<summary>摘要原文</summary>\n\nDETAILS_BODY_SENTINEL_4BDE701A\n\n</details>\n';
 const quotedClosingTagSource = '<details>\n<div title="</details>" data-close=\'</details>\'>body</div>\n\nBody\n\n</details>\n\nAfter\n';
 const scriptClosingTagSource = '<details>\n<script>const closing = \'</details>\';</script>\n<style>.marker::after { content: \'</details>\'; }</style>\n\nBody\n\n</details>\n\nAfter\n';
+const textareaClosingTagSource = '<details>\n<textarea>literal </details></textarea>\n\nBody\n\n</details>\n\nAfter\n';
 const malformedDetailsSource = `${'<details>\n\n'.repeat(64)}After\n`;
 
 describe('raw HTML details round-trip', () => {
@@ -74,6 +75,25 @@ describe('raw HTML details round-trip', () => {
             { name: 'paragraph', text: 'After' },
         ]);
         expect(new ExportMarkdown().generate(states)).toBe(scriptClosingTagSource);
+    });
+
+    it('ignores closing-tag strings in raw textarea content', () => {
+        const states = new MarkdownToState({
+            footnote: false,
+            math: false,
+            isGitlabCompatibilityEnabled: false,
+            trimUnnecessaryCodeBlockEmptyLines: false,
+            frontMatter: false,
+        }).generate(textareaClosingTagSource);
+
+        expect(states).toEqual([
+            {
+                name: 'html-block',
+                text: '<details>\n<textarea>literal </details></textarea>\n\nBody\n\n</details>',
+            },
+            { name: 'paragraph', text: 'After' },
+        ]);
+        expect(new ExportMarkdown().generate(states)).toBe(textareaClosingTagSource);
     });
 
     it('replays malformed details openers without swallowing later content', () => {
