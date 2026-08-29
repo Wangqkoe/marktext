@@ -96,6 +96,46 @@ const snapshotActiveDocument = async(page: Page) => page.evaluate(() => {
   return { dirty: active?.dirty, fileKey: document?.fileKey, markdown: document?.markdown }
 })
 
+const holdFirstSavedCrashDraftAck = async(app: ElectronApplication): Promise<void> => {
+  await app.evaluate(({ ipcMain }) => {
+    const state = {
+      held: false,
+      release: undefined as (() => void) | undefined
+    }
+    ;(global as unknown as { __mt_stab007_saved_crash_draft_ack__?: typeof state }).__mt_stab007_saved_crash_draft_ack__ = state
+    ipcMain.removeHandler('mt::workspace::crash-draft')
+    ipcMain.handle('mt::workspace::crash-draft', async(_event, request: { readonly kind: string }) => {
+      if (request.kind === 'saved' && !state.held) {
+        state.held = true
+        return new Promise((resolve) => {
+          state.release = () => {
+            resolve({ durable: true })
+          }
+        })
+      }
+      return request.kind === 'checkpoint'
+        ? { durable: true, receipt: 'STAB-007-test-receipt' }
+        : request.kind === 'recover'
+          ? { durable: true, recoveries: [] }
+          : { durable: true }
+    })
+  })
+}
+
+const heldSavedCrashDraftAck = async(app: ElectronApplication): Promise<boolean> => await app.evaluate(() =>
+  (global as unknown as { __mt_stab007_saved_crash_draft_ack__?: { held: boolean } }).__mt_stab007_saved_crash_draft_ack__?.held ?? false
+)
+
+const releaseFirstSavedCrashDraftAck = async(app: ElectronApplication): Promise<void> => {
+  await app.evaluate(() => {
+    const state = (global as unknown as {
+      __mt_stab007_saved_crash_draft_ack__?: { release?: () => void }
+    }).__mt_stab007_saved_crash_draft_ack__
+    if (!state?.release) throw new Error('STAB-007 saved crash draft acknowledgement is not held')
+    state.release()
+  })
+}
+
 const stopApp = async(app: ElectronApplication): Promise<void> => {
   const child = app.process()
   if (child.exitCode !== null) return
@@ -218,6 +258,49 @@ test('coalesces concurrent untitled Save entries until their dialog settles', as
     await expect.poll(() => fs.readFileSync(target, 'utf8')).toContain(afterSave)
     expect(await saveDialogCalls(app)).toBe(1)
   } finally {
+    await stopApp(app).catch(() => {})
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
+test('saves a newly dirty bound document while its prior Save As waits for CrashDraft', async() => {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-save-bound-race-'))
+  const target = path.join(profile, 'bound-race.md')
+  const initial = 'STAB007_BOUND_SAVE_INITIAL'
+  const after = ' STAB007_BOUND_SAVE_AFTER'
+  const { app, page } = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
+  let held = false
+  try {
+    await waitForMenuReady(app)
+    await typeIntoEditor(page, initial)
+    await expect.poll(() => {
+      try { return fs.readdirSync(path.join(profile, 'crash-drafts')).some((name) => name.endsWith('.draft.json')) } catch { return false }
+    }).toBe(true)
+
+    await configureSaveDialog(app, { status: 'selected', filePath: target })
+    await holdFirstSavedCrashDraftAck(app)
+    await invokeCtrlSave(app)
+    await expect.poll(() => heldSavedCrashDraftAck(app)).toBe(true)
+    held = true
+    await expect.poll(() => snapshotActiveDocument(page)).toEqual({
+      dirty: false,
+      fileKey: target,
+      markdown: expect.stringContaining(initial)
+    })
+    await expect.poll(() => fs.readFileSync(target, 'utf8')).toContain(initial)
+
+    await typeIntoEditor(page, after)
+    await invokeFileSaveFromMenu(app)
+    await expect.poll(() => fs.readFileSync(target, 'utf8')).toContain(after)
+    await releaseFirstSavedCrashDraftAck(app)
+    held = false
+    await expect.poll(() => snapshotActiveDocument(page)).toEqual({
+      dirty: false,
+      fileKey: target,
+      markdown: expect.stringContaining(after)
+    })
+  } finally {
+    if (held) await releaseFirstSavedCrashDraftAck(app).catch(() => {})
     await stopApp(app).catch(() => {})
     fs.rmSync(profile, { recursive: true, force: true })
   }

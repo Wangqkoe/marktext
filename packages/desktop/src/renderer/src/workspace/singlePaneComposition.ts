@@ -514,10 +514,10 @@ export class PaneEditorComposition {
   async save(): Promise<WorkspaceResult> {
     const document = this.documentForView()
     if (!document) return { status: 'rejected', reason: 'missing focused document' }
+    if (document.fileKey) return this.execute({ kind: 'save', paneId: this.paneId, viewId: document.viewId })
     const pending = this.pendingSaves.get(document.documentId)
     if (pending) return pending
     const save = (async(): Promise<WorkspaceResult> => {
-      if (document.fileKey) return this.execute({ kind: 'save', paneId: this.paneId, viewId: document.viewId })
       const pathname = await this.chooseSaveTarget(document.viewId)
       return pathname
         ? this.execute({
