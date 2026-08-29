@@ -11,6 +11,15 @@ integration branch; `Passed` may be claimed only with all four.
 > passed, and the complete same-artifact manual matrix passes. Do not claim final
 > `Passed`; T12, final Review/Acceptance, and release judgement remain paused.
 
+> **Current automated closeout (2026-08-29):** integration `8f3e0303` and
+> validation `14d57913` have identical file trees. Fresh-build desktop automation
+> resolved STAB-006/007/008: Details unit/roundtrip/static 35/35, Chromium
+> details+sanitize 9/9, exact empty-line Details Electron repeat3 3/3, and the
+> focused Move/Save/race regressions 3/3; desktop build, both typechecks and
+> changed-file ESLint passed. This changes only the automated portions of A11/A12
+> to Passed. Screen-reader, PDF visual inspection, current packaged Windows/manual
+> matrix, final review and user Acceptance remain Untested/Pending.
+
 | ID | Requirement / evidence owner | Exact automated command / environment | Manual verification | Gate |
 | --- | --- | --- | --- | --- |
 | A01 | WorkspaceController runtime invariants, immutable projection, lease rejection — T01/T02 | `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts` (Node/Vitest) | two panes: edit/switch/focus without leakage | required |

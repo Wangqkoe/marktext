@@ -6,12 +6,12 @@
 - Deferred: STAB-005 is P2.
 - STAB-003 is collected only with a failing run; it is not an independent repair
   lead or a guessed root cause.
-- Active P1: STAB-006 — fresh-profile tab-context `Move to new window` completed with no target window or ownership change on the current exact artifact. Reproduce/diagnose before any repair.
-- Active P1: STAB-007 — fresh untitled dirty document does not respond to Ctrl+S or File > Save, and no requested target file is created. Reproduce/diagnose before any repair.
-- Active P1: STAB-008 — Details summary disclosure changes its arrow but does not hide/show the body as required by V1 Spec/A11. Reproduce/diagnose before any repair.
+- Resolved / automated verified on current source+fresh build: STAB-006, STAB-007, and STAB-008. The old `9715ced7` packaged/manual observations remain historical evidence, not current-product failures. Current source is integration `8f3e0303` (validation tree `14d57913`, identical file tree); the focused native-menu callback, concurrent untitled Save, bound-after-SaveAs/CrashDraft race, and exact empty-line Details sentinel checks passed 3/3 in aggregate. Their required current packaged Windows/manual retests remain pending.
 - P2 record from this round: STAB-009 — `File > Move To` moves data safely but leaves the visible title stale.
 
 Accept and normalize further user reports.
+
+Active P1: **0**. This automated disposition does not complete T12, final Review/Acceptance, screen-reader, PDF visual inspection, or the current packaged Windows manual matrix.
 
 For every new P0/P1 report, `diagnosing-bugs` requires the same artifact, a
 unique profile, the accurate entry method, timestamp, PID/window/logical-tab

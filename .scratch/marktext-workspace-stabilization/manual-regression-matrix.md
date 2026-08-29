@@ -10,9 +10,17 @@ has actually run before repair begins.
 
 ## Current-round provenance and gate
 
+### Current-source automated closeout — 2026-08-29
+
+- Integration source: `codex/marktext-feature-development-2026-08` at `8f3e0303`; validation branch `codex/final-stabilization-validation` at `14d57913` had an identical file tree and both worktrees were clean.
+- Fresh-build automation passed: desktop `pnpm build` (exit 0); Muya details/roundtrip/static Vitest 35/35; Muya Chromium details+sanitize 9/9; exact STAB-008 empty-line sentinel Electron regression repeat3 3/3; STAB-006 native-menu callback, STAB-007 concurrent untitled Save, and STAB-007 bound-after-SaveAs/CrashDraft race 1/1 each; Muya/Desktop typechecks and changed-file ESLint passed.
+- Gate disposition: STAB-006/007/008 are resolved for automated current-source evidence; active P1 is 0. This does **not** replace the current packaged Windows/manual matrix: all human rows, screen-reader, PDF visual inspection, and final T12 Acceptance remain Pending/Untested.
+
+The following `9715ced7` artifact round remains historical failure evidence; it is not a claim about the current source.
+
 - Source HEAD: `9715ced7`; exact Windows x64 unpacked artifact: `marktext.exe` `C388054D20B8A271C2B2759219BAC7136042A914D5A5534666ADF596B86E21DA`, `resources\app.asar` `ED53C8D11EAF20EFF5BAAE953ECF85662034494598DFB0DCBE43D3178167E9E7`; installer `2EEC53E09348292FCCC66C96A71FADCFBD494F648BA3FA888A49FCD7A4A9A50B`; ZIP `87269A2C1ED0A8E46206D51E5AFABEC5B0FD00874498E25B128EB70C45DEA30D`.
-- Build PASS; relevant unit PASS `152/152`; selected E2E PASS `40/40`; typecheck PASS. Scoped lint FAIL with 12 hard errors: a required release-gate blocker, but attribution is unestablished and it is not a new product P1.
-- Gate: FAIL. Active P1s STAB-006, STAB-007, and STAB-008 stop final acceptance.
+- Historical result: build PASS; relevant unit PASS `152/152`; selected E2E PASS `40/40`; typecheck PASS. Scoped lint FAIL with 12 hard errors: a required release-gate blocker, but attribution is unestablished and it is not a new product P1.
+- Historical gate: FAIL. STAB-006, STAB-007, and STAB-008 were active P1s on this artifact; see the current-source automated closeout above for their later disposition.
 
 | Scenario | Profile / entry | Expected | Actual / logs or recording | Status |
 | --- | --- | --- | --- | --- |

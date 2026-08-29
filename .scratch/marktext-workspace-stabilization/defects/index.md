@@ -201,7 +201,7 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 ## STAB-006 — tab-context Move to new window does nothing on current artifact
 
 - Severity / rationale: P1 confirmed. A documented core workspace action is unavailable: selecting `Move to new window` leaves the source unchanged and creates no target window.
-- Status / owner: `New`; evidence-only final-matrix record. Do not repair in this task.
+- Status / owner: `Resolved / automated verified on current source+fresh build`; current packaged Windows/manual retest remains pending.
 - Environment and profile: Windows x64 unpacked artifact at integration HEAD `9715ced78567d153d112a58f33a4b8542897abf3`; fresh profile `C:\Users\1407\AppData\Local\Temp\marktext-final-move-repro-95b3e0a4a9c043b386f0a422d2df2923`.
 - Artifact hashes: `marktext.exe` `C388054D20B8A271C2B2759219BAC7136042A914D5A5534666ADF596B86E21DA`; `resources\app.asar` `ED53C8D11EAF20EFF5BAAE953ECF85662034494598DFB0DCBE43D3178167E9E7`.
 - Accurate entry and reproduction: direct exact-artifact launch at `2026-08-28T08:41:31-07:00`, main PID `37800`; Ctrl+O opened `C:\Users\1407\AppData\Local\Temp\marktext-final-native-open-9d3e0cc3.md` with sentinel `FINAL_NATIVE_OPEN_SENTINEL_9D3E0CC3`. User right-clicked that file tab and selected `Move to new window`. After three seconds, at `2026-08-28T08:42:25-07:00`, only the original window remained; no target window was created and source ownership was unchanged. Exact artifact main, renderer, GPU, utility and Crashpad processes remained; no cleanup was used.
@@ -209,23 +209,25 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 - Manual reproduction entry actually run: `& 'C:\Users\1407\.codex\worktrees\98fa\Marktext\dist\win-unpacked\marktext.exe' '--user-data-dir=C:\Users\1407\AppData\Local\Temp\marktext-final-move-repro-95b3e0a4a9c043b386f0a422d2df2923'`, followed by the stated native menu action.
 - Diagnostic boundary: this is not a deterministic red-capable command. Before repair, establish and run an automated or otherwise deterministic diagnostic loop that asserts no target window/ownership migration.
 - Scope boundary: `Open in new window` was separately user-confirmed in a different fresh profile. Physical drag-out and filesystem `File > Move To` are untested and are not inferred from this result.
+- Current automated evidence: integration `codex/marktext-feature-development-2026-08` at `8f3e0303`; equivalent validation tree `14d57913` (identical file tree) ran the native-menu callback regression 1/1 on a fresh desktop build. This is not a current packaged/manual acceptance claim.
 
 ## STAB-007 — dirty untitled document cannot invoke Save
 
 - Severity / rationale: P1 confirmed. Saving an untitled dirty document is a core data-safety workflow; both supported entries did nothing and no target file was created.
-- Status / owner: `New`; evidence-only final-matrix record. Do not repair in this task.
+- Status / owner: `Resolved / automated verified on current source+fresh build`; current packaged Windows/manual retest remains pending.
 - Environment and profile: current Windows x64 unpacked artifact at `9715ced78567d153d112a58f33a4b8542897abf3`; fresh profile `C:\Users\1407\AppData\Local\Temp\marktext-final-dirty-save-d062b44e0c764d6bb510249bfd4e91f5`; main PID `35868`.
 - Artifact hashes: `marktext.exe` `C388054D20B8A271C2B2759219BAC7136042A914D5A5534666ADF596B86E21DA`; `resources\app.asar` `ED53C8D11EAF20EFF5BAAE953ECF85662034494598DFB0DCBE43D3178167E9E7`.
 - Accurate entry and reproduction: user entered `DIRTY_SAVE_SENTINEL`, invoked Ctrl+S, then File > Save; neither action opened a save dialog. At `2026-08-28T09:52:11-07:00`, expected target `C:\Users\1407\AppData\Local\Temp\marktext-final-dirty-save.md` did not exist while exact main, renderer, GPU, utility and Crashpad processes remained running.
 - Expected / actual: save dialog followed by a file containing the dirty sentinel / no UI response and no file.
 - Manual reproduction entry actually run: `& 'C:\Users\1407\.codex\worktrees\98fa\Marktext\dist\win-unpacked\marktext.exe' '--user-data-dir=C:\Users\1407\AppData\Local\Temp\marktext-final-dirty-save-d062b44e0c764d6bb510249bfd4e91f5'`, followed by the stated UI actions.
 - Diagnostic boundary: this is not a deterministic red-capable command. Before repair, establish and run an automated or otherwise deterministic diagnostic loop that asserts save-dialog/file creation for a dirty untitled document.
+- Current automated evidence: integration `8f3e0303`; equivalent validation tree `14d57913` (identical file tree) ran concurrent untitled Save and bound-after-SaveAs/CrashDraft race regressions 1/1 each on a fresh desktop build. This is not a current packaged/manual acceptance claim.
 
 ## STAB-008 — Details disclosure indicator does not hide body
 
 - Severity / rationale: P1 confirmed. V1 Spec 209-213 and A11 require the Details summary control to hide/show its body; the indicator changed from down to right but `DETAILS_BODY_SENTINEL_4BDE701A` remained visible. Source mode and source→editor round-trip retained the original markup.
-- Status / owner: `New`; no repair in this task.
-- Environment / evidence: current unpacked artifact; fresh profile `marktext-final-details-99662edb0981431ea10e16809de5d986`; user screenshots at the recorded manual interaction.
+- Status / owner: `Resolved / automated verified on current source+fresh build`; current packaged Windows/manual retest remains pending.
+- Environment / evidence: old current-unpacked observation used fresh profile `marktext-final-details-99662edb0981431ea10e16809de5d986`; it remains historical. Independent candidate `b78c75f8` passed final Standards and Spec review (0 blockers each); integrated source `8f3e0303`, validation tree `14d57913` (identical file tree), passed the exact empty-line sentinel Electron regression repeat3 (3/3), Muya details/roundtrip/static Vitest 35/35, and Chromium details+sanitize 9/9. Root cause/fix boundary: Marked had split empty-line Details tokens; parser now merges matching Details tokens with quote/raw-text awareness in one pass and replays unmatched tokens in order. R2 attribute/O(n²) and textarea RCDATA R4 cases are covered; 8k is about 751ms (Marked baseline-consistent), versus 8.94s under the old R2 algorithm. This remains automated evidence only: screen-reader, PDF visual inspection, and current packaged Windows manual retest are untested.
 
 ## STAB-009 — File Move To leaves visible title stale after successful rename
 
