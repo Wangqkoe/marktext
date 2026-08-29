@@ -36,6 +36,11 @@ integration branch; `Passed` may be claimed only with all four.
 > accessibility/PDF/T12 checks, and final Acceptance remain pending; the overall
 > gate is not `Passed`.
 
+> **STAB-008:** `Closed / Manual-retest Passed`; see the [single evidence
+> record](evidence/stab-008-details-2026-08-29.md). Source round-trip/static
+> export are automated evidence; screen-reader, PDF visual inspection, the
+> complete same-artifact manual matrix, T12, and final Acceptance remain pending.
+
 | ID | Requirement / evidence owner | Exact automated command / environment | Manual verification | Gate |
 | --- | --- | --- | --- | --- |
 | A01 | WorkspaceController runtime invariants, immutable projection, lease rejection — T01/T02 | `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts` (Node/Vitest) | two panes: edit/switch/focus without leakage | required |
