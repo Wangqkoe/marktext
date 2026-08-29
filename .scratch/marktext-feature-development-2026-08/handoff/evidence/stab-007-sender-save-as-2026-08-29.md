@@ -2,11 +2,9 @@
 
 ## Scope and status
 
-**Passed, scoped:** the exact STAB-007 untitled `Ctrl+S` → native Save As path.
-This record does not pass packaged-manual Cancel, double `Ctrl+S`, or an
-already-bound Save; those remain `Untested` (their separate automated evidence
-may remain Passed). It also does not pass the complete Windows matrix, T12,
-final Review, or Acceptance.
+**Passed, scoped:** the complete STAB-007 packaged-manual regression: untitled
+`Ctrl+S` → native Save As, Cancel, double `Ctrl+S`, and already-bound Save. This
+does not pass the complete Windows matrix, T12, final Review, or Acceptance.
 
 ## Environment and artifact provenance
 
@@ -60,3 +58,24 @@ but left no target and `Untitled`/dirty state. Diagnostic-only branch
 merged. The final fix is `e583ee79` plus `adaca3fa`: the latter revokes only
 main-frame non-same-document navigation, retaining same-document/subframe
 authentication while destroyed senders still revoke.
+
+## Second manual session — Cancel, double Save, and bound Save
+
+- Artifact: the same-hash final `C:\Users\1407\.codex\worktrees\1e9a\Marktext\dist\win-unpacked\marktext.exe`
+  recorded above (SHA-256 `1F22983EDFF222820D1F81CF37C613191C01006E4E31E98A30125390ECAC745F`).
+- Fresh profile: `C:\Users\1407\AppData\Local\Temp\marktext-stab007-adaca3fa-cancel-01\profile`.
+- Environment/session: main PID `34764` started 2026-08-29 05:04:57.441 PDT;
+  one main window and one logical `Untitled` tab. The shared profile log is
+  `C:\Users\1407\AppData\Local\Temp\marktext-stab007-adaca3fa-cancel-01\profile\logs\20268\main.log`.
+
+| Case | Entry and expected result | Actual result / timestamp | Status |
+| --- | --- | --- | --- |
+| Cancel | In the single dirty Untitled tab, enter `STAB007_CANCEL_ADACA3FA`, press `Ctrl+S`, then cancel the native dialog. Expected: content and dirty Untitled state remain, with no target file. | In the session that started at 05:04:57.441 PDT, the user observed `Untitled-1`, green dirty state, and content retained. The run root contained 0 `.md` files and `must-not-exist.md` did not exist. CrashDraft contained three drafts, latest `bXQtMA.4`. | Passed |
+| Double `Ctrl+S` | While that Untitled document is dirty, press `Ctrl+S` twice quickly and save the one dialog to `...\double-save.md`. Expected: one dialog and one durable write/rebind, with no second dialog. | In the same PID/window/tab session, the user observed one dialog and no second dialog after two seconds. `double-save.md` was written with exact `STAB007_CANCEL_ADACA3FA` plus trailing newline (24 bytes; SHA-256 `C43B86437DDE7F1AD0D3B4F9D13DBB89FA23EF4D0B9E3EED5E7539BE927D26A8`); title rebound and dirty cleared. `bXQtMA.6` committed then tombstoned at 05:07:36. | Passed |
+| Already-bound Save | Append `STAB007_BOUND_SAVE_ADACA3FA`, then press `Ctrl+S`. Expected: no Save As dialog, same bound title, and dirty clears after the durable write. | In the same PID/window/tab session, the user observed no Save As dialog, title remained `double-save.md`, and dirty cleared. Final file was 53 bytes, mtime 2026-08-29 05:08:47.3939067 PDT, SHA-256 `D79E62D56DE6FBC203B1C2589B9E2F2F8A4406982491199065EF11E694F9C4F6`, containing both sentinels separated by an empty line. `bXQtMA.6` was tombstoned at 05:08:47. | Passed |
+
+At clean bound state, `CloseMainWindow` requested `true`; no second Save dialog
+was reported, exact-artifact process count was 0, and `clean-shutdown.json` had
+mtime 2026-08-29 05:09:33.938838 PDT. These three cases share the profile log
+above; this evidence records only the relevant observations, not machine-noise
+log content.

@@ -22,9 +22,10 @@ integration branch; `Passed` may be claimed only with all four.
 > each), desktop typecheck/build, fresh `electron-builder --dir`, and scoped
 > production/E2E lint passed; Standards and Spec reviews each passed with 0
 > blockers / 0 records. The same-hash unpacked package manually saved the 31-byte
-> `native-save-fixed.md` sentinel and rebound its title; see the [manual retest
-> evidence](evidence/stab-007-sender-save-as-2026-08-29.md). This marks only that
-> Save As blocker `Resolved / Manual-retest Passed`. No complete Windows/manual matrix,
+> `native-save-fixed.md` sentinel and rebound its title; the same artifact also
+> passed Cancel, double Ctrl+S, and already-bound Save; see the [manual retest
+> evidence](evidence/stab-007-sender-save-as-2026-08-29.md). This marks the full
+> STAB-007 save-path regression `Resolved / Manual-retest Passed`. No complete Windows/manual matrix,
 > Move/close/open/details/accessibility/PDF, T12, final Review, or Acceptance is
 > claimed; those remain Untested/Pending.
 
