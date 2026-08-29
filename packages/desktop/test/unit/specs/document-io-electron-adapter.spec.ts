@@ -1,4 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const electron = vi.hoisted(() => ({
+  showSaveDialog: vi.fn(),
+  fromWebContents: vi.fn()
+}))
+
+vi.mock('electron', () => ({
+  dialog: { showSaveDialog: electron.showSaveDialog },
+  BrowserWindow: { fromWebContents: electron.fromWebContents }
+}))
+
 import {
   FileObservationHub,
   MemoryFileObservationStorage,
@@ -8,6 +19,7 @@ import { DocumentIOCoordinator } from 'main_renderer/filesystem/documentIO'
 import {
   DocumentIoElectronAdapter,
   registerDocumentIoIpc,
+  toDocumentIoTargetSelection,
   type DocumentIoWebContents
 } from 'main_renderer/ipc/documentIO'
 import { RendererDocumentIoAdapter } from '@/workspace/documentIO'
@@ -44,6 +56,13 @@ class FakeWebContents implements DocumentIoWebContents {
 describe('DocumentIO Electron adapter', () => {
   const hubs: FileObservationHub[] = []
   afterEach(() => hubs.splice(0).forEach((hub) => hub.close()))
+
+  it('maps the actual Electron SaveDialogReturnValue shape without changing a selected pathname', () => {
+    expect(toDocumentIoTargetSelection({ canceled: false, filePath: 'C:/workspace/selected.md' })).toEqual({
+      status: 'selected', pathname: 'C:/workspace/selected.md'
+    })
+    expect(toDocumentIoTargetSelection({ canceled: true, filePath: '' })).toEqual({ status: 'cancelled' })
+  })
 
   const setup = () => {
     const storage = new MemoryFileObservationStorage()

@@ -4,32 +4,37 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { launchElectron, typeIntoEditor, waitForMenuReady } from './helpers'
+import { launchElectron, typeIntoEditor, waitForEditor, waitForMenuReady } from './helpers'
 
 type SaveDialogPlan =
   | { readonly status: 'pending' }
   | { readonly status: 'cancelled' }
   | { readonly status: 'selected'; readonly filePath: string }
 
-const configureSaveDialog = async(app: ElectronApplication, plan: SaveDialogPlan): Promise<void> => {
-  await app.evaluate(({ dialog }, nextPlan) => {
+type SaveTargetSelection =
+  | { readonly status: 'cancelled' }
+  | { readonly status: 'selected'; readonly pathname: string }
+
+const configureSaveTarget = async(app: ElectronApplication, plan: SaveDialogPlan): Promise<void> => {
+  await app.evaluate(({ ipcMain }, nextPlan) => {
     const g = global as unknown as {
       __mt_stab007_save_dialog__?: {
         calls: number
         plan: SaveDialogPlan
-        resolvers: Array<(result: { canceled: boolean; filePath?: string }) => void>
+        resolvers: Array<(result: SaveTargetSelection) => void>
       }
     }
     g.__mt_stab007_save_dialog__ = { calls: 0, plan: nextPlan, resolvers: [] }
-    ;(dialog as unknown as { showSaveDialog: unknown }).showSaveDialog = async() => {
+    ipcMain.removeHandler('mt::workspace::choose-document-path')
+    ipcMain.handle('mt::workspace::choose-document-path', async() => {
       const state = g.__mt_stab007_save_dialog__
       if (!state) throw new Error('STAB-007 save dialog test state is missing')
       state.calls += 1
       if (state.plan.status === 'pending') return new Promise((resolve) => state.resolvers.push(resolve))
       return state.plan.status === 'cancelled'
-        ? { canceled: true }
-        : { canceled: false, filePath: state.plan.filePath }
-    }
+        ? { status: 'cancelled' }
+        : { status: 'selected', pathname: state.plan.filePath }
+    })
   }, plan)
 }
 
@@ -38,15 +43,15 @@ const settleSaveDialog = async(app: ElectronApplication, plan: Exclude<SaveDialo
     const g = global as unknown as {
       __mt_stab007_save_dialog__?: {
         plan: SaveDialogPlan
-        resolvers: Array<(result: { canceled: boolean; filePath?: string }) => void>
+        resolvers: Array<(result: SaveTargetSelection) => void>
       }
     }
     const state = g.__mt_stab007_save_dialog__
     if (!state) throw new Error('STAB-007 save dialog test state is missing')
     state.plan = nextPlan
-    const result = nextPlan.status === 'cancelled'
-      ? { canceled: true }
-      : { canceled: false, filePath: nextPlan.filePath }
+    const result: SaveTargetSelection = nextPlan.status === 'cancelled'
+      ? { status: 'cancelled' }
+      : { status: 'selected', pathname: nextPlan.filePath }
     for (const resolve of state.resolvers.splice(0)) resolve(result)
   }, plan)
 }
@@ -170,6 +175,7 @@ for (const entry of saveEntries) {
     const sentinel = `STAB007_${entry.name.replaceAll(/[^a-z]/gi, '_').toUpperCase()}_UNTITLED_SAVE`
     const { app, page } = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
     try {
+      await waitForEditor(page)
       await waitForMenuReady(app)
       await typeIntoEditor(page, sentinel)
       const crashDraftDirectory = path.join(profile, 'crash-drafts')
@@ -177,7 +183,7 @@ for (const entry of saveEntries) {
         try { return fs.readdirSync(crashDraftDirectory).some((name) => name.endsWith('.draft.json')) } catch { return false }
       }).toBe(true)
 
-      await configureSaveDialog(app, { status: 'cancelled' })
+      await configureSaveTarget(app, { status: 'cancelled' })
       await entry.invoke(app, page)
       await expect.poll(() => saveDialogCalls(app), { timeout: 5_000 }).toBe(1)
       expect(fs.existsSync(target)).toBe(false)
@@ -188,7 +194,7 @@ for (const entry of saveEntries) {
       })
       expect(fs.readdirSync(crashDraftDirectory).some((name) => name.endsWith('.draft.json'))).toBe(true)
 
-      await configureSaveDialog(app, { status: 'selected', filePath: target })
+      await configureSaveTarget(app, { status: 'selected', filePath: target })
       await entry.invoke(app, page)
       await expect.poll(() => saveDialogCalls(app), { timeout: 5_000 }).toBe(1)
       await expect.poll(() => fs.existsSync(target)).toBe(true)
@@ -212,9 +218,10 @@ test('ordinary Save for a saved document does not open a target dialog', async()
   fs.writeFileSync(saved, '# Existing document\n')
   const { app, page } = await launchElectron([saved], { userDataDir: profile, userDataDirOwnership: 'caller' })
   try {
+    await waitForEditor(page)
     await waitForMenuReady(app)
     await typeIntoEditor(page, sentinel)
-    await configureSaveDialog(app, { status: 'cancelled' })
+    await configureSaveTarget(app, { status: 'cancelled' })
     await invokeCtrlSave(app)
     await expect.poll(() => fs.readFileSync(saved, 'utf8')).toContain(sentinel)
     expect(await saveDialogCalls(app)).toBe(0)
@@ -231,6 +238,7 @@ test('coalesces concurrent untitled Save entries until their dialog settles', as
   const afterSave = ' STAB007_SAVE_AFTER_COALESCED_TARGET'
   const { app, page } = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
   try {
+    await waitForEditor(page)
     await waitForMenuReady(app)
     await typeIntoEditor(page, sentinel)
     const crashDraftDirectory = path.join(profile, 'crash-drafts')
@@ -238,7 +246,7 @@ test('coalesces concurrent untitled Save entries until their dialog settles', as
       try { return fs.readdirSync(crashDraftDirectory).some((name) => name.endsWith('.draft.json')) } catch { return false }
     }).toBe(true)
 
-    await configureSaveDialog(app, { status: 'pending' })
+    await configureSaveTarget(app, { status: 'pending' })
     await invokeCtrlSave(app)
     await expect.poll(() => saveDialogCalls(app), { timeout: 5_000 }).toBe(1)
     await invokeFileSaveFromMenu(app)
@@ -252,7 +260,7 @@ test('coalesces concurrent untitled Save entries until their dialog settles', as
     })
     expect(fs.readdirSync(crashDraftDirectory).some((name) => name.endsWith('.draft.json'))).toBe(true)
 
-    await configureSaveDialog(app, { status: 'selected', filePath: target })
+    await configureSaveTarget(app, { status: 'selected', filePath: target })
     await invokeCtrlSave(app)
     await expect.poll(() => saveDialogCalls(app), { timeout: 5_000 }).toBe(1)
     await expect.poll(() => fs.existsSync(target)).toBe(true)
@@ -281,13 +289,14 @@ test('saves a newly dirty bound document while its prior Save As waits for Crash
   const { app, page } = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
   let held = false
   try {
+    await waitForEditor(page)
     await waitForMenuReady(app)
     await typeIntoEditor(page, initial)
     await expect.poll(() => {
       try { return fs.readdirSync(path.join(profile, 'crash-drafts')).some((name) => name.endsWith('.draft.json')) } catch { return false }
     }).toBe(true)
 
-    await configureSaveDialog(app, { status: 'selected', filePath: target })
+    await configureSaveTarget(app, { status: 'selected', filePath: target })
     await holdFirstSavedCrashDraftAck(app)
     await invokeCtrlSave(app)
     await expect.poll(() => heldSavedCrashDraftAck(app)).toBe(true)

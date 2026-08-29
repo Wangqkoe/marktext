@@ -3,7 +3,7 @@ import {
   FileObservationHub,
   NodeFileObservationStorage
 } from '../filesystem/fileObservation'
-import { BrowserWindow, dialog, type WebContents } from 'electron'
+import { BrowserWindow, dialog, type SaveDialogReturnValue, type WebContents } from 'electron'
 import { DocumentIOCoordinator, type DocumentIoEndpoint } from '../filesystem/documentIO'
 import type {
   DocumentIoCloseDecision,
@@ -38,6 +38,12 @@ export interface DocumentIoIpcMain {
   ): void
   removeHandler?(channel: 'mt::workspace::document-io' | 'mt::workspace::choose-document-path' | 'mt::workspace::confirm-document-close'): void
 }
+
+/** Keep Electron's native dialog shape at this narrow main-process boundary. */
+export const toDocumentIoTargetSelection = (result: SaveDialogReturnValue): DocumentIoTargetSelection =>
+  !result.canceled && result.filePath
+    ? { status: 'selected', pathname: result.filePath }
+    : { status: 'cancelled' }
 
 /** Typed Electron adapter; payload window IDs are ignored in favour of event.sender. */
 export class DocumentIoElectronAdapter {
@@ -83,9 +89,7 @@ export class DocumentIoElectronAdapter {
     const result = window
       ? await dialog.showSaveDialog(window, { defaultPath: request.suggestedPath })
       : await dialog.showSaveDialog({ defaultPath: request.suggestedPath })
-    return !result.canceled && result.filePath
-      ? { status: 'selected', pathname: result.filePath }
-      : { status: 'cancelled' }
+    return toDocumentIoTargetSelection(result)
   }
 
   async confirmClose(
