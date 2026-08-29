@@ -58,25 +58,35 @@ const saveDialogCalls = async(app: ElectronApplication): Promise<number> => app.
   return g.__mt_stab007_save_dialog__?.calls ?? 0
 })
 
+const saveWindowId = async(app: ElectronApplication): Promise<number> => await app.evaluate(({ BrowserWindow }) => {
+  const windows = BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed())
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused && windows.includes(focused)) return focused.id
+  if (windows.length === 1) return windows[0].id
+  throw new Error(`expected one valid BrowserWindow for Save, found ${windows.length}`)
+})
+
 const invokeFileSaveFromMenu = async(app: ElectronApplication): Promise<void> => {
-  await app.evaluate(({ BrowserWindow, Menu }) => {
-    const window = BrowserWindow.getFocusedWindow()
+  const windowId = await saveWindowId(app)
+  await app.evaluate(({ BrowserWindow, Menu }, id) => {
+    const window = BrowserWindow.fromId(id)
     const fileMenu = Menu.getApplicationMenu()?.items.find((item) =>
       item.submenu?.items.some((entry) => entry.accelerator?.includes('S'))
     )
     const save = fileMenu?.submenu?.items.find((item) => item.accelerator?.includes('S') && !item.accelerator?.includes('Shift'))
-    if (!window || !save) throw new Error('File > Save is unavailable')
+    if (!window || window.isDestroyed() || !save) throw new Error('File > Save is unavailable')
     save.click(undefined, window, window.webContents)
-  })
+  }, windowId)
 }
 
 const invokeCtrlSave = async(app: ElectronApplication): Promise<void> => {
-  await app.evaluate(({ BrowserWindow }) => {
-    const window = BrowserWindow.getFocusedWindow()
-    if (!window) throw new Error('focused window is unavailable')
+  const windowId = await saveWindowId(app)
+  await app.evaluate(({ BrowserWindow }, id) => {
+    const window = BrowserWindow.fromId(id)
+    if (!window || window.isDestroyed()) throw new Error('Save window is unavailable')
     window.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'S', modifiers: ['control'] })
     window.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'S', modifiers: ['control'] })
-  })
+  }, windowId)
 }
 
 const snapshotActiveDocument = async(page: Page) => page.evaluate(() => {
