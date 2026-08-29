@@ -10,39 +10,79 @@ import walkTokens from './walkTokens';
 
 function detailsTagBalance(raw: string): number {
     let balance = 0;
-    for (const tag of raw.matchAll(/<\/?details\b[^>]*>/gi))
-        balance += tag[0].startsWith('</') ? -1 : 1;
+    for (let index = 0; index < raw.length; index++) {
+        if (raw[index] !== '<')
+            continue;
+
+        let quote = '';
+        let end = index + 1;
+        for (; end < raw.length; end++) {
+            const character = raw[end];
+            if (quote) {
+                if (character === quote)
+                    quote = '';
+            }
+            else if (character === '"' || character === '\'') {
+                quote = character;
+            }
+            else if (character === '>') {
+                break;
+            }
+        }
+
+        if (end === raw.length)
+            break;
+        const tag = raw.slice(index, end + 1);
+        if (/^<details(?:\s|\/?>)/i.test(tag))
+            balance++;
+        else if (/^<\/details(?:\s|>)/i.test(tag))
+            balance--;
+
+        const rawTextElement = /^<(script|style)(?:\s|>)/i.exec(tag);
+        if (rawTextElement) {
+            const closingTag = new RegExp(`</${rawTextElement[1]}\\s*>`, 'gi');
+            closingTag.lastIndex = end + 1;
+            const closingMatch = closingTag.exec(raw);
+            if (closingMatch)
+                end = closingMatch.index + closingMatch[0].length - 1;
+        }
+        index = end;
+    }
     return balance;
 }
 
 function coalesceDetailsBlocks(tokens: Token[]): Token[] {
     const result: Token[] = [];
+    let candidate: Token[] | undefined;
+    let balance = 0;
 
-    for (let index = 0; index < tokens.length; index++) {
-        const token = tokens[index];
-        if (token.type !== 'html' || !/^<details\b[^>]*>/i.test(token.raw)) {
+    for (const token of tokens) {
+        if (candidate) {
+            candidate.push(token);
+            if (token.type === 'html')
+                balance += detailsTagBalance(token.raw);
+
+            if (balance === 0) {
+                const raw = candidate.map(next => next.raw).join('');
+                result.push({ ...candidate[0], raw, text: raw });
+                candidate = undefined;
+            }
+        }
+        else if (token.type === 'html' && /^<details(?:\s|\/?>)/i.test(token.raw)) {
+            candidate = [token];
+            balance = detailsTagBalance(token.raw);
+            if (balance === 0) {
+                result.push({ ...token, text: token.raw });
+                candidate = undefined;
+            }
+        }
+        else {
             result.push(token);
-            continue;
         }
-
-        let balance = detailsTagBalance(token.raw);
-        let end = index;
-        while (balance > 0 && ++end < tokens.length) {
-            const next = tokens[end];
-            if (next.type === 'html')
-                balance += detailsTagBalance(next.raw);
-        }
-
-        if (balance !== 0) {
-            result.push(token);
-            continue;
-        }
-
-        const raw = tokens.slice(index, end + 1).map(next => next.raw).join('');
-        result.push({ ...token, raw, text: raw });
-        index = end;
     }
 
+    if (candidate)
+        result.push(...candidate);
     return result;
 }
 

@@ -7,6 +7,9 @@ import ExportMarkdown from '../stateToMarkdown';
 
 const source = '<details open>\n<summary>More</summary>\nBody\n</details>\n';
 const rawTextSource = '<details>\n<summary>摘要原文</summary>\n\nDETAILS_BODY_SENTINEL_4BDE701A\n\n</details>\n';
+const quotedClosingTagSource = '<details>\n<div title="</details>" data-close=\'</details>\'>body</div>\n\nBody\n\n</details>\n\nAfter\n';
+const scriptClosingTagSource = '<details>\n<script>const closing = \'</details>\';</script>\n<style>.marker::after { content: \'</details>\'; }</style>\n\nBody\n\n</details>\n\nAfter\n';
+const malformedDetailsSource = `${'<details>\n\n'.repeat(64)}After\n`;
 
 describe('raw HTML details round-trip', () => {
     it('preserves original details source and open through Markdown state', () => {
@@ -33,6 +36,58 @@ describe('raw HTML details round-trip', () => {
 
         expect(states).toEqual([{ name: 'html-block', text: rawTextSource.trim() }]);
         expect(new ExportMarkdown().generate(states)).toBe(rawTextSource);
+    });
+
+    it('keeps a quoted closing-tag string inside matching raw details', () => {
+        const states = new MarkdownToState({
+            footnote: false,
+            math: false,
+            isGitlabCompatibilityEnabled: false,
+            trimUnnecessaryCodeBlockEmptyLines: false,
+            frontMatter: false,
+        }).generate(quotedClosingTagSource);
+
+        expect(states).toEqual([
+            {
+                name: 'html-block',
+                text: '<details>\n<div title="</details>" data-close=\'</details>\'>body</div>\n\nBody\n\n</details>',
+            },
+            { name: 'paragraph', text: 'After' },
+        ]);
+        expect(new ExportMarkdown().generate(states)).toBe(quotedClosingTagSource);
+    });
+
+    it('ignores closing-tag strings in raw script and style content', () => {
+        const states = new MarkdownToState({
+            footnote: false,
+            math: false,
+            isGitlabCompatibilityEnabled: false,
+            trimUnnecessaryCodeBlockEmptyLines: false,
+            frontMatter: false,
+        }).generate(scriptClosingTagSource);
+
+        expect(states).toEqual([
+            {
+                name: 'html-block',
+                text: '<details>\n<script>const closing = \'</details>\';</script>\n<style>.marker::after { content: \'</details>\'; }</style>\n\nBody\n\n</details>',
+            },
+            { name: 'paragraph', text: 'After' },
+        ]);
+        expect(new ExportMarkdown().generate(states)).toBe(scriptClosingTagSource);
+    });
+
+    it('replays malformed details openers without swallowing later content', () => {
+        const states = new MarkdownToState({
+            footnote: false,
+            math: false,
+            isGitlabCompatibilityEnabled: false,
+            trimUnnecessaryCodeBlockEmptyLines: false,
+            frontMatter: false,
+        }).generate(malformedDetailsSource);
+
+        expect(states.filter(state => state.name === 'html-block')).toHaveLength(64);
+        expect(states.at(-1)).toEqual({ name: 'paragraph', text: 'After' });
+        expect(new ExportMarkdown().generate(states)).toBe(malformedDetailsSource);
     });
 
     it('exports standard details markup without editor controls or styles', () => {
