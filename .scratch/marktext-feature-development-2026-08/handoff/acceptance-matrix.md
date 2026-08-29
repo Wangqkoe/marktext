@@ -11,14 +11,21 @@ integration branch; `Passed` may be claimed only with all four.
 > passed, and the complete same-artifact manual matrix passes. Do not claim final
 > `Passed`; T12, final Review/Acceptance, and release judgement remain paused.
 
-> **Current automated closeout (2026-08-29):** integration `8f3e0303` and
-> validation `14d57913` have identical file trees. Fresh-build desktop automation
-> resolved STAB-006/007/008: Details unit/roundtrip/static 35/35, Chromium
-> details+sanitize 9/9, exact empty-line Details Electron repeat3 3/3, and the
-> focused Move/Save/race regressions 3/3; desktop build, both typechecks and
-> changed-file ESLint passed. This changes only the automated portions of A11/A12
-> to Passed. Screen-reader, PDF visual inspection, current packaged Windows/manual
-> matrix, final review and user Acceptance remain Untested/Pending.
+> **STAB-007 reopened and scoped closeout (2026-08-29):** packaged integration
+> `5847be6e` returned the correct real-dialog Save As path but did not write or
+> rebind `Untitled`/dirty. Diagnostic `f593a5aa` (**DO NOT MERGE**) traced the
+> correct `canceled:false`/`filePath` twice, then an `unknown or revoked sender`
+> rejection. `e583ee79` + `adaca3fa` are fast-forwarded to integration
+> `adaca3fa36279ceb8f8deac37fff692851274586`: only main-frame non-same-document
+> navigation revokes; same-document/subframe retain authentication and destroyed
+> senders still revoke. Relevant units (6 files / 90), native-save E2E twice (5/5
+> each), desktop typecheck/build, fresh `electron-builder --dir`, and scoped
+> production/E2E lint passed; Standards and Spec reviews each passed with 0
+> blockers / 0 records. The same-hash unpacked package manually saved the 31-byte
+> `native-save-fixed.md` sentinel and rebound its title; this marks only that Save
+> As blocker `Resolved / Manual-retest Passed`. No complete Windows/manual matrix,
+> Move/close/open/details/accessibility/PDF, T12, final Review, or Acceptance is
+> claimed; those remain Untested/Pending.
 
 | ID | Requirement / evidence owner | Exact automated command / environment | Manual verification | Gate |
 | --- | --- | --- | --- | --- |
