@@ -19,8 +19,14 @@ export interface DocumentIoWebContents {
   readonly id: number
   isDestroyed?(): boolean
   send(channel: 'mt::workspace::document-io-observation', observation: DocumentIoObservation): void
-  on?(event: 'destroyed' | 'did-start-navigation', listener: () => void): void
-  removeListener?(event: 'destroyed' | 'did-start-navigation', listener: () => void): void
+  on?(
+    event: 'destroyed' | 'did-start-navigation',
+    listener: (details: { readonly isMainFrame?: boolean; readonly isSameDocument?: boolean }) => void
+  ): void
+  removeListener?(
+    event: 'destroyed' | 'did-start-navigation',
+    listener: (details: { readonly isMainFrame?: boolean; readonly isSameDocument?: boolean }) => void
+  ): void
 }
 
 export interface DocumentIoIpcMain {
@@ -64,16 +70,22 @@ export class DocumentIoElectronAdapter {
       }
     }
     const releaseEndpoint = this.coordinator.registerEndpoint(endpoint)
+    const detachForNavigation = (details: {
+      readonly isMainFrame?: boolean
+      readonly isSameDocument?: boolean
+    }): void => {
+      if (details.isMainFrame && !details.isSameDocument) detach()
+    }
     const detach = (): void => {
       if (this.detachBySender.get(senderId) !== detach) return
       this.detachBySender.delete(senderId)
       releaseEndpoint()
       webContents.removeListener?.('destroyed', detach)
-      webContents.removeListener?.('did-start-navigation', detach)
+      webContents.removeListener?.('did-start-navigation', detachForNavigation)
     }
     this.detachBySender.set(senderId, detach)
     webContents.on?.('destroyed', detach)
-    webContents.on?.('did-start-navigation', detach)
+    webContents.on?.('did-start-navigation', detachForNavigation)
     return detach
   }
 

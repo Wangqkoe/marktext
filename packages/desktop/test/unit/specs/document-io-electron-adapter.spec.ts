@@ -30,7 +30,7 @@ const options = { encoding: { encoding: 'utf8', isBom: false }, lineEnding: 'lf'
 
 class FakeWebContents implements DocumentIoWebContents {
   readonly sent: DocumentIoObservation[] = []
-  private readonly listeners = new Map<string, Set<() => void>>()
+  private readonly listeners = new Map<string, Set<(details: { isMainFrame?: boolean; isSameDocument?: boolean }) => void>>()
 
   constructor(readonly id: number) {}
 
@@ -38,18 +38,27 @@ class FakeWebContents implements DocumentIoWebContents {
     this.sent.push(observation)
   }
 
-  on(event: 'destroyed' | 'did-start-navigation', listener: () => void): void {
-    const set = this.listeners.get(event) ?? new Set<() => void>()
+  on(
+    event: 'destroyed' | 'did-start-navigation',
+    listener: (details: { isMainFrame?: boolean; isSameDocument?: boolean }) => void
+  ): void {
+    const set = this.listeners.get(event) ?? new Set<(details: { isMainFrame?: boolean; isSameDocument?: boolean }) => void>()
     set.add(listener)
     this.listeners.set(event, set)
   }
 
-  removeListener(event: 'destroyed' | 'did-start-navigation', listener: () => void): void {
+  removeListener(
+    event: 'destroyed' | 'did-start-navigation',
+    listener: (details: { isMainFrame?: boolean; isSameDocument?: boolean }) => void
+  ): void {
     this.listeners.get(event)?.delete(listener)
   }
 
-  emit(event: 'destroyed' | 'did-start-navigation'): void {
-    for (const listener of [...(this.listeners.get(event) ?? [])]) listener()
+  emit(
+    event: 'destroyed' | 'did-start-navigation',
+    details: { isMainFrame?: boolean; isSameDocument?: boolean } = {}
+  ): void {
+    for (const listener of [...(this.listeners.get(event) ?? [])]) listener(details)
   }
 }
 
@@ -98,7 +107,7 @@ describe('DocumentIO Electron adapter', () => {
       kind: 'save', requestId: 'forged', documentId: 'document', documentRevision: 3,
       ownerFence: bound.ownerFence, markdown: 'forged', options, windowId: 1
     })).resolves.toMatchObject({ status: 'rejected' })
-    first.emit('did-start-navigation')
+    first.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
     await expect(adapter.handle(first, {
       kind: 'sync', requestId: 'after-navigation', documentId: 'document', documentRevision: 3,
       ownerFence: bound.ownerFence, dirty: true
@@ -106,6 +115,24 @@ describe('DocumentIO Electron adapter', () => {
     expect(watchers.activeWatchers.size).toBe(0)
     first.emit('destroyed')
     expect(watchers.activeWatchers.size).toBe(0)
+  })
+
+  it('keeps the authenticated sender across same-document navigation', async() => {
+    const { adapter, hub, storage, first } = setup()
+    const target = 'C:/workspace/untitled.md'
+    const targetKey = await hub.canonicalFileKey(target)
+    first.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true })
+
+    await expect(adapter.handle(first, {
+      kind: 'save-as',
+      requestId: 'save-as:hash-navigation',
+      documentId: 'untitled',
+      documentRevision: 1,
+      markdown: 'saved',
+      options,
+      targetPathname: target
+    })).resolves.toMatchObject({ status: 'durable-success' })
+    expect(storage.files.get(targetKey)?.toString()).toBe('saved')
   })
 
   it('exposes the typed IPC insertion point and makes renderer duplicate/late ACKs inert', async() => {
@@ -270,7 +297,7 @@ describe('DocumentIO Electron adapter', () => {
       pathname: 'C:/workspace/document.md', dirty: true
     })
     await Promise.resolve()
-    sender.emit('did-start-navigation')
+    sender.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
     release()
     await expect(pending).resolves.toMatchObject({ status: 'rejected', reason: 'stale bind' })
     expect(watchers.activeWatchers.size).toBe(0)
