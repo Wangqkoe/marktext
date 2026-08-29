@@ -6,22 +6,48 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { launchElectron, typeIntoEditor, waitForMenuReady } from './helpers'
 
-type SaveDialogPlan = { readonly canceled: boolean; readonly filePath?: string }
+type SaveDialogPlan =
+  | { readonly status: 'pending' }
+  | { readonly status: 'cancelled' }
+  | { readonly status: 'selected'; readonly filePath: string }
 
 const configureSaveDialog = async(app: ElectronApplication, plan: SaveDialogPlan): Promise<void> => {
   await app.evaluate(({ dialog }, nextPlan) => {
     const g = global as unknown as {
-      __mt_stab007_save_dialog__?: { calls: number; plan: SaveDialogPlan }
+      __mt_stab007_save_dialog__?: {
+        calls: number
+        plan: SaveDialogPlan
+        resolvers: Array<(result: { canceled: boolean; filePath?: string }) => void>
+      }
     }
-    g.__mt_stab007_save_dialog__ = { calls: 0, plan: nextPlan }
+    g.__mt_stab007_save_dialog__ = { calls: 0, plan: nextPlan, resolvers: [] }
     ;(dialog as unknown as { showSaveDialog: unknown }).showSaveDialog = async() => {
       const state = g.__mt_stab007_save_dialog__
       if (!state) throw new Error('STAB-007 save dialog test state is missing')
       state.calls += 1
-      return state.plan.canceled
+      if (state.plan.status === 'pending') return new Promise((resolve) => state.resolvers.push(resolve))
+      return state.plan.status === 'cancelled'
         ? { canceled: true }
         : { canceled: false, filePath: state.plan.filePath }
     }
+  }, plan)
+}
+
+const settleSaveDialog = async(app: ElectronApplication, plan: Exclude<SaveDialogPlan, { readonly status: 'pending' }>): Promise<void> => {
+  await app.evaluate((_electron, nextPlan) => {
+    const g = global as unknown as {
+      __mt_stab007_save_dialog__?: {
+        plan: SaveDialogPlan
+        resolvers: Array<(result: { canceled: boolean; filePath?: string }) => void>
+      }
+    }
+    const state = g.__mt_stab007_save_dialog__
+    if (!state) throw new Error('STAB-007 save dialog test state is missing')
+    state.plan = nextPlan
+    const result = nextPlan.status === 'cancelled'
+      ? { canceled: true }
+      : { canceled: false, filePath: nextPlan.filePath }
+    for (const resolve of state.resolvers.splice(0)) resolve(result)
   }, plan)
 }
 
@@ -101,7 +127,7 @@ for (const entry of saveEntries) {
         try { return fs.readdirSync(crashDraftDirectory).some((name) => name.endsWith('.draft.json')) } catch { return false }
       }).toBe(true)
 
-      await configureSaveDialog(app, { canceled: true })
+      await configureSaveDialog(app, { status: 'cancelled' })
       await entry.invoke(app, page)
       await expect.poll(() => saveDialogCalls(app), { timeout: 5_000 }).toBe(1)
       expect(fs.existsSync(target)).toBe(false)
@@ -112,7 +138,7 @@ for (const entry of saveEntries) {
       })
       expect(fs.readdirSync(crashDraftDirectory).some((name) => name.endsWith('.draft.json'))).toBe(true)
 
-      await configureSaveDialog(app, { canceled: false, filePath: target })
+      await configureSaveDialog(app, { status: 'selected', filePath: target })
       await entry.invoke(app, page)
       await expect.poll(() => saveDialogCalls(app), { timeout: 5_000 }).toBe(1)
       await expect.poll(() => fs.existsSync(target)).toBe(true)
@@ -138,10 +164,59 @@ test('ordinary Save for a saved document does not open a target dialog', async()
   try {
     await waitForMenuReady(app)
     await typeIntoEditor(page, sentinel)
-    await configureSaveDialog(app, { canceled: true })
+    await configureSaveDialog(app, { status: 'cancelled' })
     await invokeCtrlSave(app)
     await expect.poll(() => fs.readFileSync(saved, 'utf8')).toContain(sentinel)
     expect(await saveDialogCalls(app)).toBe(0)
+  } finally {
+    await stopApp(app).catch(() => {})
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
+test('coalesces concurrent untitled Save entries until their dialog settles', async() => {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-save-reentry-'))
+  const target = path.join(profile, 'coalesced-save.md')
+  const sentinel = 'STAB007_COALESCED_UNTITLED_SAVE'
+  const afterSave = ' STAB007_SAVE_AFTER_COALESCED_TARGET'
+  const { app, page } = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
+  try {
+    await waitForMenuReady(app)
+    await typeIntoEditor(page, sentinel)
+    const crashDraftDirectory = path.join(profile, 'crash-drafts')
+    await expect.poll(() => {
+      try { return fs.readdirSync(crashDraftDirectory).some((name) => name.endsWith('.draft.json')) } catch { return false }
+    }).toBe(true)
+
+    await configureSaveDialog(app, { status: 'pending' })
+    await invokeCtrlSave(app)
+    await expect.poll(() => saveDialogCalls(app), { timeout: 5_000 }).toBe(1)
+    await invokeFileSaveFromMenu(app)
+    await expect.poll(() => saveDialogCalls(app), { timeout: 1_000 }).toBe(1)
+
+    await settleSaveDialog(app, { status: 'cancelled' })
+    await expect.poll(() => snapshotActiveDocument(page)).toEqual({
+      dirty: true,
+      fileKey: undefined,
+      markdown: expect.stringContaining(sentinel)
+    })
+    expect(fs.readdirSync(crashDraftDirectory).some((name) => name.endsWith('.draft.json'))).toBe(true)
+
+    await configureSaveDialog(app, { status: 'selected', filePath: target })
+    await invokeCtrlSave(app)
+    await expect.poll(() => saveDialogCalls(app), { timeout: 5_000 }).toBe(1)
+    await expect.poll(() => fs.existsSync(target)).toBe(true)
+    await expect.poll(() => fs.readFileSync(target, 'utf8')).toContain(sentinel)
+    await expect.poll(() => snapshotActiveDocument(page)).toEqual({
+      dirty: false,
+      fileKey: target,
+      markdown: expect.stringContaining(sentinel)
+    })
+
+    await typeIntoEditor(page, afterSave)
+    await invokeFileSaveFromMenu(app)
+    await expect.poll(() => fs.readFileSync(target, 'utf8')).toContain(afterSave)
+    expect(await saveDialogCalls(app)).toBe(1)
   } finally {
     await stopApp(app).catch(() => {})
     fs.rmSync(profile, { recursive: true, force: true })

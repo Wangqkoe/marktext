@@ -59,6 +59,7 @@ export class PaneEditorComposition {
   private stopDocumentIoSync: (() => void) | undefined
   private readonly pendingDocumentIoBinds = new Set<string>()
   private readonly boundDocumentFences = new Map<string, string>()
+  private readonly pendingSaves = new Map<string, Promise<WorkspaceResult>>()
   private modeTransition: Promise<WorkspaceResult> | undefined
   private readonly crashDraft = createElectronCrashDraftPort()
   private readonly crashReceipts = new Map<string, { readonly revision: number; readonly receipt: string }>()
@@ -513,17 +514,27 @@ export class PaneEditorComposition {
   async save(): Promise<WorkspaceResult> {
     const document = this.documentForView()
     if (!document) return { status: 'rejected', reason: 'missing focused document' }
-    if (document.fileKey) return this.execute({ kind: 'save', paneId: this.paneId, viewId: document.viewId })
-    const pathname = await this.chooseSaveTarget(document.viewId)
-    return pathname
-      ? this.execute({
-        kind: 'save-as',
-        paneId: this.paneId,
-        viewId: document.viewId,
-        fileKey: pathname,
-        title: pathname.split(/[\\/]/).at(-1) ?? pathname
-      })
-      : { status: 'rejected', reason: 'save cancelled' }
+    const pending = this.pendingSaves.get(document.documentId)
+    if (pending) return pending
+    const save = (async(): Promise<WorkspaceResult> => {
+      if (document.fileKey) return this.execute({ kind: 'save', paneId: this.paneId, viewId: document.viewId })
+      const pathname = await this.chooseSaveTarget(document.viewId)
+      return pathname
+        ? this.execute({
+          kind: 'save-as',
+          paneId: this.paneId,
+          viewId: document.viewId,
+          fileKey: pathname,
+          title: pathname.split(/[\\/]/).at(-1) ?? pathname
+        })
+        : { status: 'rejected', reason: 'save cancelled' }
+    })()
+    this.pendingSaves.set(document.documentId, save)
+    const clear = (): void => {
+      if (this.pendingSaves.get(document.documentId) === save) this.pendingSaves.delete(document.documentId)
+    }
+    void save.then(clear, clear)
+    return save
   }
 
   async confirmClose(viewId: string): Promise<'save' | 'discard' | 'cancel'> {
