@@ -31,14 +31,14 @@ integration branch; `Passed` may be claimed only with all four.
 > claimed; those remain Untested/Pending.
 
 > **STAB-006:** `Closed / Manual-retest Passed`; see the [single evidence
-> record](evidence/stab-006-close-then-move-2026-08-29.md). Physical drag-out,
-> the complete same-artifact manual matrix, STAB-008 manual,
-> accessibility/PDF/T12 checks, and final Acceptance remain pending; the overall
-> gate is not `Passed`.
+> record](evidence/stab-006-close-then-move-2026-08-29.md). Its separate T07
+> physical drag-out gate passed for the supported single-primary shape; the
+> complete same-artifact manual matrix, unsupported shapes, T12, and final
+> Acceptance remain pending, so the overall gate is not `Passed`.
 
 > **STAB-008:** `Closed / Manual-retest Passed`; see the [single evidence
 > record](evidence/stab-008-details-2026-08-29.md). Source round-trip/static
-> export are automated evidence; screen-reader, PDF visual inspection, the
+> export are automated evidence; screen-reader and PDF visual inspection, the
 > complete same-artifact manual matrix, T12, and final Acceptance remain pending.
 
 | ID | Requirement / evidence owner | Exact automated command / environment | Manual verification | Gate |
@@ -74,7 +74,7 @@ checks run on the integration branch.
 | Typecheck | Passed | `pnpm -C packages/desktop typecheck`; exit 0. |
 | Desktop build | Passed | `pnpm -C packages/desktop build`; exit 0; existing Vite dynamic-import chunk warnings only. |
 | Windows package smoke | Passed | Diagnostic rerun at `f8179476e449fd40d975300455594593fd065d3f` used the frozen lockfile, Electron rebuild, Electron-Vite and `pnpm build:win:x64`; the final bounded run reached `__BUILD_EXIT__=0` after the long silent asar/ZIP/NSIS phases. The ZIP contains `resources/app.asar.unpacked/node_modules/uiohook-napi/bin/win32-x64-146/uiohook-napi.node`; its SHA-256 is `99106A650B256E174941FA446A489F25C903C7BA24E20959322EEC5B0E4A2727`. |
-| Windows physical release and remote/assistive smoke | Untested | No user-operated physical scenario was run. The required manual row remains unclaimed. |
+| Windows physical release and remote/assistive smoke | Passed (supported shape) / Unavailable (remote/assistive, multi-display, mixed-DPI) | [T07 physical drag-out evidence](evidence/t07-physical-drag-out-2026-08-29.md) records outside-up, inside-up/reorder, re-entry, and Escape on Windows 11 single-primary 2560×1440 / 96-DPI. Blur/timeout are automatic-contract coverage; unsupported shapes retain the external-drag-disabled/Move-menu fallback. |
 
 ## T12 Windows trial readiness evidence — 2026-08-27
 
