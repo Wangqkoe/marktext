@@ -2,9 +2,10 @@
 
 ## Scope and status
 
-**Passed, scoped:** the complete STAB-007 packaged-manual regression: untitled
-`Ctrl+S` → native Save As, Cancel, double `Ctrl+S`, and already-bound Save. This
-does not pass the complete Windows matrix, T12, final Review, or Acceptance.
+**Passed, scoped:** the complete STAB-007 packaged-manual regression: both
+supported untitled Save entries (`Ctrl+S` and `File > Save`) → native Save As,
+Cancel, double `Ctrl+S`, and already-bound Save. This does not pass the complete
+Windows matrix, T12, final Review, or Acceptance.
 
 ## Environment and artifact provenance
 
@@ -79,3 +80,30 @@ was reported, exact-artifact process count was 0, and `clean-shutdown.json` had
 mtime 2026-08-29 05:09:33.938838 PDT. These three cases share the profile log
 above; this evidence records only the relevant observations, not machine-noise
 log content.
+
+## Third manual session — File > Save
+
+- Artifact: the same-hash final `C:\Users\1407\.codex\worktrees\1e9a\Marktext\dist\win-unpacked\marktext.exe`
+  (SHA-256 `1F22983EDFF222820D1F81CF37C613191C01006E4E31E98A30125390ECAC745F`).
+- Fresh profile: `C:\Users\1407\AppData\Local\Temp\marktext-stab007-adaca3fa-menu-save-01\profile`.
+- Actual process command line:
+  `& 'C:\Users\1407\.codex\worktrees\1e9a\Marktext\dist\win-unpacked\marktext.exe' '--user-data-dir=C:\Users\1407\AppData\Local\Temp\marktext-stab007-adaca3fa-menu-save-01\profile'`.
+- Environment/session: main PID `29028` started 2026-08-29 05:14:04.674 PDT;
+  one main window and one logical `Untitled` tab. The profile log is
+  `C:\Users\1407\AppData\Local\Temp\marktext-stab007-adaca3fa-menu-save-01\profile\logs\20268\main.log`.
+
+Entry: entered exactly `STAB007_MENU_SAVE_ADACA3FA`, then used the top-left menu
+**File > Save** (no shortcut), selected `...\menu-save.md` in the native Windows
+Save As dialog, and clicked Save. Expected: the selected path is written with the
+exact bytes, title/active logical tab rebinds from Untitled, dirty clears, and a
+normal clean close completes.
+
+Actual: the user observed successful save, title `menu-save.md`, and dirty state
+cleared. At 2026-08-29 05:15:17.1926709 PDT, `menu-save.md` was 27 bytes with
+exact `STAB007_MENU_SAVE_ADACA3FA` plus newline, SHA-256
+`ACE5FD0DF33618F9918D11AD0322F778CF53E7B0DEF9545DD7C22C31169FF94B`; the
+`bXQtMA.tombstone` was present at 05:15:17. `CloseMainWindow` returned `true`,
+fixed-artifact process count was 0, and `clean-shutdown.json` mtime was
+05:15:50.611 PDT. Status: **Passed**. The profile log above is retained by path
+and summary only; no Save error is claimed from it and no machine-noise content is
+copied here.
