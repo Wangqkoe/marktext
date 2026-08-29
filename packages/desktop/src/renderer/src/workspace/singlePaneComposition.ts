@@ -533,7 +533,7 @@ export class PaneEditorComposition {
     const clear = (): void => {
       if (this.pendingSaves.get(document.documentId) === save) this.pendingSaves.delete(document.documentId)
     }
-    void save.then(clear, clear)
+    save.then(clear, clear)
     return save
   }
 
