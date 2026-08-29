@@ -201,15 +201,15 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 ## STAB-006 — tab-context Move to new window does nothing on current artifact
 
 - Severity / rationale: P1 confirmed. A documented core workspace action is unavailable: selecting `Move to new window` leaves the source unchanged and creates no target window.
-- Status / owner: `Resolved / automated verified on current source+fresh build`; current packaged Windows/manual retest remains pending.
+- Status / owner: `Closed / Manual-retest Passed`; the close→Move packaged manual path passed. See [close→Move evidence](../../marktext-feature-development-2026-08/handoff/evidence/stab-006-close-then-move-2026-08-29.md). Physical drag-out remains unclaimed.
 - Environment and profile: Windows x64 unpacked artifact at integration HEAD `9715ced78567d153d112a58f33a4b8542897abf3`; fresh profile `C:\Users\1407\AppData\Local\Temp\marktext-final-move-repro-95b3e0a4a9c043b386f0a422d2df2923`.
 - Artifact hashes: `marktext.exe` `C388054D20B8A271C2B2759219BAC7136042A914D5A5534666ADF596B86E21DA`; `resources\app.asar` `ED53C8D11EAF20EFF5BAAE953ECF85662034494598DFB0DCBE43D3178167E9E7`.
 - Accurate entry and reproduction: direct exact-artifact launch at `2026-08-28T08:41:31-07:00`, main PID `37800`; Ctrl+O opened `C:\Users\1407\AppData\Local\Temp\marktext-final-native-open-9d3e0cc3.md` with sentinel `FINAL_NATIVE_OPEN_SENTINEL_9D3E0CC3`. User right-clicked that file tab and selected `Move to new window`. After three seconds, at `2026-08-28T08:42:25-07:00`, only the original window remained; no target window was created and source ownership was unchanged. Exact artifact main, renderer, GPU, utility and Crashpad processes remained; no cleanup was used.
 - Expected / actual: a target window containing the file/sentinel and a source replacement clean tab with no old-file copy / no target window and no ownership change.
 - Manual reproduction entry actually run: `& 'C:\Users\1407\.codex\worktrees\98fa\Marktext\dist\win-unpacked\marktext.exe' '--user-data-dir=C:\Users\1407\AppData\Local\Temp\marktext-final-move-repro-95b3e0a4a9c043b386f0a422d2df2923'`, followed by the stated native menu action.
 - Diagnostic boundary: this is not a deterministic red-capable command. Before repair, establish and run an automated or otherwise deterministic diagnostic loop that asserts no target window/ownership migration.
-- Scope boundary: `Open in new window` was separately user-confirmed in a different fresh profile. Physical drag-out and filesystem `File > Move To` are untested and are not inferred from this result.
-- Current automated evidence: integration `codex/marktext-feature-development-2026-08` at `8f3e0303`; equivalent validation tree `14d57913` (identical file tree) ran the native-menu callback regression 1/1 on a fresh desktop build. This is not a current packaged/manual acceptance claim.
+- Scope boundary: `Open in new window` and the close→Move sequence passed in the formal manual evidence. Physical drag-out and filesystem `File > Move To` are separate paths; drag-out remains untested and is not inferred from this result.
+- Root cause / formal fix: the transfer adapter detached for every `did-start-navigation`, so Vue hash same-document navigation lost the source endpoint. Commit `800a99208c58c0dbe0eb88c3801bc5461241551c` revokes only main-frame, non-same-document navigation; same-document/subframe navigation retains it and `destroyed` revokes it. Formal automated/artifact/review/manual details are in the [single evidence record](../../marktext-feature-development-2026-08/handoff/evidence/stab-006-close-then-move-2026-08-29.md).
 
 ## STAB-007 — dirty untitled document cannot invoke Save
 
