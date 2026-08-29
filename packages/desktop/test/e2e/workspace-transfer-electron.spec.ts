@@ -89,7 +89,7 @@ test('moves a tab once when the native menu callback precedes its selected item 
         }
         const move = menu.items.find(item => item.label === 'Move to new window')
         if (!move?.click) throw new Error('Move to new window menu item was not created')
-        move.click(undefined, options.window, options.window?.webContents)
+        setTimeout(() => move.click?.(undefined, options.window, options.window?.webContents), 125)
       }
       ;(global as unknown as { __mtRestorePopup?: () => void }).__mtRestorePopup = () => {
         menuPrototype.popup = originalPopup
@@ -109,7 +109,7 @@ test('moves a tab once when the native menu callback precedes its selected item 
       })
     }
     await openSourceMenu()
-    await page.waitForTimeout(100)
+    await page.waitForTimeout(150)
     await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
 
     await openSourceMenu()

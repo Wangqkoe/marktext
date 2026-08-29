@@ -16,20 +16,13 @@ interface PopupEntry {
   sender: WebContents
   popupId: string
   selected: boolean
-  closeTimer: ReturnType<typeof setTimeout> | null
+  onSenderDestroyed: () => void
 }
 const popups = new Map<number, PopupEntry>()
-// Electron may invoke Menu.popup's callback before the selected item's click
-// handler. Keep that menu's sender long enough for the same native turn to
-// deliver the click, while still bounding cleanup for a true dismissal.
-const POPUP_SELECTION_GRACE_MS = 50
 
 const closePopup = (windowId: number, popup: PopupEntry): void => {
   if (popups.get(windowId) !== popup) return
-  if (popup.closeTimer) {
-    clearTimeout(popup.closeTimer)
-    popup.closeTimer = null
-  }
+  popup.sender.removeListener('destroyed', popup.onSenderDestroyed)
   popups.delete(windowId)
   try {
     popup.sender.send('mt::menu::closed', {
@@ -129,8 +122,10 @@ export const registerWindowHandlers = (): void => {
       sender: event.sender,
       popupId: popupId || '',
       selected: false,
-      closeTimer: null
+      onSenderDestroyed: () => undefined
     }
+    popup.onSenderDestroyed = () => closePopup(win.id, popup)
+    event.sender.once('destroyed', popup.onSenderDestroyed)
     popups.set(win.id, popup)
     try {
       const menu = buildMenu(template, win.id, popup)
@@ -138,11 +133,9 @@ export const registerWindowHandlers = (): void => {
         window: win,
         x: position?.x,
         y: position?.y,
-        callback: () => {
-          if (popups.get(win.id) !== popup) return
-          if (popup.closeTimer) clearTimeout(popup.closeTimer)
-          popup.closeTimer = setTimeout(() => closePopup(win.id, popup), POPUP_SELECTION_GRACE_MS)
-        }
+        // On Windows this may run before the chosen MenuItem.click. Keep the
+        // one active session until click, the next popup, or sender teardown.
+        callback: () => undefined
       })
     } catch (err) {
       closePopup(win.id, popup)
