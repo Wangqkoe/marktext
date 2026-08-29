@@ -6,6 +6,7 @@ import { renderToStaticHTML } from '../renderToStaticHTML';
 import ExportMarkdown from '../stateToMarkdown';
 
 const source = '<details open>\n<summary>More</summary>\nBody\n</details>\n';
+const rawTextSource = '<details>\n<summary>摘要原文</summary>\n\nDETAILS_BODY_SENTINEL_4BDE701A\n\n</details>\n';
 
 describe('raw HTML details round-trip', () => {
     it('preserves original details source and open through Markdown state', () => {
@@ -19,6 +20,19 @@ describe('raw HTML details round-trip', () => {
 
         expect(states[0]).toMatchObject({ name: 'html-block', text: source.trim() });
         expect(new ExportMarkdown().generate(states)).toBe(source);
+    });
+
+    it('keeps raw details text with blank lines in one previewable HTML block', () => {
+        const states = new MarkdownToState({
+            footnote: false,
+            math: false,
+            isGitlabCompatibilityEnabled: false,
+            trimUnnecessaryCodeBlockEmptyLines: false,
+            frontMatter: false,
+        }).generate(rawTextSource);
+
+        expect(states).toEqual([{ name: 'html-block', text: rawTextSource.trim() }]);
+        expect(new ExportMarkdown().generate(states)).toBe(rawTextSource);
     });
 
     it('exports standard details markup without editor controls or styles', () => {

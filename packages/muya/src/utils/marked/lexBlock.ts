@@ -8,6 +8,44 @@ import fm from './frontMatter';
 import { DEFAULT_OPTIONS } from './options';
 import walkTokens from './walkTokens';
 
+function detailsTagBalance(raw: string): number {
+    let balance = 0;
+    for (const tag of raw.matchAll(/<\/?details\b[^>]*>/gi))
+        balance += tag[0].startsWith('</') ? -1 : 1;
+    return balance;
+}
+
+function coalesceDetailsBlocks(tokens: Token[]): Token[] {
+    const result: Token[] = [];
+
+    for (let index = 0; index < tokens.length; index++) {
+        const token = tokens[index];
+        if (token.type !== 'html' || !/^<details\b[^>]*>/i.test(token.raw)) {
+            result.push(token);
+            continue;
+        }
+
+        let balance = detailsTagBalance(token.raw);
+        let end = index;
+        while (balance > 0 && ++end < tokens.length) {
+            const next = tokens[end];
+            if (next.type === 'html')
+                balance += detailsTagBalance(next.raw);
+        }
+
+        if (balance !== 0) {
+            result.push(token);
+            continue;
+        }
+
+        const raw = tokens.slice(index, end + 1).map(next => next.raw).join('');
+        result.push({ ...token, raw, text: raw });
+        index = end;
+    }
+
+    return result;
+}
+
 export function lexBlock(
     src: string,
     options: ILexOption = DEFAULT_OPTIONS,
@@ -45,7 +83,7 @@ export function lexBlock(
 
     // Pass `m.defaults` to the Lexer so the extensions registered via m.use()
     // are picked up; the no-arg constructor would fall back to global defaults.
-    tokens.push(...new m.Lexer(m.defaults).blockTokens(src));
+    tokens.push(...coalesceDetailsBlocks(new m.Lexer(m.defaults).blockTokens(src)));
     tokens = compatibleTaskList(tokens as Token[]);
     m.walkTokens(tokens as Token[], walkTokens(options));
 
