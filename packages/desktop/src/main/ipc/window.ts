@@ -16,8 +16,31 @@ interface PopupEntry {
   sender: WebContents
   popupId: string
   selected: boolean
+  closeTimer: ReturnType<typeof setTimeout> | null
 }
 const popups = new Map<number, PopupEntry>()
+// Electron may invoke Menu.popup's callback before the selected item's click
+// handler. Keep that menu's sender long enough for the same native turn to
+// deliver the click, while still bounding cleanup for a true dismissal.
+const POPUP_SELECTION_GRACE_MS = 50
+
+const closePopup = (windowId: number, popup: PopupEntry): void => {
+  if (popups.get(windowId) !== popup) return
+  if (popup.closeTimer) {
+    clearTimeout(popup.closeTimer)
+    popup.closeTimer = null
+  }
+  popups.delete(windowId)
+  try {
+    popup.sender.send('mt::menu::closed', {
+      windowId,
+      popupId: popup.popupId,
+      selected: popup.selected
+    })
+  } catch {
+    /* sender destroyed */
+  }
+}
 
 const buildMenu = (template: MenuTemplate | undefined, windowId: number, popup: PopupEntry): Menu => {
   const menu = new Menu()
@@ -36,11 +59,14 @@ const buildMenu = (template: MenuTemplate | undefined, windowId: number, popup: 
         checked: !!item.checked,
         click: () => {
           if (popups.get(windowId) !== popup) return
+          if (popup.selected) return
           popup.selected = true
           try {
             popup.sender.send('mt::menu::click', { windowId, id, popupId: popup.popupId })
           } catch {
             /* sender destroyed */
+          } finally {
+            closePopup(windowId, popup)
           }
         },
         submenu: item.submenu ? buildMenu(item.submenu as MenuTemplateItem[], windowId, popup) : undefined
@@ -97,7 +123,14 @@ export const registerWindowHandlers = (): void => {
     // it, but make sure we still clean up the map entry if menu.popup throws
     // — otherwise the entry leaks and a later popup for the same window could
     // route clicks to a dead sender.
-    const popup: PopupEntry = { sender: event.sender, popupId: popupId || '', selected: false }
+    const existing = popups.get(win.id)
+    if (existing) closePopup(win.id, existing)
+    const popup: PopupEntry = {
+      sender: event.sender,
+      popupId: popupId || '',
+      selected: false,
+      closeTimer: null
+    }
     popups.set(win.id, popup)
     try {
       const menu = buildMenu(template, win.id, popup)
@@ -107,20 +140,12 @@ export const registerWindowHandlers = (): void => {
         y: position?.y,
         callback: () => {
           if (popups.get(win.id) !== popup) return
-          popups.delete(win.id)
-          try {
-            event.sender.send('mt::menu::closed', {
-              windowId: win.id,
-              popupId: popup.popupId,
-              selected: popup.selected
-            })
-          } catch {
-            /* destroyed */
-          }
+          if (popup.closeTimer) clearTimeout(popup.closeTimer)
+          popup.closeTimer = setTimeout(() => closePopup(win.id, popup), POPUP_SELECTION_GRACE_MS)
         }
       })
     } catch (err) {
-      if (popups.get(win.id) === popup) popups.delete(win.id)
+      closePopup(win.id, popup)
       log.error('menu popup failed:', err)
     }
   })

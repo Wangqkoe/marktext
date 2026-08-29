@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { launchElectron, typeIntoEditor } from './helpers'
+import { launchElectron, sendIpcToRenderer, typeIntoEditor } from './helpers'
 
 const forceTerminate = async(app: ElectronApplication | undefined): Promise<void> => {
   if (!app) return
@@ -60,7 +60,7 @@ for (const scenario of [
   })
 }
 
-test('moves a tab once when its native context menu closes before the selected click arrives', async() => {
+test('moves a tab once when the native menu callback precedes its selected item click', async() => {
   test.setTimeout(60_000)
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-transfer-context-menu-'))
   const file = path.join(profile, 'move.md')
@@ -68,37 +68,35 @@ test('moves a tab once when its native context menu closes before the selected c
   const { app, page } = await launchElectron([file], { userDataDir: profile, userDataDirOwnership: 'caller' })
   try {
     await expect(page.locator('.editor-with-tabs')).toBeVisible()
-    await expect(page.locator('.tabs-container li')).toHaveCount(1)
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'Second workspace tab\n')
+    await expect(page.locator('.tabs-container li')).toHaveCount(2)
 
-    // The first real tab-menu popup is dismissed. The second replays the
-    // native lifecycle observed on Windows: its close notification reaches
-    // the renderer before the selected item notification.
-    await app.evaluate(({ ipcMain }) => {
+    // Keep the production IPC handler installed. This only replaces Electron's
+    // native popup boundary: the first popup is dismissed, then the second
+    // invokes its production callback before its real MenuItem.click handler.
+    await app.evaluate(({ Menu }) => {
       let popupCount = 0
-      const moveItemId = (items: Array<{ id?: string, submenu?: unknown }>): string | undefined => {
-        for (const item of items) {
-          if (item.id?.startsWith('moveTabToNewWindow-')) return item.id
-          if (item.submenu) {
-            const found = moveItemId(item.submenu as Array<{ id?: string, submenu?: unknown }>)
-            if (found) return found
-          }
-        }
-        return undefined
+      const menuPrototype = Menu.prototype as unknown as {
+        popup: (options: { callback?: () => void; window?: { webContents?: unknown } }) => void
       }
-      ipcMain.removeAllListeners('mt::menu::popup')
-      ipcMain.on('mt::menu::popup', (event, template, _position, popupId) => {
+      const originalPopup = menuPrototype.popup
+      menuPrototype.popup = function(options) {
         popupCount += 1
-        const id = moveItemId(template as Array<{ id?: string, submenu?: unknown }>)
-        if (popupCount === 1) {
-          event.sender.send('mt::menu::closed', { popupId, selected: false })
-          return
+        options.callback?.()
+        if (popupCount === 1) return
+        const menu = this as unknown as {
+          items: Array<{ label?: string; click?: (...args: unknown[]) => void }>
         }
-        event.sender.send('mt::menu::closed', { popupId, selected: true })
-        setTimeout(() => event.sender.send('mt::menu::click', { id, popupId }), 30)
-      })
+        const move = menu.items.find(item => item.label === 'Move to new window')
+        if (!move?.click) throw new Error('Move to new window menu item was not created')
+        move.click(undefined, options.window, options.window?.webContents)
+      }
+      ;(global as unknown as { __mtRestorePopup?: () => void }).__mtRestorePopup = () => {
+        menuPrototype.popup = originalPopup
+      }
     })
 
-    const sourceTab = page.locator('.tabs-container li').first()
+    const sourceTab = page.locator('.tabs-container li').filter({ hasText: 'New Tab' })
     const openSourceMenu = async(): Promise<void> => {
       await sourceTab.evaluate((element) => {
         const bounds = element.getBoundingClientRect()
@@ -117,14 +115,19 @@ test('moves a tab once when its native context menu closes before the selected c
     await openSourceMenu()
     await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
     await expect(page.locator('.tabs-container li')).toHaveCount(1)
-    await expect(page.locator('body')).not.toContainText('Context menu Move')
+    await expect(page.locator('body')).toContainText('Context menu Move')
 
     const target = (await app.windows()).find(candidate => candidate !== page)
     if (!target) throw new Error('moved target window was not found')
-    await expect(target.locator('body')).toContainText('Context menu Move')
+    await expect(target.locator('body')).toContainText('Second workspace tab')
     await page.waitForTimeout(100)
     await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
   } finally {
+    await app.evaluate(() => {
+      const globalState = global as unknown as { __mtRestorePopup?: () => void }
+      globalState.__mtRestorePopup?.()
+      delete globalState.__mtRestorePopup
+    }).catch(() => undefined)
     await forceTerminate(app)
     fs.rmSync(profile, { recursive: true, force: true })
   }
