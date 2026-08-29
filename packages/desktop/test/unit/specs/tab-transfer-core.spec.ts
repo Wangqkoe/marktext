@@ -117,6 +117,37 @@ describe('TabTransfer core', () => {
 })
 
 describe('Electron transfer endpoint authentication', () => {
+  it('keeps the source endpoint authenticated across hash and subframe navigation', () => {
+    const source = new FakeTransferWebContents(1)
+    const transport = new ElectronTransferTransport({ createTarget: async() => { throw new Error('target should not be created') } })
+    transport.attach(source)
+    const endpoint = transport.endpointFor(source)
+    if (!endpoint) throw new Error('source endpoint was not attached')
+
+    source.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true })
+    expect(transport.authenticate(endpoint)).toBe(true)
+
+    source.emit('did-start-navigation', { isMainFrame: false, isSameDocument: false })
+    expect(transport.authenticate(endpoint)).toBe(true)
+  })
+
+  it('revokes the source endpoint for cross-document main-frame navigation and destruction', () => {
+    const source = new FakeTransferWebContents(1)
+    const transport = new ElectronTransferTransport({ createTarget: async() => { throw new Error('target should not be created') } })
+    transport.attach(source)
+    const afterNavigation = transport.endpointFor(source)
+    if (!afterNavigation) throw new Error('source endpoint was not attached')
+
+    source.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
+    expect(transport.authenticate(afterNavigation)).toBe(false)
+
+    transport.attach(source)
+    const afterReattach = transport.endpointFor(source)
+    if (!afterReattach) throw new Error('source endpoint was not reattached')
+    source.emit('destroyed')
+    expect(transport.authenticate(afterReattach)).toBe(false)
+  })
+
   it('rejects a forged endpoint and makes the pre-reload endpoint inert', async() => {
     const source = new FakeTransferWebContents(1)
     const target = new FakeTransferWebContents(2)
@@ -184,7 +215,7 @@ describe('Electron transfer endpoint authentication', () => {
       documentRevision: 1,
       isLastSourceTab: false
     }, { timeoutMs: 50, retryCadenceMs: 5 })).resolves.toEqual({ status: 'nack', reason: 'invalid transfer capability' })
-    source.emit('did-start-navigation')
+    source.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
     expect(transport.authenticate(sourceEndpoint)).toBe(false)
     await expect(transport.command({
       transferId: 'forged',
@@ -232,14 +263,46 @@ describe('Electron transfer endpoint authentication', () => {
 })
 
 class FakeTransferWebContents implements TransferWebContents {
-  readonly listeners = new Map<string, (() => void)[]>()
+  private readonly destroyedListeners = new Set<() => void>()
+  private readonly navigationListeners = new Set<(details: NavigationDetails) => void>()
   onSend?: (message: TransferCommand | TransferRecoveryMessage) => void
   constructor(readonly id: number) {}
   send(_channel: 'mt::workspace::transfer-command' | 'mt::workspace::transfer-recovery', payload: unknown): void {
     this.onSend?.(payload as TransferCommand | TransferRecoveryMessage)
   }
 
-  on(event: 'destroyed' | 'did-start-navigation', listener: () => void): void { this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]) }
-  removeListener(event: 'destroyed' | 'did-start-navigation', listener: () => void): void { this.listeners.set(event, (this.listeners.get(event) ?? []).filter(item => item !== listener)) }
-  emit(event: 'destroyed' | 'did-start-navigation'): void { for (const listener of this.listeners.get(event) ?? []) listener() }
+  on(event: 'destroyed', listener: () => void): void
+  on(event: 'did-start-navigation', listener: (details: NavigationDetails) => void): void
+  on(
+    event: 'destroyed' | 'did-start-navigation',
+    listener: (() => void) | ((details: NavigationDetails) => void)
+  ): void {
+    if (event === 'destroyed') this.destroyedListeners.add(listener as () => void)
+    else this.navigationListeners.add(listener as (details: NavigationDetails) => void)
+  }
+
+  removeListener(event: 'destroyed', listener: () => void): void
+  removeListener(event: 'did-start-navigation', listener: (details: NavigationDetails) => void): void
+  removeListener(
+    event: 'destroyed' | 'did-start-navigation',
+    listener: (() => void) | ((details: NavigationDetails) => void)
+  ): void {
+    if (event === 'destroyed') this.destroyedListeners.delete(listener as () => void)
+    else this.navigationListeners.delete(listener as (details: NavigationDetails) => void)
+  }
+
+  emit(event: 'destroyed'): void
+  emit(event: 'did-start-navigation', details: NavigationDetails): void
+  emit(event: 'destroyed' | 'did-start-navigation', details?: NavigationDetails): void {
+    if (event === 'destroyed') {
+      for (const listener of [...this.destroyedListeners]) listener()
+    } else {
+      for (const listener of [...this.navigationListeners]) listener(details ?? {})
+    }
+  }
+}
+
+interface NavigationDetails {
+  readonly isMainFrame?: boolean
+  readonly isSameDocument?: boolean
 }

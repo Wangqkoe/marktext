@@ -14,8 +14,10 @@ export interface TransferWebContents {
   readonly id: number
   isDestroyed?(): boolean
   send(channel: 'mt::workspace::transfer-command' | 'mt::workspace::transfer-recovery', payload: unknown): void
-  on?(event: 'destroyed' | 'did-start-navigation', listener: () => void): void
-  removeListener?(event: 'destroyed' | 'did-start-navigation', listener: () => void): void
+  on?(event: 'destroyed', listener: () => void): void
+  on?(event: 'did-start-navigation', listener: (details: { readonly isMainFrame?: boolean; readonly isSameDocument?: boolean }) => void): void
+  removeListener?(event: 'destroyed', listener: () => void): void
+  removeListener?(event: 'did-start-navigation', listener: (details: { readonly isMainFrame?: boolean; readonly isSameDocument?: boolean }) => void): void
 }
 
 export interface TransferTargetFactory {
@@ -70,11 +72,14 @@ export class ElectronTransferTransport implements TransferTransport {
       }
       this.detachers.delete(sender)
       webContents.removeListener?.('destroyed', detach)
-      webContents.removeListener?.('did-start-navigation', detach)
+      webContents.removeListener?.('did-start-navigation', navigation)
+    }
+    const navigation = (details: { readonly isMainFrame?: boolean; readonly isSameDocument?: boolean }): void => {
+      if (details.isMainFrame && !details.isSameDocument) detach()
     }
     this.detachers.set(sender, detach)
     webContents.on?.('destroyed', detach)
-    webContents.on?.('did-start-navigation', detach)
+    webContents.on?.('did-start-navigation', navigation)
     return detach
   }
 
