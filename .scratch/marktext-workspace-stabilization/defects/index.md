@@ -239,10 +239,10 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 ## STAB-010 — closing a saved workspace tab leaves main opened-file registry stale
 
 - Severity / rationale: P1 confirmed; after a saved tab is closed, reopening the same unchanged path through File > Open can no-op, leaving a supported document workflow unavailable.
-- Status / owner: `New / P1`; diagnostic evidence and a test-first implementation contract are recorded in the [STAB-010 evidence](../../marktext-feature-development-2026-08/handoff/evidence/stab-010-close-reopen-2026-08-29.md).
+- Status / owner: `Closed / Manual-retest Passed`; repair, verification, and remaining transparent record are in the [STAB-010 evidence](../../marktext-feature-development-2026-08/handoff/evidence/stab-010-close-reopen-2026-08-29.md).
 - Reproduction: formal artifact/profile opened `split-final.md`, created a New Tab, used tab-context `Split Right`, closed the right-pane sole saved-file tab and collapsed, then used Ctrl+O to select the same path; the file did not reappear. Fixture SHA-256 `C11D46FC7CD29394393102707821549DA2B25D2D03F592CA5F6590E5B695FB5A`.
 - Root cause boundary: `PaneEditorComposition.closeLegacyTab()` removes the document/view but omits existing `mt::window-tab-closed`; stale main `_openedFiles` then makes duplicate-path open switch to a deleted renderer tab. Split collapse is not the root cause, and last-tab window close is a distinct path.
-- Minimal repair / required regression: on an applied close only, capture canonical `fileKey` and send existing `mt::window-tab-closed(fileKey)` exactly once; clean, discard, and save-then-close apply, while cancel/save-failure/rejected close do not. Red-test the saved close→reopen path in `workspace-native-file-open.spec.ts`; preserve last-tab window close.
+- Repair / acceptance: candidate `7c55bc4ef891e1c56747b347025088bc2d3826ef` integrated at `de73aa76`; exact close→reopen E2E 2/2, complete native-open 5/5, last-tab close 6/6, runtime 48/48, typecheck/lint/build passed, and final manual retest passed. On an applied close only, canonical `fileKey` sends existing `mt::window-tab-closed(fileKey)` exactly once; last-tab window close is preserved. The transparent review record notes untested legacy-registry variants without a code-risk finding.
 
 ## STAB-R001 — Move bootstrap Untitled / final-tab replacement
 
