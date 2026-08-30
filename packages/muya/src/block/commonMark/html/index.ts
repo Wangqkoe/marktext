@@ -112,13 +112,23 @@ class HTMLBlock extends Parent {
             this.muya.domNode,
             'keydown',
             (event) => {
-                if (!(event instanceof KeyboardEvent) || event.key !== EVENT_KEYS.Escape || !this.active)
+                if (!(event instanceof KeyboardEvent) || event.key !== EVENT_KEYS.Escape)
+                    return;
+
+                if (!this.domNode?.isConnected) {
+                    this.muya.eventCenter.detachDOMEvent(this._escapeListenerId);
+                    this._escapeListenerId = '';
+                    return;
+                }
+
+                if (this.muya.editor.activeContentBlock !== this.firstContentInDescendant())
                     return;
 
                 event.preventDefault();
                 event.stopPropagation();
                 this._exitSourceEditing();
             },
+            true,
         );
     }
 
@@ -128,6 +138,7 @@ class HTMLBlock extends Parent {
         // selection too: a forced rebuild (such as a theme change) restores
         // that range into the new tree and would otherwise reopen raw source.
         this.firstContentInDescendant()?.domNode?.blur();
+        this.muya.editor.activeContentBlock = null;
         this.muya.editor.selection.clear();
         this.muya.domNode.focus();
         if (this._escapeListenerId) {

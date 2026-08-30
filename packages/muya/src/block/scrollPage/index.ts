@@ -137,7 +137,10 @@ export class ScrollPage extends Parent {
     }
 
     private _updateActiveStatus = () => {
-        const { blur, focus } = this._blurFocus;
+        let { blur, focus } = this._blurFocus;
+
+        if (focus && this.muya.editor.activeContentBlock !== focus)
+            focus = null;
 
         if (blur == null && focus == null)
             return;

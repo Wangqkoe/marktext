@@ -148,6 +148,7 @@ test.describe('options / raw HTML details disclosure', () => {
         await page.keyboard.press('Escape');
         await expect(preview).toBeVisible();
 
+        await preview.hover();
         await preview.locator('.mu-details-source-action').click();
         await expect(wrapper).toHaveClass(/mu-active/);
         await expect(sourceContent).toBeVisible();
@@ -157,6 +158,48 @@ test.describe('options / raw HTML details disclosure', () => {
 
         await expect(preview.locator('summary')).toHaveText('Escaped twice');
         expect(await getMarkdown(page)).toContain('Editable');
+    });
+
+    test('does not let a former source session intercept Escape from another content block', async ({ page }) => {
+        await page.evaluate((text) => {
+            window.muya!.setContent([
+                { name: 'html-block', text },
+                { name: 'paragraph', text: 'Outside content' },
+            ] as TState[]);
+        }, source);
+
+        const wrapper = page.locator(editor.htmlBlock);
+        const preview = wrapper.locator(editor.htmlPreview);
+        await preview.locator('.mu-details-source-action').click();
+        await expect(wrapper.locator('.mu-html-container .mu-codeblock-content')).toBeVisible();
+
+        const outside = page.locator(editor.paragraph).filter({ hasText: 'Outside content' });
+        await outside.click();
+        await expect.poll(() => page.evaluate(() => {
+            return window.muya!.editor.activeContentBlock?.text;
+        })).toBe('Outside content');
+
+        const escape = await outside.evaluate((element) => {
+            let reachedDocument = false;
+            const observer = () => {
+                reachedDocument = true;
+            };
+            document.addEventListener('keydown', observer);
+            const event = new KeyboardEvent('keydown', {
+                key: 'Escape',
+                bubbles: true,
+                cancelable: true,
+            });
+            element.dispatchEvent(event);
+            document.removeEventListener('keydown', observer);
+
+            return {
+                defaultPrevented: event.defaultPrevented,
+                reachedDocument,
+            };
+        });
+
+        expect(escape).toEqual({ defaultPrevented: false, reachedDocument: true });
     });
 
     test('disableHtml renders escaped source and no native disclosure or source action', async ({ page }) => {
