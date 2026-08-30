@@ -11,6 +11,10 @@ recorded in [T12 final acceptance evidence](../evidence/t12-final-acceptance-202
 The historical readiness evidence below remains evidence for its recorded scope;
 it is not rewritten as a blanket manual-matrix pass.
 
+The coverage list below is retained as the historical T12 input. The final audit
+disposition separates the accepted supported/local A14 gate from supplementary
+unclaimed environments; see the linked final evidence and acceptance matrix.
+
 Produce clean-build and Windows-trial readiness evidence for the coordination
 task. It neither organizes independent review nor requests or announces user
 Acceptance. This ticket changes only evidence/checklists; it does not fix code.

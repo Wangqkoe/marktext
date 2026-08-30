@@ -107,8 +107,9 @@ the identical retry succeeded without source or lockfile changes.
 | Evidence | Status | Exact result / remaining condition |
 | --- | --- | --- |
 | A14 automated clean Windows-build readiness | Passed | `pnpm install --frozen-lockfile` passed on retry; `pnpm build:win:x64` exit 0 on Windows 11 Pro 10.0.26200, Node 24.18.0, pnpm 10.33.4. |
-| A14 manual Windows trial | Untested | The baseline `499de31d` fresh-profile clean-New-Tab Alt+F4 trial is Failed: it returned to New Tab and later created `Untitled-1`. The repaired package still requires a new user trial; startup/exit, CrashDraft power-loss/fallback/conflict, MoveRecovery, physical external release, unsupported fallback/menu Move, display/scale/motion, accessibility, and PDF checks remain unexecuted. |
-| T12 final acceptance | Untested | T12 does not request or declare Acceptance. The coordinator must complete the manual trial, final independent reviews, defect disposition, and user Acceptance. |
+| A14 manual Windows trial | Passed (accepted supported/local scope) | Final audit accepted the recorded core manual evidence: default/explicit startup and Ctrl+O, final-tab/window and multiwindow close, Save As, Move/Open/Split, and Details. From `4669eeec` to `57d2ae4d`, untouched paths inherit only under the strict recorded local-delta/provenance exception; affected Details reran on the final package and passed 6/6. This does not claim a complete same-package matrix or every environment. |
+| T12 final acceptance | Passed / Accepted | [Final acceptance evidence](evidence/t12-final-acceptance-2026-08-30.md): independent final audit 0 blockers, active P0/P1 0, and user confirmation of the final `57d2ae4d` affected-Details manual 6/6. Local-only; no publication. |
+| Supplementary unclaimed environments (not an accepted A14/final gate) | Untested / Unavailable records | Screen-reader, PDF visual, real power-loss, remote/assistive, and mixed-DPI/multi-display physical operation remain unclaimed. They are explicit final-audit non-blocking boundaries, not Passed results; supported fallback/automation evidence remains recorded above and in the linked evidence. |
 
 ## T03 integration evidence — 2026-08-25
 
