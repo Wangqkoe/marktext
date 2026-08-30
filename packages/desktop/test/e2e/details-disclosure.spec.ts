@@ -160,6 +160,28 @@ test.describe('raw HTML details disclosure in the desktop editor', () => {
     await expect(disclosure(page)).not.toHaveAttribute('open', '')
   })
 
+  test('returns from floating edit source with Escape and re-enters it', async() => {
+    const wrapper = page.locator('.editor-component .mu-html-block')
+    const preview = wrapper.locator('.mu-html-preview')
+    const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content')
+    const floatingEdit = page.locator('.mu-preview-tools li.item.edit')
+
+    await wrapper.hover()
+    await expect(floatingEdit).toBeVisible()
+    await floatingEdit.click()
+    await expect(sourceContent).toBeVisible()
+    await expect(preview).toBeHidden()
+
+    await page.keyboard.press('Escape')
+    await expect(preview).toBeVisible()
+    await expect(sourceContent).toBeHidden()
+
+    await wrapper.hover()
+    await expect(floatingEdit).toBeVisible()
+    await floatingEdit.click()
+    await expect(sourceContent).toBeVisible()
+  })
+
   test('rebuilds authored open preview and reopens source after Preview', async() => {
     await rebuildWithAuthoredOpen(page)
     const previewAction = page.locator('.editor-component .mu-html-preview-action')

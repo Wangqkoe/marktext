@@ -122,6 +122,10 @@ export class PreviewToolBar extends BaseFloat {
         let cursorBlock = null;
         switch (i.type) {
             case 'edit': {
+                if (block?.blockName === 'html-block') {
+                    (block as HTMLBlock).enterSourceEditing();
+                    break;
+                }
                 cursorBlock = block!.firstContentInDescendant();
                 break;
             }
