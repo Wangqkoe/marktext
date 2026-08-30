@@ -159,7 +159,7 @@ class RecordingDocumentIoPort implements DocumentIoPort {
     return { status: 'selected' as const, pathname: '/saved.md' }
   }
 
-  async confirmClose() {
+  async confirmClose(): Promise<'save' | 'discard' | 'cancel'> {
     return 'save' as const
   }
 }
@@ -301,6 +301,50 @@ describe('WorkspaceRuntime', () => {
         expect(remaining).toHaveLength(1)
         expect(remaining[0]).toMatchObject({ title: 'New Tab', dirty: false })
       }
+    } finally {
+      testWindow.electron = originalElectron
+    }
+  })
+
+  it('reports an applied file-backed legacy tab close once but not a cancelled close', async() => {
+    const testWindow = window as unknown as {
+      electron?: { ipcRenderer?: { send?: (...args: unknown[]) => void } }
+    }
+    const originalElectron = testWindow.electron
+    const send = vi.fn()
+    testWindow.electron = {
+      ...originalElectron,
+      ipcRenderer: { ...originalElectron?.ipcRenderer, send }
+    }
+
+    try {
+      const cleanWorkspace = createWorkspaceRuntime([
+        { documentId: 'saved', fileKey: '/saved.md' },
+        { documentId: 'other', fileKey: '/other.md' }
+      ])
+      const cleanComposition = createPaneEditorComposition({ paneId: 'left', controller: cleanWorkspace })
+      expect((await cleanComposition.closeLegacyTab('saved')).status).toBe('applied')
+      expect(send).toHaveBeenCalledTimes(1)
+      expect(send).toHaveBeenCalledWith('mt::window-tab-closed', '/saved.md')
+
+      send.mockClear()
+      const cancelledWorkspace = createWorkspaceRuntime([
+        { documentId: 'saved', fileKey: '/cancelled.md', markdown: 'saved' }
+      ])
+      const port = new RecordingDocumentIoPort()
+      port.confirmClose = async() => 'cancel'
+      const cancelledComposition = createPaneEditorComposition({
+        paneId: 'left',
+        controller: cancelledWorkspace,
+        documentIoPort: port
+      })
+      const surface = new MemoryPaneSurface()
+      await cancelledComposition.mount(surface, { id: 'saved', fileKey: '/cancelled.md', markdown: 'saved', title: 'saved' })
+      expect(expectDefined(surface.scopes.at(-1)).report({ markdown: 'dirty' }).status).toBe('applied')
+
+      expect((await cancelledComposition.closeLegacyTab('saved')).status).toBe('rejected')
+      expect(send).not.toHaveBeenCalled()
+      cancelledComposition.unmount(surface)
     } finally {
       testWindow.electron = originalElectron
     }

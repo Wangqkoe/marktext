@@ -133,6 +133,71 @@ test('opens a native File > Open selection into the focused workspace pane', asy
   }
 })
 
+test('STAB-010 reopens a saved tab through native File > Open after its split pane collapses', async() => {
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-open-close-reopen-'))
+  const fixture = path.join(profile, 'workspace-close-reopen.md')
+  const sentinel = 'STAB010_CLOSE_REOPEN_SENTINEL'
+  fs.writeFileSync(fixture, `# Workspace close reopen\n\n${sentinel}\n`)
+  const { app, page } = await launchElectron([], { userDataDir: profile, userDataDirOwnership: 'caller' })
+  try {
+    await waitForMenuReady(app)
+    await openFixture(app, fixture)
+    await expect(page.locator('.tabs-container > li')).toHaveCount(1)
+
+    await page.locator('.new-file').evaluate((button) => (button as HTMLElement).click())
+    await expect(page.locator('.tabs-container > li')).toHaveCount(2)
+    const root = await page.locator('.editor-with-tabs').boundingBox()
+    const savedTab = page.locator('.tabs-container > li').filter({ hasText: 'workspace-close-reopen.md' })
+    const savedTabBox = await savedTab.boundingBox()
+    if (!root || !savedTabBox) throw new Error('split controls are unavailable')
+    await page.mouse.move(savedTabBox.x + Math.min(12, savedTabBox.width / 2), savedTabBox.y + savedTabBox.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(root.x + 4, root.y + root.height * 0.55, { steps: 8 })
+    await page.mouse.up()
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+
+    await savedTab.locator('.close-icon').click()
+    await expect(page.locator('.workspace-pane')).toHaveCount(1)
+    await expect(page.locator('.tabs-container > li')).toHaveCount(1)
+    await expect(page.locator('.tabs-container > li')).toContainText('New Tab')
+
+    await openFixture(app, fixture)
+    await expect.poll(() => page.evaluate(() => {
+      const driver = window as unknown as {
+        __mtWorkspaceSnapshot?: () => {
+          projection: { focusedPaneId: string; panes: Array<{ paneId: string; activeViewId: string }> }
+          documents: Array<{ viewId: string; fileKey?: string; title: string; markdown: string }>
+        }
+      }
+      const snapshot = driver.__mtWorkspaceSnapshot?.()
+      const activeViewId = snapshot?.projection.panes.find((pane) => pane.paneId === snapshot.projection.focusedPaneId)?.activeViewId
+      const reopened = snapshot?.documents.find((document) => document.viewId === activeViewId)
+      return {
+        documentCount: snapshot?.documents.length,
+        activePath: reopened?.fileKey,
+        activeTitle: reopened?.title,
+        activeMarkdown: reopened?.markdown
+      }
+    }), { timeout: 5_000 }).toEqual({
+      documentCount: 1,
+      activePath: fixture,
+      activeTitle: 'workspace-close-reopen.md',
+      activeMarkdown: `# Workspace close reopen\n\n${sentinel}\n`
+    })
+    await expect(page.locator('.tabs-container li.active')).toContainText('workspace-close-reopen.md')
+    await expect(page.locator('.editor-component')).toContainText(sentinel)
+  } finally {
+    const child = app.process()
+    if (child.exitCode === null) {
+      const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
+      const mainPid = await app.evaluate(() => process.pid)
+      execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
+      await exited
+    }
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
 test('opens a native File > Open selection in the currently focused split pane', async() => {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-open-split-'))
   const first = path.join(profile, 'first.md')

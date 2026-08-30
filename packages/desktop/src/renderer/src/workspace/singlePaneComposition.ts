@@ -412,14 +412,21 @@ export class PaneEditorComposition {
     )
     const view = pane?.tabs.find((candidate) => candidate.documentId === documentId)
     if (!runtime || !pane || !view) return { status: 'rejected', reason: 'missing pane view' }
+    const fileKey = this.documentForView(view.viewId)?.fileKey
+    const finishClose = (result: WorkspaceResult): WorkspaceResult => {
+      if (result.status === 'applied' && fileKey) {
+        window.electron.ipcRenderer.send('mt::window-tab-closed', fileKey)
+      }
+      return result
+    }
     const close = await this.execute({ kind: 'close-view', viewId: view.viewId })
-    if (close.status !== 'needs-decision') return close
+    if (close.status !== 'needs-decision') return finishClose(close)
     const decision = await this.confirmClose(view.viewId)
     if (decision === 'cancel') return { status: 'rejected', reason: 'close cancelled' }
     if (decision === 'discard') {
       await this.syncCrashDraft()
       await this.resolveCrashDraft(documentId, 'discard')
-      return runtime.execute({ kind: 'commit-authorized', capability: close.capability })
+      return finishClose(await runtime.execute({ kind: 'commit-authorized', capability: close.capability }))
     }
     const document = this.documentForView(view.viewId)
     const save = document?.fileKey
@@ -437,14 +444,15 @@ export class PaneEditorComposition {
       )
     if (!save || save.status !== 'applied') return save ?? { status: 'rejected', reason: 'close cancelled' }
     const committed = await runtime.execute({ kind: 'commit-authorized', capability: close.capability })
-    if (committed.status !== 'rejected') return committed
+    if (committed.status !== 'rejected') return finishClose(committed)
     // Save As rotates the DocumentIO fence, intentionally invalidating the
     // original close capability. The durable write is clean, so a fresh close
     // capability may be committed without another user decision.
     const retry = await runtime.execute({ kind: 'close-view', viewId: view.viewId })
-    return retry.status === 'needs-decision'
-      ? runtime.execute({ kind: 'commit-authorized', capability: retry.capability })
+    const retryResult = retry.status === 'needs-decision'
+      ? await runtime.execute({ kind: 'commit-authorized', capability: retry.capability })
       : retry
+    return finishClose(retryResult)
   }
 
   /**
