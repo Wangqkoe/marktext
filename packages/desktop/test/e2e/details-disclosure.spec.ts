@@ -80,7 +80,13 @@ test.describe('raw HTML details disclosure in the desktop editor', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) {
+      await sendIpcToRenderer(app, 'mt::editor-ask-file-save')
+      await expect
+        .poll(() => page.locator(`${tabSelector}.unsaved`).count(), { timeout: 5000 })
+        .toBe(0)
+      await app.close()
+    }
   })
 
   test.beforeEach(async() => {
