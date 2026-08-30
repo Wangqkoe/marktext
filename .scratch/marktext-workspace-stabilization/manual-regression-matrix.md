@@ -10,6 +10,16 @@ has actually run before repair begins.
 
 ## Current-round provenance and gate
 
+### Final closeout — 2026-08-30
+
+T12 is `Completed / Accepted`; the independent final audit passed with 0 blockers
+and active P0/P1 is 0. See [final acceptance evidence](../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
+This preserves every row's recorded status: only the fixed, independently reviewed
+STAB-011 local delta receives the final artifact's narrow provenance exception;
+unaffected paths inherit prior evidence and affected Details gates were rerun on
+the target package. It does not convert screen-reader, PDF, power-loss,
+remote/assistive, or mixed-DPI/multi-display rows to `Passed`.
+
 ### STAB-007 reopened and scoped packaged closeout — 2026-08-29
 
 - Reopened failure: at integration `5847be6e`, the real Save As dialog returned the selected path but no target was written and the title remained `Untitled`/dirty. Diagnostic-only `f593a5aa` (**DO NOT MERGE**) traced two correct `showSaveDialog` results (`canceled:false`/correct `filePath`) followed by coordinator rejection of `save-as` as `unknown or revoked sender`.

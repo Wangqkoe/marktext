@@ -17,7 +17,12 @@
 
 Accept and normalize further user reports.
 
-Active P1: **0**. STAB-006, STAB-007, STAB-008, STAB-010, and STAB-011 have passed scoped packaged/manual evidence; the full same-artifact manual matrix, T12, final Review/Acceptance, screen-reader, or PDF visual inspection remain incomplete.
+Final stabilization status: **T12 Accepted**. Active P0/P1: **0**. The independent
+final audit passed with 0 blockers; its strict, scoped evidence-inheritance
+exception and final artifact provenance are in the [T12 final acceptance
+evidence](../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
+STAB-005 and STAB-009 remain deferred/P2. Screen-reader/PDF and other explicitly
+unclaimed environments remain untested; this is not a blanket manual-matrix pass.
 
 For every new P0/P1 report, `diagnosing-bugs` requires the same artifact, a
 unique profile, the accurate entry method, timestamp, PID/window/logical-tab

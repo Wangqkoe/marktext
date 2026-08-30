@@ -4,12 +4,12 @@ Requirement sources are the [V1 Spec](v1-spec.md) and its linked resolved Issues
 The evidence owner records command, environment, artifact/trace and status on the
 integration branch; `Passed` may be claimed only with all four.
 
-> **Stabilization block (2026-08-27):** automated passing evidence does not
+> **Historical stabilization block (2026-08-27):** automated passing evidence did not
 > override packaged/manual failures. The final gate is `Failed/Blocked` until the
 > [stabilization ledger](../../marktext-workspace-stabilization/defects/index.md)
 > has no unclosed P0/P1, every required `Manual-retest` (including STAB-R001) is
-> passed, and the complete same-artifact manual matrix passes. Do not claim final
-> `Passed`; T12, final Review/Acceptance, and release judgement remain paused.
+> passed, and the complete same-artifact manual matrix passes. This historical
+> block is superseded only by the scoped final exception below.
 
 > **STAB-007 reopened and scoped closeout (2026-08-29):** packaged integration
 > `5847be6e` returned the correct real-dialog Save As path but did not write or
@@ -46,6 +46,16 @@ integration branch; `Passed` may be claimed only with all four.
 > File/Open workflow passed automated and formal manual verification; T07
 > physical drag remains `Passed` for its supported shape, while final
 > matrix/T12/Acceptance remain pending.
+
+> **Final closeout (2026-08-30):** T12 is `Completed / Accepted`; the independent
+> final audit passed with 0 blockers and active P0/P1 is 0. See [final acceptance
+> evidence](evidence/t12-final-acceptance-2026-08-30.md). The acceptance uses one
+> strict, narrow exception to same-artifact inheritance: only a fixed,
+> independently reviewed local product delta may inherit evidence for untouched
+> paths, and only after target-package provenance proves the new code is present
+> and every affected gate is rerun on that target package. STAB-011 satisfies this
+> exception. Existing `Untested` rows, including screen-reader/PDF and other
+> unclaimed manual environments, remain `Untested`; they are not blanket passes.
 
 | ID | Requirement / evidence owner | Exact automated command / environment | Manual verification | Gate |
 | --- | --- | --- | --- | --- |

@@ -4,15 +4,12 @@ Wave: 10 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T11
 
 ## Result
 
-**Paused for stabilization (2026-08-27).** T12 must not advance toward final
-Review/Acceptance or release judgement until the [stabilization ledger](../../../marktext-workspace-stabilization/README.md)
-has P0/P1 = 0 and its complete manual regression matrix passes on one traceable
-artifact. Existing evidence remains historical evidence; it does not override a
-packaged/manual failure.
-
-T12 remains locked behind T11 and manual acceptance. T06's automated gate does
-not unlock or complete this ticket; the Windows trial, clean-build readiness,
-and coordinator-requested Acceptance remain outstanding.
+**Completed / Accepted (2026-08-30).** The independent final audit passed with 0
+blockers and active P0/P1 is 0. The final artifact, narrow same-artifact
+inheritance exception, remaining unclaimed rows, and local-only disposition are
+recorded in [T12 final acceptance evidence](../evidence/t12-final-acceptance-2026-08-30.md).
+The historical readiness evidence below remains evidence for its recorded scope;
+it is not rewritten as a blanket manual-matrix pass.
 
 Produce clean-build and Windows-trial readiness evidence for the coordination
 task. It neither organizes independent review nor requests or announces user
@@ -47,10 +44,7 @@ permits. Do not treat ordinary workspace state as recovery evidence.
 
 ## Acceptance and handoff
 
-On the coordination branch run the exact A14 commands and all applicable prior
-matrix commands, `git diff --check`, and clean status. Submit the recorded evidence
-and readiness/defect list to the coordination task. The coordinator creates the
-independent terra/high Standards + Spec reviews, routes every defect, requests user
-Acceptance after the reviews pass, and alone declares the stage complete. All
-critical defects must be zero; `Untested` cannot pass a required gate. Commit only
-evidence/matrix changes, with no push.
+The final audit and Acceptance disposition are recorded in the linked final
+evidence. It preserves `Untested` labels for unclaimed environments and permits
+only the documented narrow inheritance exception; it does not convert all matrix
+rows to `Passed`. This ticket's changes remain evidence/matrix only, with no push.

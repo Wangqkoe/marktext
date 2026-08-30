@@ -4,7 +4,22 @@ This is the execution order for the tickets; normative behavior remains in the
 [V1 Spec](v1-spec.md), and pass/fail evidence remains in the
 [acceptance matrix](acceptance-matrix.md).
 
-## Stabilization frontier — 2026-08-27
+## Final closeout — 2026-08-30
+
+The implementation frontier is `Closed / Accepted` for this stabilization round.
+The independent final audit passed with 0 blockers, active P0/P1 is 0, and T12 is
+accepted on the final evidence at [T12 final acceptance](evidence/t12-final-acceptance-2026-08-30.md).
+The final product head is `57d2ae4d6435b157d3e82c5abc094167d5edb3c0`; later
+audited integration commits are documentation only.
+
+Deferred boundaries remain visible rather than reopened: STAB-005 and STAB-009
+are P2; screen-reader, PDF visual, real power-loss, remote/assistive, and
+mixed-DPI/multi-display physical evidence are unclaimed; unsupported external
+drag remains disabled by V1 while menu Move remains available. Existing lint and
+workflow-provenance wording records are P2. No product implementation ticket is
+open in this round.
+
+## Stabilization frontier — 2026-08-27 (historical)
 
 `fdda9330` is frozen as the stabilization baseline. T12, final Review/Acceptance,
 and release judgement are blocked while the local [stabilization ledger](../../marktext-workspace-stabilization/README.md)
