@@ -244,6 +244,23 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 - Root cause boundary: `PaneEditorComposition.closeLegacyTab()` removes the document/view but omits existing `mt::window-tab-closed`; stale main `_openedFiles` then makes duplicate-path open switch to a deleted renderer tab. Split collapse is not the root cause, and last-tab window close is a distinct path.
 - Repair / acceptance: candidate `7c55bc4ef891e1c56747b347025088bc2d3826ef` integrated at `de73aa76`; exact close→reopen E2E 2/2, complete native-open 5/5, last-tab close 6/6, runtime 48/48, typecheck/lint/build passed, and final manual retest passed. On an applied close only, canonical `fileKey` sends existing `mt::window-tab-closed(fileKey)` exactly once; last-tab window close is preserved. The transparent review record notes untested legacy-registry variants without a code-risk finding.
 
+## STAB-011 — Details floating edit does not restore source after Preview/Escape
+
+- Severity / rationale: P1 confirmed. The existing floating HTML-block edit
+  entry cannot reliably return a raw-HTML Details block between source and
+  preview, leaving a supported local-edit workflow unavailable.
+- Status / owner: `Closed / Manual-retest Passed`; the final six-step manual
+  retest, repair provenance, reviews, and recorded boundaries are in the
+  [STAB-011 evidence](../../marktext-feature-development-2026-08/handoff/evidence/stab-011-details-floating-edit-2026-08-30.md).
+- Root cause / repair boundary: the existing `.mu-preview-tools li.item.edit`
+  route called `setCursor`, bypassing `HTMLBlock.enterSourceEditing()`. Commit
+  `12e26548eac4ff0980b6527e738d4b848c07a78b` changes only that HTML route and
+  its Desktop regression; MathBlock and outside-paragraph exit behavior are not
+  changed. Integration cherry-pick: `57d2ae4d6435b157d3e82c5abc094167d5edb3c0`.
+- Acceptance / records: the regenerated final artifact passed Desktop Details
+  10/10 and the 2026-08-30 fresh-profile manual 6/6. Screen-reader/PDF, the full
+  manual matrix, T12, and final Review/Acceptance remain unclaimed.
+
 ## STAB-R001 — Move bootstrap Untitled / final-tab replacement
 
 - Severity / rationale: resolved behavior; the required current-artifact manual

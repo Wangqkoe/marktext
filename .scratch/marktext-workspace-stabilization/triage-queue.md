@@ -1,6 +1,6 @@
 # Stabilization triage queue
 
-- Closed: STAB-001, STAB-002, STAB-004, STAB-006, STAB-008, STAB-010, and STAB-R001.
+- Closed: STAB-001, STAB-002, STAB-004, STAB-006, STAB-008, STAB-010, STAB-011, and STAB-R001.
 - Closed incorrect test chain: STAB-P001; `File > Move To` is a filesystem move,
   not a window Move.
 - Deferred: STAB-005 is P2.
@@ -11,10 +11,13 @@
 - STAB-007 is `Resolved / Manual-retest Passed` for the complete same-hash packaged save-path regression: both untitled Ctrl+S and File > Save reached native Save As and wrote/rebound; Cancel retained dirty content without a target, double Ctrl+S produced one dialog/one write, and already-bound Save wrote without a dialog; CrashDraft tombstones and normal `clean-shutdown.json` were observed; see [manual retest evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-007-sender-save-as-2026-08-29.md). This is not a full manual-matrix pass: Move/close/open/details/accessibility/PDF, T12, final Review, and Acceptance remain Pending/Untested.
 - P2 record from this round: STAB-009 — `File > Move To` moves data safely but leaves the visible title stale.
 - STAB-010 is `Closed / Manual-retest Passed`; exact repair, 2/2 regression, 5/5 native-open suite, 6/6 last-tab close, 48/48 runtime, artifact, and manual evidence are in the [STAB-010 record](../marktext-feature-development-2026-08/handoff/evidence/stab-010-close-reopen-2026-08-29.md).
+- STAB-011 is `Closed / Manual-retest Passed` for the Details floating HTML edit
+  entry. The repaired source/Preview/Escape path passed the final fresh-profile
+  6/6 manual retest; see the [STAB-011 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-011-details-floating-edit-2026-08-30.md).
 
 Accept and normalize further user reports.
 
-Active P1: **0**. STAB-006, STAB-007, STAB-008, and STAB-010 have passed scoped packaged/manual evidence; the full same-artifact manual matrix, T12, final Review/Acceptance, screen-reader, or PDF visual inspection remain incomplete.
+Active P1: **0**. STAB-006, STAB-007, STAB-008, STAB-010, and STAB-011 have passed scoped packaged/manual evidence; the full same-artifact manual matrix, T12, final Review/Acceptance, screen-reader, or PDF visual inspection remain incomplete.
 
 For every new P0/P1 report, `diagnosing-bugs` requires the same artifact, a
 unique profile, the accurate entry method, timestamp, PID/window/logical-tab
