@@ -236,6 +236,14 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 - Status / owner: `New` record; no repair in this task.
 - Environment / evidence: current unpacked artifact; fresh profile `marktext-final-move-to-d4a3de72b8654fda92c918db30ce1c63`; target `C:\Users\1407\AppData\Local\Temp\marktext-final-move-to-target-6512.md` SHA-256 `C17E8DF678CCE8D153E62900FBD858F95CB615BA7E871848313486AE06233769`.
 
+## STAB-010 — closing a saved workspace tab leaves main opened-file registry stale
+
+- Severity / rationale: P1 confirmed; after a saved tab is closed, reopening the same unchanged path through File > Open can no-op, leaving a supported document workflow unavailable.
+- Status / owner: `New / P1`; diagnostic evidence and a test-first implementation contract are recorded in the [STAB-010 evidence](../../marktext-feature-development-2026-08/handoff/evidence/stab-010-close-reopen-2026-08-29.md).
+- Reproduction: formal artifact/profile opened `split-final.md`, created a New Tab, used tab-context `Split Right`, closed the right-pane sole saved-file tab and collapsed, then used Ctrl+O to select the same path; the file did not reappear. Fixture SHA-256 `C11D46FC7CD29394393102707821549DA2B25D2D03F592CA5F6590E5B695FB5A`.
+- Root cause boundary: `PaneEditorComposition.closeLegacyTab()` removes the document/view but omits existing `mt::window-tab-closed`; stale main `_openedFiles` then makes duplicate-path open switch to a deleted renderer tab. Split collapse is not the root cause, and last-tab window close is a distinct path.
+- Minimal repair / required regression: on an applied close only, capture canonical `fileKey` and send existing `mt::window-tab-closed(fileKey)` exactly once; clean, discard, and save-then-close apply, while cancel/save-failure/rejected close do not. Red-test the saved close→reopen path in `workspace-native-file-open.spec.ts`; preserve last-tab window close.
+
 ## STAB-R001 — Move bootstrap Untitled / final-tab replacement
 
 - Severity / rationale: resolved behavior; the required current-artifact manual

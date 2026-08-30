@@ -41,6 +41,13 @@ integration branch; `Passed` may be claimed only with all four.
 > export are automated evidence; screen-reader and PDF visual inspection, the
 > complete same-artifact manual matrix, T12, and final Acceptance remain pending.
 
+> **STAB-010:** `New / P1`; the saved-tab close→same-path File/Open reopen
+> workflow is blocked. See the [single evidence record](evidence/stab-010-close-reopen-2026-08-29.md).
+> This blocks the related Open/Split manual gate until a red regression and
+> minimal close-notification repair are completed; T07 physical drag remains
+> `Passed` for its supported shape, while final matrix/T12/Acceptance remain
+> pending.
+
 | ID | Requirement / evidence owner | Exact automated command / environment | Manual verification | Gate |
 | --- | --- | --- | --- | --- |
 | A01 | WorkspaceController runtime invariants, immutable projection, lease rejection — T01/T02 | `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts` (Node/Vitest) | two panes: edit/switch/focus without leakage | required |
@@ -62,7 +69,7 @@ passed; no A10 result is marked Passed before the specified commands and manual
 checks run on the integration branch.
 | A11 | details preview/native semantics/theme/motion — T09/T10 | `pnpm -C packages/muya exec vitest run src/block/commonMark/html/__tests__/detailsDisclosure.spec.ts`; `pnpm -C packages/muya/e2e exec playwright test tests/options/details-disclosure.spec.ts`; `pnpm -C packages/desktop exec playwright test test/e2e/details-disclosure.spec.ts` | mouse/focus/Enter/Space/light/dark/screen-reader | required |
 | A12 | details round-trip/sanitize/export — T09/T10 | `pnpm -C packages/muya exec vitest run src/state/__tests__/detailsRoundTrip.spec.ts src/state/__tests__/renderToStaticHTML.spec.ts`; `pnpm -C packages/muya/e2e exec playwright test tests/security/details-sanitize.spec.ts` | inspect HTML/PDF: standard markup, no editor CSS | required |
-| A13 | cross-feature regression, default-off startup and two-source emergency recovery — T11 | `pnpm -C packages/desktop exec playwright test test/e2e/workspace-transfer.spec.ts test/e2e/workspace-details-composition.spec.ts test/e2e/workspace-startup-policy.spec.ts`; `pnpm -C packages/desktop typecheck`; `pnpm lint` | tabs/split/Move/Open/details plus CrashDraft kill recovery, corrupt-latest warning/disk-conflict copy, MoveRecovery, explicit-only file, clean no-restore, dirty-exit decision and retained legacy data | required |
+| A13 | cross-feature regression, default-off startup and two-source emergency recovery — T11 | `pnpm -C packages/desktop exec playwright test test/e2e/workspace-transfer.spec.ts test/e2e/workspace-details-composition.spec.ts test/e2e/workspace-startup-policy.spec.ts`; `pnpm -C packages/desktop typecheck`; `pnpm lint` | tabs/split/Move/Open/details plus CrashDraft kill recovery, corrupt-latest warning/disk-conflict copy, MoveRecovery, explicit-only file, clean no-restore, dirty-exit decision and retained legacy data; same-path close→reopen is blocked by STAB-010 | required |
 | A14 | clean Windows-build readiness evidence — T12 | `pnpm install --frozen-lockfile`; `pnpm build:win:x64` (clean Windows builder) | trial records default-off clean/explicit startup, no inert setting, clean/dirty exit outcomes, CrashDraft durable-failure fallback/conflict copy and Move recovery, legacy-data retention, display/scale/motion and defects; coordinator—not T12—requests Acceptance | readiness |
 
 ## T07 native external-release execution evidence — 2026-08-26
