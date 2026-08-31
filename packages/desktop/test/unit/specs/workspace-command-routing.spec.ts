@@ -58,7 +58,7 @@ describe('Workspace command routing', () => {
     expect(controller.getProjection().panes[0]?.activeViewId).toBe(activeViewId)
   })
 
-  it('sends save through the opaque T04b request and accepts only its current durable ACK', async () => {
+  it('sends save through the opaque T04b request and accepts only its current durable ACK', async() => {
     const controller = createWorkspaceRuntime([{ fileKey: '/note.md', markdown: 'one' }])
     const binding = await controller.bindPaneEditor('left', new MemoryAdapter())
     const lease = binding.getLease()
@@ -117,7 +117,7 @@ describe('Workspace command routing', () => {
     expect(controller.getProjection().panes[0]?.tabs[0]?.dirty).toBe(true)
   })
 
-  it('routes options and rename through controller commands without mutating projection data', async () => {
+  it('routes options and rename through controller commands without mutating projection data', async() => {
     const controller = createWorkspaceRuntime([{ fileKey: '/note.md', markdown: 'one' }])
     expect(
       (await controller.execute({ kind: 'set-encoding', encoding: { encoding: 'gbk', isBom: false } }))

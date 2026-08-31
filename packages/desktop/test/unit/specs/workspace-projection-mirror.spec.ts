@@ -17,7 +17,7 @@ import { useEditorStore } from '@/store/editor'
 
 describe('WorkspaceProjectionMirror', () => {
   beforeEach(() => setActivePinia(createPinia()))
-  it('accepts controller subscription data only and detaches on disposal', async () => {
+  it('accepts controller subscription data only and detaches on disposal', async() => {
     const controller = createWorkspaceRuntime([{ markdown: 'private markdown', title: 'note' }])
     const mirror = createWorkspaceProjectionMirror(controller)
     const initial = mirror.getSnapshot()
@@ -38,7 +38,7 @@ describe('WorkspaceProjectionMirror', () => {
     expect(mirror.getSnapshot()).toBe(beforeDispose)
   })
 
-  it('drives the Pinia compatibility facade one way from its frozen projection', async () => {
+  it('drives the Pinia compatibility facade one way from its frozen projection', async() => {
     const controller = createWorkspaceRuntime([
       { documentId: 'note', markdown: 'controller-only', title: 'note.md', fileKey: '/note.md' }
     ])
@@ -104,7 +104,7 @@ describe('WorkspaceProjectionMirror', () => {
     store.DETACH_WORKSPACE_COMPOSITION()
   })
 
-  it('keeps nested controller facade values independent and deeply frozen', async () => {
+  it('keeps nested controller facade values independent and deeply frozen', async() => {
     const controller = createWorkspaceRuntime([{ markdown: 'one', title: 'note' }])
     const store = useEditorStore()
     store.ATTACH_WORKSPACE_FACADE(controller)
