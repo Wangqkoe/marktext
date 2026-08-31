@@ -26,36 +26,43 @@ integration branch; `Passed` may be claimed only with all four.
 > entries (Ctrl+S and File > Save) reached native Save As, and the same artifact
 > also passed Cancel, double Ctrl+S, and already-bound Save; see the [manual
 > retest evidence](evidence/stab-007-sender-save-as-2026-08-29.md). This marks
-> the full STAB-007 save-path regression `Resolved / Manual-retest Passed`. No complete Windows/manual matrix,
-> Move/close/open/details/accessibility/PDF, T12, final Review, or Acceptance is
-> claimed; those remain Untested/Pending.
+> the full STAB-007 save-path regression `Resolved / Manual-retest Passed`. At
+> that 2026-08-29 checkpoint, no complete Windows/manual matrix,
+> Move/close/open/details/accessibility/PDF, T12, final Review, or Acceptance was
+> claimed; those items were then Untested/Pending.
 
 > **STAB-006:** `Closed / Manual-retest Passed`; see the [single evidence
 > record](evidence/stab-006-close-then-move-2026-08-29.md). Its separate T07
 > physical drag-out gate passed for the supported single-primary shape; the
 > complete same-artifact manual matrix, unsupported shapes, T12, and final
-> Acceptance remain pending, so the overall gate is not `Passed`.
+> Acceptance were still pending at that checkpoint, so that historical overall
+> gate was not `Passed`.
 
 > **STAB-008:** `Closed / Manual-retest Passed`; see the [single evidence
 > record](evidence/stab-008-details-2026-08-29.md). Source round-trip/static
 > export are automated evidence; screen-reader and PDF visual inspection, the
-> complete same-artifact manual matrix, T12, and final Acceptance remain pending.
+> complete same-artifact manual matrix, T12, and final Acceptance were still
+> pending at that checkpoint.
 
 > **STAB-010:** `Closed / Manual-retest Passed`; see the [single evidence
 > record](evidence/stab-010-close-reopen-2026-08-29.md). The close→same-path
 > File/Open workflow passed automated and formal manual verification; T07
-> physical drag remains `Passed` for its supported shape, while final
-> matrix/T12/Acceptance remain pending.
+> physical drag was `Passed` for its supported shape, while final
+> matrix/T12/Acceptance were pending at that checkpoint.
 
-> **Final closeout (2026-08-30):** T12 is `Completed / Accepted`; the independent
-> final audit passed with 0 blockers and active P0/P1 is 0. See [final acceptance
-> evidence](evidence/t12-final-acceptance-2026-08-30.md). The acceptance uses one
-> strict, narrow exception to same-artifact inheritance: only a fixed,
-> independently reviewed local product delta may inherit evidence for untouched
-> paths, and only after target-package provenance proves the new code is present
-> and every affected gate is rerun on that target package. STAB-011 satisfies this
-> exception. Existing `Untested` rows, including screen-reader/PDF and other
-> unclaimed manual environments, remain `Untested`; they are not blanket passes.
+> **Final closeout (2026-08-30):** T12 is `Completed / Accepted` on the final
+> Windows candidate built from
+> `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`. Packaged automatic black-box
+> startup/recovery/Discard/exit passed, the user completed the same-package native
+> recovery/Save-Don't Save-Cancel trial, and coordination-machine inspection
+> confirmed the durable records and zero exact candidate/profile processes.
+> Independent audit task `01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS`
+> with 0 blockers. See [final acceptance
+> evidence](evidence/t12-final-acceptance-2026-08-30.md). The older `57d2ae4d`
+> closeout and its narrow STAB-011 inheritance exception remain historical
+> evidence, not the current candidate identity. Existing `Untested` rows,
+> including screen-reader/PDF and other unclaimed manual environments, remain
+> `Untested`; they are not blanket passes.
 
 | ID | Requirement / evidence owner | Exact automated command / environment | Manual verification | Gate |
 | --- | --- | --- | --- | --- |
@@ -92,7 +99,7 @@ checks run on the integration branch.
 | Windows package smoke | Passed | Diagnostic rerun at `f8179476e449fd40d975300455594593fd065d3f` used the frozen lockfile, Electron rebuild, Electron-Vite and `pnpm build:win:x64`; the final bounded run reached `__BUILD_EXIT__=0` after the long silent asar/ZIP/NSIS phases. The ZIP contains `resources/app.asar.unpacked/node_modules/uiohook-napi/bin/win32-x64-146/uiohook-napi.node`; its SHA-256 is `99106A650B256E174941FA446A489F25C903C7BA24E20959322EEC5B0E4A2727`. |
 | Windows physical release and remote/assistive smoke | Passed (supported shape) / Unavailable (remote/assistive, multi-display, mixed-DPI) | [T07 physical drag-out evidence](evidence/t07-physical-drag-out-2026-08-29.md) records outside-up, inside-up/reorder, re-entry, and Escape on Windows 11 single-primary 2560×1440 / 96-DPI. Blur/timeout are automatic-contract coverage; unsupported shapes retain the external-drag-disabled/Move-menu fallback. |
 
-## T12 Windows trial readiness evidence — 2026-08-27
+## T12 Windows trial readiness and final closeout evidence
 
 See [T12 Windows trial readiness evidence](evidence/t12-windows-trial-readiness-2026-08-27.md).
 At `e5d1a85ab96cffa58c77696006ad8a2a2753f347`, a Windows 11 x64
@@ -107,8 +114,8 @@ the identical retry succeeded without source or lockfile changes.
 | Evidence | Status | Exact result / remaining condition |
 | --- | --- | --- |
 | A14 automated clean Windows-build readiness | Passed | `pnpm install --frozen-lockfile` passed on retry; `pnpm build:win:x64` exit 0 on Windows 11 Pro 10.0.26200, Node 24.18.0, pnpm 10.33.4. |
-| A14 manual Windows trial | Passed (accepted supported/local scope) | Final audit accepted the recorded core manual evidence: default/explicit startup and Ctrl+O, final-tab/window and multiwindow close, Save As, Move/Open/Split, and Details. From `4669eeec` to `57d2ae4d`, untouched paths inherit only under the strict recorded local-delta/provenance exception; affected Details reran on the final package and passed 6/6. This does not claim a complete same-package matrix or every environment. |
-| T12 final acceptance | Passed / Accepted | [Final acceptance evidence](evidence/t12-final-acceptance-2026-08-30.md): independent final audit 0 blockers, active P0/P1 0, and user confirmation of the final `57d2ae4d` affected-Details manual 6/6. Local-only; no publication. |
+| A14 manual Windows trial | Passed (accepted supported/local scope) | The final `f6dcf9db` candidate passed packaged automatic no-target startup and CrashDraft recovery/Discard/exit. On the same package, the user confirmed one fresh window, recovered marker after exact termination/restart, native Save/Don't Save/Cancel, Cancel retention, Don't Save removal, final `Untitled-1` close, no replacement tab/extra window, and full process exit. Earlier fixed-provenance Windows evidence for Ctrl+O, Save As, Move/Open/Split, close, and Details remains recorded in the linked stabilization evidence; this is not a claim for every environment. |
+| T12 final acceptance | Passed / Accepted | [Final acceptance evidence](evidence/t12-final-acceptance-2026-08-30.md): candidate source `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`; independent final audit task `01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS`, 0 blockers, after the same-package facts were recorded. Local-only; no publication. |
 | Supplementary unclaimed environments (not an accepted A14/final gate) | Untested / Unavailable records | Screen-reader, PDF visual, real power-loss, remote/assistive, and mixed-DPI/multi-display physical operation remain unclaimed. They are explicit final-audit non-blocking boundaries, not Passed results; supported fallback/automation evidence remains recorded above and in the linked evidence. |
 
 ## T03 integration evidence — 2026-08-25
@@ -237,8 +244,9 @@ at merge `dde3f49a89877d68dc07171b62bb19eb87002217`, candidate final HEAD
 | Independent Spec review | Passed | Third-round independent `gpt-5.6-terra` / `high`; 0 blockers. |
 | Diff/worktree/process hygiene | Passed | `git diff --check` passed; clean worktree; no residual Electron/Node processes. |
 
-Manual power-loss/Windows trial evidence is not claimed. A11/A12, full
-repository `pnpm lint`, and final T12 acceptance remain pending. Scoped ESLint
+Manual power-loss/Windows trial evidence was not claimed by this T06 gate.
+A11/A12, full repository `pnpm lint`, and final T12 acceptance were pending at
+that checkpoint. Scoped ESLint
 has checkpoint-preceding historical source-style errors as a non-blocking record
 item; new lines have no hard-lint errors. The transfer-fence/move-action
 assembly-surface range remains a non-blocking record item.

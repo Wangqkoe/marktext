@@ -16,11 +16,12 @@ No-target CrashDraft startup now creates exactly one recovery editor window.
 Explicit launch files, normal startup with no recovery, and Controller/persistence
 boundaries are unchanged.
 
-This closes the P1's repair and isolated manual-retest ticket gate. It does not
-complete the whole manual matrix or make T12 currently Accepted: the old final
-artifact is invalid as the current candidate, and a package must be generated
-from `85e5b61e` (or a later documentation-only descendant) for same-package
-final-candidate regression and acceptance.
+This closed the P1's repair and isolated manual-retest ticket gate. At the time of
+this ticket record, it did not complete the whole manual matrix or make T12
+Accepted: the old final artifact was invalid and a later integration candidate
+still had to pass same-package final regression. That condition was subsequently
+satisfied by the `f6dcf9db` package; current disposition and evidence are recorded
+in [T12 final acceptance evidence](t12-final-acceptance-2026-08-30.md).
 
 ## Old artifact observation
 
@@ -96,11 +97,11 @@ The manually used Windows `win-unpacked` artifact was produced in worktree
 - `marktext.exe`: `79DC49D25BCE2C3A40FB0F3085394C6794BC2BCAC8DB406FB79828EE6328D803`.
 - `resources\app.asar`: `6F7CBBC56562C28924C45A4ADB19BA0BBE67BEC07D0A6D04FF32AD55107DBF38`.
 
-Subsequent test-only amendments do not change the production artifact. However,
-this package is not an as-yet-generated final-candidate package from integration
-HEAD. It is ticket-level evidence only and must not be represented as a new T12
-acceptance, a complete manual-matrix pass, or evidence for untested screen-reader,
-PDF, real-power-loss, or mixed-DPI paths.
+Subsequent test-only amendments do not change the production artifact. This
+package was ticket-level evidence only and is not the later accepted `f6dcf9db`
+final candidate. It must not be represented as the T12 candidate, a complete
+manual-matrix pass, or evidence for untested screen-reader, PDF, real-power-loss,
+or mixed-DPI paths.
 
 ## Related ledgers and gates
 

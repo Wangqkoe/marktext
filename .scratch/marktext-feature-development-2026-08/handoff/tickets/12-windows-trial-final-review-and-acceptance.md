@@ -4,19 +4,27 @@ Wave: 10 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T11
 
 ## Result
 
-**Reopened — final candidate generation and same-package regression pending
-(2026-08-30).** `Completed / Accepted` remains the historical result for the
-`57d2ae4d` artifact, but it is not the current T12 disposition. STAB-012 newly
-reported that the old final package creates a recovery window plus an ordinary
-window after a no-target CrashDraft restart; the repair is integrated at
-`85e5b61e` and has ticket-level manual evidence, but that package is not a new
-integration-HEAD final candidate. The next candidate must be generated from
-`85e5b61e` (or a later documentation-only descendant) and pass the final
-same-package gates before a new final review or Acceptance. See [T12 final
+**Completed / Accepted — final candidate and same-package regression passed
+(2026-08-30).** The accepted Windows candidate was built from source HEAD
+`f6dcf9dbb949a972c4d3609294b858ab2d46b1d0` at
+`C:\Users\1407\.codex\worktrees\dbc4\Marktext\dist\t12-final-f6dcf9db\win-unpacked`.
+Its packaged black-box gate covered normal no-target startup/exit and the
+CrashDraft checkpoint → exact forced termination → no-target recovery → Discard
+→ tombstone → exact-PID exit path. The user then completed the same-package
+native recovery/close trial: one window, recovered marker, real
+Save/Don't Save/Cancel, Cancel retention, Don't Save discard, and full process
+exit. Coordination-machine inspection matched draft revisions 2–7, the commit
+record, the revision-7 discarded tombstone, `clean-shutdown=true`, and zero exact
+candidate/profile processes. Independent final audit task
+`01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS` with 0 blockers and found
+the recorded same-package evidence sufficient to close T12. See [T12 final
 acceptance evidence](../evidence/t12-final-acceptance-2026-08-30.md) and
 [STAB-012 evidence](../evidence/stab-012-recovery-startup-close-2026-08-30.md).
-The historical readiness evidence below remains evidence for its recorded scope;
-it is not rewritten as a blanket manual-matrix pass.
+
+The prior `57d2ae4d` acceptance and subsequent STAB-012 reopening remain
+historical evidence only. They are not the identity or disposition of the final
+accepted candidate, and no untested platform or assistive-technology row is
+converted to `Passed`.
 
 The coverage list below is retained as the historical T12 input. The final audit
 disposition separates the accepted supported/local A14 gate from supplementary
@@ -55,7 +63,9 @@ permits. Do not treat ordinary workspace state as recovery evidence.
 
 ## Acceptance and handoff
 
-The historical final audit/Acceptance disposition and the reopening condition are
-recorded in the linked final evidence. It preserves `Untested` labels for
-unclaimed environments and does not convert all matrix rows to `Passed`. This
-ticket's changes remain evidence/matrix only, with no push.
+The current final audit/Acceptance disposition, exact candidate identity,
+same-package automatic and manual evidence, and historical reopening lineage are
+recorded in the linked final evidence. Screen-reader, PDF visual, real power-loss,
+remote/assistive, and mixed-DPI/multi-display physical operation retain their
+recorded `Untested`/`Unavailable` boundaries. This ticket changes evidence and
+status documents only; it does not authorize publication or a push.

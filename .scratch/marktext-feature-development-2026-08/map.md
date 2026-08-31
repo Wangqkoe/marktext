@@ -1,7 +1,7 @@
 # MarkText workspace feature wayfinder
 
 Label: `wayfinder:map`
-Status: `destination achieved — implementation handoff`
+Status: `destination achieved — V1 locally implemented and accepted`
 
 ## Destination
 
@@ -47,22 +47,22 @@ is not the current frontier.
    save/options command migration; leave R3's dual-surface/E2E/fallback removal
    to its later integration stage.
 
-## Current implementation frontier — 2026-08-25
+## Current implementation frontier — 2026-08-30
 
-T03 is integrated at `1aa17aac6da3ef23610067b7f264bb38a835da4e`; its verified
-evidence is recorded in the [T03 evidence report](handoff/evidence/t03-integration-2026-08-25.md).
-T03 does not complete V1. T10 is integrated/reviewed at
-`344dbff17a894751dc61ddbf750c711d3b855beb`. T05 is integrated/reviewed at
-`3d6790cf5397dfde9b8dafbd92c0f63d3cba0a6a`; its verified evidence is recorded
-in the [T05 evidence report](handoff/evidence/t05-integration-2026-08-25.md).
-T02b's final production gate is integrated, independently reviewed, and accepted
-at `b2cc0a784bd539a598e7db456b1509d87dbaf36f`; its evidence is recorded in the
-[T02b evidence report](handoff/evidence/t02b-integration-2026-08-26.md). The
-T02b/T03/T04/T04b/T05 prerequisite chain is therefore satisfied. T06 is locally
-integrated and independently reviewed / Passed for the automated scope; see the
-[T06 integration evidence](handoff/evidence/t06-integration-2026-08-26.md).
-T11 is unblocked to proceed, while T12 remains behind T11 and manual acceptance.
-The remaining V1 frontier is therefore not complete.
+The V1 implementation frontier is complete locally. The prerequisite and
+integration chain through T11 remains recorded in the ticket/evidence history.
+T12 is `Completed / Accepted` on the Windows candidate built from
+`f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`; its packaged automatic black-box and
+same-package user recovery/close gates passed, and independent final audit task
+`01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS` with 0 blockers. The exact
+candidate identity and observer-separated evidence are in the [T12 final
+acceptance report](handoff/evidence/t12-final-acceptance-2026-08-30.md).
+
+Normal workspace restore remains a deferred, optional future adapter behind a
+default-off setting. It was not required for, implemented by, or implied by this
+V1 closeout. Supplementary screen-reader, PDF visual, real-power-loss,
+remote/assistive, and mixed-DPI/multi-display environments retain their recorded
+`Untested`/`Unavailable` boundaries.
 
 ## T02b final production gate — 2026-08-26
 
@@ -148,10 +148,10 @@ not change T06's ready-to-start status or advance downstream tickets.
   and independent dual review passed; see the [T05 evidence report](handoff/evidence/t05-integration-2026-08-25.md).
 - T02b is integrated/reviewed/accepted at `b2cc0a784bd539a598e7db456b1509d87dbaf36f`;
   see the [final production gate evidence](handoff/evidence/t02b-integration-2026-08-26.md).
-- T06 is locally integrated and independently reviewed / Passed for the automated
+- T06 was locally integrated and independently reviewed / Passed for the automated
   scope at merge `dde3f49a89877d68dc07171b62bb19eb87002217`, candidate final HEAD
   `0343cb5f56f537584d60ea219268ea04c13292c5`, and fixed review point
   `86cf7b8e962bf94791efeba29e9ba8ccbcefa02f`. A07 Electron and A08 automation
-  are Passed; manual power-loss/Windows trial, A11/A12, full `pnpm lint`, and
-  final T12 acceptance remain unclaimed. T11 is unblocked; T12 remains dependent
-  on T11 and manual acceptance.
+  were Passed; manual power-loss/Windows trial, A11/A12, full `pnpm lint`, and
+  final T12 acceptance were unclaimed at that checkpoint. T11 was then unblocked,
+  while T12 still depended on T11 and manual acceptance.
