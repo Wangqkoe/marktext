@@ -70,7 +70,7 @@ integration branch; `Passed` may be claimed only with all four.
 > with 0 blockers. See [final acceptance
 > evidence](evidence/t12-final-acceptance-2026-08-30.md). The older `57d2ae4d`
 > closeout and its narrow STAB-011 inheritance exception remain historical
-> evidence, not the current candidate identity. Existing `Untested` rows,
+> evidence, not the 2026-08-31 package identity. Existing `Untested` rows,
 > including screen-reader/PDF and other unclaimed manual environments, remain
 > `Untested`; they are not blanket passes.
 

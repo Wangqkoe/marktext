@@ -114,14 +114,16 @@ were removed after the run.
 ## Remaining Acceptance boundary
 
 This record does not mark the entire V1 project or final release Accepted. Final
-user Acceptance remains pending for at least these physical Windows workflows on
-the exact package above:
+user Acceptance remains pending for exactly these two required physical Windows
+workflows on the exact package above:
 
 - physical right-tab drag into the split target;
 - physical tab drag out of the window for cross-window Move.
 
-The remaining screen-reader, PDF visual, real power-loss, remote/assistive, and
+### Non-blocking records / future manual coverage
+
+The screen-reader, PDF visual, real power-loss/kill, remote/assistive, and
 mixed-DPI/multi-display rows retain their existing `Untested`/`Unavailable`
-status. They are explicit record boundaries: non-blocking for code integration,
-but blocking for final user Acceptance/project completion. Existing 63 lint warnings
-and the missing `CONTEXT.md` remain record items.
+status. These are non-blocking records and future/manual coverage; they do not
+block code integration or final user Acceptance/project completion. Existing 63
+lint warnings and the missing `CONTEXT.md` remain record items.

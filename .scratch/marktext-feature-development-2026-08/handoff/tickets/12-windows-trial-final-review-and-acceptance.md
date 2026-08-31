@@ -74,9 +74,12 @@ permits. Do not treat ordinary workspace state as recovery evidence.
 
 ## Acceptance and handoff
 
-The current final audit/Acceptance disposition, exact candidate identity,
-same-package automatic and manual evidence, and historical reopening lineage are
-recorded in the linked final evidence. Screen-reader, PDF visual, real power-loss,
-remote/assistive, and mixed-DPI/multi-display physical operation retain their
-recorded `Untested`/`Unavailable` boundaries. This ticket changes evidence and
-status documents only; it does not authorize publication or a push.
+The linked final evidence records the 2026-08-31 final audit/Acceptance
+disposition, exact current package identity, same-package automatic and manual
+evidence, and historical reopening lineage. Only the physical right-tab split
+drag and drag-out-of-window Move remain required manual blockers: they do not
+block code integration, but they block final user Acceptance/project completion.
+Screen-reader, PDF visual, real power-loss, remote/assistive, and
+mixed-DPI/multi-display physical operation remain `Untested`/`Unavailable`
+non-blocking records for future/manual coverage. This ticket changes evidence
+and status documents only; it does not authorize publication or a push.

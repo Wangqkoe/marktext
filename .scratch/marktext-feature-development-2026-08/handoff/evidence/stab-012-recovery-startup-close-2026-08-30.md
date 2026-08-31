@@ -100,7 +100,8 @@ The manually used Windows `win-unpacked` artifact was produced in worktree
 
 Subsequent test-only amendments do not change the production artifact. This
 package was ticket-level evidence only and is not the later accepted `f6dcf9db`
-final candidate. It must not be represented as the T12 candidate, a complete
+final candidate; that candidate reference is historical provenance only. It must
+not be represented as the T12 candidate, a complete
 manual-matrix pass, or evidence for untested screen-reader, PDF, real-power-loss,
 or mixed-DPI paths.
 

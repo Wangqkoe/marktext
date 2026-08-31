@@ -9,10 +9,12 @@ This is the execution order for the tickets; normative behavior remains in the
 The implementation frontier was historically recorded as `Closed / Accepted`
 for the 2026-08-30 stabilization checkpoint; that closeout is superseded by the
 2026-08-31 evidence record below.
-The independent final audit passed with 0 blockers, active P0/P1 is 0, and T12 is
-accepted on the final evidence at [T12 final acceptance](evidence/t12-final-acceptance-2026-08-30.md).
-The final product head is `57d2ae4d6435b157d3e82c5abc094167d5edb3c0`; later
-audited integration commits are documentation only.
+The independent final audit passed with 0 blockers and active P0/P1 was 0 at
+that checkpoint. T12 was accepted then on the [historical T12 final acceptance
+record](evidence/t12-final-acceptance-2026-08-30.md), which is superseded by the
+2026-08-31 evidence. The then-final product head was
+`57d2ae4d6435b157d3e82c5abc094167d5edb3c0`; later audited integration commits
+are documentation only.
 
 Deferred boundaries remain visible rather than reopened: STAB-005 and STAB-009
 are P2; screen-reader, PDF visual, real power-loss, remote/assistive, and

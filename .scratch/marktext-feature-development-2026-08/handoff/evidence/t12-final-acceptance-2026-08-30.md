@@ -159,20 +159,20 @@ clean at `6fdb3ac3`; its product head was
 `57d2ae4d6435b157d3e82c5abc094167d5edb3c0`, and later commits were documentation
 only. Active P0/P1 was 0 at that time.
 
-STAB-012 subsequently invalidated that old package as the current final
-candidate: no-target CrashDraft restart created a recovery window plus an extra
+STAB-012 subsequently invalidated that old package as the then-final candidate
+for that historical checkpoint: no-target CrashDraft restart created a recovery window plus an extra
 ordinary window, and the recovered close path required replay. Repair
 `810db72d39b2ce29db9d3dfbecfca26be6e9a0c5` was integrated at
 `85e5b61eaa18f6971338b5e1b2bdb8bb6bc57805`. Its ticket-scope evidence remains
-in [STAB-012 evidence](stab-012-recovery-startup-close-2026-08-30.md). The later
-The then-accepted `f6dcf9db` candidate and its 2026-08-30 evidence superseded
+in [STAB-012 evidence](stab-012-recovery-startup-close-2026-08-30.md). The
+then-accepted `f6dcf9db` candidate and its 2026-08-30 evidence superseded
 the reopening condition at that historical checkpoint; they are superseded by
 the 2026-08-31 evidence for current status.
 
 ## Final artifact and evidence index
 
 The formerly effective Windows unpacked artifact was the STAB-011 artifact. It is
-retained only as historical evidence and is not the current accepted candidate:
+retained only as historical evidence and was not the later accepted candidate;
 
 - Path: `C:\Users\1407\.codex\worktrees\98fa\Marktext\dist\t12-final-57d2ae4d6435b157d3e82c5abc094167d5edb3c0\win-unpacked`
 - Contents: 131 files, 476,433,733 bytes.
@@ -222,7 +222,7 @@ multi-display physical operation. V1 disables unsupported external drag there an
 retains menu Move. STAB-005 and STAB-009 remain deferred/P2 records. Existing
 lint warnings and the workflow's specific `out`/`asar` wording are P2 records.
 
-The historical audit and the current independent final audit classify these as
+The historical audit and the independent 2026-08-31 final audit classify these as
 non-blocking records. STAB-012 invalidated the old artifact, but the then-accepted
 `f6dcf9db` candidate passed the affected same-package recovery/close gate at the
 2026-08-30 checkpoint; this is historical evidence superseded by 2026-08-31.

@@ -273,7 +273,7 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   automatic and user-manual recovery/close gates. Independent final audit task
   `01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS` with 0 blockers; T12
   was then `Completed / Accepted`. The old `57d2ae4d` and `f6dcf9db` artifacts
-  are historical; neither is the current candidate.
+  are historical; neither is the 2026-08-31 current package.
 - Old-artifact observation / boundary: the report concerns the former final
   package accepted at `57d2ae4d`. Its no-target CrashDraft recovery produced two
   windows. The user also observed that its Recovered Draft could disappear or
