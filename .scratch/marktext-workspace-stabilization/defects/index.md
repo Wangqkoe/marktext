@@ -327,6 +327,37 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   record](../../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md)
   and [T12 evidence](../../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
 
+## STAB-013 — right-side split drag final evidence
+
+- Severity / rationale: P1 candidate resolved for the automated supported path;
+  no current product failure is established.
+- Status / owner: `Integrated / Standards PASS / Spec PASS`; final human Windows
+  physical right-tab drag remains `Manual-retest`/Acceptance pending.
+- Evidence: final workspace package automation passed source-tab removal, exactly
+  one active/focused tab per pane, and right-pane close collapse to the original
+  unsplit tab. Physical drag is not treated as blocker or falsely marked Passed.
+- Related evidence: [final workspace evidence](../../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
+
+## STAB-014 — Recovered Draft close safety
+
+- Severity / rationale: P1 candidate resolved; no current data-loss failure is
+  established in the tested recovery/close paths.
+- Status / owner: `Integrated / Standards PASS / Spec PASS`; whitespace-only
+  Cancel, Don't Save, tombstone, and restart boundaries passed automatically.
+- Evidence: startup-policy recovery suite passed Save/Don't Save/Cancel, dirty
+  recovery retention/disposal, durable tombstone and final-window exit behavior.
+- Related evidence: [final workspace evidence](../../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
+
+## STAB-015 — startup/recovery/second-instance policy
+
+- Severity / rationale: P1 candidate resolved for the tested Windows package path.
+- Status / owner: `Integrated / Standards PASS / Spec PASS`; packaged R1–R5 all
+  passed. Final user Acceptance remains pending for physical drag boundaries.
+- Provenance: package built from production `e223b0e3dd554b11a730f675eee2834961412d17`;
+  test-only lint fix `82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09` is recorded but is
+  not package provenance.
+- Related evidence: [final workspace evidence](../../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
+
 ## STAB-R001 — Move bootstrap Untitled / final-tab replacement
 
 - Severity / rationale: resolved behavior; the required current-artifact manual

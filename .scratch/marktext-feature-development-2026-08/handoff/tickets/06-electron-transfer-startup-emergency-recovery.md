@@ -74,6 +74,15 @@ snapshot load, codec, migration, or saved workspace restoration. Legacy normal
 snapshot data is ignored but retained byte-for-byte/no overwrite after a no-restore
 launch; test that explicitly.
 
+## Current evidence — 2026-08-31
+
+T06 automated scope is Passed with independent Standards and Spec PASS. The
+final related Electron suite is 64/64 and packaged startup/recovery/second-
+instance R1–R5 is Passed. The package was built from production commit
+`e223b0e3dd554b11a730f675eee2834961412d17`; integrated `82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09`
+is test-only lint formatting. Physical Windows drag split and drag-out Move
+remain final user Acceptance boundaries.
+
 ## Acceptance and handoff
 
 ### Integration status — 2026-08-26

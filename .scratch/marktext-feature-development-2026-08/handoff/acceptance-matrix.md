@@ -4,6 +4,14 @@ Requirement sources are the [V1 Spec](v1-spec.md) and its linked resolved Issues
 The evidence owner records command, environment, artifact/trace and status on the
 integration branch; `Passed` may be claimed only with all four.
 
+> **Current evidence snapshot (2026-08-31):** [Final workspace evidence](evidence/final-workspace-evidence-2026-08-31.md)
+> records production package provenance at `e223b0e3dd554b11a730f675eee2834961412d17`,
+> integrated test-only lint fix `82dd4cf0`, workspace unit 8 files / 123 tests,
+> related Electron E2E 64/64, `build:win` PASS, and scoped lint 0 errors / 63
+> warnings. STAB-013/014/015 Standards and Spec reviews are PASS. Final user
+> Acceptance remains pending for physical Windows right-tab split drag and
+> drag-out-of-window Move; these are manual boundaries, not blockers.
+
 > **Historical stabilization block (2026-08-27):** automated passing evidence did not
 > override packaged/manual failures. The final gate is `Failed/Blocked` until the
 > [stabilization ledger](../../marktext-workspace-stabilization/defects/index.md)

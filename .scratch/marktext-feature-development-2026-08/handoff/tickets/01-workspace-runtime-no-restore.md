@@ -40,6 +40,13 @@ boundary, and both-source Electron scanning.
 Do not resurrect normal restore from `codex/workspace-restore-option@7636e01a` or
 merge its Controller wholesale.
 
+## Current status — 2026-08-31
+
+T01's runtime/startup contract is integrated and covered by the final workspace
+unit gate (8 files / 123 tests passed). Standards and Spec review evidence is
+complete for the automated scope; normal workspace restore remains default-off
+and out of V1. Final user Acceptance is tracked at integration level.
+
 ## Acceptance and handoff
 
 Run `pnpm -C packages/desktop exec vitest run test/unit/specs/workspace-runtime.spec.ts test/unit/specs/workspace-startup-policy.spec.ts`,

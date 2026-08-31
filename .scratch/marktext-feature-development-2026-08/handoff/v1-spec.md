@@ -1,10 +1,16 @@
 # Workspace Features V1 — implementation specification
 
-Status: accepted handoff
+Status: accepted handoff; automated implementation evidence complete, final manual Acceptance pending
 
 This is the sole implementation specification for the Wayfinder destination. It
 links to the resolved Issues that own decisions; the map remains an index, not a
 second copy of this contract.
+
+Current evidence is maintained in [final workspace evidence](evidence/final-workspace-evidence-2026-08-31.md).
+It distinguishes production package provenance (`e223b0e3dd554b11a730f675eee2834961412d17`)
+from the test-only lint fix (`82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09`). Final
+user Acceptance remains required for physical Windows right-tab split drag and
+drag-out-of-window Move.
 
 ## Goal and non-goals
 

@@ -19,6 +19,17 @@ drag remains disabled by V1 while menu Move remains available. Existing lint and
 workflow-provenance wording records are P2. No product implementation ticket is
 open in this round.
 
+### Current evidence correction — 2026-08-31
+
+The historical `57d2ae4d`/`f6dcf9db` closeout above is retained for provenance;
+it is not the current package identity and does not blanket-accept the project.
+The current integrated HEAD is `82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09`, while
+the fresh package was built from production commit `e223b0e3dd554b11a730f675eee2834961412d17`.
+Workspace unit (8 files / 123 tests), related E2E (64/64), typecheck, build and
+scoped lint (0 errors / 63 warnings) pass; STAB-013/014/015 Standards and Spec
+reviews pass. Final manual Acceptance remains pending for physical Windows
+right-tab split drag and drag-out-of-window Move. See [final workspace evidence](evidence/final-workspace-evidence-2026-08-31.md).
+
 ## Stabilization frontier — 2026-08-27 (historical)
 
 `fdda9330` is frozen as the stabilization baseline. T12, final Review/Acceptance,

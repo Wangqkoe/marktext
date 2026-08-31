@@ -34,6 +34,14 @@ save/discard/cancel exit, clean-exit no restore, retained legacy normal snapshot
 data, and details source/preview/theme/export while panes exist. State
 which tests use deterministic adapters versus real Electron.
 
+## Current status — 2026-08-31
+
+T11 composed integration evidence is complete for the automated scope: workspace
+unit 8 files / 123 tests and related Electron E2E 64/64 passed; Standards and
+Spec review both PASS. No residual processes, profiles, or harness remain.
+Physical Windows right-tab split drag and drag-out-of-window Move remain pending
+manual user Acceptance.
+
 ## Acceptance and handoff
 
 Run `pnpm -C packages/desktop exec playwright test test/e2e/workspace-transfer.spec.ts test/e2e/workspace-details-composition.spec.ts`,

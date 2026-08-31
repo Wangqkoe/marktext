@@ -4,6 +4,16 @@ Wave: 10 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T11
 
 ## Result
 
+**Current status — automated evidence complete; final user Acceptance pending
+(2026-08-31).** The current package at
+`C:\Users\1407\.codex\worktrees\bc8b\Marktext\dist\win-unpacked` was built from
+production commit `e223b0e3dd554b11a730f675eee2834961412d17`. Integrated
+`82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09` contains only test formatting and is
+not package provenance. Packaged R1–R5, related E2E 64/64, typecheck, build and
+scoped lint (0 errors / 63 warnings) passed; Standards and Spec passed. Physical
+Windows right-tab split drag and drag-out-of-window Move remain pending final
+user Acceptance.
+
 **Completed / Accepted — final candidate and same-package regression passed
 (2026-08-30).** The accepted Windows candidate was built from source HEAD
 `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0` at

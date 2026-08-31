@@ -1,5 +1,13 @@
 # MarkText Workspace stabilization contract
 
+## Current round status — 2026-08-31
+
+Automated implementation and package evidence is complete; final user Acceptance
+is intentionally still open. See the [final workspace evidence](../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
+Physical Windows right-tab split drag and drag-out-of-window Move must still be
+performed by a user on the exact package. They are manual boundaries, not
+blockers; the 63 scoped-lint warnings and absent `CONTEXT.md` are record items.
+
 ## Scope and decision
 
 The frozen stabilization baseline is `fdda9330780edd11a79b84c6467eaed1cf1df61a`

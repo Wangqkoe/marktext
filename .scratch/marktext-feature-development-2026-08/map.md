@@ -1,7 +1,7 @@
 # MarkText workspace feature wayfinder
 
 Label: `wayfinder:map`
-Status: `destination achieved — V1 locally implemented and accepted`
+Status: `implementation and automated evidence complete — final manual Acceptance pending`
 
 ## Destination
 
@@ -155,3 +155,12 @@ not change T06's ready-to-start status or advance downstream tickets.
   were Passed; manual power-loss/Windows trial, A11/A12, full `pnpm lint`, and
   final T12 acceptance were unclaimed at that checkpoint. T11 was then unblocked,
   while T12 still depended on T11 and manual acceptance.
+
+## Current evidence correction — 2026-08-31
+
+See [final workspace evidence](handoff/evidence/final-workspace-evidence-2026-08-31.md).
+The fresh package was built from production commit `e223b0e3dd554b11a730f675eee2834961412d17`;
+integrated `82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09` is test-only lint formatting
+and is not package provenance. Automated evidence and STAB-013/014/015 reviews
+pass. Final user Acceptance remains pending for physical Windows right-tab split
+drag and drag-out-of-window Move.

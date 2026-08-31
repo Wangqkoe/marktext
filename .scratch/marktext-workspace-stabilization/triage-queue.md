@@ -1,5 +1,14 @@
 # Stabilization triage queue
 
+## Current evidence correction — 2026-08-31
+
+STAB-013, STAB-014, and STAB-015 are integrated with independent Standards/Spec
+PASS and automated evidence in the [final workspace evidence](../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
+The current package is from production `e223b0e3`; test-only lint fix `82dd4cf0`
+is separately recorded. T12/STAB-012 historical acceptance remains provenance,
+not blanket current-project Acceptance. Physical Windows split drag and drag-out
+Move remain final manual Acceptance boundaries.
+
 - Closed: STAB-001, STAB-002, STAB-004, STAB-006, STAB-008, STAB-010, STAB-011, STAB-012, and STAB-R001.
 - Closed incorrect test chain: STAB-P001; `File > Move To` is a filesystem move,
   not a window Move.
