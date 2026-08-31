@@ -124,6 +124,8 @@ const tabDropContainer = ref<HTMLElement | null>(null)
 let autoScroller: AutoScroller | null = null
 let drake: dragula.Drake | null = null
 let draggedViewId: string | undefined
+let droppedBeforeViewId: string | undefined
+let droppedInTabBar = false
 let relayDragMove: ((event: PointerEvent) => void) | undefined
 let cancelDrag: ((event: KeyboardEvent) => void) | undefined
 
@@ -316,6 +318,8 @@ onMounted(() => {
     ignoreInputTextSelection: false
   }).on('drag', (el) => {
     draggedViewId = props.pane?.tabs.find((tab) => tab.documentId === el?.getAttribute('data-id'))?.viewId
+    droppedBeforeViewId = undefined
+    droppedInTabBar = false
     emit('tab-drag', { phase: 'start', viewId: draggedViewId })
   }).on('drop', (el, _target, _source, sibling) => {
     // Current tab that was dropped and need to be reordered.
@@ -330,16 +334,18 @@ onMounted(() => {
     }
 
     if (props.pane) {
-      const viewId = props.pane.tabs.find((tab) => tab.documentId === droppedId)?.viewId
-      const beforeViewId = isLastTab ? undefined : props.pane.tabs.find((tab) => tab.documentId === nextTabId)?.viewId
-      // The root owns all drop commits. Keeping Dragula here strictly as DOM
-      // ordering input prevents a tabbar edge drop from racing the workspace
-      // release path (and preserves spill handling outside the tabbar).
-      emit('tab-drag', { phase: 'end', viewId, ...(beforeViewId ? { beforeViewId } : {}) })
-      draggedViewId = undefined
+      droppedInTabBar = true
+      droppedBeforeViewId = isLastTab ? undefined : props.pane.tabs.find((tab) => tab.documentId === nextTabId)?.viewId
       return
     }
     console.warn('Tab reorder is unavailable outside the workspace shell.', { droppedId, nextTabId, isLastTab })
+  }).on('dragend', () => {
+    const viewId = droppedInTabBar ? draggedViewId : undefined
+    const beforeViewId = droppedBeforeViewId
+    emit('tab-drag', { phase: 'end', viewId, ...(beforeViewId ? { beforeViewId } : {}) })
+    draggedViewId = undefined
+    droppedBeforeViewId = undefined
+    droppedInTabBar = false
   })
 
   // Scroll when dragging a tab to the beginning or end of the tab container.

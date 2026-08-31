@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
 import { execFileSync, type ChildProcess } from 'node:child_process'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import { launchElectron, launchWithMarkdown, sendIpcToRenderer, waitForEditor, waitForMenuReady } from './helpers'
 
 const tabSelector = '.tabs-container > li'
@@ -67,9 +69,12 @@ const setWorkspaceWidth = async(page: Page, target: number): Promise<void> => {
 test.describe('Split workspace', () => {
   let app: ElectronApplication
   let page: Page
+  let primaryFilePath: string
 
   test.beforeEach(async() => {
-    ({ app, page } = await launchWithMarkdown('alpha pane\n'))
+    const launched = await launchWithMarkdown('alpha pane\n')
+    ;({ app, page } = launched)
+    primaryFilePath = launched.filePath
     await page.setViewportSize({ width: 1280, height: 760 })
     await page.waitForSelector('.tabs-container', { state: 'attached' })
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'beta pane\n')
@@ -89,6 +94,7 @@ test.describe('Split workspace', () => {
   test('previews edge candidates, cancels invalid gestures, and splits only on document-area release', async() => {
     const root = await workspaceBox(page)
     const tab = page.locator(tabSelector).nth(1)
+    const initialTabOrder = await page.locator(tabSelector).evaluateAll(tabs => tabs.map(tab => tab.getAttribute('data-id')))
     const documentY = root.y + root.height * 0.55
 
     await dragTabTo(page, tab, root.x + 4, documentY)
@@ -98,9 +104,10 @@ test.describe('Split workspace', () => {
     await page.mouse.up()
     await expect(page.locator('.workspace-pane')).toHaveCount(1)
 
-    await dragTabTo(page, tab, root.x + root.width + 20, documentY)
+    await dragTabTo(page, page.locator(tabSelector).nth(0), root.x + root.width + 20, documentY)
     await page.mouse.up()
     await expect(page.locator('.workspace-pane')).toHaveCount(1)
+    expect(await page.locator(tabSelector).evaluateAll(tabs => tabs.map(tab => tab.getAttribute('data-id')))).toEqual(initialTabOrder)
 
     await dragTabTo(page, tab, root.x + 4, documentY)
     await expect(page.locator('.editor-with-tabs')).toHaveClass(/preview-left/)
@@ -116,6 +123,50 @@ test.describe('Split workspace', () => {
     await expect(page.locator('.workspace-pane')).toHaveCount(2)
     await expect.poll(() => paneText(page, 0)).toContain('beta pane')
     await expect.poll(() => paneText(page, 1)).toContain('alpha pane')
+  })
+
+  test('moves a tab exactly once when physically released in the right split target', async() => {
+    await page.locator(tabSelector).nth(1).locator('.close-icon').click()
+    await expect(page.locator(tabSelector)).toHaveCount(1)
+    const secondaryFilePath = path.join(path.dirname(primaryFilePath), 'beta.md')
+    fs.writeFileSync(secondaryFilePath, 'beta pane\n', 'utf8')
+    await page.evaluate(filePath => window.electron.ipcRenderer.send('mt::open-file', filePath, {}), secondaryFilePath)
+    await expect(page.locator(tabSelector)).toHaveCount(2)
+
+    const root = await workspaceBox(page)
+    const tab = page.locator(tabSelector).nth(1)
+
+    await releaseTabAt(page, tab, root.x + root.width - 4, root.y + root.height * 0.55)
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+
+    const paneTabs = page.locator('.workspace-pane').locator(tabSelector)
+    await expect(page.locator('.workspace-pane').nth(0).locator(tabSelector)).toHaveCount(1)
+    await expect(page.locator('.workspace-pane').nth(1).locator(tabSelector)).toHaveCount(1)
+    await expect(page.locator('.workspace-pane').nth(0).locator(tabSelector)).toHaveAttribute('title', primaryFilePath)
+    await expect(page.locator('.workspace-pane').nth(1).locator(tabSelector)).toHaveAttribute('title', secondaryFilePath)
+
+    const ownership = await paneTabs.evaluateAll((tabs) => tabs.map(tab => ({
+      documentId: tab.getAttribute('data-id'),
+      pathname: tab.getAttribute('title')
+    })))
+    expect(ownership.every(tabState => !!tabState.documentId && !!tabState.pathname)).toBe(true)
+    expect(new Set(ownership.map(tabState => tabState.documentId)).size).toBe(ownership.length)
+    expect(new Set(ownership.map(tabState => tabState.pathname)).size).toBe(ownership.length)
+    for (const pane of await page.locator('.workspace-pane').all()) {
+      await expect(pane.locator(`${tabSelector}.active`)).toHaveCount(1)
+      await expect(pane.locator(`${tabSelector} .tab-select[aria-selected="true"]`)).toHaveCount(1)
+    }
+
+    await page.locator('.workspace-pane').nth(1).locator(`${tabSelector} .close-icon`).click()
+    await expect(page.locator('.workspace-pane')).toHaveCount(1)
+    await expect(page.locator(tabSelector)).toHaveCount(1)
+    await expect(page.locator(tabSelector)).toHaveAttribute('title', primaryFilePath)
+    await expect(page.locator(tabSelector)).not.toHaveAttribute('title', secondaryFilePath)
+    await expect(page.locator(`${tabSelector}.active`)).toHaveCount(1)
+    await expect(page.locator(`${tabSelector} .tab-select[aria-selected="true"]`)).toHaveCount(1)
+    expect(page.isClosed()).toBe(false)
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
+    expect(app.process().exitCode).toBe(null)
   })
 
   test('reorders at tab-bar edges without previewing or committing a split', async() => {

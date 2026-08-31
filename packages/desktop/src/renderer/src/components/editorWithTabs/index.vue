@@ -89,6 +89,7 @@ const ratio = computed(() => snapshot.value.projection.splitRatio ?? 0.5)
 const splitPreview = ref<'left' | 'right' | null>(null)
 let draggedViewId: string | undefined
 let committedDragViewId: string | undefined
+let committedDragTarget: 'left' | 'right' | undefined
 let nativeDrag: { readonly gestureId: string; readonly tabId: string; readonly paneId: 'left' | 'right' } | undefined
 const snapshot = ref(controller.getFacadeSnapshot())
 const panes = computed(() => snapshot.value.projection.panes)
@@ -119,16 +120,29 @@ const handleTabDrag = (event: {
   if (event.phase === 'start') {
     draggedViewId = event.viewId
     committedDragViewId = undefined
+    committedDragTarget = undefined
   }
   if (event.phase === 'move') splitPreview.value = candidateAt(event.x, event.y)
   if (event.phase === 'cancel') {
     draggedViewId = undefined
     committedDragViewId = undefined
+    committedDragTarget = undefined
     splitPreview.value = null
   }
   if (event.phase === 'end') {
     splitPreview.value = null
-    if (event.viewId && committedDragViewId !== event.viewId) {
+    const committedViewId = committedDragViewId
+    const committedTarget = committedDragTarget
+    if (committedViewId && committedTarget) {
+      const projection = controller.getProjection()
+      if (projection.panes.length === 1) {
+        controller.execute({ kind: 'activate-view', paneId: 'left', viewId: committedViewId }).then(() =>
+          controller.execute({ kind: 'split-pane', targetPaneId: committedTarget })
+        )
+      } else {
+        controller.execute({ kind: 'move-view', viewId: committedViewId, targetPaneId: committedTarget })
+      }
+    } else if (event.viewId) {
       const pane = controller.getProjection().panes.find((candidate) =>
         candidate.tabs.some((tab) => tab.viewId === event.viewId)
       )
@@ -143,6 +157,7 @@ const handleTabDrag = (event: {
     }
     draggedViewId = undefined
     committedDragViewId = undefined
+    committedDragTarget = undefined
   }
 }
 const handleTabPress = (paneId: 'left' | 'right', event: { viewId?: string; button: number; trusted: boolean }) => {
@@ -166,15 +181,8 @@ const releaseTabDrag = (event: PointerEvent) => {
     return
   }
   committedDragViewId = viewId
+  committedDragTarget = target
   draggedViewId = undefined
-  const projection = controller.getProjection()
-  if (projection.panes.length === 1) {
-    controller.execute({ kind: 'activate-view', paneId: 'left', viewId }).then(() =>
-      controller.execute({ kind: 'split-pane', targetPaneId: target })
-    )
-  } else {
-    controller.execute({ kind: 'move-view', viewId, targetPaneId: target })
-  }
 }
 const updateWidth = () => { workspaceWidth.value = root.value?.clientWidth ?? 0 }
 let observer: ResizeObserver | undefined
