@@ -47,11 +47,11 @@ is not the current frontier.
    save/options command migration; leave R3's dual-surface/E2E/fallback removal
    to its later integration stage.
 
-## Current implementation frontier — 2026-08-30
+## Historical / superseded implementation frontier — 2026-08-30
 
 The V1 implementation frontier is complete locally. The prerequisite and
 integration chain through T11 remains recorded in the ticket/evidence history.
-T12 is `Completed / Accepted` on the Windows candidate built from
+Historically, T12 was `Completed / Accepted` on the then-final Windows candidate built from
 `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`; its packaged automatic black-box and
 same-package user recovery/close gates passed, and independent final audit task
 `01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS` with 0 blockers. The exact

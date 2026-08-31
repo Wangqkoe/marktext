@@ -6,7 +6,9 @@ This is the execution order for the tickets; normative behavior remains in the
 
 ## Final closeout — 2026-08-30
 
-The implementation frontier is `Closed / Accepted` for this stabilization round.
+The implementation frontier was historically recorded as `Closed / Accepted`
+for the 2026-08-30 stabilization checkpoint; that closeout is superseded by the
+2026-08-31 evidence record below.
 The independent final audit passed with 0 blockers, active P0/P1 is 0, and T12 is
 accepted on the final evidence at [T12 final acceptance](evidence/t12-final-acceptance-2026-08-30.md).
 The final product head is `57d2ae4d6435b157d3e82c5abc094167d5edb3c0`; later

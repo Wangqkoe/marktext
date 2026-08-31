@@ -15,7 +15,7 @@ This conclusion is local-only. It does not authorize a push, publication, or
 release distribution, and it does not turn supplementary `Untested` or
 `Unavailable` environments into `Passed` results.
 
-## Accepted candidate identity and build provenance
+## Historical accepted candidate identity and build provenance
 
 - Unpacked path:
   `C:\Users\1407\.codex\worktrees\dbc4\Marktext\dist\t12-final-f6dcf9db\win-unpacked`.
@@ -165,7 +165,9 @@ ordinary window, and the recovered close path required replay. Repair
 `810db72d39b2ce29db9d3dfbecfca26be6e9a0c5` was integrated at
 `85e5b61eaa18f6971338b5e1b2bdb8bb6bc57805`. Its ticket-scope evidence remains
 in [STAB-012 evidence](stab-012-recovery-startup-close-2026-08-30.md). The later
-`f6dcf9db` candidate and current evidence above supersede the reopening condition.
+The then-accepted `f6dcf9db` candidate and its 2026-08-30 evidence superseded
+the reopening condition at that historical checkpoint; they are superseded by
+the 2026-08-31 evidence for current status.
 
 ## Final artifact and evidence index
 
@@ -188,8 +190,8 @@ Earlier scoped manual/automatic evidence remains indexed by the stabilization
 [manual regression matrix](../../../marktext-workspace-stabilization/manual-regression-matrix.md).
 The STAB-012 repair and its intentionally limited ticket-scope replay are in
 [STAB-012 evidence](stab-012-recovery-startup-close-2026-08-30.md). They explain
-why the `57d2ae4d` package was rejected; the later `f6dcf9db` same-package evidence
-above closes the final-candidate gate.
+why the `57d2ae4d` package was rejected; the later then-current `f6dcf9db`
+same-package evidence closed that historical final-candidate gate.
 
 ## Stale-package rejection and narrow inheritance rule
 
@@ -221,8 +223,9 @@ retains menu Move. STAB-005 and STAB-009 remain deferred/P2 records. Existing
 lint warnings and the workflow's specific `out`/`asar` wording are P2 records.
 
 The historical audit and the current independent final audit classify these as
-non-blocking records. STAB-012 invalidated the old artifact, but the accepted
-`f6dcf9db` candidate has now passed the affected same-package recovery/close gate.
+non-blocking records. STAB-012 invalidated the old artifact, but the then-accepted
+`f6dcf9db` candidate passed the affected same-package recovery/close gate at the
+2026-08-30 checkpoint; this is historical evidence superseded by 2026-08-31.
 
 ## Commit relationship
 
@@ -231,5 +234,5 @@ non-blocking records. STAB-012 invalidated the old artifact, but the accepted
 `e21b77c6aa30e75129c1ef2f43ec22c0e25bfcf1` records STAB-011 evidence; and the
 audited `6fdb3ac3` integration tree adds documentation only after the product
 head. STAB-012 repair `810db72d39b2ce29db9d3dfbecfca26be6e9a0c5` is integrated
-as `85e5b61eaa18f6971338b5e1b2bdb8bb6bc57805`; the accepted final candidate is
-built from `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`.
+as `85e5b61eaa18f6971338b5e1b2bdb8bb6bc57805`; the then-accepted historical
+candidate was built from `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`.

@@ -23,9 +23,9 @@ Move remain final manual Acceptance boundaries.
 - STAB-011 is `Closed / Manual-retest Passed` for the Details floating HTML edit
   entry. The repaired source/Preview/Escape path passed the final fresh-profile
   6/6 manual retest; see the [STAB-011 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-011-details-floating-edit-2026-08-30.md).
-- STAB-012 is `Closed / Manual-retest Passed`, including the final-candidate gate.
+- STAB-012 was `Closed / Manual-retest Passed` at the historical 2026-08-30 checkpoint, including the then-final-candidate gate.
   The old package's extra normal recovery-startup window was repaired by
-  `810db72d`, integrated at `85e5b61e`. The later `f6dcf9db` package passed
+  `810db72d`, integrated at `85e5b61e`. The then-final `f6dcf9db` package passed
   automatic black-box recovery/Discard/exit and the user's same-package native
   recovery/Cancel/Don't Save/final-exit trial. Coordination-machine inspection
   confirmed the durable records and zero processes. See the [STAB-012
@@ -35,9 +35,10 @@ Move remain final manual Acceptance boundaries.
 Accept and normalize further user reports.
 
 Historical final status: T12 was accepted at `57d2ae4d`, then reopened when
-STAB-012 invalidated that old package. Current final status: **T12 Completed /
-Accepted at candidate source `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`**.
-The final package passed the affected same-package automatic and user-manual
+STAB-012 invalidated that old package. The then-current status was **T12
+Completed / Accepted at candidate source `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`**;
+that candidate and decision are historical and superseded by the 2026-08-31
+evidence. The then-final package passed the affected same-package automatic and user-manual
 recovery/close gates. Independent final audit task
 `01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS` with 0 blockers. See the
 [STAB-012 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md) and

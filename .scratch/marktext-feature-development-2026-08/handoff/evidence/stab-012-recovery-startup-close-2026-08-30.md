@@ -20,8 +20,9 @@ This closed the P1's repair and isolated manual-retest ticket gate. At the time 
 this ticket record, it did not complete the whole manual matrix or make T12
 Accepted: the old final artifact was invalid and a later integration candidate
 still had to pass same-package final regression. That condition was subsequently
-satisfied by the `f6dcf9db` package; current disposition and evidence are recorded
-in [T12 final acceptance evidence](t12-final-acceptance-2026-08-30.md).
+satisfied by the then-final `f6dcf9db` package; its then-current disposition and
+evidence are recorded in [T12 final acceptance evidence](t12-final-acceptance-2026-08-30.md)
+as historical provenance, superseded by the 2026-08-31 final workspace evidence.
 
 ## Old artifact observation
 

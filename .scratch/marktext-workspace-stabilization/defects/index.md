@@ -268,12 +268,12 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   a second ordinary window, making the emergency-recovery start path unsafe and
   unavailable as a single recovered editor workflow.
 - Status / owner: `Closed / Manual-retest Passed`. The ticket-scope repair and
-  isolated replay remain valid. The later final candidate built from
+  isolated replay remain valid. The then-final candidate built from
   `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0` completed the affected same-package
   automatic and user-manual recovery/close gates. Independent final audit task
-  `01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS` with 0 blockers; T12 is
-  now `Completed / Accepted`. The old `57d2ae4d` final artifact remains invalid
-  as the current candidate.
+  `01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS` with 0 blockers; T12
+  was then `Completed / Accepted`. The old `57d2ae4d` and `f6dcf9db` artifacts
+  are historical; neither is the current candidate.
 - Old-artifact observation / boundary: the report concerns the former final
   package accepted at `57d2ae4d`. Its no-target CrashDraft recovery produced two
   windows. The user also observed that its Recovered Draft could disappear or
@@ -322,7 +322,7 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   `6F7CBBC56562C28924C45A4ADB19BA0BBE67BEC07D0A6D04FF32AD55107DBF38`.
   Subsequent test-only amendments do not alter the production artifact. This
   `3c05` package remains historical ticket-scope evidence and is not the later
-  accepted `f6dcf9db` final candidate.
+  then-accepted `f6dcf9db` final candidate (historical provenance only).
 - Full evidence and final-gate relationship: see the [single STAB-012 evidence
   record](../../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md)
   and [T12 evidence](../../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).

@@ -14,8 +14,9 @@ scoped lint (0 errors / 63 warnings) passed; Standards and Spec passed. Physical
 Windows right-tab split drag and drag-out-of-window Move remain pending final
 user Acceptance.
 
-**Completed / Accepted — final candidate and same-package regression passed
-(2026-08-30).** The accepted Windows candidate was built from source HEAD
+**Historical / superseded Completed / Accepted — then-final candidate and
+same-package regression passed (2026-08-30).** The then-accepted Windows
+candidate was built from source HEAD
 `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0` at
 `C:\Users\1407\.codex\worktrees\dbc4\Marktext\dist\t12-final-f6dcf9db\win-unpacked`.
 Its packaged black-box gate covered normal no-target startup/exit and the
