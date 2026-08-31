@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import type { ElectronApplication } from 'playwright'
+import type { ElectronApplication, Page } from 'playwright'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -69,6 +69,22 @@ const closeWithDecision = async(app: ElectronApplication, page: Awaited<ReturnTy
   const closed = page.waitForEvent('close')
   await page.evaluate(() => window.electron.ipcRenderer.send('mt::cmd-close-window'))
   await closed
+}
+
+const seedSyntheticWhitespaceCrashDraft = async(page: Page): Promise<void> => {
+  const seeded = await page.evaluate((markdown) => window.electron.ipcRenderer.invoke(
+    'mt::workspace::crash-draft',
+    {
+      kind: 'checkpoint',
+      checkpoint: {
+        documentId: 'synthetic-whitespace-draft',
+        documentRevision: 1,
+        markdown,
+        view: { cursor: { line: 0, column: 4 }, selection: null }
+      }
+    }
+  ), '    \n')
+  expect(seeded).toMatchObject({ durable: true })
 }
 
 test('does not load or overwrite legacy normal workspace data at no-target startup', async() => {
@@ -306,6 +322,176 @@ test('requests an owned native decision before closing a dirty recovered draft',
   } finally {
     if (!killed) await forceTerminate(first.app)
     await forceTerminate(restarted)
+    fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+  }
+})
+
+test('Cancel preserves a whitespace-only recovered draft before close serialization normalizes it', async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-whitespace-cancel-'))
+  const first = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+  let firstKilled = false
+  let second: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  try {
+    await seedSyntheticWhitespaceCrashDraft(first.page)
+    const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+    await forceTerminate(first.app)
+    firstKilled = true
+
+    const recovered = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    second = recovered.app
+    const recoveredTab = recovered.page.locator('.tabs-container li[data-id^="crash-recovery:"]')
+    await expect(recoveredTab).toHaveCount(1, { timeout: 15_000 })
+    await expect(recoveredTab).toHaveClass(/unsaved/)
+    const tabCount = await recovered.page.locator('.tabs-container li').count()
+    await recovered.app.evaluate(({ dialog }) => {
+      const dialogWithSpy = dialog as unknown as {
+        showMessageBox: (...args: unknown[]) => Promise<unknown>
+      }
+      const state = global as unknown as {
+        __mt_native_close_dialogs__?: Array<{ message?: string; buttons?: string[] }>
+      }
+      state.__mt_native_close_dialogs__ = []
+      dialogWithSpy.showMessageBox = async(...args) => {
+        const options = (args.at(-1) ?? {}) as { message?: string; buttons?: string[] }
+        const calls = state.__mt_native_close_dialogs__ ?? []
+        calls.push({ message: options.message, buttons: options.buttons })
+        state.__mt_native_close_dialogs__ = calls
+        return { response: 2, checkboxChecked: false }
+      }
+    })
+
+    await recoveredTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
+    await expect.poll(() => recovered.app.evaluate(() => {
+      const state = global as unknown as {
+        __mt_native_close_dialogs__?: Array<{ message?: string; buttons?: string[] }>
+      }
+      return state.__mt_native_close_dialogs__ ?? []
+    })).toEqual([{ message: 'Save changes to Recovered Draft?', buttons: ['Save', "Don't Save", 'Cancel'] }])
+    await expect(recovered.page.locator('.tabs-container li')).toHaveCount(tabCount)
+    await expect(recoveredTab).toHaveClass(/unsaved/)
+    expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json'))).toBe(true)
+    expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json'))).toBe(false)
+  } finally {
+    if (!firstKilled) await forceTerminate(first.app)
+    await forceTerminate(second)
+    fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+  }
+})
+
+test("Don't Save disposes a whitespace-only recovered draft and lets the last window exit", async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-whitespace-discard-'))
+  const first = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+  let firstKilled = false
+  let second: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  let third: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  try {
+    await seedSyntheticWhitespaceCrashDraft(first.page)
+    const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+    await forceTerminate(first.app)
+    firstKilled = true
+
+    const recovered = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    second = recovered.app
+    await expect(recovered.page.locator('.tabs-container li[data-id^="crash-recovery:"]')).toHaveCount(1, { timeout: 15_000 })
+    await recovered.app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async() => ({ response: 1, checkboxChecked: false })
+    })
+    const child = recovered.app.process()
+    const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
+    await recovered.page.evaluate(() => window.electron.ipcRenderer.send('mt::cmd-close-window'))
+    await Promise.race([
+      exited,
+      new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('last recovered-draft window did not exit')), 10_000))
+    ])
+    second = undefined
+    expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json'))).toBe(true)
+
+    const restarted = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    third = restarted.app
+    await expect(restarted.page.locator('.tabs-container li[data-id^="crash-recovery:"]')).toHaveCount(0)
+    await expect(restarted.page.locator('.tabs-container li')).toHaveCount(1)
+  } finally {
+    if (!firstKilled) await forceTerminate(first.app)
+    await forceTerminate(second)
+    await forceTerminate(third)
+    fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+  }
+})
+
+test('a failed recovered-draft exit validation leaves the document intact and can be retried', async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-disposition-failure-'))
+  const first = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+  let firstKilled = false
+  let second: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  try {
+    await seedSyntheticWhitespaceCrashDraft(first.page)
+    const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+    await forceTerminate(first.app)
+    firstKilled = true
+
+    const recovered = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    second = recovered.app
+    const recoveredTab = recovered.page.locator('.tabs-container li[data-id^="crash-recovery:"]')
+    await expect(recoveredTab).toHaveCount(1, { timeout: 15_000 })
+    await waitForRecoveredCheckpoint(crashDraftDirectory)
+    await recovered.app.evaluate(({ dialog, ipcMain }) => {
+      const state = global as unknown as {
+        __mt_crash_fault_requests__?: string[]
+        __mt_crash_clean_attempts__?: number
+        __mt_crash_discard_attempts__?: number
+      }
+      state.__mt_crash_fault_requests__ = []
+      state.__mt_crash_clean_attempts__ = 0
+      state.__mt_crash_discard_attempts__ = 0
+      dialog.showMessageBox = async() => ({ response: 1, checkboxChecked: false })
+      ipcMain.removeHandler('mt::workspace::crash-draft')
+      ipcMain.handle('mt::workspace::crash-draft', async(_event, request: { readonly kind: string }) => {
+        const requests = state.__mt_crash_fault_requests__ ?? []
+        requests.push(request.kind)
+        state.__mt_crash_fault_requests__ = requests
+        if (request.kind === 'checkpoint') return { durable: true, receipt: 'synthetic-fault-receipt' }
+        if (request.kind === 'discard') {
+          state.__mt_crash_discard_attempts__ = (state.__mt_crash_discard_attempts__ ?? 0) + 1
+          return state.__mt_crash_discard_attempts__ === 1
+            ? { durable: true }
+            : { durable: false, reason: 'disposition must not be repeated after its durable acknowledgement' }
+        }
+        if (request.kind === 'mark-clean') {
+          state.__mt_crash_clean_attempts__ = (state.__mt_crash_clean_attempts__ ?? 0) + 1
+          if (state.__mt_crash_clean_attempts__ === 1) {
+            return { durable: false, reason: 'synthetic clean-marker failure' }
+          }
+        }
+        return { durable: true }
+      })
+    })
+
+    await recovered.page.evaluate(() => window.electron.ipcRenderer.send('mt::cmd-close-window'))
+    await expect.poll(() => recovered.app.evaluate(() => {
+      const state = global as unknown as { __mt_crash_fault_requests__?: string[] }
+      return state.__mt_crash_fault_requests__ ?? []
+    })).toContain('mark-clean')
+    await expect(recoveredTab).toHaveCount(1)
+    await expect(recovered.page.locator('.tabs-container li')).toHaveCount(1)
+    await expect(recoveredTab).toContainText('Recovered Draft')
+    expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json'))).toBe(false)
+    const firstRequests = await recovered.app.evaluate(() => {
+      const state = global as unknown as { __mt_crash_fault_requests__?: string[] }
+      return state.__mt_crash_fault_requests__ ?? []
+    })
+    expect(firstRequests.filter(kind => kind === 'discard')).toHaveLength(1)
+
+    const child = recovered.app.process()
+    const exited = new Promise<void>(resolve => child.once('exit', () => resolve()))
+    await recovered.page.evaluate(() => window.electron.ipcRenderer.send('mt::cmd-close-window'))
+    await Promise.race([
+      exited,
+      new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('retried recovered-draft window did not exit')), 10_000))
+    ])
+    second = undefined
+  } finally {
+    if (!firstKilled) await forceTerminate(first.app)
+    await forceTerminate(second)
     fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
   }
 })

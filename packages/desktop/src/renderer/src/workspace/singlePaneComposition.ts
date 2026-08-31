@@ -65,6 +65,8 @@ export class PaneEditorComposition {
   private readonly crashReceipts = new Map<string, { readonly revision: number; readonly receipt: string }>()
   /** A recovery's local controller ID writes and clears its pre-crash durable identity. */
   private readonly crashDraftLineage = new Map<string, string>()
+  /** A durable disposition may precede a retryable clean-shutdown marker. */
+  private readonly crashDraftDispositions = new Map<string, string>()
   private stopCrashDraftSync: (() => void) | undefined
   private crashDraftTail: Promise<void> = Promise.resolve()
 
@@ -419,6 +421,49 @@ export class PaneEditorComposition {
       }
       return result
     }
+    const saveView = async(): Promise<WorkspaceResult | undefined> => {
+      const document = this.documentForView(view.viewId)
+      return document?.fileKey
+        ? this.execute({ kind: 'save', paneId: this.paneId, viewId: view.viewId })
+        : this.chooseSaveTarget(view.viewId).then((pathname) =>
+          pathname
+            ? this.execute({
+              kind: 'save-as',
+              paneId: this.paneId,
+              viewId: view.viewId,
+              fileKey: pathname,
+              title: pathname.split(/[\\/]/).at(-1) ?? pathname
+            })
+            : undefined
+        )
+    }
+    if (this.crashDraftLineage.has(documentId)) {
+      // A recovered draft remains decision-owned until its durable disposition
+      // succeeds. Ask before Muya's close flush can normalize whitespace to the
+      // clean baseline and silently bypass the decision.
+      const decision = await this.confirmClose(view.viewId)
+      if (decision === 'cancel') return { status: 'rejected', reason: 'close cancelled' }
+      if (decision === 'save') {
+        const save = await saveView()
+        if (!save || save.status !== 'applied') {
+          return save ?? { status: 'rejected', reason: 'close cancelled' }
+        }
+      } else {
+        const scope = this.getScope()
+        if (scope && (scope.viewId === view.viewId || scope.documentId === documentId)) {
+          const flushed = await scope.flush()
+          if (flushed.status !== 'applied') return flushed
+        }
+        await this.syncCrashDraft()
+        if (!(await this.resolveCrashDraft(documentId, 'discard'))) {
+          return { status: 'failed', reason: 'recovered draft disposition was not durable' }
+        }
+      }
+      const recoveredClose = await this.execute({ kind: 'close-view', viewId: view.viewId })
+      return finishClose(recoveredClose.status === 'needs-decision'
+        ? await runtime.execute({ kind: 'commit-authorized', capability: recoveredClose.capability })
+        : recoveredClose)
+    }
     const close = await this.execute({ kind: 'close-view', viewId: view.viewId })
     if (close.status !== 'needs-decision') return finishClose(close)
     const decision = await this.confirmClose(view.viewId)
@@ -428,20 +473,7 @@ export class PaneEditorComposition {
       await this.resolveCrashDraft(documentId, 'discard')
       return finishClose(await runtime.execute({ kind: 'commit-authorized', capability: close.capability }))
     }
-    const document = this.documentForView(view.viewId)
-    const save = document?.fileKey
-      ? await this.execute({ kind: 'save', paneId: this.paneId, viewId: view.viewId })
-      : await this.chooseSaveTarget(view.viewId).then((pathname) =>
-        pathname
-          ? this.execute({
-            kind: 'save-as',
-            paneId: this.paneId,
-            viewId: view.viewId,
-            fileKey: pathname,
-            title: pathname.split(/[\\/]/).at(-1) ?? pathname
-          })
-          : undefined
-      )
+    const save = await saveView()
     if (!save || save.status !== 'applied') return save ?? { status: 'rejected', reason: 'close cancelled' }
     const committed = await runtime.execute({ kind: 'commit-authorized', capability: close.capability })
     if (committed.status !== 'rejected') return finishClose(committed)
@@ -580,7 +612,11 @@ export class PaneEditorComposition {
     const applied = await this.runtime.execute({ kind: 'apply-save-ack', ack })
     if (applied.status === 'applied' && ack.status === 'durable-success') {
       this.boundDocumentFences.set(ack.documentId, ack.ownerFence)
-      await this.resolveCrashDraft(ack.documentId)
+      const recovered = this.crashDraftLineage.has(ack.documentId)
+      const resolved = await this.resolveCrashDraft(ack.documentId)
+      if (recovered && !resolved) {
+        return { status: 'failed', reason: 'recovered draft disposition was not durable' }
+      }
     }
     return applied
   }
@@ -628,14 +664,24 @@ export class PaneEditorComposition {
     return next
   }
 
-  private async resolveCrashDraft(documentId: string, action: 'saved' | 'discard' = 'saved'): Promise<void> {
+  private async resolveCrashDraft(documentId: string, action: 'saved' | 'discard' = 'saved'): Promise<boolean> {
     await this.crashDraftTail
     const receipt = this.crashReceipts.get(documentId)?.receipt
-    if (!receipt) return
-    const response = await this.crashDraft.request({ kind: action, receipt })
-    if (!response.durable) return
+    if (!receipt) return false
+    if (this.crashDraftDispositions.get(documentId) !== receipt) {
+      const response = await this.crashDraft.request({ kind: action, receipt })
+      if (!response.durable) return false
+      this.crashDraftDispositions.set(documentId, receipt)
+    }
+    const clean = await this.crashDraft.request({ kind: 'mark-clean' })
+    // This document's durable disposition is sufficient for a tab close while
+    // another document still owns a crash draft. Actual marker I/O failures
+    // remain retryable and must keep a recovered document present.
+    if (!clean.durable && clean.reason !== 'unresolved crash drafts remain') return false
+    this.crashDraftDispositions.delete(documentId)
     this.crashReceipts.delete(documentId)
-    await this.crashDraft.request({ kind: 'mark-clean' })
+    this.crashDraftLineage.delete(documentId)
+    return true
   }
 }
 
