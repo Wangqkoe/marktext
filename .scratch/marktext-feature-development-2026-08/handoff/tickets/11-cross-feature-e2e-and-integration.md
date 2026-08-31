@@ -39,8 +39,9 @@ which tests use deterministic adapters versus real Electron.
 T11 composed integration evidence is complete for the automated scope: workspace
 unit 8 files / 123 tests and related Electron E2E 64/64 passed; Standards and
 Spec review both PASS. No residual processes, profiles, or harness remain.
-Physical Windows right-tab split drag and drag-out-of-window Move remain pending
-manual user Acceptance.
+Physical Windows right-tab split drag and drag-out-of-window Move passed the
+user's 2026-08-31 replay on the exact final package; Final Acceptance and the
+project-completion gate are closed. See [final workspace evidence](../evidence/final-workspace-evidence-2026-08-31.md).
 
 ## Acceptance and handoff
 

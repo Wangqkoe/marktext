@@ -76,9 +76,10 @@ permits. Do not treat ordinary workspace state as recovery evidence.
 
 The linked final evidence records the 2026-08-31 final audit/Acceptance
 disposition, exact current package identity, same-package automatic and manual
-evidence, and historical reopening lineage. Only the physical right-tab split
-drag and drag-out-of-window Move remain required manual blockers: they do not
-block code integration, but they block final user Acceptance/project completion.
+evidence, and historical reopening lineage. The two required physical workflows
+(right-tab split drag and drag-out-of-window Move) passed the user's replay on
+the exact package, closing Final Acceptance and project completion. They were
+non-blocking for code integration but blocked final Acceptance until passed.
 Screen-reader, PDF visual, real power-loss, remote/assistive, and
 mixed-DPI/multi-display physical operation remain `Untested`/`Unavailable`
 non-blocking records for future/manual coverage. This ticket changes evidence
