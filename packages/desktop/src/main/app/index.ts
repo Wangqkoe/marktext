@@ -428,10 +428,12 @@ class App {
     }
 
     const createWindow = (): void => {
+      let recoveryWindowCreated = false
       if (crashDrafts.length) {
         // Recovery is a separate window and only opens draft copies; it never
         // writes the saved path or revives a normal workspace/session.
         const recoveryWindow = this._createEditorWindow()
+        recoveryWindowCreated = true
         const webContents = recoveryWindow.browserWindow?.webContents
         if (webContents) getCrashDraftAdapter()?.queueStartupRecovery(webContents as never, crashDrafts as readonly CrashDraftRecoveryPayload[])
       }
@@ -441,7 +443,7 @@ class App {
         // the legacy open-tab message, which cannot adopt that controller.
         // Keep the ordinary explicit set in a separate normal editor window.
         this._openPathList(startupTargets, moveRecovery.length > 0)
-      } else {
+      } else if (!recoveryWindowCreated) {
         this._createEditorWindow()
       }
     }

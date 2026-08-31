@@ -3,28 +3,35 @@ import type { ElectronApplication } from 'playwright'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, type ChildProcess } from 'node:child_process'
 import { launchElectron, typeIntoEditor } from './helpers'
 
-const forceTerminate = async(app: ElectronApplication | undefined): Promise<void> => {
-  if (!app) return
-  const child = app.process()
+const waitForChildExit = async(child: ChildProcess): Promise<void> => {
   if (child.exitCode !== null) return
   const exited = new Promise<void>(resolve => child.once('exit', resolve))
+  if (child.exitCode !== null) return
+  await Promise.race([exited, new Promise<void>(resolve => setTimeout(resolve, 5_000))])
+  if (child.exitCode === null) throw new Error('Electron process did not exit after termination')
+}
+
+const forceTerminate = async(app: ElectronApplication | undefined, retainedChild?: ChildProcess): Promise<void> => {
+  if (!app) return
+  const child = retainedChild ?? app.process()
+  if (child.exitCode !== null) return
   let mainPid: number
   try {
     mainPid = await app.evaluate(() => process.pid)
   } catch {
+    await waitForChildExit(child)
     return
   }
   if (child.exitCode !== null) return
   try {
     execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
-  } catch {
-    if (child.exitCode !== null) return
-    throw new Error('could not terminate the Electron process tree')
+  } catch (error) {
+    if ((error as { status?: number }).status !== 128) throw new Error('could not terminate the Electron process tree')
   }
-  await Promise.race([exited, new Promise<void>(resolve => setTimeout(resolve, 5_000))])
+  await waitForChildExit(child)
 }
 
 const windowText = async(app: ElectronApplication): Promise<string> => {
@@ -176,6 +183,7 @@ test('recovers a dirty untitled document with a stable recovery identity after a
       const windows = await second.app.windows()
       return (await Promise.all(windows.map(window => window.locator('body').innerText()))).join('\n')
     }, { timeout: 15_000 }).toContain('Untitled before crash')
+    await expect.poll(() => second.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
     let recoveryWindow: Awaited<ReturnType<typeof second.app.windows>>[number] | undefined
     for (const window of await second.app.windows()) {
       if ((await window.locator('body').innerText()).includes('Untitled before crash')) recoveryWindow = window
@@ -183,9 +191,158 @@ test('recovers a dirty untitled document with a stable recovery identity after a
     expect(recoveryWindow).toBeTruthy()
     await expect(recoveryWindow!.locator('.tabs-container li.active')).toHaveAttribute('data-id', 'crash-recovery:mt-0')
   } finally {
-    if (!killed) await first.app.close().catch(() => {})
+    if (!killed) await forceTerminate(first.app)
     await forceTerminate(restarted)
     fs.rmSync(userDataDir, { recursive: true, force: true })
+  }
+})
+
+for (const closeOrder of ['recovered-first', 'bootstrap-first'] as const) {
+  test(`discards a recovered untitled draft and exits after closing tabs ${closeOrder}`, async() => {
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), `marktext-crash-close-${closeOrder}-`))
+    const marker = `untitled close ${closeOrder}`
+    const first = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    let killed = false
+    let restarted: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+    let restartedChild: ChildProcess | undefined
+    try {
+      await typeIntoEditor(first.page, marker)
+      const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+      await expect.poll(() => {
+        try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
+      }).toBe(true)
+      await forceTerminate(first.app)
+      killed = true
+
+      const second = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+      restarted = second.app
+      const child = second.app.process()
+      restartedChild = child
+      await waitForRecovery(second.app, marker)
+      const page = await recoveryWindow(second.app, marker)
+      const recoveredTab = page.locator('.tabs-container li[data-id^="crash-recovery:"]')
+      const bootstrapTab = page.locator('.tabs-container li:not([data-id^="crash-recovery:"])')
+      await expect(page.locator('.tabs-container li')).toHaveCount(2)
+      await second.app.evaluate(({ dialog }) => {
+        dialog.showMessageBox = async() => ({ response: 1, checkboxChecked: false })
+      })
+
+      const firstTab = closeOrder === 'recovered-first' ? recoveredTab : bootstrapTab
+      await firstTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
+      await expect(page.locator('.tabs-container li')).toHaveCount(1)
+
+      const remainingRecoveredTab = page.locator('.tabs-container li[data-id^="crash-recovery:"]')
+      if (closeOrder === 'bootstrap-first') {
+        const closed = page.waitForEvent('close')
+        await remainingRecoveredTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
+        await closed
+      }
+      await expect.poll(() => {
+        try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json')) } catch { return false }
+      }).toBe(true)
+
+      if (closeOrder === 'recovered-first') {
+        const closed = page.waitForEvent('close')
+        await page.locator('.tabs-container .close-icon').evaluate(button => (button as HTMLElement).click())
+        await closed
+      }
+      await expect.poll(() => child.exitCode, { timeout: 5_000 }).not.toBeNull()
+    } finally {
+      if (!killed) await forceTerminate(first.app)
+      await forceTerminate(restarted, restartedChild)
+      fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+    }
+  })
+}
+
+test('requests an owned native decision before closing a dirty recovered draft', async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-native-decision-'))
+  const marker = 'untitled native decision'
+  const first = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+  let killed = false
+  let restarted: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  try {
+    await typeIntoEditor(first.page, marker)
+    const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+    await expect.poll(() => {
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
+    }).toBe(true)
+    await forceTerminate(first.app)
+    killed = true
+
+    const second = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    restarted = second.app
+    await waitForRecovery(second.app, marker)
+    const page = await recoveryWindow(second.app, marker)
+    const recoveredTab = page.locator('.tabs-container li[data-id^="crash-recovery:"]')
+    await expect(recoveredTab).toHaveClass(/unsaved/)
+    await second.app.evaluate(({ dialog }) => {
+      const dialogWithSpy = dialog as unknown as {
+        showMessageBox: (...args: unknown[]) => Promise<unknown>
+      }
+      const state = global as unknown as {
+        __mt_native_close_dialogs__?: Array<{ ownerId?: number; message?: string; buttons?: string[] }>
+      }
+      const calls: Array<{ ownerId?: number; message?: string; buttons?: string[] }> = []
+      state.__mt_native_close_dialogs__ = calls
+      dialogWithSpy.showMessageBox = async(...args) => {
+        const [firstArg, secondArg] = args as [unknown, { message?: string; buttons?: string[] }?]
+        const owner = firstArg as { id?: number }
+        const options = secondArg ?? firstArg as { message?: string; buttons?: string[] }
+        calls.push({ ownerId: secondArg ? owner.id : undefined, message: options.message, buttons: options.buttons })
+        return { response: 2, checkboxChecked: false }
+      }
+    })
+
+    await recoveredTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
+    await expect.poll(() => second.app.evaluate(() => {
+      const state = global as unknown as {
+        __mt_native_close_dialogs__?: Array<{ ownerId?: number; message?: string; buttons?: string[] }>
+      }
+      return state.__mt_native_close_dialogs__ ?? []
+    })).toEqual([{ ownerId: expect.any(Number), message: 'Save changes to Recovered Draft?', buttons: ['Save', "Don't Save", 'Cancel'] }])
+    await expect(page.locator('.tabs-container li')).toHaveCount(2)
+    expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json'))).toBe(false)
+  } finally {
+    if (!killed) await forceTerminate(first.app)
+    await forceTerminate(restarted)
+    fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+  }
+})
+
+test('Cancel keeps a dirty recovered draft open when its close icon is clicked', async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-close-cancel-'))
+  const marker = 'untitled close Cancel'
+  const first = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+  let killed = false
+  let restarted: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  try {
+    await typeIntoEditor(first.page, marker)
+    const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+    await expect.poll(() => {
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
+    }).toBe(true)
+    await forceTerminate(first.app)
+    killed = true
+
+    const second = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    restarted = second.app
+    await waitForRecovery(second.app, marker)
+    const page = await recoveryWindow(second.app, marker)
+    const recoveredTab = page.locator('.tabs-container li[data-id^="crash-recovery:"]')
+    await expect(recoveredTab).toHaveClass(/unsaved/)
+    await second.app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async() => ({ response: 2, checkboxChecked: false })
+    })
+
+    await recoveredTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
+    await expect(page.locator('.tabs-container li')).toHaveCount(2)
+    await expect(recoveredTab).toHaveClass(/unsaved/)
+    expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json'))).toBe(false)
+  } finally {
+    if (!killed) await forceTerminate(first.app)
+    await forceTerminate(restarted)
+    fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
   }
 })
 
