@@ -2,12 +2,14 @@
 
 ## Current package evidence — 2026-08-31
 
-The fresh `dist\\win-unpacked` package from production commit `e223b0e3dd554b11a730f675eee2834961412d17`
+The fresh `dist\win-unpacked` package from production commit `e223b0e3dd554b11a730f675eee2834961412d17`
 passed packaged STAB-015 R1–R5 and related STAB-013/014 automated gates;
 workspace unit was 8 files / 123 tests, related Electron E2E was 64/64,
 `build:win` passed, and scoped lint is 0 errors / 63 warnings. Independent
 Standards and Spec reviews pass. Required human Acceptance remains pending for
-physical Windows right-tab split drag and drag-out-of-window Move. See [final
+physical Windows right-tab split drag and drag-out-of-window Move; these are
+non-blocking for code integration, but blocking for final user Acceptance/project
+completion. See [final
 workspace evidence](../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
 
 This is a bounded, risk-directed audit, not infinite combination enumeration.
@@ -20,9 +22,9 @@ has actually run before repair begins.
 
 ## Current-round provenance and gate
 
-### STAB-012 final-candidate same-package closeout — 2026-08-30
+### Historical / superseded STAB-012 final-candidate same-package closeout — 2026-08-30
 
-T12 is `Completed / Accepted` on the final Windows candidate built from
+T12 was `Completed / Accepted` on the then-final Windows candidate built from
 `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0` at
 `C:\Users\1407\.codex\worktrees\dbc4\Marktext\dist\t12-final-f6dcf9db\win-unpacked`.
 Environment: Microsoft Windows 11 Pro 64-bit, version `10.0.26200` / build
@@ -60,9 +62,9 @@ power-loss, remote/assistive, and mixed-DPI/multi-display operation remain
 `Untested`/`Unavailable` non-blocking boundaries; this closeout does not relabel
 them as `Passed`.
 
-### Historical final closeout — 2026-08-30
+### Historical / superseded final closeout — 2026-08-30
 
-T12 is `Completed / Accepted`; the independent final audit passed with 0 blockers
+T12 was `Completed / Accepted` at that historical checkpoint; the independent final audit passed with 0 blockers
 and active P0/P1 is 0. See [final acceptance evidence](../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
 This preserves every row's recorded status: only the fixed, independently reviewed
 STAB-011 local delta receives the final artifact's narrow provenance exception;

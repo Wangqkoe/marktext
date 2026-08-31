@@ -1,12 +1,15 @@
 # T12 final acceptance evidence — 2026-08-30
 
-## Current decision
+## Historical / superseded decision
 
-T12 is **Completed / Accepted**. The current final candidate was built from source
+T12 was **Completed / Accepted** for the 2026-08-30 candidate. This decision is
+superseded by the 2026-08-31 final workspace evidence; it is retained only as
+historical provenance. The candidate was built from source
 HEAD `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`; its same-package automatic and
 user-manual recovery/close gates passed. Independent final audit task
 `01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS` with 0 blockers and
-concluded that recording these facts is sufficient to close T12.
+concluded that recording those historical same-package facts was sufficient to
+close T12 at that earlier checkpoint.
 
 This conclusion is local-only. It does not authorize a push, publication, or
 release distribution, and it does not turn supplementary `Untested` or

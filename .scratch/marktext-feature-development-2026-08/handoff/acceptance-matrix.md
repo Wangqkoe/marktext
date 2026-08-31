@@ -10,7 +10,8 @@ integration branch; `Passed` may be claimed only with all four.
 > related Electron E2E 64/64, `build:win` PASS, and scoped lint 0 errors / 63
 > warnings. STAB-013/014/015 Standards and Spec reviews are PASS. Final user
 > Acceptance remains pending for physical Windows right-tab split drag and
-> drag-out-of-window Move; these are manual boundaries, not blockers.
+> drag-out-of-window Move; these are non-blocking for code integration, but
+> blocking for final user Acceptance/project completion.
 
 > **Historical stabilization block (2026-08-27):** automated passing evidence did not
 > override packaged/manual failures. The final gate is `Failed/Blocked` until the
@@ -58,7 +59,8 @@ integration branch; `Passed` may be claimed only with all four.
 > physical drag was `Passed` for its supported shape, while final
 > matrix/T12/Acceptance were pending at that checkpoint.
 
-> **Final closeout (2026-08-30):** T12 is `Completed / Accepted` on the final
+> **Historical/superseded closeout (2026-08-30):** T12 was `Completed / Accepted`
+> on the then-final
 > Windows candidate built from
 > `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`. Packaged automatic black-box
 > startup/recovery/Discard/exit passed, the user completed the same-package native
@@ -122,8 +124,8 @@ the identical retry succeeded without source or lockfile changes.
 | Evidence | Status | Exact result / remaining condition |
 | --- | --- | --- |
 | A14 automated clean Windows-build readiness | Passed | `pnpm install --frozen-lockfile` passed on retry; `pnpm build:win:x64` exit 0 on Windows 11 Pro 10.0.26200, Node 24.18.0, pnpm 10.33.4. |
-| A14 manual Windows trial | Passed (accepted supported/local scope) | The final `f6dcf9db` candidate passed packaged automatic no-target startup and CrashDraft recovery/Discard/exit. On the same package, the user confirmed one fresh window, recovered marker after exact termination/restart, native Save/Don't Save/Cancel, Cancel retention, Don't Save removal, final `Untitled-1` close, no replacement tab/extra window, and full process exit. Earlier fixed-provenance Windows evidence for Ctrl+O, Save As, Move/Open/Split, close, and Details remains recorded in the linked stabilization evidence; this is not a claim for every environment. |
-| T12 final acceptance | Passed / Accepted | [Final acceptance evidence](evidence/t12-final-acceptance-2026-08-30.md): candidate source `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`; independent final audit task `01a05600-a111-71d1-952e-f79e64ebe20d` returned `PASS`, 0 blockers, after the same-package facts were recorded. Local-only; no publication. |
+| A14 manual Windows trial | Historical Passed (superseded) | The former `f6dcf9db` candidate passed the recorded supported/local recovery trial; this is historical evidence, not the current package gate. |
+| T12 final acceptance | Historical Passed / Accepted (superseded) | [Historical acceptance evidence](evidence/t12-final-acceptance-2026-08-30.md): candidate source `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`; retained for provenance only. Current final user Acceptance remains pending. |
 | Supplementary unclaimed environments (not an accepted A14/final gate) | Untested / Unavailable records | Screen-reader, PDF visual, real power-loss, remote/assistive, and mixed-DPI/multi-display physical operation remain unclaimed. They are explicit final-audit non-blocking boundaries, not Passed results; supported fallback/automation evidence remains recorded above and in the linked evidence. |
 
 ## T03 integration evidence — 2026-08-25
