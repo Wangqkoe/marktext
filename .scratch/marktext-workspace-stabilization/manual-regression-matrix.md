@@ -10,7 +10,23 @@ has actually run before repair begins.
 
 ## Current-round provenance and gate
 
-### Final closeout — 2026-08-30
+### STAB-012 and reopened final-candidate gate — 2026-08-30
+
+The following `Completed / Accepted` T12 conclusion is historical evidence for
+`57d2ae4d`, not the current final disposition. A newly reported P1 found that
+the old final package created two windows after a no-target CrashDraft restart;
+the user also observed abnormal/unconfirmed disappearance or close behavior for
+the Recovered Draft in that old package. The repair is integrated at `85e5b61e`
+and its narrow, isolated-profile manual replay passed, but its task artifact is
+not a newly generated `85e5b61e` final candidate. T12 is reopened until a new
+candidate package and same-package regression gates are completed. See
+[STAB-012 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md). Its required pre-repair red command
+actually ran at baseline `f46c765c`: the forced-crash dirty-untitled → no-target
+restart test failed 1/1 because `BrowserWindow` received 2 rather than 1; the
+exact command, profile, logs, and timestamp are retained in that record's
+[pre-repair red-capable run](../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md#pre-repair-red-capable-run).
+
+### Historical final closeout — 2026-08-30
 
 T12 is `Completed / Accepted`; the independent final audit passed with 0 blockers
 and active P0/P1 is 0. See [final acceptance evidence](../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
@@ -47,5 +63,5 @@ The following `9715ced7` artifact round remains historical failure evidence; it 
 | First priority: Split Right → close saved tab → File/Open same-path reopen | Formal artifact `70D668C1D85867E43D47AB582E28F12E4F5F756CC72B0889B5BD40D36E70AB7A`; profile/fixture and full result in [STAB-010 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-010-close-reopen-2026-08-29.md) | After close/collapse, File/Open of the existing unchanged path restores one tab with its content/path | Exact E2E passed 2/2 and complete native-open suite 5/5. Manual close/collapse left one New Tab without closing the window; Ctrl+O same-path reopen restored the title, content, and sentinel. Split Right/collapse remain passed. | Passed (STAB-010 Manual-retest) |
 | Sample: Details | STAB-008 collapse baseline: formal artifact `F7C3E3EBF82995C7D71E544F5F1FAF7E41C86219A38D50F52B7768869B7B03B5`; `manual-01` profile/fixture in [STAB-008 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-008-details-2026-08-29.md); observed 2026-08-29 10:09:12 PDT; PID 58736. STAB-011 source/preview entry: final artifact `94384F8856BD3BA26CA53F39495DC880F4943FBD53D6C80BED43B894E49A8D4E`; fresh profile `marktext-stab011-final-57d2ae4d-manual-01`; [STAB-011 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-011-details-floating-edit-2026-08-30.md). | Collapsed disclosure and existing floating edit entry reliably transition source/preview. | STAB-008: user confirmed initial right arrow/body hidden, down arrow/body visible, then right arrow/body hidden for the Chinese-summary/body-sentinel fixture. STAB-011: floating pencil→source, physical Escape→collapsed preview, same entry→source, Preview→preview, same entry→source, then outside-paragraph click→immediate source exit with collapsed disclosure all passed (6/6). Source round-trip/static export are covered by prior automated evidence. | Passed (STAB-008 collapse; STAB-011 scoped 6/6); screen-reader/PDF Untested |
 | Sample: Dirty Save / Discard / Cancel | Historical failure profile `marktext-final-dirty-save-d062b44e0c764d6bb510249bfd4e91f5`; final same-hash artifact and [manual retest evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-007-sender-save-as-2026-08-29.md) | No data loss; unchanged choices | Historical `9715ced7` Ctrl+S/File > Save did nothing for a dirty untitled document. The final `adaca3fa` packaged retest passed both supported untitled entries: Ctrl+S and File > Save each reached native Save As with correct bytes/title rebind; it also passed Cancel (dirty content retained/no target), double Ctrl+S (one dialog/one write), and already-bound Save (no dialog/durable update). Discard remains the earlier Details fixture result. | STAB-007 save-path manual retest Passed; Discard historical |
-| Sample: CrashDraft and MoveRecovery | Relevant unit suite 152/152 and selected 40/40 E2E | Correct independent recovery | Existing crash-draft, startup-policy and workspace-transfer tests passed on current source round; no additional destructive physical crash performed after Save P1. | Pass (automated); physical destructive replay Skipped (P1 stop) |
+| Sample: CrashDraft and MoveRecovery | Pre-repair STAB-012 red: baseline `f46c765c`, actual isolated profile `C:\Users\1407\AppData\Local\Temp\marktext-crash-untitled-rOtwiy`, forced-crash dirty-untitled → no-target restart test; post-repair isolated profile `C:\Users\1407\AppData\Local\Temp\marktext-stab012-manual-810db72d` | Correct independent recovery, one recovery window, dirty-close choices, and durable tombstone | The actual pre-repair command failed 1/1 after recovery content appeared: `BrowserWindow` Expected 1 / Received 2; its exact command/logs are in [STAB-012 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md#pre-repair-red-capable-run). Post-repair restart showed exactly one window and the Recovered Draft contained the entered text. Closing showed Save/Don't Save/Cancel; Cancel retained it, then Don't Save closed the remaining window. Exact-artifact/profile process count was 0 and tombstone count was 1. No recovery body text is recorded; this is not a complete final-candidate matrix. | STAB-012 red-capable 1/1 before repair; scoped manual Passed; new final candidate / full matrix Pending |
 | Sample: File observation / conflict | Relevant unit suite 152/152 and selected 40/40 E2E | Safe conflict behavior | `file-observation-hub`, `file-change-content-check` and workspace transfer/startup E2E passed. No additional manual external-edit conflict replay after P1 stop. | Pass (automated); manual replay Skipped (P1 stop) |

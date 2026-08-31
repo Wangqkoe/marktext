@@ -1,6 +1,6 @@
 # Stabilization triage queue
 
-- Closed: STAB-001, STAB-002, STAB-004, STAB-006, STAB-008, STAB-010, STAB-011, and STAB-R001.
+- Closed: STAB-001, STAB-002, STAB-004, STAB-006, STAB-008, STAB-010, STAB-011, STAB-012, and STAB-R001.
 - Closed incorrect test chain: STAB-P001; `File > Move To` is a filesystem move,
   not a window Move.
 - Deferred: STAB-005 is P2.
@@ -14,13 +14,23 @@
 - STAB-011 is `Closed / Manual-retest Passed` for the Details floating HTML edit
   entry. The repaired source/Preview/Escape path passed the final fresh-profile
   6/6 manual retest; see the [STAB-011 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-011-details-floating-edit-2026-08-30.md).
+- STAB-012 is `Closed / Manual-retest Passed` at ticket scope: the old final
+  package's no-target CrashDraft restart created a recovery window and then an
+  extra normal window. Production repair `810db72d` is integrated at `85e5b61e`;
+  the isolated CrashDraft restart/close replay passed on the task artifact. See
+  the [STAB-012 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md).
 
 Accept and normalize further user reports.
 
-Final stabilization status: **T12 Accepted**. Active P0/P1: **0**. The independent
-final audit passed with 0 blockers; its strict, scoped evidence-inheritance
-exception and final artifact provenance are in the [T12 final acceptance
-evidence](../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
+Historical final status: **T12 Accepted at `57d2ae4d`**. That conclusion is
+preserved as the recorded 2026-08-30 result, but the newly reported STAB-012 P1
+invalidates its old final artifact as the current final candidate. STAB-012 is
+repaired, integrated, and manually retested at ticket scope; T12 is now
+**reopened for final-candidate generation and same-package regression gates**.
+It must not be described as currently Accepted until a package built from
+`85e5b61e` (or a later documentation-only descendant) completes the new final
+candidate checks. See the [STAB-012 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md) and
+[updated T12 evidence](../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
 STAB-005 and STAB-009 remain deferred/P2. Screen-reader/PDF and other explicitly
 unclaimed environments remain untested; this is not a blanket manual-matrix pass.
 

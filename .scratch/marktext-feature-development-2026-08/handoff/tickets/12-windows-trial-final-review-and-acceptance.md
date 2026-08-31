@@ -4,10 +4,17 @@ Wave: 10 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T11
 
 ## Result
 
-**Completed / Accepted (2026-08-30).** The independent final audit passed with 0
-blockers and active P0/P1 is 0. The final artifact, narrow same-artifact
-inheritance exception, remaining unclaimed rows, and local-only disposition are
-recorded in [T12 final acceptance evidence](../evidence/t12-final-acceptance-2026-08-30.md).
+**Reopened — final candidate generation and same-package regression pending
+(2026-08-30).** `Completed / Accepted` remains the historical result for the
+`57d2ae4d` artifact, but it is not the current T12 disposition. STAB-012 newly
+reported that the old final package creates a recovery window plus an ordinary
+window after a no-target CrashDraft restart; the repair is integrated at
+`85e5b61e` and has ticket-level manual evidence, but that package is not a new
+integration-HEAD final candidate. The next candidate must be generated from
+`85e5b61e` (or a later documentation-only descendant) and pass the final
+same-package gates before a new final review or Acceptance. See [T12 final
+acceptance evidence](../evidence/t12-final-acceptance-2026-08-30.md) and
+[STAB-012 evidence](../evidence/stab-012-recovery-startup-close-2026-08-30.md).
 The historical readiness evidence below remains evidence for its recorded scope;
 it is not rewritten as a blanket manual-matrix pass.
 
@@ -48,7 +55,7 @@ permits. Do not treat ordinary workspace state as recovery evidence.
 
 ## Acceptance and handoff
 
-The final audit and Acceptance disposition are recorded in the linked final
-evidence. It preserves `Untested` labels for unclaimed environments and permits
-only the documented narrow inheritance exception; it does not convert all matrix
-rows to `Passed`. This ticket's changes remain evidence/matrix only, with no push.
+The historical final audit/Acceptance disposition and the reopening condition are
+recorded in the linked final evidence. It preserves `Untested` labels for
+unclaimed environments and does not convert all matrix rows to `Passed`. This
+ticket's changes remain evidence/matrix only, with no push.

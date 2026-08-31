@@ -261,6 +261,70 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
   10/10 and the 2026-08-30 fresh-profile manual 6/6. Screen-reader/PDF, the full
   manual matrix, T12, and final Review/Acceptance remain unclaimed.
 
+## STAB-012 — CrashDraft no-target startup creates an extra ordinary window
+
+- Severity / rationale: P1 confirmed. On the old final package, a no-target
+  CrashDraft restart created a recovery window and then unconditionally created
+  a second ordinary window, making the emergency-recovery start path unsafe and
+  unavailable as a single recovered editor workflow.
+- Status / owner: `Closed / Manual-retest Passed` at ticket scope. The repair is
+  integrated and the isolated black-box replay passed; this does not make T12 or
+  the complete manual matrix accepted. The old final artifact is invalid as the
+  current final candidate; a newly generated candidate based on `85e5b61e` (or a
+  later documentation-only descendant) still needs same-package regression and
+  final-candidate acceptance.
+- Old-artifact observation / boundary: the report concerns the former final
+  package accepted at `57d2ae4d`. Its no-target CrashDraft recovery produced two
+  windows. The user also observed that its Recovered Draft could disappear or
+  close abnormally without confirmation; that second behavior was not confirmed
+  as a separate root cause, but remained a manual blocking condition until the
+  repaired close path was replayed. No recovered body text is retained here.
+- Red command actually run before repair: at production baseline
+  `f46c765c1891e70fcc421a64f40fa2404ff8559f`, worktree `3c05` had the new window
+  count assertion but no production startup-logic change. From
+  `C:\Users\1407\.codex\worktrees\3c05\Marktext\packages\desktop`, the recorded
+  `playwright.cmd test --config=test/e2e/playwright.config.ts --grep="recovers a
+  dirty untitled document with a stable recovery identity" --timeout=60000` run
+  used profile `C:\Users\1407\AppData\Local\Temp\marktext-crash-untitled-rOtwiy` and
+  failed 1/1 at 2026-08-31T01:13:59Z: after recovery content appeared on a
+  forced-crash dirty-untitled → no-target restart, the then-line-179
+  `BrowserWindow` assertion received 2 instead of 1. The exact command, stdout,
+  stderr, and exclusion of earlier launch/native-binding tool failures are in the
+  [STAB-012 evidence record](../../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md#pre-repair-red-capable-run).
+- Production repair / integration: task commit
+  `810db72d39b2ce29db9d3dfbecfca26be6e9a0c5`; integration cherry-pick
+  `85e5b61eaa18f6971338b5e1b2bdb8bb6bc57805`. The only production change is four
+  lines of `packages/desktop/src/main/app/index.ts`: a local flag prevents the
+  fallback ordinary editor window after recovery has already created its editor.
+  A CrashDraft no-target startup therefore creates one recovery editor window;
+  explicit startup files, normal no-recovery startup, and Controller/persistence
+  boundaries are unchanged.
+- Automated evidence: complete `workspace-startup-policy` passed 18/18,
+  including exact `BrowserWindow = 1`, recovered-first/bootstrap-first close
+  order, Discard tombstone and exit, owned decision exactly once, and dirty
+  Cancel/no-tombstone. Desktop typecheck passed; scoped lint had 0 errors and 6
+  existing warnings; diff-check was clean; no relevant Electron/Node process
+  remained after the task. Independent Spec review found 0 blockers; final narrow
+  Standards review found 0 blockers and 0 record items.
+- Manual black-box evidence: on 2026-08-30 America/Los_Angeles, isolated profile
+  `C:\Users\1407\AppData\Local\Temp\marktext-stab012-manual-810db72d`, a CrashDraft
+  checkpoint was followed by forced termination. Restart showed exactly one
+  window and a Recovered Draft containing the entered text. Close showed
+  Save/Don't Save/Cancel; Cancel retained the draft, then Don't Save closed the
+  remaining window. Exact artifact/profile process count was 0 and tombstone
+  count was 1. Recovery content is intentionally not reproduced in this ledger.
+- Task-artifact provenance: the manually used `win-unpacked` package came from
+  worktree `3c05`; its production contents match task commit `810db72d`.
+  `marktext.exe` SHA-256 is
+  `79DC49D25BCE2C3A40FB0F3085394C6794BC2BCAC8DB406FB79828EE6328D803` and
+  `resources\app.asar` SHA-256 is
+  `6F7CBBC56562C28924C45A4ADB19BA0BBE67BEC07D0A6D04FF32AD55107DBF38`.
+  Subsequent test-only amendments do not alter the production artifact, but this
+  package is not an as-yet-generated final-candidate package at integration HEAD.
+- Full evidence and final-gate relationship: see the [single STAB-012 evidence
+  record](../../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md)
+  and [T12 evidence](../../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
+
 ## STAB-R001 — Move bootstrap Untitled / final-tab replacement
 
 - Severity / rationale: resolved behavior; the required current-artifact manual

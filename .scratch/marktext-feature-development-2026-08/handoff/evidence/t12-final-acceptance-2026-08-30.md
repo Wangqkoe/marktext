@@ -1,16 +1,34 @@
 # T12 final acceptance evidence — 2026-08-30
 
-## Decision
+## Current decision
 
-T12 is `Completed / Accepted` for this stabilization round. The independent final
-audit passed with 0 blockers. The audited integration tree was clean at
-`6fdb3ac3`; its product head is `57d2ae4d6435b157d3e82c5abc094167d5edb3c0`, and
-later commits are documentation only. Active P0/P1 is 0. This is a local-only
-closeout; no push or publication is authorized.
+T12 is **reopened: final-candidate generation and same-package regression are
+pending**. The `Completed / Accepted` conclusion below remains the accurate
+historical result for the `57d2ae4d` artifact, but it is not the current final
+acceptance state. A newly reported P1, [STAB-012](stab-012-recovery-startup-close-2026-08-30.md), found that this old final package created both a recovery
+window and an extra ordinary window after a no-target CrashDraft restart. The
+user also observed unconfirmed disappearance/abnormal close behavior for its
+Recovered Draft. Its production repair `810db72d` is integrated at `85e5b61e` and
+has passed ticket-level automation, independent review, and isolated manual
+retest. That retest package is not a final candidate built from `85e5b61e`.
+
+Do not claim T12 as currently Accepted, the old artifact as current-final, or
+the STAB-012 retest as a complete matrix round. Generate a traceable Windows
+package from `85e5b61e` (or a later documentation-only descendant), then complete
+the final-candidate/same-package regression gates before a new final review or
+Acceptance. This remains local-only; no push or publication is authorized.
+
+## Historical accepted decision
+
+T12 was `Completed / Accepted` for the previous stabilization round. The
+independent final audit passed with 0 blockers. The audited integration tree was
+clean at `6fdb3ac3`; its product head was
+`57d2ae4d6435b157d3e82c5abc094167d5edb3c0`, and later commits were documentation
+only. Active P0/P1 was 0 at that time.
 
 ## Final artifact and evidence index
 
-The effective final Windows unpacked artifact is the STAB-011 artifact:
+The formerly effective final Windows unpacked artifact was the STAB-011 artifact:
 
 - Path: `C:\Users\1407\.codex\worktrees\98fa\Marktext\dist\t12-final-57d2ae4d6435b157d3e82c5abc094167d5edb3c0\win-unpacked`
 - Contents: 131 files, 476,433,733 bytes.
@@ -26,6 +44,9 @@ their recorded, unclaimed status.
 Earlier scoped manual/automatic evidence remains indexed by the stabilization
 [triage queue](../../../marktext-workspace-stabilization/triage-queue.md) and
 [manual regression matrix](../../../marktext-workspace-stabilization/manual-regression-matrix.md).
+The STAB-012 repair and its intentionally limited manual replay are in
+[STAB-012 evidence](stab-012-recovery-startup-close-2026-08-30.md); they reopen,
+rather than satisfy, the current final-candidate gate.
 
 ## Stale-package rejection and narrow inheritance rule
 
@@ -56,8 +77,9 @@ multi-display physical operation. V1 disables unsupported external drag there an
 retains menu Move. STAB-005 and STAB-009 remain deferred/P2 records. Existing
 lint warnings and the workflow's specific `out`/`asar` wording are P2 records.
 
-The independent final audit classifies these as non-blocking records, not reasons
-to reopen the completed stabilization round.
+The independent final audit classified these as non-blocking records at the time.
+The later STAB-012 P1 report is distinct: it reopens the final-candidate gate and
+invalidates the old artifact for current final acceptance.
 
 ## Commit relationship
 
