@@ -272,7 +272,8 @@ const openCrashDraft = async (payload: CrashDraftRecoveryPayload): Promise<void>
       ...(draft.fileKey ? { fileKey: draft.fileKey, observedDiskRevision: draft.observedDiskRevision } : {}),
       ...(payload.conflict ? { conflict: true } : {}),
       view: { cursor: draft.view.cursor, selection: draft.view.selection }
-    }
+    },
+    replacePristineBlank: true
   })
   if (opened.status !== 'applied') throw new Error(workspaceReason(opened))
   const recovered = controller.getFacadeSnapshot().documents.find(document => document.documentId === recoveredDocumentId)

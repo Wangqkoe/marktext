@@ -213,63 +213,48 @@ test('recovers a dirty untitled document with a stable recovery identity after a
   }
 })
 
-for (const closeOrder of ['recovered-first', 'bootstrap-first'] as const) {
-  test(`discards a recovered untitled draft and exits after closing tabs ${closeOrder}`, async() => {
-    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), `marktext-crash-close-${closeOrder}-`))
-    const marker = `untitled close ${closeOrder}`
-    const first = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
-    let killed = false
-    let restarted: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
-    let restartedChild: ChildProcess | undefined
-    try {
-      await typeIntoEditor(first.page, marker)
-      const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
-      await expect.poll(() => {
-        try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
-      }).toBe(true)
-      await forceTerminate(first.app)
-      killed = true
+test('discards a recovered untitled draft and exits after closing its last tab', async() => {
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-close-last-recovered-'))
+  const marker = 'untitled close last recovered'
+  const first = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+  let killed = false
+  let restarted: Awaited<ReturnType<typeof launchElectron>>['app'] | undefined
+  let restartedChild: ChildProcess | undefined
+  try {
+    await typeIntoEditor(first.page, marker)
+    const crashDraftDirectory = path.join(userDataDir, 'crash-drafts')
+    await expect.poll(() => {
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return false }
+    }).toBe(true)
+    await forceTerminate(first.app)
+    killed = true
 
-      const second = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
-      restarted = second.app
-      const child = second.app.process()
-      restartedChild = child
-      await waitForRecovery(second.app, marker)
-      const page = await recoveryWindow(second.app, marker)
-      const recoveredTab = page.locator('.tabs-container li[data-id^="crash-recovery:"]')
-      const bootstrapTab = page.locator('.tabs-container li:not([data-id^="crash-recovery:"])')
-      await expect(page.locator('.tabs-container li')).toHaveCount(2)
-      await second.app.evaluate(({ dialog }) => {
-        dialog.showMessageBox = async() => ({ response: 1, checkboxChecked: false })
-      })
+    const second = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
+    restarted = second.app
+    const child = second.app.process()
+    restartedChild = child
+    await waitForRecovery(second.app, marker)
+    const page = await recoveryWindow(second.app, marker)
+    const recoveredTab = page.locator('.tabs-container li[data-id^="crash-recovery:"]')
+    await expect(page.locator('.tabs-container li')).toHaveCount(1)
+    await second.app.evaluate(({ dialog }) => {
+      dialog.showMessageBox = async() => ({ response: 1, checkboxChecked: false })
+    })
 
-      const firstTab = closeOrder === 'recovered-first' ? recoveredTab : bootstrapTab
-      await firstTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
-      await expect(page.locator('.tabs-container li')).toHaveCount(1)
+    const closed = page.waitForEvent('close')
+    await recoveredTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
+    await closed
+    await expect.poll(() => {
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json')) } catch { return false }
+    }).toBe(true)
 
-      const remainingRecoveredTab = page.locator('.tabs-container li[data-id^="crash-recovery:"]')
-      if (closeOrder === 'bootstrap-first') {
-        const closed = page.waitForEvent('close')
-        await remainingRecoveredTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
-        await closed
-      }
-      await expect.poll(() => {
-        try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json')) } catch { return false }
-      }).toBe(true)
-
-      if (closeOrder === 'recovered-first') {
-        const closed = page.waitForEvent('close')
-        await page.locator('.tabs-container .close-icon').evaluate(button => (button as HTMLElement).click())
-        await closed
-      }
-      await expect.poll(() => child.exitCode, { timeout: 5_000 }).not.toBeNull()
-    } finally {
-      if (!killed) await forceTerminate(first.app)
-      await forceTerminate(restarted, restartedChild)
-      fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
-    }
-  })
-}
+    await expect.poll(() => child.exitCode, { timeout: 5_000 }).not.toBeNull()
+  } finally {
+    if (!killed) await forceTerminate(first.app)
+    await forceTerminate(restarted, restartedChild)
+    fs.rmSync(userDataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+  }
+})
 
 test('requests an owned native decision before closing a dirty recovered draft', async() => {
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-crash-native-decision-'))
@@ -317,7 +302,7 @@ test('requests an owned native decision before closing a dirty recovered draft',
       }
       return state.__mt_native_close_dialogs__ ?? []
     })).toEqual([{ ownerId: expect.any(Number), message: 'Save changes to Recovered Draft?', buttons: ['Save', "Don't Save", 'Cancel'] }])
-    await expect(page.locator('.tabs-container li')).toHaveCount(2)
+    await expect(page.locator('.tabs-container li')).toHaveCount(1)
     expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json'))).toBe(false)
   } finally {
     if (!killed) await forceTerminate(first.app)
@@ -522,7 +507,7 @@ test('Cancel keeps a dirty recovered draft open when its close icon is clicked',
     })
 
     await recoveredTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
-    await expect(page.locator('.tabs-container li')).toHaveCount(2)
+    await expect(page.locator('.tabs-container li')).toHaveCount(1)
     await expect(recoveredTab).toHaveClass(/unsaved/)
     expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json'))).toBe(false)
   } finally {
@@ -565,6 +550,10 @@ test('opens an explicit target alongside a forced-crash draft recovery', async()
       if (await window.locator('.tabs-container li').filter({ hasText: 'saved.md' }).count()) recoveryWindow = window
     }
     expect(recoveryWindow).toBeTruthy()
+    await expect(recoveryWindow!.locator('.tabs-container li')).toHaveCount(2)
+    await expect(recoveryWindow!.locator('.tabs-container li[data-id^="crash-recovery:"]')).toHaveCount(1)
+    await expect(recoveryWindow!.locator('body')).not.toContainText('Untitled-1')
+    await expect(recoveryWindow!.locator('.tabs-container li').filter({ hasText: 'explicit.md' })).toHaveCount(1)
     await recoveryWindow!.locator('.tabs-container li').filter({ hasText: 'saved.md' }).click()
     await expect(recoveryWindow!.locator('body')).toContainText('recovery survives')
   } finally {
