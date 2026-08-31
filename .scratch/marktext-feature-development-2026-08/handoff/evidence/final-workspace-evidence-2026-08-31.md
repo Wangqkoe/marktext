@@ -111,14 +111,30 @@ tabs and no placeholder), and a real second executable instance atomically
 replacing the primary pristine placeholder. Profiles and the temporary harness
 were removed after the run.
 
-## Remaining Acceptance boundary
+## Final manual Acceptance — 2026-08-31
 
-This record does not mark the entire V1 project or final release Accepted. Final
-user Acceptance remains pending for exactly these two required physical Windows
-workflows on the exact package above:
+The user completed both required physical Windows workflows against the exact
+package above and replied that both behaved as expected. This closes the final
+user Acceptance/project-completion gate; the package provenance remains the
+production commit `e223b0e3dd554b11a730f675eee2834961412d17` (later commits are
+test-format or documentation only).
 
-- physical right-tab drag into the split target;
-- physical tab drag out of the window for cross-window Move.
+Command and profile:
+`C:\Users\1407\.codex\worktrees\bc8b\Marktext\dist\win-unpacked\marktext.exe --user-data-dir=C:\Users\1407\AppData\Local\Temp\marktext-final-manual-b2e0aee3-01`.
+Environment: local Windows host, build `10.0.26200`, 100% display scale; user
+result trace: coordinating task `codex://threads/01a02eac-b483-7843-9688-44513b5cc238`.
+
+1. With files A/B open, the user physically dragged B from its tab into the
+   document-area right-side split target. Actual: left A/right B, source B tab
+   removed, one active tab per pane; closing right B left only A and kept the
+   window open. Expected behavior matched.
+2. After reopening B, the user physically dragged B outside the window and
+   released. Actual: new window contained only B, original window only A, with
+   no duplicate or incorrect focus; both windows closed normally. Expected
+   behavior matched.
+
+The required physical workflows were non-blocking for code integration but were
+blocking for final user Acceptance/project completion until this replay passed.
 
 ### Non-blocking records / future manual coverage
 

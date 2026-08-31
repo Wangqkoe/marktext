@@ -2,12 +2,11 @@
 
 ## Current round status — 2026-08-31
 
-Automated implementation and package evidence is complete; final user Acceptance
-is intentionally still open. See the [final workspace evidence](../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
-Physical Windows right-tab split drag and drag-out-of-window Move must still be
-performed by a user on the exact package. They are non-blocking for code
-integration, but blocking for final user Acceptance/project completion; the 63
-scoped-lint warnings and absent `CONTEXT.md` are record items.
+Automated implementation, package evidence, and final user Acceptance are
+complete. The user confirmed both required physical Windows gestures on the
+exact package; see the [final workspace evidence](../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
+The 63 scoped-lint warnings, absent `CONTEXT.md`, and extended physical/manual
+coverage remain non-blocking record items.
 
 ## Scope and decision
 
@@ -17,8 +16,8 @@ The frozen stabilization baseline is `fdda9330780edd11a79b84c6467eaed1cf1df61a`
 `codex/marktext-workspace-stabilization-ledger`. The target artifact is the
 Windows unpacked package recorded in the [STAB-001 entry](defects/index.md).
 
-This is **not** a release candidate. Stop "preparing to finish": T12, final
-Review/Acceptance, and release judgement are paused. No new feature work,
+This is **not** a release candidate. T12 and final Review/Acceptance are closed
+for this stabilization round; release judgement remains a separate decision. No new feature work,
 opportunistic refactoring, or changes to resolved Issues are in scope.
 
 The user supplies actual observed behavior. The coordinating task deduplicates,

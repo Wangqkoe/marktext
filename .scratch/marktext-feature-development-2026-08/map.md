@@ -1,7 +1,7 @@
 # MarkText workspace feature wayfinder
 
 Label: `wayfinder:map`
-Status: `implementation and automated evidence complete — final manual Acceptance pending`
+Status: `implementation and final manual Acceptance complete — project completion gate closed`
 
 ## Destination
 
@@ -63,6 +63,18 @@ default-off setting. It was not required for, implemented by, or implied by this
 V1 closeout. Supplementary screen-reader, PDF visual, real-power-loss,
 remote/assistive, and mixed-DPI/multi-display environments retain their recorded
 `Untested`/`Unavailable` boundaries.
+
+## Final manual Acceptance closeout — 2026-08-31
+
+The exact production-provenance package from `e223b0e3` passed both required
+physical Windows gestures: right-tab drag into the split target and drag-out
+for cross-window Move. The user confirmed both behaved as expected. T12,
+final Review/Acceptance, and the project-completion gate are now closed. The
+manual command, profile, artifact hashes, environment, and observed results are
+recorded in [final workspace evidence](handoff/evidence/final-workspace-evidence-2026-08-31.md).
+Screen-reader, PDF, real power-loss/kill, remote/assistive, and mixed-DPI/
+multi-display coverage remains explicitly `Untested`/`Unavailable` and
+non-blocking.
 
 ## T02b final production gate — 2026-08-26
 
@@ -162,5 +174,7 @@ See [final workspace evidence](handoff/evidence/final-workspace-evidence-2026-08
 The fresh package was built from production commit `e223b0e3dd554b11a730f675eee2834961412d17`;
 integrated `82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09` is test-only lint formatting
 and is not package provenance. Automated evidence and STAB-013/014/015 reviews
-pass. Final user Acceptance remains pending for physical Windows right-tab split
-drag and drag-out-of-window Move.
+pass. Final user Acceptance passed: the user completed physical Windows
+right-tab split drag and drag-out-of-window Move on the exact package; the
+project-completion gate is closed. Extended screen-reader/PDF/power-loss/
+mixed-DPI coverage remains non-blocking `Untested`/`Unavailable` record data.

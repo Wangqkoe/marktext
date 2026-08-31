@@ -6,10 +6,10 @@ The fresh `dist\win-unpacked` package from production commit `e223b0e3dd554b11a7
 passed packaged STAB-015 R1–R5 and related STAB-013/014 automated gates;
 workspace unit was 8 files / 123 tests, related Electron E2E was 64/64,
 `build:win` passed, and scoped lint is 0 errors / 63 warnings. Independent
-Standards and Spec reviews pass. Required human Acceptance remains pending for
-physical Windows right-tab split drag and drag-out-of-window Move; these are
-non-blocking for code integration, but blocking for final user Acceptance/project
-completion. See [final
+Standards and Spec reviews pass. Required human Acceptance is Passed/Accepted:
+the user completed physical Windows right-tab split drag and drag-out-of-window
+Move on the exact package. These were non-blocking for code integration but were
+the final user Acceptance/project-completion blockers until this replay. See [final
 workspace evidence](../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
 
 This is a bounded, risk-directed audit, not infinite combination enumeration.

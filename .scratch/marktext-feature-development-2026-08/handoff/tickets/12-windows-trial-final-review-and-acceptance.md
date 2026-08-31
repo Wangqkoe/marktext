@@ -4,15 +4,15 @@ Wave: 10 · Risk/model: high — `gpt-5.6-terra` / `high` · Depends on: T11
 
 ## Result
 
-**Current status — automated evidence complete; final user Acceptance pending
-(2026-08-31).** The current package at
+**Current status — Final Acceptance Passed / Accepted; project-completion gate
+closed (2026-08-31).** The current package at
 `C:\Users\1407\.codex\worktrees\bc8b\Marktext\dist\win-unpacked` was built from
 production commit `e223b0e3dd554b11a730f675eee2834961412d17`. Integrated
 `82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09` contains only test formatting and is
 not package provenance. Packaged R1–R5, related E2E 64/64, typecheck, build and
-scoped lint (0 errors / 63 warnings) passed; Standards and Spec passed. Physical
-Windows right-tab split drag and drag-out-of-window Move remain pending final
-user Acceptance.
+scoped lint (0 errors / 63 warnings) passed; Standards and Spec passed. The user
+completed physical Windows right-tab split drag and drag-out-of-window Move on
+the exact package; both matched expected behavior.
 
 **Historical / superseded Completed / Accepted — then-final candidate and
 same-package regression passed (2026-08-30).** The then-accepted Windows
@@ -83,3 +83,16 @@ Screen-reader, PDF visual, real power-loss, remote/assistive, and
 mixed-DPI/multi-display physical operation remain `Untested`/`Unavailable`
 non-blocking records for future/manual coverage. This ticket changes evidence
 and status documents only; it does not authorize publication or a push.
+
+## Final manual Acceptance closeout — 2026-08-31
+
+The user ran the exact final package with isolated profile
+`C:\Users\1407\AppData\Local\Temp\marktext-final-manual-b2e0aee3-01` and confirmed
+both required physical gestures behaved as expected: B was dragged into the
+right split target (left A/right B, source tab removed, right close left A), then
+B was dragged outside for Move (new window only B, original only A, no duplicate
+or focus error, normal close). T12 is now `Final Acceptance Passed / Accepted`
+and the project-completion gate is closed. The command, environment, hashes and
+full observed result are in [final workspace evidence](../evidence/final-workspace-evidence-2026-08-31.md).
+Screen-reader, PDF, real power-loss/kill, remote/assistive, and mixed-DPI/
+multi-display rows remain non-blocking `Untested`/`Unavailable` records.

@@ -331,11 +331,11 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 
 - Severity / rationale: P1 candidate resolved for the automated supported path;
   no current product failure is established.
-- Status / owner: `Integrated / Standards PASS / Spec PASS`; final human Windows
-  physical right-tab drag remains `Manual-retest`/Acceptance pending.
-- Evidence: final workspace package automation passed source-tab removal, exactly
-  one active/focused tab per pane, and right-pane close collapse to the original
-  unsplit tab. Physical drag is not treated as blocker or falsely marked Passed.
+- Status / owner: `Final Acceptance Passed / Accepted`; the user completed the
+  required physical right-tab drag on the exact final package.
+- Evidence: automation passed source-tab removal, exactly one active/focused tab
+  per pane, and right-pane close collapse; the user then confirmed the physical
+  replay matched expected behavior on the exact package.
 - Related evidence: [final workspace evidence](../../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
 
 ## STAB-014 — Recovered Draft close safety
@@ -351,8 +351,8 @@ resolved Issues. Entries report observed facts; they do not infer unreported bug
 ## STAB-015 — startup/recovery/second-instance policy
 
 - Severity / rationale: P1 candidate resolved for the tested Windows package path.
-- Status / owner: `Integrated / Standards PASS / Spec PASS`; packaged R1–R5 all
-  passed. Final user Acceptance remains pending for physical drag boundaries.
+- Status / owner: `Final Acceptance Passed / Accepted`; packaged R1–R5 and both
+  required physical drag boundaries passed on the exact final package.
 - Provenance: package built from production `e223b0e3dd554b11a730f675eee2834961412d17`;
   test-only lint fix `82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09` is recorded but is
   not package provenance.

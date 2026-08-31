@@ -5,9 +5,11 @@
 STAB-013, STAB-014, and STAB-015 are integrated with independent Standards/Spec
 PASS and automated evidence in the [final workspace evidence](../marktext-feature-development-2026-08/handoff/evidence/final-workspace-evidence-2026-08-31.md).
 The current package is from production `e223b0e3`; test-only lint fix `82dd4cf0`
-is separately recorded. T12/STAB-012 historical acceptance remains provenance,
-not blanket current-project Acceptance. Physical Windows split drag and drag-out
-Move remain final manual Acceptance boundaries.
+is separately recorded. The user completed the two required physical Windows
+gestures on that exact package, so T12/final user Acceptance and the project-
+completion gate are closed. Historical T12/STAB-012 acceptance remains
+provenance; screen-reader/PDF/power-loss/mixed-DPI rows remain non-blocking
+records.
 
 - Closed: STAB-001, STAB-002, STAB-004, STAB-006, STAB-008, STAB-010, STAB-011, STAB-012, and STAB-R001.
 - Closed incorrect test chain: STAB-P001; `File > Move To` is a filesystem move,
@@ -32,7 +34,7 @@ Move remain final manual Acceptance boundaries.
   evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md)
   and [T12 final acceptance](../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
 
-Accept and normalize further user reports.
+Accept and normalize further user reports; the current closeout is complete.
 
 Historical final status: T12 was accepted at `57d2ae4d`, then reopened when
 STAB-012 invalidated that old package. The then-current status was **T12
@@ -44,7 +46,8 @@ recovery/close gates. Independent final audit task
 [STAB-012 evidence](../marktext-feature-development-2026-08/handoff/evidence/stab-012-recovery-startup-close-2026-08-30.md) and
 [updated T12 evidence](../marktext-feature-development-2026-08/handoff/evidence/t12-final-acceptance-2026-08-30.md).
 STAB-005 and STAB-009 remain deferred/P2. Screen-reader/PDF and other explicitly
-unclaimed environments remain untested; this is not a blanket manual-matrix pass.
+unclaimed environments remain untested non-blocking records; this closeout does
+not claim those future/manual rows were measured.
 
 For every new P0/P1 report, `diagnosing-bugs` requires the same artifact, a
 unique profile, the accurate entry method, timestamp, PID/window/logical-tab

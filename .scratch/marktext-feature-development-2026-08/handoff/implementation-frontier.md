@@ -31,8 +31,12 @@ The current integrated HEAD is `82dd4cf0d0d6d4b71c20d496bf31ac8726bcdb09`, while
 the fresh package was built from production commit `e223b0e3dd554b11a730f675eee2834961412d17`.
 Workspace unit (8 files / 123 tests), related E2E (64/64), typecheck, build and
 scoped lint (0 errors / 63 warnings) pass; STAB-013/014/015 Standards and Spec
-reviews pass. Final manual Acceptance remains pending for physical Windows
-right-tab split drag and drag-out-of-window Move. See [final workspace evidence](evidence/final-workspace-evidence-2026-08-31.md).
+reviews pass. Final manual Acceptance passed: the user completed physical
+right-tab split drag and drag-out-of-window Move on the exact package, closing
+the project-completion gate. See [final workspace evidence](evidence/final-workspace-evidence-2026-08-31.md).
+
+Screen-reader, PDF, real power-loss/kill, remote/assistive, and mixed-DPI/
+multi-display rows remain `Untested`/`Unavailable` non-blocking records.
 
 ## Stabilization frontier — 2026-08-27 (historical)
 

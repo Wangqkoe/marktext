@@ -9,9 +9,16 @@ integration branch; `Passed` may be claimed only with all four.
 > integrated test-only lint fix `82dd4cf0`, workspace unit 8 files / 123 tests,
 > related Electron E2E 64/64, `build:win` PASS, and scoped lint 0 errors / 63
 > warnings. STAB-013/014/015 Standards and Spec reviews are PASS. Final user
-> Acceptance remains pending for physical Windows right-tab split drag and
-> drag-out-of-window Move; these are non-blocking for code integration, but
-> blocking for final user Acceptance/project completion.
+> Acceptance is Passed/Accepted: the user completed the required physical
+> Windows right-tab split drag and drag-out-of-window Move on the exact package;
+> both were non-blocking for code integration but were the final user
+> Acceptance/project-completion blockers until this replay.
+
+> **Final manual Acceptance closeout (2026-08-31):** command/profile,
+> environment, expected/actual results, and user confirmation are recorded in
+> [final workspace evidence](evidence/final-workspace-evidence-2026-08-31.md).
+> Screen-reader, PDF, real power-loss/kill, remote/assistive, and mixed-DPI/
+> multi-display rows remain `Untested`/`Unavailable` non-blocking records.
 
 > **Historical stabilization block (2026-08-27):** automated passing evidence did not
 > override packaged/manual failures. The final gate is `Failed/Blocked` until the
@@ -125,7 +132,7 @@ the identical retry succeeded without source or lockfile changes.
 | --- | --- | --- |
 | A14 automated clean Windows-build readiness | Passed | `pnpm install --frozen-lockfile` passed on retry; `pnpm build:win:x64` exit 0 on Windows 11 Pro 10.0.26200, Node 24.18.0, pnpm 10.33.4. |
 | A14 manual Windows trial | Historical Passed (superseded) | The former `f6dcf9db` candidate passed the recorded supported/local recovery trial; this is historical evidence, not the current package gate. |
-| T12 final acceptance | Historical Passed / Accepted (superseded) | [Historical acceptance evidence](evidence/t12-final-acceptance-2026-08-30.md): candidate source `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`; retained for provenance only. Current final user Acceptance remains pending. |
+| T12 final acceptance | Historical Passed / Accepted (superseded) | [Historical acceptance evidence](evidence/t12-final-acceptance-2026-08-30.md): candidate source `f6dcf9dbb949a972c4d3609294b858ab2d46b1d0`; retained for provenance only. Final user Acceptance was pending at that historical point and is now closed by the 2026-08-31 replay above. |
 | Supplementary unclaimed environments (not an accepted A14/final gate) | Untested / Unavailable records | Screen-reader, PDF visual, real power-loss, remote/assistive, and mixed-DPI/multi-display physical operation remain unclaimed. They are explicit final-audit non-blocking boundaries, not Passed results; supported fallback/automation evidence remains recorded above and in the linked evidence. |
 
 ## T03 integration evidence — 2026-08-25
