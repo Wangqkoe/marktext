@@ -125,9 +125,27 @@ const handleClick = (data: { slug?: unknown }): void => {
   overflow-y: auto;
 }
 
+.side-bar-toc-wordwrap .el-tree,
+.side-bar-toc-wordwrap .el-tree-node,
+.side-bar-toc-wordwrap .el-tree-node__children {
+  min-width: 0;
+}
+
 .side-bar-toc-wordwrap .el-tree-node__content {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   white-space: normal;
   height: auto;
   min-height: 26px;
+}
+
+.side-bar-toc-wordwrap .el-tree-node__label {
+  min-width: 0;
+  flex: 1;
+  padding: 3px 0;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 </style>

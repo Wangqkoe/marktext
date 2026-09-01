@@ -3,7 +3,9 @@
     <div
       ref="folderEl"
       class="folder-name"
-      :style="{ 'padding-left': `${depth * 6 + 10}px` }"
+      :style="{
+        'padding-left': `calc(var(--files-content-inset) + ${depth * 6 + 10}px)`
+      }"
       :class="[{ active: folder.id === activeItem.id }]"
       :title="folder.pathname"
       @click="folderNameClick"
@@ -45,7 +47,9 @@
         v-model="createName"
         type="text"
         class="new-input"
-        :style="{ 'margin-left': `${depth * 5 + 15}px` }"
+        :style="{
+          'margin-left': `calc(var(--files-content-inset) + ${depth * 5 + 15}px)`
+        }"
         @keypress.enter="handleInputEnter"
       >
       <File

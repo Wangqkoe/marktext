@@ -100,7 +100,9 @@
           placeholder="Enter .md file name"
           type="text"
           class="new-input"
-          :style="{ 'margin-left': `${depth * 5 + 15}px` }"
+          :style="{
+            'margin-left': `calc(var(--files-content-inset) + ${depth * 5 + 15}px)`
+          }"
           @keypress.enter="handleInputEnter"
         >
         <file
@@ -291,6 +293,8 @@ onMounted(() => {
   transform: translateX(-50px);
 }
 .tree-view {
+  --files-content-inset: 12px;
+
   font-size: 14px;
   color: var(--sideBarColor);
   display: flex;
@@ -314,6 +318,7 @@ onMounted(() => {
   height: 30px;
   line-height: 30px;
   font-size: 14px;
+  padding-left: var(--files-content-inset);
 }
 
 .opened-files .title {
@@ -344,6 +349,9 @@ onMounted(() => {
 .opened-files {
   display: flex;
   flex-direction: column;
+  padding-bottom: 9px;
+  margin-bottom: 7px;
+  border-bottom: 1px solid var(--appShellVisibleDivider);
 }
 .default-cursor {
   cursor: pointer;

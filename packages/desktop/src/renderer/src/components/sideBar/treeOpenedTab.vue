@@ -47,7 +47,7 @@ const removeFileInTab = (file: TabDescriptor): void => {
   user-select: none;
   height: 28px;
   line-height: 28px;
-  padding-left: 35px;
+  padding-left: calc(var(--files-content-inset) + 35px);
   position: relative;
   color: var(--sideBarColor);
   & > .close-icon {
