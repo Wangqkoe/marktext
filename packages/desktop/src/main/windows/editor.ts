@@ -18,6 +18,7 @@ import type { FolderRootIdentity } from '@shared/types/ipc'
 import { getCrashDraftAdapter, getDocumentIoAdapter, getTransferAdapter } from '../ipc'
 import { attachEditorDocumentIo } from './documentIO'
 import { isDirectory } from 'common/filesystem'
+import type { DirectoryWatcherCandidate } from '../filesystem/watcher'
 
 type RawMarkdownDocument = Awaited<ReturnType<typeof loadMarkdownFile>>
 
@@ -64,6 +65,8 @@ class EditorWindow extends BaseWindow {
   private _openedRootDirectory: string | null
   private _folderRootGeneration: number
   private _folderRootClosed: boolean
+  private _pendingFolderWatcher: DirectoryWatcherCandidate | null
+  private _pendingFolderRoot: FolderRootIdentity | null
   private _openedFiles: string[] | null
 
   public bufferStoreInfo: BufferStoreInfo | null
@@ -86,6 +89,8 @@ class EditorWindow extends BaseWindow {
     this._openedRootDirectory = ''
     this._folderRootGeneration = 0
     this._folderRootClosed = false
+    this._pendingFolderWatcher = null
+    this._pendingFolderRoot = null
     this._openedFiles = []
 
     this.bufferStoreInfo = null
@@ -438,7 +443,7 @@ class EditorWindow extends BaseWindow {
   /**
    * Open a (new) directory and replaces the old one.
    */
-  openFolder(pathname: string): boolean {
+  async openFolder(pathname: string): Promise<boolean> {
     const normalizedPathname = pathname ? path.normalize(pathname) : ''
     // TODO: Don't allow new files if quitting.
     if (
@@ -457,32 +462,58 @@ class EditorWindow extends BaseWindow {
 
       const root: FolderRootIdentity = {
         pathname: normalizedPathname,
-        generation: this._folderRootGeneration + 1
+        generation: ++this._folderRootGeneration
       }
+      let candidate: DirectoryWatcherCandidate
       try {
-        const watcherRegistered = ipcMain.emit(
-          'watcher-watch-directory',
+        candidate = this._accessor.windowManager.prepareDirectoryWatcher(
           browserWindow,
           normalizedPathname,
           root
         )
-        if (!watcherRegistered) {
-          log.error('Cannot open Folder root because the directory watcher is unavailable.')
-          return false
-        }
       } catch (err) {
         log.error(`Cannot watch Folder root "${normalizedPathname}":`, err)
         return false
       }
 
-      if (this._openedRootDirectory) {
-        ipcMain.emit('watcher-unwatch-directory', browserWindow, this._openedRootDirectory)
+      this._pendingFolderWatcher?.close()
+      this._pendingFolderWatcher = candidate
+      this._pendingFolderRoot = root
+      try {
+        await candidate.ready
+      } catch (err) {
+        if (this._pendingFolderWatcher === candidate) {
+          this._pendingFolderWatcher = null
+          this._pendingFolderRoot = null
+          log.error(`Cannot prepare Folder root "${normalizedPathname}":`, err)
+        }
+        return false
       }
 
-      this._folderRootGeneration = root.generation
+      if (
+        this._pendingFolderWatcher !== candidate ||
+        this.lifecycle !== WindowLifecycle.READY ||
+        this.browserWindow !== browserWindow ||
+        !candidate.commit(() => browserWindow.webContents.send('mt::open-directory', root))
+      ) {
+        candidate.close()
+        return false
+      }
+
+      this._pendingFolderWatcher = null
+      this._pendingFolderRoot = null
       this._folderRootClosed = false
       this._openedRootDirectory = normalizedPathname
-      browserWindow.webContents.send('mt::open-directory', root)
+      if (this.bufferStoreInfo) {
+        const boundarySet = this._accessor.editorBufferStore.setFolderRootBoundary(
+          this.bufferStoreInfo.id,
+          root,
+          {
+            persist: false
+          }
+        )
+        if (!boundarySet) log.error('Failed to advance the buffered Folder root boundary.')
+      }
       try {
         preferences.setItems({ lastOpenedFolder: normalizedPathname })
       } catch (err) {
@@ -506,8 +537,14 @@ class EditorWindow extends BaseWindow {
 
   closeFolder(): boolean {
     if (this.lifecycle === WindowLifecycle.QUITTED) return false
-    const pathname = this._openedRootDirectory || this._directoryToOpen
+    const pathname = this._openedRootDirectory ||
+      this._directoryToOpen ||
+      this._pendingFolderRoot?.pathname
     if (!pathname) return false
+
+    this._pendingFolderWatcher?.close()
+    this._pendingFolderWatcher = null
+    this._pendingFolderRoot = null
 
     const browserWindow = this._openedRootDirectory && this.lifecycle === WindowLifecycle.READY
       ? this.browserWindow
@@ -519,9 +556,8 @@ class EditorWindow extends BaseWindow {
     this._directoryToOpen = null
     const root: FolderRootIdentity = {
       pathname,
-      generation: this._folderRootGeneration + 1
+      generation: ++this._folderRootGeneration
     }
-    this._folderRootGeneration = root.generation
     this._folderRootClosed = true
 
     if (browserWindow) {
@@ -554,12 +590,11 @@ class EditorWindow extends BaseWindow {
 
     try {
       const { editorBufferStore } = this._accessor
-      const bufferStore = editorBufferStore.getBufferStoreInfo(this.bufferStoreInfo.id)
-      if (!fs.existsSync(bufferStore.filePath)) return
-      const state = editorBufferStore.readBufferStoreFile(bufferStore.filePath) as RestoredBufferState
-      if (!state.project?.rootDirectory) return
-      state.project = { ...state.project, rootDirectory: '' }
-      editorBufferStore.writeBufferStoreFile(bufferStore.filePath, state)
+      const boundarySet = editorBufferStore.setFolderRootBoundary(this.bufferStoreInfo.id, {
+        pathname: '',
+        generation: this._folderRootGeneration
+      })
+      if (!boundarySet) log.error('Failed to persist the closed Folder root boundary.')
     } catch (err) {
       log.error('Failed to clear Folder root from buffered state:', err)
     }

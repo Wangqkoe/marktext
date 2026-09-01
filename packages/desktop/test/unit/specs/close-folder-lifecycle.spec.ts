@@ -114,6 +114,20 @@ interface FolderLifecycleStore {
   CLOSE_FOLDER(root: FolderRootIdentity): void
 }
 
+interface DirectoryWatcherCandidate {
+  ready: Promise<void>
+  commit(): boolean
+  close(): void
+}
+
+interface ReadyAwareWatcher {
+  prepareDirectory(
+    win: unknown,
+    pathname: string,
+    root: FolderRootIdentity
+  ): DirectoryWatcherCandidate
+}
+
 const watcherPreferences = {
   getItem: vi.fn(() => false),
   getPreferredEol: vi.fn(() => 'lf'),
@@ -153,6 +167,78 @@ describe('directory watcher generation ownership', () => {
     await Promise.resolve()
 
     expect(send).not.toHaveBeenCalledWith('mt::update-object-tree', expect.anything())
+    watcher.close()
+  })
+
+  it('keeps the committed Folder root active when a candidate errors before ready', async() => {
+    const send = vi.fn()
+    const win = { id: 6, webContents: { send } }
+    const watcher = new Watcher(watcherPreferences as never)
+    watcher.watch(win as never, '/old-root', 'dir', { pathname: '/old-root', generation: 1 })
+
+    const candidate = (watcher as unknown as ReadyAwareWatcher).prepareDirectory(
+      win,
+      '/candidate-root',
+      { pathname: '/candidate-root', generation: 2 }
+    )
+    const readyResult = candidate.ready.catch((error: unknown) => error)
+    watcherFixtures.instances[1].handlers.get('error')?.(new Error('candidate unavailable'))
+
+    await expect(readyResult).resolves.toBeInstanceOf(Error)
+    expect(watcherFixtures.instances[0].close).not.toHaveBeenCalled()
+    expect(watcherFixtures.instances[1].close).toHaveBeenCalledOnce()
+
+    watcherFixtures.instances[0].handlers.get('unlink')?.('/old-root/still-active.md')
+    expect(send).toHaveBeenCalledWith('mt::update-object-tree', {
+      root: { pathname: '/old-root', generation: 1 },
+      type: 'unlink',
+      change: { pathname: '/old-root/still-active.md' }
+    })
+    watcher.close()
+  })
+
+  it('replaces the old Folder watcher only after async ready wins the first terminal event', async() => {
+    const send = vi.fn()
+    const win = { id: 10, webContents: { send } }
+    const watcher = new Watcher(watcherPreferences as never)
+    watcher.watch(win as never, '/old-root', 'dir', { pathname: '/old-root', generation: 1 })
+
+    const candidate = (watcher as unknown as ReadyAwareWatcher).prepareDirectory(
+      win,
+      '/new-root',
+      { pathname: '/new-root', generation: 2 }
+    )
+
+    expect(candidate.commit()).toBe(false)
+    expect(watcherFixtures.instances[0].close).not.toHaveBeenCalled()
+    watcherFixtures.instances[1].handlers.get('addDir')?.('/new-root/nested')
+    expect(send).not.toHaveBeenCalledWith('mt::update-object-tree', expect.objectContaining({
+      change: expect.objectContaining({ pathname: '/new-root/nested' })
+    }))
+
+    watcherFixtures.instances[1].handlers.get('ready')?.()
+    await expect(candidate.ready).resolves.toBeUndefined()
+    watcherFixtures.instances[1].handlers.get('error')?.(new Error('late watcher error'))
+
+    expect(candidate.commit()).toBe(true)
+    expect(watcherFixtures.instances[0].close).toHaveBeenCalledOnce()
+    expect(watcherFixtures.instances[1].close).not.toHaveBeenCalled()
+    expect(send).toHaveBeenCalledWith('mt::update-object-tree', {
+      root: { pathname: '/new-root', generation: 2 },
+      type: 'addDir',
+      change: expect.objectContaining({ pathname: '/new-root/nested' })
+    })
+
+    watcherFixtures.instances[0].handlers.get('unlink')?.('/old-root/late.md')
+    watcherFixtures.instances[1].handlers.get('unlink')?.('/new-root/current.md')
+    expect(send).not.toHaveBeenCalledWith('mt::update-object-tree', expect.objectContaining({
+      change: { pathname: '/old-root/late.md' }
+    }))
+    expect(send).toHaveBeenCalledWith('mt::update-object-tree', {
+      root: { pathname: '/new-root', generation: 2 },
+      type: 'unlink',
+      change: { pathname: '/new-root/current.md' }
+    })
     watcher.close()
   })
 

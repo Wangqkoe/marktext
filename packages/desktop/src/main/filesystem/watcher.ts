@@ -41,6 +41,12 @@ interface WatcherEntry {
   close: () => void
 }
 
+export interface DirectoryWatcherCandidate {
+  ready: Promise<void>
+  commit: (publish?: () => void) => boolean
+  close: () => void
+}
+
 interface WatcherEventPayload {
   type: string
   change: { pathname: string; [key: string]: unknown }
@@ -216,6 +222,24 @@ class Watcher {
     type: WatchType = 'dir',
     rootIdentity?: FolderRootIdentity
   ): () => void {
+    return this._watch(win, watchPath, type, rootIdentity, false).close
+  }
+
+  prepareDirectory(
+    win: BrowserWindow,
+    watchPath: string,
+    rootIdentity: FolderRootIdentity
+  ): DirectoryWatcherCandidate {
+    return this._watch(win, watchPath, 'dir', rootIdentity, true)
+  }
+
+  private _watch(
+    win: BrowserWindow,
+    watchPath: string,
+    type: WatchType,
+    rootIdentity: FolderRootIdentity | undefined,
+    waitForDirectoryReady: boolean
+  ): DirectoryWatcherCandidate {
     const usePolling = isOsx ? true : this._preferences.getItem<boolean>('watcherUsePolling')
 
     const id = getUniqueId()
@@ -271,6 +295,17 @@ class Watcher {
     let disposed = false
     let enospcReached = false
     let renameTimer: NodeJS.Timeout | null = null
+    let readyReached = !waitForDirectoryReady
+    let committed = !waitForDirectoryReady
+    const pendingEvents: WatcherEventPayload[] = []
+    let settleReady!: () => void
+    let rejectReady!: (reason: unknown) => void
+    const ready = waitForDirectoryReady
+      ? new Promise<void>((resolve, reject) => {
+        settleReady = resolve
+        rejectReady = reject
+      })
+      : Promise.resolve()
     const root = type === 'dir'
       ? (rootIdentity ?? { pathname: watchPath, generation: 0 })
       : null
@@ -282,6 +317,11 @@ class Watcher {
         activeRoot.pathname === root.pathname
     }
     const sendEvent: WatcherEventSender = (payload) => {
+      if (disposed) return
+      if (root && waitForDirectoryReady && !committed) {
+        pendingEvents.push(payload)
+        return
+      }
       if (!isCurrent()) return
       win.webContents.send(
         EVENT_NAME[type],
@@ -361,6 +401,12 @@ class Watcher {
           }, 150)
         }
       })
+      .on('ready', () => {
+        if (waitForDirectoryReady && !disposed && !readyReached) {
+          readyReached = true
+          settleReady()
+        }
+      })
       .on('error', (error: unknown) => {
         const code = (error as NodeJS.ErrnoException)?.code
         if (code === 'ENOSPC') {
@@ -378,10 +424,17 @@ class Watcher {
         } else {
           log.error('Error while watching files:', error)
         }
+        if (waitForDirectoryReady && !readyReached) {
+          closeFn(error)
+        }
       })
 
-    const closeFn = (): void => {
+    const closeFn = (reason: unknown = new Error('Directory watcher candidate closed.')): void => {
+      if (disposed) return
       disposed = true
+      if (waitForDirectoryReady && !readyReached) {
+        rejectReady(reason)
+      }
       if (root) {
         const activeRoot = this._activeDirectoryRoots.get(win.id)
         if (
@@ -398,7 +451,37 @@ class Watcher {
         clearTimeout(renameTimer)
         renameTimer = null
       }
+      pendingEvents.length = 0
       watcher.close()
+    }
+
+    const commit = (publish: () => void = () => undefined): boolean => {
+      if (!root || disposed || !readyReached) return false
+      if (committed) return true
+
+      const previousRoot = this._activeDirectoryRoots.get(win.id)
+      this._activeDirectoryRoots.set(win.id, root)
+      const replacedEntries = Object.entries(this.watchers)
+        .filter(([entryId, entry]) => (
+          entryId !== id && entry.win === win && entry.type === 'dir'
+        ))
+        .map(([, entry]) => entry)
+      committed = true
+      try {
+        pendingEvents.splice(0).forEach(sendEvent)
+        publish()
+      } catch (err) {
+        committed = false
+        if (previousRoot) {
+          this._activeDirectoryRoots.set(win.id, previousRoot)
+        } else {
+          this._activeDirectoryRoots.delete(win.id)
+        }
+        log.error('Failed to commit Folder watcher candidate:', err)
+        return false
+      }
+      replacedEntries.forEach(({ close }) => close())
+      return true
     }
 
     this.watchers[id] = {
@@ -409,11 +492,11 @@ class Watcher {
       root,
       close: closeFn
     }
-    if (root) {
+    if (root && !waitForDirectoryReady) {
       this._activeDirectoryRoots.set(win.id, root)
     }
 
-    return closeFn
+    return { ready, commit, close: closeFn }
   }
 
   unwatch(win: BrowserWindow, watchPath: string, type: WatchType = 'dir'): void {

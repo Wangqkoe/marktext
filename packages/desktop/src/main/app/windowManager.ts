@@ -3,6 +3,7 @@ import type { BrowserWindow as IBrowserWindow } from 'electron'
 import log from 'electron-log'
 import { TypedEmitter } from '@shared/types/typedEmitter'
 import Watcher, {
+  type DirectoryWatcherCandidate,
   WATCHER_STABILITY_THRESHOLD,
   WATCHER_STABILITY_POLL_INTERVAL
 } from '../filesystem/watcher'
@@ -114,6 +115,14 @@ class WindowManager extends TypedEmitter<WindowManagerEvents> {
     this._watcher = new Watcher(preferences)
 
     this._listenForIpcMain()
+  }
+
+  prepareDirectoryWatcher(
+    win: IBrowserWindow,
+    pathname: string,
+    root: FolderRootIdentity
+  ): DirectoryWatcherCandidate {
+    return this._watcher.prepareDirectory(win, pathname, root)
   }
 
   /**

@@ -3,6 +3,7 @@ import path from 'path'
 import writeFileAtomic from 'write-file-atomic'
 import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron'
 import { TypedEmitter } from '@shared/types/typedEmitter'
+import type { FolderRootIdentity } from '@shared/types/ipc'
 import type BaseWindow from '../windows/base'
 
 interface EditorBufferStorePaths {
@@ -33,6 +34,7 @@ class EditorBufferStore extends TypedEmitter<EditorBufferStoreEvents> {
   bufferStores: Record<string, BufferStoreEntry> | null
   serviceName: string
   encryptKeys: string[]
+  private _folderRootBoundaries: Map<string, FolderRootIdentity>
 
   constructor(paths: EditorBufferStorePaths) {
     super()
@@ -45,6 +47,7 @@ class EditorBufferStore extends TypedEmitter<EditorBufferStoreEvents> {
     this.bufferStores = null
     this.serviceName = 'marktext'
     this.encryptKeys = []
+    this._folderRootBoundaries = new Map()
 
     this.init()
   }
@@ -184,6 +187,41 @@ class EditorBufferStore extends TypedEmitter<EditorBufferStoreEvents> {
     writeFileAtomic.sync(filePath, JSON.stringify(newState), 'utf8')
   }
 
+  setFolderRootBoundary(
+    restoreBufferId: string,
+    root: FolderRootIdentity,
+    { persist = true }: { persist?: boolean } = {}
+  ): boolean {
+    const current = this._folderRootBoundaries.get(restoreBufferId)
+    if (
+      !Number.isSafeInteger(root.generation) ||
+      root.generation < 0 ||
+      (current && (
+        root.generation < current.generation ||
+        (root.generation === current.generation && root.pathname !== current.pathname)
+      ))
+    ) {
+      return false
+    }
+
+    this._folderRootBoundaries.set(restoreBufferId, root)
+    if (!persist) return true
+
+    const bufferStore = this.getBufferStoreInfo(restoreBufferId)
+    if (!fs.existsSync(bufferStore.filePath)) return true
+    try {
+      const state = this.readBufferStoreFile(bufferStore.filePath)
+      this.writeBufferStoreFile(
+        bufferStore.filePath,
+        this._applyFolderRootBoundary(restoreBufferId, state)
+      )
+      return true
+    } catch (err) {
+      console.error('Failed to persist Folder root boundary', err)
+      return false
+    }
+  }
+
   updateBufferState(e: IpcMainInvokeEvent, newState: unknown): boolean {
     const win = BrowserWindow.fromWebContents(e.sender)
     const restoreBufferId = (win as unknown as { restoreBufferId?: string })?.restoreBufferId
@@ -194,8 +232,27 @@ class EditorBufferStore extends TypedEmitter<EditorBufferStoreEvents> {
     }
 
     const bufferStore = this.getBufferStoreInfo(restoreBufferId)
-    this.writeBufferStoreFile(bufferStore.filePath, newState)
+    this.writeBufferStoreFile(
+      bufferStore.filePath,
+      this._applyFolderRootBoundary(restoreBufferId, newState)
+    )
     return true
+  }
+
+  private _applyFolderRootBoundary(restoreBufferId: string, state: unknown): unknown {
+    const root = this._folderRootBoundaries.get(restoreBufferId)
+    if (!root || !state || typeof state !== 'object' || Array.isArray(state)) return state
+
+    const snapshot = state as Record<string, unknown>
+    const project = snapshot.project &&
+      typeof snapshot.project === 'object' &&
+      !Array.isArray(snapshot.project)
+      ? snapshot.project as Record<string, unknown>
+      : {}
+    return {
+      ...snapshot,
+      project: { ...project, rootDirectory: root.pathname }
+    }
   }
 
   getUnUsedBufferUUID(): string {
