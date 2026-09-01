@@ -42,9 +42,9 @@ test('renders a 30px concise editor titlebar backed by the live window submenu',
     ])
     await expect(page.locator('.right-toolbar .frameless-titlebar-button')).toHaveCount(3)
 
-    const title = page.locator('.title .filename')
-    await expect(page.locator('.title')).toHaveAttribute('title', filename)
-    const geometry = await page.locator('.title').evaluate((element) => {
+    const title = page.locator('.title-bar > .title .filename')
+    await expect(page.locator('.title-bar > .title')).toHaveAttribute('title', filename)
+    const geometry = await page.locator('.title-bar > .title').evaluate((element) => {
       const titleBounds = element.getBoundingClientRect()
       return {
         titleCenter: titleBounds.left + titleBounds.width / 2,
@@ -112,7 +112,12 @@ test('renders a 30px concise editor titlebar backed by the live window submenu',
 
     await app.evaluate(({ Menu }) => {
       const submenu = Menu.getApplicationMenu()?.items[5]?.submenu
-      const radio = submenu?.items.find((item) => item.type === 'radio')
+      const pendingItems = [...(submenu?.items ?? [])]
+      let radio = pendingItems.shift()
+      while (radio && radio.type !== 'radio') {
+        if (radio.submenu) pendingItems.push(...radio.submenu.items)
+        radio = pendingItems.shift()
+      }
       if (radio) radio.checked = true
       const state = global as unknown as {
         __conciseExpectedSubmenu?: unknown
@@ -144,11 +149,14 @@ test('renders a 30px concise editor titlebar backed by the live window submenu',
     })
     await expect(page.locator('.concise-menu-button')).toHaveCount(8)
     await expect(page.locator('.right-toolbar .frameless-titlebar-button')).toHaveCount(3)
-    await expect(page.locator('.title')).toHaveAttribute('title', filename)
+    await expect(page.locator('.title-bar > .title')).toHaveAttribute('title', filename)
     const narrowRegions = await page.evaluate(() => {
-      const menu = document.querySelector('.concise-menu')!.getBoundingClientRect()
-      const controls = document.querySelector('.right-toolbar')!.getBoundingClientRect()
-      const titleBounds = document.querySelector('.title')!.getBoundingClientRect()
+      const menu = document.querySelector('.concise-menu')?.getBoundingClientRect()
+      const controls = document.querySelector('.right-toolbar')?.getBoundingClientRect()
+      const titleBounds = document.querySelector('.title-bar > .title')?.getBoundingClientRect()
+      if (!menu || !controls || !titleBounds) {
+        throw new Error('Expected concise titlebar regions to be mounted')
+      }
       return {
         menuRight: menu.right,
         controlsLeft: controls.left,
@@ -194,17 +202,18 @@ for (const titleBarStyle of ['custom', 'concise'] as const) {
 
     const { app, page } = await launchElectron([documentPath], { userDataDir })
     try {
-      await expect(page.locator('.title')).toHaveAttribute('title', filename)
-      await expect(page.locator('.title .filename')).toContainText(filename)
-      await expect(page.locator('.title .filename')).toHaveAttribute('dir', 'ltr')
-      await expect(page.locator('.title .filename')).toHaveCSS('direction', 'ltr')
+      await expect(page.locator('.title-bar > .title')).toHaveAttribute('title', filename)
+      await expect(page.locator('.title-bar > .title .filename')).toContainText(filename)
+      await expect(page.locator('.title-bar > .title .filename')).toHaveAttribute('dir', 'ltr')
+      await expect(page.locator('.title-bar > .title .filename')).toHaveCSS('direction', 'ltr')
       await app.evaluate(({ BrowserWindow }) => {
         BrowserWindow.getAllWindows()[0]?.setSize(550, 500)
       })
-      await expect(page.locator('.title')).toHaveAttribute('title', filename)
+      await expect(page.locator('.title-bar > .title')).toHaveAttribute('title', filename)
       await expect
         .poll(async() => {
-          const value = (await page.locator('.title .filename').textContent())?.trim() ?? ''
+          const value =
+            (await page.locator('.title-bar > .title .filename').textContent())?.trim() ?? ''
           return value === '' || value.endsWith('.md')
         })
         .toBe(true)

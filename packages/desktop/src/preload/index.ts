@@ -17,6 +17,7 @@ import type {
   IpcMainEventChannels,
   BootInfo
 } from '@shared/types/ipc'
+import type { ApplicationMenuSection } from '@shared/types/menu'
 
 type RendererEventListener<K extends keyof IpcMainEventChannels> = (
   event: IpcRendererEvent,
@@ -107,7 +108,7 @@ const windowControlAPI = {
   popupApplicationMenu: (position?: { x: number; y: number }) =>
     send('mt::menu::popup-application', position),
   popupApplicationSubmenu: (
-    section: import('@shared/types/menu').ApplicationMenuSection,
+    section: ApplicationMenuSection,
     position?: { x: number; y: number }
   ) => send('mt::menu::popup-application-submenu', section, position)
 }

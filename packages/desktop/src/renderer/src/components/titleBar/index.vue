@@ -249,7 +249,7 @@ const conciseMenus = computed(() =>
   }))
 )
 
-function updateTitleLayout(): void {
+function updateTitleLayout (): void {
   const bar = titleBarElement.value
   if (!bar) return
   const leftWidth = leftToolbarElement.value?.getBoundingClientRect().width ?? 0
@@ -259,7 +259,7 @@ function updateTitleLayout(): void {
   titleAvailableWidth.value = Math.max(0, bar.clientWidth - safeInset * 2 - 16)
 }
 
-watch([isFullScreen, isConcise], async() => {
+watch([isFullScreen, isConcise], async () => {
   await nextTick()
   updateTitleLayout()
 })
@@ -408,7 +408,6 @@ img {
   position: absolute;
   left: 50%;
   width: max(0px, calc(100% - 2 * var(--title-safe-inset)));
-  padding: 0 8px;
   box-sizing: border-box;
   transform: translateX(-50%);
   height: 100%;
