@@ -430,8 +430,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
         if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
         if (this.hasPreflightForView(candidate.viewId)) return this.rejected('transfer preflight fence is active')
         const changed = this.applyReport(candidate.viewId, report)
-        if (changed) this.updateBoundSnapshot(bound)
-        this.commit()
+        if (changed) {
+          this.updateBoundSnapshot(bound)
+          this.commit()
+        }
         return this.applied()
       },
       flush: async(candidate) =>

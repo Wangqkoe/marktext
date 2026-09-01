@@ -117,6 +117,7 @@ import { guessClipboardFilePath } from '@/util/clipboard'
 import { getCssForOptions, getHtmlToc, type PdfCssOptions, type HtmlTocOptions } from '@/util/pdf'
 import { resolveTocHeadingElement } from '@/util/tocNavigation'
 import { addCommonStyle, setEditorWidth } from '@/util/theme'
+import { createScrollReportGate, type ScrollReportGate } from '@/util/scrollReportGate'
 import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
 import { useProjectStore } from '@/store/project'
@@ -301,6 +302,7 @@ let switchLanguageCommand: SpellcheckerLanguageCommand | null = null
 let imageViewer: SimpleImageViewer | null = null
 // The engine has no `scroll` event; we listen on the scroll container directly.
 let scrollHandler: ((e: Event) => void) | null = null
+let scrollReportGate: ScrollReportGate | undefined
 let paneScope: PaneEditorEventScope | undefined
 let paneSurface: PaneEditorSurface | undefined
 let rebindPaneGeneration: ((scope: PaneEditorEventScope | undefined) => void) | undefined
@@ -2039,9 +2041,11 @@ onMounted(() => {
     if (jsonChangeListener) editor.value.off('json-change', jsonChangeListener)
     if (selectionChangeListener) editor.value.off('selection-change', selectionChangeListener)
     if (scrollHandler) container.removeEventListener('scroll', scrollHandler)
+    scrollReportGate?.dispose()
     jsonChangeListener = undefined
     selectionChangeListener = undefined
     scrollHandler = null
+    scrollReportGate = undefined
     if (!scope) return
 
     jsonChangeListener = () => {
@@ -2076,10 +2080,11 @@ onMounted(() => {
       })
     }
 
-    scrollHandler = () => {
-      if (scope.report({ scrollTop: container.scrollTop }).status !== 'applied') return
-      editorStore.updateScrollPosition(scope.documentId, container.scrollTop)
-    }
+    const generationScrollReportGate = createScrollReportGate(
+      (scrollTop) => scope.report({ scrollTop }).status === 'applied'
+    )
+    scrollReportGate = generationScrollReportGate
+    scrollHandler = () => generationScrollReportGate.request(container.scrollTop)
     selectionChangeListener = (changes: MuyaChange) => {
       if (!editor.value) return
       const cursor = controllerCursor()
@@ -2228,6 +2233,9 @@ onBeforeUnmount(() => {
     container?.removeEventListener('scroll', scrollHandler)
   }
   scrollHandler = null
+  scrollReportGate?.flush()
+  scrollReportGate?.dispose()
+  scrollReportGate = undefined
 
   resizeObserverForEditor.disconnect()
 
