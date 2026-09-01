@@ -297,6 +297,10 @@ test('a stale Close This Folder item cannot close a reopened root generation', a
     await waitForFolderRoot(page, 'root')
 
     await clickCapturedMenuItem(app, 'Close This Folder')
+    // A bad callback can enqueue close through main and back to the renderer
+    // after an immediate assertion passes. Cover the measured 500ms failure
+    // window so the new root is checked only after that IPC path has settled.
+    await page.waitForTimeout(750)
     await expect(page.locator('.project-tree > .title')).toContainText('root')
     await expect(page.locator('.tree-view .open-project')).toHaveCount(0)
     await expectNoRendererErrors(app)
