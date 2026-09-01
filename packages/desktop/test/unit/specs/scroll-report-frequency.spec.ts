@@ -23,6 +23,8 @@ class ManualFrameScheduler {
   private nextHandle = 0
   private readonly active = new Map<number, FrameRequestCallback>()
   private readonly captured = new Map<number, FrameRequestCallback>()
+  private readonly deferred = new Map<number, () => void>()
+  private readonly capturedDeferred = new Map<number, () => void>()
 
   readonly request = (callback: FrameRequestCallback): number => {
     const handle = ++this.nextHandle
@@ -35,6 +37,17 @@ class ManualFrameScheduler {
     this.active.delete(handle)
   }
 
+  readonly defer = (callback: () => void, _delayMs: number): number => {
+    const handle = ++this.nextHandle
+    this.deferred.set(handle, callback)
+    this.capturedDeferred.set(handle, callback)
+    return handle
+  }
+
+  readonly cancelDeferred = (handle: number): void => {
+    this.deferred.delete(handle)
+  }
+
   flush(timestamp = 0): void {
     const callbacks = [...this.active.values()]
     this.active.clear()
@@ -43,6 +56,16 @@ class ManualFrameScheduler {
 
   fireCaptured(timestamp = 0): void {
     for (const callback of this.captured.values()) callback(timestamp)
+  }
+
+  flushDeferred(): void {
+    const callbacks = [...this.deferred.values()]
+    this.deferred.clear()
+    for (const callback of callbacks) callback()
+  }
+
+  fireCapturedDeferred(): void {
+    for (const callback of this.capturedDeferred.values()) callback()
   }
 }
 
@@ -80,13 +103,8 @@ describe('scroll report frequency', () => {
     const unsubscribeMirror = mirror.subscribe(mirrorListener)
     mirrorListener.mockClear()
     const scheduler = new ManualFrameScheduler()
-    const report = vi.fn(
-      (scrollTop: number) => binding.report(lease, { scrollTop }).status === 'applied'
-    )
-    const gate = createScrollReportGate(report, {
-      request: scheduler.request,
-      cancel: scheduler.cancel
-    })
+    const report = vi.fn((scrollTop: number) => binding.report(lease, { scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
 
     for (const scrollTop of [10, 20, 30, 40]) gate.request(scrollTop)
 
@@ -122,6 +140,57 @@ describe('scroll report frequency', () => {
     workspace.dispose()
   })
 
+  it('retries the latest current-lease scroll after a two-pane mutation temporarily rejects it', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'one', markdown: 'one' },
+      { documentId: 'two', markdown: 'two' }
+    ])
+    expect((await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })).status).toBe(
+      'applied'
+    )
+    const left = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const right = await workspace.bindPaneEditor('right', new MemoryEditor())
+    const lease = currentLease(left)
+    const scheduler = new ManualFrameScheduler()
+    const attempts: ReturnType<PaneEditorBinding['report']>[] = []
+    const report = vi.fn((scrollTop: number) => {
+      const result = left.report(lease, { scrollTop })
+      attempts.push(result)
+      return result
+    })
+    const gate = createScrollReportGate(report, scheduler)
+
+    const resizePanes = workspace.execute({ kind: 'set-split-ratio', ratio: 0.4 })
+    gate.request(140)
+    scheduler.flush()
+    gate.request(180)
+    scheduler.flush()
+    scheduler.flush()
+    const scrollTopWhilePending = left.getSnapshot(lease)?.view.scrollTop
+
+    expect((await resizePanes).status).toBe('applied')
+    const listener = vi.fn()
+    const unsubscribe = workspace.subscribe(listener)
+    scheduler.flushDeferred()
+    scheduler.flush()
+    const finalScrollTop = left.getSnapshot(lease)?.view.scrollTop
+
+    gate.dispose()
+    unsubscribe()
+    left.dispose()
+    right.dispose()
+    workspace.dispose()
+
+    expect(attempts[0]).toEqual({
+      status: 'rejected',
+      reason: 'workspace mutation is in progress'
+    })
+    expect(scrollTopWhilePending).toBe(0)
+    expect(report.mock.calls).toEqual([[140], [180], [180]])
+    expect(listener).toHaveBeenCalledOnce()
+    expect(finalScrollTop).toBe(180)
+  })
+
   it('flushes the final value on unmount and drops the captured late frame', async() => {
     const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
     const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
@@ -129,13 +198,8 @@ describe('scroll report frequency', () => {
     const listener = vi.fn()
     const unsubscribe = workspace.subscribe(listener)
     const scheduler = new ManualFrameScheduler()
-    const report = vi.fn(
-      (scrollTop: number) => binding.report(lease, { scrollTop }).status === 'applied'
-    )
-    const gate = createScrollReportGate(report, {
-      request: scheduler.request,
-      cancel: scheduler.cancel
-    })
+    const report = vi.fn((scrollTop: number) => binding.report(lease, { scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
 
     gate.request(80)
     gate.flush()
@@ -143,14 +207,20 @@ describe('scroll report frequency', () => {
     expect(listener).toHaveBeenCalledOnce()
     expect(binding.getSnapshot(lease)?.view.scrollTop).toBe(80)
 
-    gate.dispose()
-    binding.dispose()
-    scheduler.fireCaptured()
-
-    expect(report).toHaveBeenCalledOnce()
-    expect(listener).toHaveBeenCalledOnce()
-
     unsubscribe()
+    const transition = workspace.execute({ kind: 'new-tab', paneId: 'left' })
+    gate.request(100)
+    scheduler.flush()
+    expect(report).toHaveBeenCalledTimes(2)
+    gate.dispose()
+    expect((await transition).status).toBe('applied')
+    scheduler.fireCaptured()
+    scheduler.fireCapturedDeferred()
+    scheduler.flush()
+
+    expect(report).toHaveBeenCalledTimes(2)
+
+    binding.dispose()
     workspace.dispose()
   })
 
@@ -160,20 +230,19 @@ describe('scroll report frequency', () => {
     const binding = await workspace.bindPaneEditor('left', editor)
     const oldLease = currentLease(binding)
     const scheduler = new ManualFrameScheduler()
-    const report = vi.fn(
-      (scrollTop: number) => binding.report(oldLease, { scrollTop }).status === 'applied'
-    )
-    const gate = createScrollReportGate(report, {
-      request: scheduler.request,
-      cancel: scheduler.cancel
-    })
+    const report = vi.fn((scrollTop: number) => binding.report(oldLease, { scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
 
     editor.report = { scrollTop: 90 }
     gate.request(90)
     expect((await workspace.execute({ kind: 'new-tab', paneId: 'left' })).status).toBe('applied')
+    const pendingMutation = workspace.execute({ kind: 'new-tab', paneId: 'left' })
+    scheduler.flush()
+    expect((await pendingMutation).status).toBe('applied')
     const notificationsAfterTransition = vi.fn()
     const unsubscribe = workspace.subscribe(notificationsAfterTransition)
 
+    scheduler.flushDeferred()
     scheduler.flush()
 
     expect(report).toHaveBeenCalledOnce()

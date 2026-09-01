@@ -426,8 +426,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
       isSnapshotCurrent: (snapshot) => this.validSnapshot(bound, snapshot),
       report: (candidate, report) => {
         if (this.disposed) return this.rejected('workspace controller is disposed')
-        if (this.pendingOperations > 0) return this.rejected('workspace mutation is in progress')
         if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
+        if (this.pendingOperations > 0) return this.rejected('workspace mutation is in progress')
         if (this.hasPreflightForView(candidate.viewId)) return this.rejected('transfer preflight fence is active')
         const changed = this.applyReport(candidate.viewId, report)
         if (changed) {

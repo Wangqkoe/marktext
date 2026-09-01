@@ -2081,7 +2081,7 @@ onMounted(() => {
     }
 
     const generationScrollReportGate = createScrollReportGate(
-      (scrollTop) => scope.report({ scrollTop }).status === 'applied'
+      (scrollTop) => scope.report({ scrollTop })
     )
     scrollReportGate = generationScrollReportGate
     scrollHandler = () => generationScrollReportGate.request(container.scrollTop)
