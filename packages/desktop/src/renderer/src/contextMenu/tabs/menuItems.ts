@@ -43,6 +43,16 @@ export const getCloseAll = () => ({
   }
 })
 
+export const getOpenThisFolder = () => ({
+  label: t('contextMenu.tabs.openThisFolder'),
+  id: 'openThisFolder'
+})
+
+export const getCloseThisFolder = () => ({
+  label: t('contextMenu.tabs.closeThisFolder'),
+  id: 'closeThisFolder'
+})
+
 export const getRENAME = () => ({
   label: t('contextMenu.tabs.rename'),
   id: 'renameFile',
@@ -72,6 +82,8 @@ export const CLOSE_THIS = getCloseThis()
 export const CLOSE_OTHERS = getCloseOthers()
 export const CLOSE_SAVED = getCloseSaved()
 export const CLOSE_ALL = getCloseAll()
+export const OPEN_THIS_FOLDER = getOpenThisFolder()
+export const CLOSE_THIS_FOLDER = getCloseThisFolder()
 export const RENAME = getRENAME()
 export const COPY_PATH = getCopyPath()
 export const SHOW_IN_FOLDER = getShowInFolder()

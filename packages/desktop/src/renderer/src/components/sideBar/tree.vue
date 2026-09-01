@@ -54,6 +54,7 @@
             v-for="tab of tabs"
             :key="tab.id"
             :file="tab"
+            :resolve-workspace-menu="resolveOpenedFileWorkspaceMenu"
           />
         </transition-group>
       </div>
@@ -160,6 +161,7 @@ import File from './treeFile.vue'
 import OpenedFile from './treeOpenedTab.vue'
 import bus from '../../bus'
 import { showContextMenu } from '../../contextMenu/sideBar'
+import { resolveWorkspaceTabMenu } from '../../contextMenu/tabs'
 import { useI18n } from 'vue-i18n'
 import { ArrowRight } from '@element-plus/icons-vue'
 import type { TreeNode, TabDescriptor } from './types'
@@ -202,6 +204,9 @@ const createCacheDirname = computed<string | undefined>(() => {
   const cache = createCache.value as { dirname?: string }
   return cache.dirname
 })
+
+const resolveOpenedFileWorkspaceMenu = (documentId: string) =>
+  resolveWorkspaceTabMenu(documentId, props.projectTree?.pathname)
 
 // Methods
 const openFolder = (): void => {

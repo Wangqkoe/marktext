@@ -64,6 +64,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useEditorStore } from '@/store/editor'
+import { useProjectStore } from '@/store/project'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
 import dragula from 'dragula'
@@ -94,7 +95,9 @@ const emit = defineEmits<{
 }>()
 
 const editorStore = useEditorStore()
+const projectStore = useProjectStore()
 const { currentFile: legacyCurrentFile, tabs: legacyTabs } = storeToRefs(editorStore)
+const { projectTree } = storeToRefs(projectStore)
 const tabs = computed<TabRow[]>(() => {
   if (props.pane) {
     return props.pane.tabs.map((tab) => ({
@@ -280,7 +283,8 @@ const handleContextMenu = (event: MouseEvent, tab: IFileState) => {
             viewId,
             documentId: tab.id,
             ...(tab.pathname ? { fileKey: tab.pathname } : {}),
-            dirty: !tab.isSaved
+            dirty: !tab.isSaved,
+            ...(projectTree.value?.pathname ? { folderRoot: projectTree.value.pathname } : {})
           },
           actions: props.workspaceActions
         }

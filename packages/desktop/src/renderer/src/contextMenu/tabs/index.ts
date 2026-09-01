@@ -4,6 +4,8 @@ import {
   getCloseOthers,
   getCloseSaved,
   getCloseAll,
+  getOpenThisFolder,
+  getCloseThisFolder,
   getRENAME,
   getCopyPath,
   getShowInFolder
@@ -12,6 +14,7 @@ import { popupContextMenu } from '../popupMenu'
 import type { ContextMenuItem } from '../popupMenu'
 import { t } from '../../i18n'
 import type { WorkspaceResult } from '@shared/workspace'
+import { resolveFolderMenuTarget } from './folderTarget'
 
 type MenuItemShape = {
   type?: string
@@ -45,6 +48,7 @@ export interface WorkspaceTabMenuTarget {
   readonly documentId: string
   readonly fileKey?: string
   readonly dirty?: boolean
+  readonly folderRoot?: string
 }
 
 export interface WorkspaceTabMenuActions {
@@ -52,7 +56,35 @@ export interface WorkspaceTabMenuActions {
   move(target: WorkspaceTabMenuTarget): void | Promise<unknown>
   open(target: WorkspaceTabMenuTarget): void | Promise<unknown>
   splitRight(target: WorkspaceTabMenuTarget): void | Promise<unknown>
+  openFolder(target: WorkspaceTabMenuTarget, directoryPath: string): void | Promise<unknown>
+  closeFolder(target: WorkspaceTabMenuTarget): void | Promise<unknown>
 }
+
+export interface WorkspaceTabMenuWorkspace {
+  readonly target: WorkspaceTabMenuTarget
+  readonly actions: WorkspaceTabMenuActions
+}
+
+export type WorkspaceTabMenuResolver = (
+  documentId: string,
+  folderRoot?: string
+) => WorkspaceTabMenuWorkspace | undefined
+
+let workspaceTabMenuResolver: WorkspaceTabMenuResolver | undefined
+
+export const registerWorkspaceTabMenuResolver = (
+  resolver: WorkspaceTabMenuResolver
+): (() => void) => {
+  workspaceTabMenuResolver = resolver
+  return () => {
+    if (workspaceTabMenuResolver === resolver) workspaceTabMenuResolver = undefined
+  }
+}
+
+export const resolveWorkspaceTabMenu = (
+  documentId: string,
+  folderRoot?: string
+): WorkspaceTabMenuWorkspace | undefined => workspaceTabMenuResolver?.(documentId, folderRoot)
 
 const workspaceItem = (
   id: string,
@@ -97,10 +129,19 @@ export const createWorkspaceTabMenuItems = (
   const closeOthers = getCloseOthers()
   const closeSaved = getCloseSaved()
   const closeAll = getCloseAll()
+  const folderTarget = resolveFolderMenuTarget(pathname, target.folderRoot)
+  const folder = (
+    folderTarget.kind === 'close' ? getCloseThisFolder() : getOpenThisFolder()
+  ) as MenuItemShape
   const rename = getRENAME()
   const copyPath = getCopyPath()
   const showInFolder = getShowInFolder()
 
+  folder.enabled = folderTarget.enabled
+  folder.click = () =>
+    folderTarget.kind === 'close'
+      ? actions.closeFolder(target)
+      : folderTarget.directoryPath && actions.openFolder(target, folderTarget.directoryPath)
   ;([rename, copyPath, showInFolder] as MenuItemShape[]).forEach((item) => {
     item.enabled = !!pathname
   })
@@ -111,36 +152,51 @@ export const createWorkspaceTabMenuItems = (
     closeSaved as MenuItemShape,
     closeAll as MenuItemShape,
     SEPARATOR,
+    folder as MenuItemShape,
+    SEPARATOR,
     rename as MenuItemShape,
     copyPath as MenuItemShape,
     showInFolder as MenuItemShape,
     SEPARATOR,
-    workspaceItem('moveTabToNewWindow', t('contextMenu.tabs.moveToNewWindow'), true, () => actions.move(target)),
+    workspaceItem('moveTabToNewWindow', t('contextMenu.tabs.moveToNewWindow'), true, () =>
+      actions.move(target)
+    ),
     workspaceItem(
       'openTabInNewWindow',
-      t(target.dirty ? 'contextMenu.tabs.openDiskCopyInNewWindow' : 'contextMenu.tabs.openInNewWindow'),
+      t(
+        target.dirty
+          ? 'contextMenu.tabs.openDiskCopyInNewWindow'
+          : 'contextMenu.tabs.openInNewWindow'
+      ),
       !!pathname,
       () => actions.open(target)
     ),
-    workspaceItem('splitTabRight', t('contextMenu.tabs.splitRight'), true, () => actions.splitRight(target))
-  ].map((item, index) => wrapWorkspaceClick(
-    item as MenuItemShape,
-    target,
-    actions,
-    index !== 2 && index !== 3
-  ))
+    workspaceItem('splitTabRight', t('contextMenu.tabs.splitRight'), true, () =>
+      actions.splitRight(target)
+    )
+  ].map((item) =>
+    wrapWorkspaceClick(
+      item as MenuItemShape,
+      target,
+      actions,
+      item !== closeSaved && item !== closeAll
+    )
+  )
 }
 
 export const showContextMenu = (
   event: ContextMenuClickEvent,
   tab: TabLike,
-  workspace?: { readonly target: WorkspaceTabMenuTarget; readonly actions: WorkspaceTabMenuActions }
+  workspace?: WorkspaceTabMenuWorkspace
 ): void => {
   if (workspace) {
-    popupContextMenu(createWorkspaceTabMenuItems(workspace.target, workspace.actions) as ContextMenuItem[], {
-      x: event.clientX,
-      y: event.clientY
-    })
+    popupContextMenu(
+      createWorkspaceTabMenuItems(workspace.target, workspace.actions) as ContextMenuItem[],
+      {
+        x: event.clientX,
+        y: event.clientY
+      }
+    )
     return
   }
   const { pathname } = tab

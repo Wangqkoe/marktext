@@ -25,12 +25,17 @@
 import { computed, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import { createElectronCrashDraftPort, createElectronNativeGesturePort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
-import type { WorkspaceTabMenuActions, WorkspaceTabMenuTarget } from '@/contextMenu/tabs'
+import {
+  registerWorkspaceTabMenuResolver,
+  type WorkspaceTabMenuActions,
+  type WorkspaceTabMenuTarget
+} from '@/contextMenu/tabs'
 import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload, PortableHistory } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { usePreferencesStore } from '@/store/preferences'
+import { useProjectStore } from '@/store/project'
 import PaneEditor from './pane.vue'
 import { registerWorkspaceTreeUnmount } from './workspaceTreeLifecycle'
 
@@ -39,6 +44,7 @@ defineEmits<{ 'caret-position': [update: CaretPositionUpdate] }>()
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
 const preferencesStore = usePreferencesStore()
+const projectStore = useProjectStore()
 const seed = editorStore.currentFile
 const controller = createWorkspaceRuntime(seed ? [{ documentId: seed.id, markdown: seed.markdown, title: seed.filename, ...(seed.pathname ? { fileKey: seed.pathname } : {}) }] : [{ markdown: props.markdown, title: 'New Tab' }])
 const left = createPaneEditorComposition({ paneId: 'left', controller })
@@ -58,28 +64,42 @@ const activateWorkspaceMenuTarget = async (target: WorkspaceTabMenuTarget) => {
 }
 const workspaceTabActions: WorkspaceTabMenuActions = {
   activate: activateWorkspaceMenuTarget,
-  move: async (target) => {
-    const activated = await activateWorkspaceMenuTarget(target)
-    return activated.status === 'applied'
-      ? moveTabToNewWindow(target.documentId, target.paneId)
-      : activated
-  },
-  open: async (target) => {
-    const activated = await activateWorkspaceMenuTarget(target)
-    if (activated.status !== 'applied') return activated
-    if (!target.fileKey) return { status: 'rejected', reason: 'untitled tabs have no disk copy to open' }
+  move: target => moveTabToNewWindow(target.documentId, target.paneId),
+  open: (target) => {
+    if (!target.fileKey) return
     // Only the canonical saved path crosses this boundary. Dirty editor text is
     // deliberately not sent, so the target opens the last disk version.
     window.electron.ipcRenderer.send('mt::cmd-open-file-in-new-window', target.fileKey)
-    return { status: 'applied' }
   },
-  splitRight: async (target) => {
-    const activated = await activateWorkspaceMenuTarget(target)
-    return activated.status === 'applied'
-      ? controller.execute({ kind: 'split-pane', targetPaneId: 'right' })
-      : activated
+  splitRight: () => controller.execute({ kind: 'split-pane', targetPaneId: 'right' }),
+  openFolder: (_target, directoryPath) => {
+    window.electron.ipcRenderer.send('mt::cmd-open-folder-in-current-window', directoryPath)
+  },
+  closeFolder: (target) => {
+    const currentRoot = projectStore.projectTree?.pathname
+    if (
+      target.folderRoot && currentRoot &&
+      window.fileUtils.isSamePathSync(target.folderRoot, currentRoot)
+    ) window.electron.ipcRenderer.send('mt::cmd-close-folder')
   }
 }
+const unregisterWorkspaceTabMenuResolver = registerWorkspaceTabMenuResolver((documentId, folderRoot) => {
+  const projection = controller.getProjection()
+  const pane = projection.panes.find(candidate => candidate.paneId === projection.focusedPaneId)
+  const tab = pane?.tabs.find(candidate => candidate.documentId === documentId)
+  if (!pane || !tab) return undefined
+  return {
+    target: {
+      paneId: pane.paneId,
+      viewId: tab.viewId,
+      documentId: tab.documentId,
+      ...(tab.fileKey ? { fileKey: tab.fileKey } : {}),
+      dirty: tab.dirty,
+      ...(folderRoot ? { folderRoot } : {})
+    },
+    actions: workspaceTabActions
+  }
+})
 const crashDraft = createElectronCrashDraftPort()
 interface StagedTransfer { readonly documentId: string; readonly sourceDocumentId: string; readonly sourceViewId: string }
 const stagedTransfers = new Map<string, StagedTransfer>()
@@ -434,6 +454,7 @@ registerWorkspaceTreeUnmount(controller, () => {
   stopTransferCommands?.()
   stopTransferRecovery?.()
   stopNativeGestureCommit?.()
+  unregisterWorkspaceTabMenuResolver()
   delete moveActionDriver.__mtMoveTabToNewWindow
   delete moveActionDriver.__mtWorkspaceSnapshot
 })

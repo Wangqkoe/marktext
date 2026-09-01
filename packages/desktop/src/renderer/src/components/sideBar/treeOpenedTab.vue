@@ -4,12 +4,9 @@
     :title="file.pathname"
     :class="[{ active: currentFile?.id === file.id, unsaved: !file.isSaved }]"
     @click="selectFile(file)"
+    @contextmenu.prevent="handleContextMenu"
   >
-    <el-icon
-      class="close-icon"
-      :size="10"
-      @click.stop="removeFileInTab(file)"
-    >
+    <el-icon class="close-icon" :size="10" @click.stop="removeFileInTab(file)">
       <Close />
     </el-icon>
     <span class="name">{{ file.filename }}</span>
@@ -21,9 +18,11 @@ import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/store/editor'
 import { Close } from '@element-plus/icons-vue'
 import type { TabDescriptor } from './types'
+import { showContextMenu, type WorkspaceTabMenuResolver } from '../../contextMenu/tabs'
 
-defineProps<{
+const props = defineProps<{
   file: TabDescriptor
+  resolveWorkspaceMenu?: WorkspaceTabMenuResolver
 }>()
 
 const editorStore = useEditorStore()
@@ -38,6 +37,11 @@ const selectFile = (file: TabDescriptor): void => {
 
 const removeFileInTab = (file: TabDescriptor): void => {
   editorStore.CLOSE_TAB(file)
+}
+
+const handleContextMenu = (event: MouseEvent): void => {
+  if (!props.file.id) return
+  showContextMenu(event, props.file, props.resolveWorkspaceMenu?.(props.file.id))
 }
 </script>
 
