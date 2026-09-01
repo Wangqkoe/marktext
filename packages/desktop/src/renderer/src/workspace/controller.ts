@@ -25,12 +25,6 @@ import type {
   WorkspaceWarning
 } from '@shared/workspace'
 import type { DocumentIoSaveRequest, DocumentSaveAck } from '@shared/workspace/documentIo'
-import type { FinalReportPaneEditorAdapter } from './paneEditorAdapter'
-
-const supportsFinalReport = (
-  adapter: PaneEditorAdapter
-): adapter is FinalReportPaneEditorAdapter =>
-  'takeFinalReport' in adapter && typeof adapter.takeFinalReport === 'function'
 
 interface DocumentRecord {
   id: DocumentId
@@ -437,6 +431,19 @@ export class WorkspaceController implements WorkspaceControllerContract {
         if (this.pendingOperations > 0) return this.rejected('workspace mutation is in progress')
         const changed = this.applyReport(candidate.viewId, report)
         if (changed) {
+          this.updateBoundSnapshot(bound)
+          this.commit()
+        }
+        return this.applied()
+      },
+      finalizeScroll: (candidate, scrollTop) => {
+        if (this.disposed) return this.rejected('workspace controller is disposed')
+        if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
+        if (!Number.isFinite(scrollTop)) return this.rejected('invalid final scrollTop')
+        const view = this.view(candidate.viewId)
+        if (!Object.is(view.state.scrollTop, scrollTop)) {
+          view.state = { ...view.state, scrollTop }
+          this.revokeTransferFencesForView(candidate.viewId)
           this.updateBoundSnapshot(bound)
           this.commit()
         }
@@ -1134,6 +1141,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return [...this.transferFences.values()].some(fence => fence.preflightId && fence.viewId === viewId)
   }
 
+  private revokeTransferFencesForView(viewId: ViewId): void {
+    for (const [transferId, fence] of this.transferFences) {
+      if (fence.viewId === viewId) this.transferFences.delete(transferId)
+    }
+  }
+
   private async refreshAdapter(paneId: PaneId, snapshot: EditorBindingSnapshot): Promise<void> {
     const bound = this.adapters.get(paneId)
     if (!bound) return
@@ -1418,28 +1431,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private disposeBinding(bound: BoundAdapter): void {
     for (const [paneId, candidate] of this.adapters) {
       if (candidate === bound) {
-        const lease = bound.lease
-        bound.adapter.dispose?.()
-        const finalReport = supportsFinalReport(bound.adapter)
-          ? bound.adapter.takeFinalReport()
-          : undefined
         this.adapters.delete(paneId)
         this.invalidate(bound)
-        if (lease && finalReport) this.queueFinalReport(lease, finalReport)
+        bound.adapter.dispose?.()
         return
       }
     }
-  }
-
-  private queueFinalReport(lease: EditorLease, report: EditorReport): void {
-    this.enqueue(async() => {
-      if (
-        this.disposed ||
-        !this.views.has(lease.viewId) ||
-        this.hasPreflightForView(lease.viewId)
-      ) return
-      if (this.applyReport(lease.viewId, report)) this.commit()
-    }).catch(() => undefined)
   }
 
   private invalidate(bound: BoundAdapter): void {

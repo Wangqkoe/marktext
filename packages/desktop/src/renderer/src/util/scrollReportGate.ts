@@ -37,6 +37,7 @@ export const createScrollReportGate = (
   let frameHandle: number | undefined
   let deferredHandle: number | undefined
   let pendingScrollTop: number | undefined
+  let uncommittedScrollTop: number | undefined
   let retryDelayMs = INITIAL_RETRY_DELAY_MS
   let disposed = false
 
@@ -94,6 +95,7 @@ export const createScrollReportGate = (
     const result = report(scrollTop)
     if (disposed) return
     if (result.status === 'applied') {
+      if (Object.is(uncommittedScrollTop, scrollTop)) uncommittedScrollTop = undefined
       retryDelayMs = INITIAL_RETRY_DELAY_MS
     } else if (isTemporaryRejection(result)) {
       scheduleRetry()
@@ -109,6 +111,7 @@ export const createScrollReportGate = (
     request(scrollTop) {
       if (disposed) return
       pendingScrollTop = scrollTop
+      uncommittedScrollTop = scrollTop
       cancelDeferred()
       retryDelayMs = INITIAL_RETRY_DELAY_MS
       scheduleFrame()
@@ -121,9 +124,10 @@ export const createScrollReportGate = (
     },
     dispose() {
       if (disposed) return undefined
-      const finalScrollTop = pendingScrollTop
+      const finalScrollTop = uncommittedScrollTop
       disposed = true
       pendingScrollTop = undefined
+      uncommittedScrollTop = undefined
       cancelFrame()
       cancelDeferred()
       return finalScrollTop

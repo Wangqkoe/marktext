@@ -1,5 +1,11 @@
+/* eslint-disable vue/one-component-per-file -- Exercises real parent/child unmount ordering. */
 import { describe, expect, it, vi } from 'vitest'
+import { createApp, defineComponent, h, onBeforeUnmount } from 'vue'
 import type {
+  DocumentIoObservation,
+  DocumentIoPort,
+  DocumentIoRequest,
+  DocumentSaveAck,
   EditorBindingSnapshot,
   EditorLease,
   EditorReport,
@@ -7,6 +13,7 @@ import type {
   PaneEditorBinding
 } from '@shared/workspace'
 import { createScrollReportGate, type ScrollReportGate } from '@/util/scrollReportGate'
+import { registerWorkspaceTreeUnmount } from '@/components/editorWithTabs/workspaceTreeLifecycle'
 import {
   createPaneEditorComposition,
   createWorkspaceProjectionMirror,
@@ -76,6 +83,67 @@ class ManualFrameScheduler {
 
   fireCapturedDeferred(): void {
     for (const callback of this.capturedDeferred.values()) callback()
+  }
+}
+
+class LegacyFinalReportEditor extends MemoryEditor {
+  takeFinalReport(): EditorReport {
+    return {
+      markdown: 'stale-final',
+      portableHistory: { version: 1, value: ['stale-history'] },
+      scrollTop: 200
+    }
+  }
+}
+
+class VisibleMemoryEditor extends MemoryEditor {
+  visibleScrollTop = 0
+
+  override async refresh(snapshot: EditorBindingSnapshot): Promise<void> {
+    this.visibleScrollTop = snapshot.view.scrollTop
+  }
+
+  override async flush(): Promise<EditorReport> {
+    if (this.report.scrollTop !== undefined) this.visibleScrollTop = this.report.scrollTop
+    return this.report
+  }
+}
+
+class RecordingDocumentIoPort implements DocumentIoPort {
+  readonly requests: DocumentIoRequest[] = []
+  private readonly listeners = new Set<(observation: DocumentIoObservation) => void>()
+
+  async request(request: DocumentIoRequest): Promise<DocumentSaveAck> {
+    this.requests.push(request)
+    if (request.kind === 'bind' || request.kind === 'sync') {
+      return {
+        status: 'bound',
+        requestId: request.requestId,
+        documentId: request.documentId,
+        ownerFence: request.kind === 'bind' ? 'document-owner' : request.ownerFence,
+        observedDiskRevision: 'disk-revision'
+      }
+    }
+    if (request.kind === 'unbind') {
+      return {
+        status: 'unbound',
+        requestId: request.requestId,
+        documentId: request.documentId,
+        ownerFence: request.ownerFence
+      }
+    }
+    return {
+      status: 'durable-success',
+      requestId: request.requestId,
+      documentId: request.documentId,
+      documentRevision: request.documentRevision,
+      ownerFence: request.ownerFence ?? 'document-owner'
+    }
+  }
+
+  subscribe(listener: (observation: DocumentIoObservation) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
   }
 }
 
@@ -188,6 +256,230 @@ describe('scroll report frequency', () => {
 
     expect(report.mock.calls).toEqual([[100], [100]])
     expect(finalScrollTop).toBe(100)
+  })
+
+  it('ignores an adapter method that attempts to finalize a complete stale editor report', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const binding = await workspace.bindPaneEditor('left', new LegacyFinalReportEditor())
+    const lease = currentLease(binding)
+    const listener = vi.fn()
+    const unsubscribe = workspace.subscribe(listener)
+    const mirror = createWorkspaceProjectionMirror(workspace)
+    const mirrorListener = vi.fn()
+    const unsubscribeMirror = mirror.subscribe(mirrorListener)
+    mirrorListener.mockClear()
+
+    const unsafeFinalize = binding.finalizeScroll as unknown as (
+      lease: EditorLease,
+      scrollTop: unknown
+    ) => ReturnType<PaneEditorBinding['finalizeScroll']>
+    expect(unsafeFinalize(lease, { markdown: 'stale-object' })).toEqual({
+      status: 'rejected',
+      reason: 'invalid final scrollTop'
+    })
+    expect(binding.finalizeScroll(lease, Number.NaN)).toEqual({
+      status: 'rejected',
+      reason: 'invalid final scrollTop'
+    })
+    expect(binding.finalizeScroll(lease, Number.POSITIVE_INFINITY)).toEqual({
+      status: 'rejected',
+      reason: 'invalid final scrollTop'
+    })
+
+    binding.dispose()
+    const successor = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const successorLease = currentLease(successor)
+    const canonical = workspace.getFacadeSnapshot().documents.find(
+      (document) => document.documentId === 'note'
+    )
+    const visible = successor.getSnapshot(successorLease)
+
+    expect(canonical).toMatchObject({ markdown: 'body', dirty: false, scrollTop: 0 })
+    expect(visible?.document).toMatchObject({ markdown: 'body', dirty: false })
+    expect(visible?.document.portableHistory).toEqual({ version: 1, value: [] })
+    expect(visible?.view.scrollTop).toBe(0)
+    expect(listener).not.toHaveBeenCalled()
+    expect(mirrorListener).not.toHaveBeenCalled()
+
+    unsubscribeMirror()
+    mirror.dispose()
+    unsubscribe()
+    successor.dispose()
+    workspace.dispose()
+  })
+
+  it('does not persist markdown or history when finalizing only scroll state', async() => {
+    const testWindow = window as unknown as {
+      electron?: {
+        ipcRenderer?: {
+          invoke?: (channel: string, request: unknown) => Promise<unknown>
+        }
+      }
+    }
+    const originalElectron = testWindow.electron
+    const invoke = vi.fn(async(_channel: string, _request: unknown): Promise<unknown> => ({
+      durable: true,
+      receipt: 'crash-receipt'
+    }))
+    testWindow.electron = {
+      ...originalElectron,
+      ipcRenderer: { ...originalElectron?.ipcRenderer, invoke }
+    }
+
+    try {
+      const workspace = createWorkspaceRuntime([
+        { documentId: 'note', fileKey: '/note.md', markdown: 'body' }
+      ])
+      const documentIoPort = new RecordingDocumentIoPort()
+      const composition = createPaneEditorComposition({
+        paneId: 'left',
+        controller: workspace,
+        documentIoPort
+      })
+      const surface = new LifecyclePaneSurface()
+      await composition.mount(surface, {
+        id: 'note',
+        fileKey: '/note.md',
+        markdown: 'body',
+        title: 'note'
+      })
+      await vi.waitFor(() =>
+        expect(documentIoPort.requests.some((request) => request.kind === 'sync')).toBe(true)
+      )
+      documentIoPort.requests.length = 0
+      invoke.mockClear()
+      const scope = composition.getScope()
+      if (!scope) throw new Error('expected a mounted pane scope')
+      const listener = vi.fn()
+      const unsubscribe = workspace.subscribe(listener)
+
+      expect(scope.finalizeScroll(200).status).toBe('applied')
+      await vi.waitFor(() =>
+        expect(documentIoPort.requests.some((request) => request.kind === 'sync')).toBe(true)
+      )
+      await composition.checkpointCrashDraft()
+      const canonical = workspace.getFacadeSnapshot().documents.find(
+        (document) => document.documentId === 'note'
+      )
+      const checkpointRequests = invoke.mock.calls
+        .filter(([channel]) => channel === 'mt::workspace::crash-draft')
+        .map(([, request]) => request)
+        .filter((request) => (request as { kind?: string }).kind === 'checkpoint')
+
+      expect(canonical).toMatchObject({ markdown: 'body', dirty: false, scrollTop: 200 })
+      expect(documentIoPort.requests).toEqual([
+        expect.objectContaining({ kind: 'sync', dirty: false })
+      ])
+      expect(documentIoPort.requests[0]).not.toHaveProperty('markdown')
+      expect(checkpointRequests).toEqual([])
+      expect(listener).toHaveBeenCalledOnce()
+
+      unsubscribe()
+      composition.unmount(surface)
+      workspace.dispose()
+    } finally {
+      testWindow.electron = originalElectron
+    }
+  })
+
+  it('lets a queued successor generation win over its predecessor final scroll', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const predecessor = createPaneEditorComposition({ paneId: 'left', controller: workspace })
+    const predecessorSurface = new LifecyclePaneSurface()
+    await predecessor.mount(predecessorSurface, {
+      id: 'note',
+      markdown: 'body',
+      title: 'note'
+    })
+    const predecessorScope = predecessor.getScope()
+    if (!predecessorScope) throw new Error('expected a predecessor pane scope')
+    expect(predecessorScope.report({ scrollTop: 100 }).status).toBe('applied')
+    const listener = vi.fn()
+    const unsubscribe = workspace.subscribe(listener)
+    const mirror = createWorkspaceProjectionMirror(workspace)
+    const mirrorListener = vi.fn()
+    const unsubscribeMirror = mirror.subscribe(mirrorListener)
+    mirrorListener.mockClear()
+    const successorEditor = new VisibleMemoryEditor()
+    successorEditor.report = { scrollTop: 300 }
+
+    const successorBinding = workspace.bindPaneEditor('left', successorEditor)
+    expect(predecessorScope.finalizeScroll(200).status).toBe('applied')
+    predecessor.unmount(predecessorSurface)
+    const successor = await successorBinding
+    const successorLease = currentLease(successor)
+    const canonical = workspace.getFacadeSnapshot().documents.find(
+      (document) => document.documentId === 'note'
+    )
+
+    expect(canonical?.scrollTop).toBe(300)
+    expect(successor.getSnapshot(successorLease)?.view.scrollTop).toBe(300)
+    expect(successorEditor.visibleScrollTop).toBe(300)
+    expect(listener).toHaveBeenCalledTimes(2)
+    expect(mirrorListener).toHaveBeenCalledTimes(2)
+
+    unsubscribeMirror()
+    mirror.dispose()
+    unsubscribe()
+    successor.dispose()
+    workspace.dispose()
+  })
+
+  it('finalizes child scroll before a real Vue tree disposes its workspace controller', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const composition = createPaneEditorComposition({ paneId: 'left', controller: workspace })
+    const surface = new LifecyclePaneSurface()
+    await composition.mount(surface, { id: 'note', markdown: 'body', title: 'note' })
+    const scope = composition.getScope()
+    if (!scope) throw new Error('expected a mounted pane scope')
+    expect(scope.report({ scrollTop: 100 }).status).toBe('applied')
+    const listener = vi.fn()
+    const unsubscribe = workspace.subscribe(listener)
+    const mirror = createWorkspaceProjectionMirror(workspace)
+    const mirrorListener = vi.fn()
+    const unsubscribeMirror = mirror.subscribe(mirrorListener)
+    mirrorListener.mockClear()
+    const scheduler = new ManualFrameScheduler()
+    const gate = createScrollReportGate(
+      () => ({ status: 'rejected', reason: 'workspace mutation is in progress' }),
+      scheduler
+    )
+    gate.request(200)
+    gate.flush()
+    let finalResult: ReturnType<PaneEditorEventScope['finalizeScroll']> | undefined
+
+    const ChildPane = defineComponent({
+      setup() {
+        onBeforeUnmount(() => {
+          const finalScrollTop = gate.dispose()
+          if (finalScrollTop !== undefined) finalResult = scope.finalizeScroll(finalScrollTop)
+          composition.unmount(surface)
+        })
+        return () => h('div')
+      }
+    })
+    const WorkspaceTree = defineComponent({
+      setup() {
+        registerWorkspaceTreeUnmount(workspace, () => undefined)
+        return () => h(ChildPane)
+      }
+    })
+    const host = document.createElement('div')
+    const app = createApp(WorkspaceTree)
+    app.mount(host)
+    app.unmount()
+    const canonical = workspace.getFacadeSnapshot().documents.find(
+      (document) => document.documentId === 'note'
+    )
+
+    expect(finalResult).toMatchObject({ status: 'applied' })
+    expect(canonical?.scrollTop).toBe(200)
+    expect(listener).toHaveBeenCalledOnce()
+    expect(mirrorListener).toHaveBeenCalledOnce()
+
+    unsubscribeMirror()
+    mirror.dispose()
+    unsubscribe()
   })
 
   it('preserves the final scroll when a component flush is temporarily rejected before unmount', async() => {
@@ -351,6 +643,69 @@ describe('scroll report frequency', () => {
 
     expect(result).toEqual({ status: 'rejected', reason: 'transfer preflight fence is active' })
     expect(report).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a post-preflight final scroll and revokes the stale transfer ownership fence', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const editor = new VisibleMemoryEditor()
+    editor.report = { scrollTop: 100 }
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const lease = currentLease(binding)
+    const preflight = await workspace.beginTransferPreflight(
+      'left',
+      lease.viewId,
+      'final-scroll-preflight'
+    )
+    if (!preflight) throw new Error('expected a transfer preflight')
+    const listener = vi.fn()
+    const unsubscribe = workspace.subscribe(listener)
+    const mirror = createWorkspaceProjectionMirror(workspace)
+    const mirrorListener = vi.fn()
+    const unsubscribeMirror = mirror.subscribe(mirrorListener)
+    mirrorListener.mockClear()
+    const scheduler = new ManualFrameScheduler()
+    const report = vi.fn((scrollTop: number) => binding.report(lease, { scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
+
+    editor.visibleScrollTop = 200
+    gate.request(200)
+    gate.flush()
+    const finalScrollTop = gate.dispose()
+    if (finalScrollTop !== undefined) {
+      expect(binding.finalizeScroll(lease, finalScrollTop).status).toBe('applied')
+    }
+    const preparedRevision = await workspace.prepareTransfer(
+      'stale-scroll-transfer',
+      preflight.documentId,
+      preflight.viewId,
+      preflight.documentRevision,
+      preflight.preflightId
+    )
+    const canonical = workspace.getFacadeSnapshot().documents.find(
+      (document) => document.documentId === 'note'
+    )
+    const activeSnapshot = binding.getSnapshot(lease)
+
+    expect(preflight.view.scrollTop).toBe(100)
+    expect(report.mock.results[0]?.value).toEqual({
+      status: 'rejected',
+      reason: 'transfer preflight fence is active'
+    })
+    expect(report).toHaveBeenCalledOnce()
+    expect(finalScrollTop).toBe(200)
+    expect(preparedRevision).toBeUndefined()
+    expect(canonical).toMatchObject({ markdown: 'body', dirty: false, scrollTop: 200 })
+    expect(activeSnapshot?.document.portableHistory).toEqual({ version: 1, value: [] })
+    expect(activeSnapshot?.view.scrollTop).toBe(200)
+    expect(editor.visibleScrollTop).toBe(200)
+    expect(listener).toHaveBeenCalledOnce()
+    expect(mirrorListener).toHaveBeenCalledOnce()
+
+    unsubscribeMirror()
+    mirror.dispose()
+    unsubscribe()
+    binding.dispose()
+    workspace.dispose()
   })
 
   it('flushes the final value on unmount and drops the captured late frame', async() => {

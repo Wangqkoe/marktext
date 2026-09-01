@@ -367,6 +367,8 @@ export interface PaneEditorBinding {
   /** Controlled delivery-edge check; never expose this through a projection. */
   isSnapshotCurrent(snapshot: EditorBindingSnapshot): boolean
   report(lease: EditorLease, report: EditorReport): WorkspaceResult
+  /** Lifecycle-only edge; accepts only a finite scroll position from the current lease. */
+  finalizeScroll(lease: EditorLease, scrollTop: number): WorkspaceResult
   flush(lease: EditorLease): Promise<WorkspaceResult>
   handoffMode(lease: EditorLease, mode: EditorMode): Promise<WorkspaceResult>
   refresh(lease: EditorLease): Promise<WorkspaceResult>

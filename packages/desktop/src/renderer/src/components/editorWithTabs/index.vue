@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import { createElectronCrashDraftPort, createElectronNativeGesturePort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
 import type { WorkspaceTabMenuActions, WorkspaceTabMenuTarget } from '@/contextMenu/tabs'
@@ -32,6 +32,7 @@ import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { usePreferencesStore } from '@/store/preferences'
 import PaneEditor from './pane.vue'
+import { registerWorkspaceTreeUnmount } from './workspaceTreeLifecycle'
 
 const props = defineProps<{ markdown: string; cursor: unknown; muyaIndexCursor?: unknown; caretSession: CaretSession; sourceCode: boolean; tabBarVisible: boolean; textDirection: string; platform: string }>()
 defineEmits<{ 'caret-position': [update: CaretPositionUpdate] }>()
@@ -421,10 +422,9 @@ type MoveActionDriver = Window & {
   __mtWorkspaceSnapshot?: () => ReturnType<typeof controller.getFacadeSnapshot>
 }
 const moveActionDriver = window as MoveActionDriver
-onBeforeUnmount(() => {
+registerWorkspaceTreeUnmount(controller, () => {
   observer?.disconnect()
   unsubscribe()
-  controller.dispose()
   editorStore.DETACH_WORKSPACE_COMPOSITION()
   editorStore.DETACH_WORKSPACE_FACADE()
   window.removeEventListener('pointermove', moveDivider)
