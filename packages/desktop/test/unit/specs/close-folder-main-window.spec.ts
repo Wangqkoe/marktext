@@ -48,13 +48,13 @@ interface DeferredCandidate {
 }
 
 const createCandidate = (settled: 'ready' | 'pending' = 'pending'): DeferredCandidate => {
-  let resolve!: () => void
-  let reject!: (error: Error) => void
-  const ready = new Promise<void>((readyResolve, readyReject) => {
-    resolve = readyResolve
-    reject = readyReject
+  let resolveReady!: () => void
+  let rejectReady!: (error: Error) => void
+  const ready = new Promise<void>((resolve, reject) => {
+    resolveReady = resolve
+    rejectReady = reject
   })
-  if (settled === 'ready') resolve()
+  if (settled === 'ready') resolveReady()
   return {
     ready,
     commit: vi.fn((publish?: () => void) => {
@@ -62,8 +62,8 @@ const createCandidate = (settled: 'ready' | 'pending' = 'pending'): DeferredCand
       return true
     }),
     close: vi.fn(),
-    resolve,
-    reject
+    resolve: resolveReady,
+    reject: rejectReady
   }
 }
 
