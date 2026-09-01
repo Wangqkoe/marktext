@@ -46,12 +46,12 @@
         </a>
       </div>
       <div
-        v-show="showOpenedFiles"
+        v-show="effectiveShowOpenedFiles"
         class="opened-files-list"
       >
         <transition-group name="list">
           <opened-file
-            v-for="tab of tabs"
+            v-for="tab of filteredTabs"
             :key="tab.id"
             :file="tab"
             :resolve-workspace-menu="resolveOpenedFileWorkspaceMenu"
@@ -85,17 +85,19 @@
         }}</span>
       </div>
       <div
-        v-show="showDirectories"
+        v-show="effectiveShowDirectories"
         class="tree-wrapper"
       >
         <folder
-          v-for="folder of projectTree.folders"
+          v-for="folder of filteredTree.folders"
           :key="folder.id"
           :folder="folder"
           :depth="depth"
+          :is-folder-collapsed="isFolderCollapsed"
+          :on-toggle-folder="toggleFolder"
         />
         <input
-          v-show="createCacheDirname === projectTree.pathname"
+          v-show="!filteredTree.active && createCacheDirname === projectTree.pathname"
           ref="input"
           v-model="createName"
           placeholder="Enter .md file name"
@@ -107,14 +109,15 @@
           @keypress.enter="handleInputEnter"
         >
         <file
-          v-for="file of projectTree.files"
+          v-for="file of filteredTree.files"
           :key="file.id"
           :file="file"
           :depth="depth"
         />
         <div
           v-if="
-            projectTree.files.length === 0 &&
+            !filteredTree.active &&
+              projectTree.files.length === 0 &&
               projectTree.folders.length === 0 &&
               createCacheDirname !== projectTree.pathname
           "
@@ -129,6 +132,12 @@
               {{ t('sideBar.tree.createFile') }}
             </button>
           </div>
+        </div>
+        <div
+          v-else-if="filteredTree.active && !hasFilesResults"
+          class="filter-no-results"
+        >
+          {{ t('sideBar.inlineSearch.filesNoResults') }}
         </div>
       </div>
     </div>
@@ -151,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, reactive, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/store/project'
 import { useEditorStore } from '@/store/editor'
@@ -165,6 +174,7 @@ import { resolveWorkspaceTabMenu } from '../../contextMenu/tabs'
 import { useI18n } from 'vue-i18n'
 import { ArrowRight } from '@element-plus/icons-vue'
 import type { TreeNode, TabDescriptor } from './types'
+import { filterFilesTree, filterOpenedFiles } from '@/util/sidebarFilter'
 
 const { t } = useI18n()
 
@@ -176,6 +186,7 @@ const props = defineProps<{
   projectTree: TreeNode | null
   openedFiles?: TabDescriptor[]
   tabs?: TabDescriptor[]
+  query?: string
 }>()
 
 const depth = 0
@@ -187,6 +198,9 @@ const showDirectories = ref(readSectionExpanded(SHOW_DIRECTORIES_KEY))
 const showOpenedFiles = ref(readSectionExpanded(SHOW_OPENED_FILES_KEY))
 const createName = ref('')
 const input = ref<HTMLInputElement | null>(null)
+const baseCollapsedByKey = reactive(new Map<string, boolean>())
+const searchCollapsedKeys = ref<Set<string>>(new Set())
+const manuallyExpandedKeys = ref<Set<string>>(new Set())
 
 const projectStore = useProjectStore()
 const editorStore = useEditorStore()
@@ -195,6 +209,81 @@ const preferencesStore = usePreferencesStore()
 // Computed properties
 const { createCache, clipboard, folderRootIdentity } = storeToRefs(projectStore)
 const { openedFilesInSidebar } = storeToRefs(preferencesStore)
+const filteredTree = computed(() =>
+  filterFilesTree(props.projectTree, props.query ?? '', manuallyExpandedKeys.value)
+)
+const filteredTabs = computed(() => filterOpenedFiles(props.tabs ?? [], props.query ?? ''))
+const hasFilesResults = computed(
+  () =>
+    (openedFilesInSidebar.value && filteredTabs.value.length > 0) ||
+    filteredTree.value.files.length > 0 ||
+    filteredTree.value.folders.length > 0
+)
+const effectiveShowOpenedFiles = computed(() =>
+  filteredTree.value.active
+    ? openedFilesInSidebar.value && filteredTabs.value.length > 0
+    : showOpenedFiles.value
+)
+const effectiveShowDirectories = computed(() =>
+  filteredTree.value.active ? true : showDirectories.value
+)
+
+const folderKey = (folder: TreeNode): string => folder.id || folder.pathname
+
+const baseFolderCollapsed = (folder: TreeNode): boolean => {
+  const key = folderKey(folder)
+  if (!baseCollapsedByKey.has(key)) {
+    baseCollapsedByKey.set(key, !!folder.isCollapsed)
+  }
+  return baseCollapsedByKey.get(key) ?? false
+}
+
+const isFolderCollapsed = (folder: TreeNode): boolean => {
+  if (!filteredTree.value.active) return baseFolderCollapsed(folder)
+  const key = folderKey(folder)
+  if (searchCollapsedKeys.value.has(key)) return true
+  return !(manuallyExpandedKeys.value.has(key) || filteredTree.value.autoExpandedKeys.has(key))
+}
+
+const toggleFolder = (folder: TreeNode): void => {
+  const key = folderKey(folder)
+  if (!filteredTree.value.active) {
+    baseCollapsedByKey.set(key, !baseFolderCollapsed(folder))
+    return
+  }
+
+  if (isFolderCollapsed(folder)) {
+    const collapsed = new Set(searchCollapsedKeys.value)
+    collapsed.delete(key)
+    searchCollapsedKeys.value = collapsed
+    if (filteredTree.value.matchedFolderKeys.has(key)) {
+      manuallyExpandedKeys.value = new Set(manuallyExpandedKeys.value).add(key)
+    }
+  } else {
+    searchCollapsedKeys.value = new Set(searchCollapsedKeys.value).add(key)
+    const expanded = new Set(manuallyExpandedKeys.value)
+    expanded.delete(key)
+    manuallyExpandedKeys.value = expanded
+  }
+}
+
+watch(
+  () => props.query,
+  (query) => {
+    if (query?.length) return
+    searchCollapsedKeys.value = new Set()
+    manuallyExpandedKeys.value = new Set()
+  }
+)
+
+watch(
+  () => props.projectTree,
+  () => {
+    baseCollapsedByKey.clear()
+    searchCollapsedKeys.value = new Set()
+    manuallyExpandedKeys.value = new Set()
+  }
+)
 
 // The createCache state is `{ dirname, type }` while an input is shown, and
 // `{}` otherwise. Expose a typed accessor for the template so we don't have
@@ -473,6 +562,11 @@ onMounted(() => {
   & button {
     margin-top: 10px;
   }
+}
+.filter-no-results {
+  padding: 28px var(--files-content-inset);
+  color: var(--sideBarTextColor);
+  text-align: center;
 }
 
 .empty-project > a {

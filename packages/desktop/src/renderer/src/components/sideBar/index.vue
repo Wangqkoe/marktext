@@ -32,15 +32,31 @@
       <button
         type="button"
         class="side-bar-search-button app-shell-focus-ring"
-        :title="t('sideBar.icons.search')"
-        :aria-label="t('sideBar.icons.search')"
-        :aria-pressed="sidebarView === 'search'"
-        :class="{ active: sidebarView === 'search' }"
-        @click="layoutStore.selectSidebarView('search')"
+        :title="t(inlineSearchOpen ? 'sideBar.inlineSearch.hide' : 'sideBar.inlineSearch.show')"
+        :aria-label="
+          t(inlineSearchOpen ? 'sideBar.inlineSearch.hide' : 'sideBar.inlineSearch.show')
+        "
+        :aria-pressed="inlineSearchOpen"
+        :class="{ active: inlineSearchOpen }"
+        @click="toggleInlineSearch"
       >
         <Search aria-hidden="true" />
       </button>
     </nav>
+
+    <div
+      v-if="inlineSearchOpen && sidebarView !== 'search'"
+      class="side-bar-inline-search"
+    >
+      <input
+        ref="inlineSearchInput"
+        v-model="inlineSearchQuery"
+        type="text"
+        :placeholder="inlineSearchPlaceholder"
+        :aria-label="inlineSearchInputLabel"
+        @keydown.esc.prevent.stop="closeInlineSearch"
+      >
+    </div>
 
     <div class="side-bar-content">
       <tree
@@ -48,9 +64,13 @@
         :project-tree="projectTree"
         :opened-files="openedFiles"
         :tabs="tabs"
+        :query="inlineSearchQuery"
       />
       <side-bar-search v-show="sidebarView === 'search'" />
-      <toc v-show="sidebarView === 'toc'" />
+      <toc
+        v-show="sidebarView === 'toc'"
+        :query="inlineSearchQuery"
+      />
     </div>
 
     <button
@@ -72,7 +92,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Search, Setting } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -94,6 +114,9 @@ const { projectTree } = storeToRefs(projectStore)
 const { tabs } = storeToRefs(editorStore)
 
 const dragBar = ref<HTMLDivElement | null>(null)
+const inlineSearchInput = ref<HTMLInputElement | null>(null)
+const inlineSearchOpen = ref(false)
+const inlineSearchQuery = ref('')
 const openedFiles = ref<TabDescriptor[]>([])
 const sidebarPreviewWidth = ref(sidebarWidth.value)
 
@@ -102,10 +125,51 @@ let startX = 0
 let startWidth = sidebarPreviewWidth.value
 
 const renderedSidebarWidth = computed(() => Math.max(sidebarPreviewWidth.value, 220))
+const inlineSearchPlaceholder = computed(() =>
+  t(
+    sidebarView.value === 'toc'
+      ? 'sideBar.inlineSearch.outlinePlaceholder'
+      : 'sideBar.inlineSearch.filesPlaceholder'
+  )
+)
+const inlineSearchInputLabel = computed(() =>
+  t(
+    sidebarView.value === 'toc'
+      ? 'sideBar.inlineSearch.outlineInputLabel'
+      : 'sideBar.inlineSearch.filesInputLabel'
+  )
+)
 
 watch(sidebarWidth, (width) => {
   if (!isResizing) sidebarPreviewWidth.value = width
 })
+
+watch(sidebarView, (view, previousView) => {
+  if (view === 'search') {
+    inlineSearchOpen.value = false
+    inlineSearchQuery.value = ''
+    return
+  }
+  if (inlineSearchOpen.value && previousView !== view && (view === 'files' || view === 'toc')) {
+    inlineSearchQuery.value = ''
+    nextTick(() => inlineSearchInput.value?.focus())
+  }
+})
+
+const closeInlineSearch = (): void => {
+  inlineSearchOpen.value = false
+  inlineSearchQuery.value = ''
+}
+
+const toggleInlineSearch = (): void => {
+  if (sidebarView.value === 'search') return
+  if (inlineSearchOpen.value) {
+    closeInlineSearch()
+    return
+  }
+  inlineSearchOpen.value = true
+  nextTick(() => inlineSearchInput.value?.focus())
+}
 
 const stopResize = (): void => {
   if (!isResizing) return
@@ -221,6 +285,30 @@ onBeforeUnmount(() => {
   min-height: 0;
   flex: 1;
   overflow: hidden;
+}
+
+.side-bar-inline-search {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--appShellVisibleDivider);
+}
+
+.side-bar-inline-search input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  color: var(--sideBarColor);
+  background: var(--inputBgColor);
+  border: 1px solid var(--floatBorderColor);
+  border-radius: 3px;
+  outline: none;
+  user-select: text;
+}
+
+.side-bar-inline-search input:focus {
+  border-color: var(--highlightThemeColor);
 }
 
 .side-bar-content > * {

@@ -4,8 +4,9 @@
     :class="[{ 'side-bar-toc-overflow': !wordWrapInToc, 'side-bar-toc-wordwrap': wordWrapInToc }]"
   >
     <el-tree
-      v-if="keyedToc.length"
-      :data="keyedToc"
+      v-if="filteredToc.nodes.length"
+      :key="treeRenderKey"
+      :data="filteredToc.nodes"
       node-key="key"
       :default-expanded-keys="expandedKeys"
       :props="defaultProps"
@@ -16,17 +17,28 @@
       @node-expand="onExpand"
       @node-collapse="onCollapse"
     />
+    <div
+      v-else-if="filteredToc.active"
+      class="toc-filter-no-results"
+    >
+      {{ t('sideBar.inlineSearch.outlineNoResults') }}
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { deriveKeyedToc, type KeyedTocNode } from '@/util/tocKeys'
 import bus from '../../bus'
 import { storeToRefs } from 'pinia'
 import { ArrowRight } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+import { filterOutline } from '@/util/sidebarFilter'
+
+const props = defineProps<{ query?: string }>()
+const { t } = useI18n()
 
 const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
@@ -42,21 +54,39 @@ const { wordWrapInToc } = storeToRefs(preferencesStore)
 // Stable per-node key so el-tree preserves the user's expand/collapse state
 // across content edits (#3028) and tab switches (#3791). See deriveKeyedToc.
 const keyedToc = computed<KeyedTocNode[]>(() => deriveKeyedToc(toc.value))
+const filteredToc = computed(() => filterOutline(keyedToc.value, props.query ?? ''))
+const treeRenderKey = computed(() =>
+  filteredToc.value.active ? `filter:${props.query}` : 'outline'
+)
 
 // Track which headings the user collapsed, by stable key (#3028). Headings are
 // expanded by default; a collapse is remembered here.
 const collapsedKeys = ref<Set<string>>(new Set())
+const searchCollapsedKeys = ref<Set<string>>(new Set())
 
 const onCollapse = (data: { key?: string }): void => {
-  if (data.key) collapsedKeys.value = new Set(collapsedKeys.value).add(data.key)
+  if (!data.key) return
+  if (filteredToc.value.active) {
+    searchCollapsedKeys.value = new Set(searchCollapsedKeys.value).add(data.key)
+  } else {
+    collapsedKeys.value = new Set(collapsedKeys.value).add(data.key)
+  }
 }
 
 const onExpand = (data: { key?: string }): void => {
   if (!data.key) return
-  const next = new Set(collapsedKeys.value)
+  const source = filteredToc.value.active ? searchCollapsedKeys : collapsedKeys
+  const next = new Set(source.value)
   next.delete(data.key)
-  collapsedKeys.value = next
+  source.value = next
 }
+
+watch(
+  () => props.query,
+  (query) => {
+    if (!query?.length) searchCollapsedKeys.value = new Set()
+  }
+)
 
 // The set el-tree should have expanded: every node that is neither collapsed
 // nor inside a collapsed ancestor. On each content edit el-tree rebuilds and
@@ -67,12 +97,17 @@ const expandedKeys = computed<string[]>(() => {
   const keys: string[] = []
   const walk = (nodes: KeyedTocNode[], hiddenByAncestor: boolean): void => {
     for (const node of nodes) {
-      const collapsed = hiddenByAncestor || collapsedKeys.value.has(node.key)
+      const collapsed =
+        hiddenByAncestor ||
+        (filteredToc.value.active
+          ? searchCollapsedKeys.value.has(node.key) ||
+            (node.children.length > 0 && !filteredToc.value.autoExpandedKeys.has(node.key))
+          : collapsedKeys.value.has(node.key))
       if (!collapsed) keys.push(node.key)
       walk(node.children, collapsed)
     }
   }
-  walk(keyedToc.value, false)
+  walk(filteredToc.value.nodes, false)
   return keys
 })
 
@@ -147,5 +182,11 @@ const handleClick = (data: { slug?: unknown }): void => {
   line-height: 20px;
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+.toc-filter-no-results {
+  padding: 28px 12px;
+  color: var(--sideBarTextColor);
+  text-align: center;
 }
 </style>

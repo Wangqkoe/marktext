@@ -12,7 +12,7 @@
     >
       <el-icon
         class="icon-arrow"
-        :class="{ fold: isCollapsed }"
+        :class="{ fold: collapsed }"
         :size="12"
       >
         <ArrowRight />
@@ -32,7 +32,7 @@
       >{{ folder.name }}</span>
     </div>
     <div
-      v-if="!isCollapsed"
+      v-if="!collapsed"
       class="folder-contents"
     >
       <tree-folder
@@ -40,6 +40,8 @@
         :key="childFolder.id"
         :folder="childFolder"
         :depth="depth + 1"
+        :is-folder-collapsed="isFolderCollapsed"
+        :on-toggle-folder="onToggleFolder"
       />
       <input
         v-if="createCache.dirname === folder.pathname"
@@ -63,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { computed, ref, onMounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/store/project'
 import { showContextMenu } from '../../contextMenu/sideBar'
@@ -75,6 +77,8 @@ import type { TreeFolderNode } from './types'
 const props = defineProps<{
   folder: TreeFolderNode
   depth: number
+  isFolderCollapsed: (folder: TreeFolderNode) => boolean
+  onToggleFolder: (folder: TreeFolderNode) => void
 }>()
 
 const projectStore = useProjectStore()
@@ -86,8 +90,7 @@ const folderEl = ref<HTMLDivElement | null>(null)
 const renameInput = ref<HTMLInputElement | null>(null)
 const input = ref<HTMLInputElement | null>(null)
 
-// Use a local reactive state for isCollapsed that syncs with the prop
-const isCollapsed = ref<boolean>(!!props.folder.isCollapsed)
+const collapsed = computed(() => props.isFolderCollapsed(props.folder))
 
 const { renameCache } = storeToRefs(projectStore)
 const { createCache } = storeToRefs(projectStore)
@@ -101,7 +104,7 @@ const handleInputFocus = (): void => {
   // is null while collapsed, so New File on a collapsed folder did nothing
   // (#3439).
   if (createCache.value.dirname !== props.folder.pathname) return
-  isCollapsed.value = false
+  if (collapsed.value) props.onToggleFolder(props.folder)
   nextTick(() => {
     if (input.value) {
       input.value.focus()
@@ -115,7 +118,7 @@ const handleInputEnter = (): void => {
 }
 
 const folderNameClick = (): void => {
-  isCollapsed.value = !isCollapsed.value
+  props.onToggleFolder(props.folder)
 }
 
 const noop = (): void => {}
