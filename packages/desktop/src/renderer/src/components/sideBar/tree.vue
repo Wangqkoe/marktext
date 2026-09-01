@@ -284,11 +284,16 @@ watch(
 )
 
 watch(
-  () => props.projectTree,
+  () => {
+    const identity = folderRootIdentity.value
+    return identity ? `${identity.generation}:${identity.pathname}` : ''
+  },
   () => {
     baseCollapsedByKey.clear()
     searchCollapsedKeys.value = new Set()
     manuallyExpandedKeys.value = new Set()
+    searchShowDirectories.value = null
+    searchShowOpenedFiles.value = null
   }
 )
 

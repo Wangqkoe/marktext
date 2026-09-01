@@ -220,6 +220,10 @@ test.describe('Files and Outline inline search', () => {
   test('recomputes the projection for watcher-like updates, Folder replacement, and no root', async() => {
     await page.getByRole('button', { name: 'Show inline search' }).click()
     const input = page.getByRole('textbox', { name: 'Filter files and folders' })
+    const rootTitle = page.locator('.project-tree > .title > span')
+    const openedTitle = page.locator('.opened-files > .title > span')
+    const rootContents = page.locator('.project-tree > .tree-wrapper')
+    const openedContents = page.locator('.opened-files > .opened-files-list')
     await input.fill('watcher')
     await page.evaluate(() => {
       const app = document.querySelector('#app') as
@@ -242,6 +246,17 @@ test.describe('Files and Outline inline search', () => {
     })
     await expect(page.locator('.side-bar-file', { hasText: 'watcher.md' })).toBeVisible()
 
+    // A same-root watcher mutation must not clear the current search or its
+    // section state. Hide both sections before replacing the root so the new
+    // identity must explicitly discard these overlays.
+    await input.fill('note')
+    await expect(rootContents).toBeVisible()
+    await expect(openedContents).toBeVisible()
+    await rootTitle.click()
+    await openedTitle.click()
+    await expect(rootContents).toBeHidden()
+    await expect(openedContents).toBeHidden()
+
     await page.evaluate(() => {
       const app = document.querySelector('#app') as
         | (Element & { __vue_app__?: { config?: { globalProperties?: Record<string, unknown> } } })
@@ -258,18 +273,26 @@ test.describe('Files and Outline inline search', () => {
       store?.OPEN_PROJECT?.('C:\\t05-replacement')
       store?.projectTree?.files.push({
         id: 'replacement-file',
-        pathname: 'C:\\t05-replacement\\watcher-replacement.md',
-        name: 'watcher-replacement.md',
+        pathname: 'C:\\t05-replacement\\note-replacement.md',
+        name: 'note-replacement.md',
         isDirectory: false,
         isFile: true,
         isMarkdown: true
       })
     })
-    await expect(
-      page.locator('.side-bar-file', { hasText: 'watcher-replacement.md' })
-    ).toBeVisible()
+    await expect(page.locator('.side-bar-file', { hasText: 'note-replacement.md' })).toBeVisible()
     await expect(page.locator('.side-bar-file', { hasText: 'watcher.md' })).toHaveCount(0)
+    await expect(rootContents).toBeVisible()
+    await expect(openedContents).toBeVisible()
+    await expect.poll(() => page.evaluate(() => ({
+      directories: localStorage.getItem('side-bar-show-directories'),
+      opened: localStorage.getItem('side-bar-show-opened-files')
+    }))).toEqual({ directories: null, opened: null })
 
+    await rootTitle.click()
+    await openedTitle.click()
+    await expect(rootContents).toBeHidden()
+    await expect(openedContents).toBeHidden()
     await page.evaluate(() => {
       const app = document.querySelector('#app') as
         | (Element & { __vue_app__?: { config?: { globalProperties?: Record<string, unknown> } } })
@@ -277,17 +300,52 @@ test.describe('Files and Outline inline search', () => {
       const pinia = app?.__vue_app__?.config?.globalProperties?.$pinia as
         | { _s?: Map<string, Record<string, unknown>> }
         | undefined
-      const store = pinia?._s?.get('project') as Record<string, unknown> | undefined
-      if (store) store.projectTree = null
+      const store = pinia?._s?.get('project') as
+        | {
+          CLOSE_FOLDER?: (identity: { pathname: string; generation: number }) => void
+          folderRootIdentity?: { pathname: string; generation: number } | null
+        }
+        | undefined
+      if (store?.folderRootIdentity) store.CLOSE_FOLDER?.({ ...store.folderRootIdentity })
     })
     await input.fill('file:note')
     await expect(page.locator('.opened-file', { hasText: 'note.md' })).toBeVisible()
+    await expect(page.locator('.project-tree')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Open Folder' })).toBeVisible()
     await input.fill('folder:')
     await expect(page.locator('.opened-file:visible')).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'Open Folder' })).toBeVisible()
 
-    expect(await installFixtureTree(page)).toBe(true)
-    await input.fill('')
+    await input.fill('note')
+    await page.evaluate(() => {
+      const app = document.querySelector('#app') as
+        | (Element & { __vue_app__?: { config?: { globalProperties?: Record<string, unknown> } } })
+        | null
+      const pinia = app?.__vue_app__?.config?.globalProperties?.$pinia as
+        | { _s?: Map<string, Record<string, unknown>> }
+        | undefined
+      const store = pinia?._s?.get('project') as
+        | {
+          OPEN_PROJECT?: (pathname: string) => void
+          projectTree?: { files: unknown[] } | null
+        }
+        | undefined
+      store?.OPEN_PROJECT?.('C:\\t05-reopened')
+      store?.projectTree?.files.push({
+        id: 'reopened-file',
+        pathname: 'C:\\t05-reopened\\note-reopened.md',
+        name: 'note-reopened.md',
+        isDirectory: false,
+        isFile: true,
+        isMarkdown: true
+      })
+    })
+    await expect(page.locator('.side-bar-file', { hasText: 'note-reopened.md' })).toBeVisible()
+    await expect(rootContents).toBeVisible()
+    await expect(openedContents).toBeVisible()
+    await expect.poll(() => page.evaluate(() => ({
+      directories: localStorage.getItem('side-bar-show-directories'),
+      opened: localStorage.getItem('side-bar-show-opened-files')
+    }))).toEqual({ directories: null, opened: null })
   })
 
   test('keeps the input open across Files/Outline, clears it, and preserves duplicate heading keys', async() => {
