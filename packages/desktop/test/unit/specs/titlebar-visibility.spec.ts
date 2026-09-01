@@ -18,4 +18,8 @@ describe('shouldShowInAppTitleBar (#4210)', () => {
   it('shows the in-app title bar for the custom style', () => {
     expect(shouldShowInAppTitleBar('custom', false)).toBe(true)
   })
+
+  it('shows the in-app title bar for the concise style', () => {
+    expect(shouldShowInAppTitleBar('concise', false)).toBe(true)
+  })
 })

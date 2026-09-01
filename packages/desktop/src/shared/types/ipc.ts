@@ -31,7 +31,7 @@ import type {
   UnsavedFile
 } from './files'
 import type { BufferedState as BufferedStateType } from './bufferedState'
-import type { MenuTemplate, MenuPopupPosition } from './menu'
+import type { ApplicationMenuSection, MenuTemplate, MenuPopupPosition } from './menu'
 import type { LayoutAction, LayoutMenuState } from './layout'
 import type { ViewMode, ViewModeState } from './viewMode'
 import type {
@@ -156,6 +156,10 @@ export interface IpcSendChannels {
   'mt::make-screenshot': []
   'mt::menu::popup': [template: MenuTemplate, position?: MenuPopupPosition, popupId?: string]
   'mt::menu::popup-application': [position?: MenuPopupPosition]
+  'mt::menu::popup-application-submenu': [
+    section: ApplicationMenuSection,
+    position?: MenuPopupPosition
+  ]
   'mt::open-file': [filePath: string, options?: unknown]
   'mt::open-file-by-window-id': [windowId: number, filePath: string, options?: unknown]
   'mt::open-keybindings-config': []

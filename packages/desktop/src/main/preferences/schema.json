@@ -12,7 +12,7 @@
   },
   "titleBarStyle": {
     "description": "General--The title bar style (Windows and Linux system only).",
-    "enum": ["custom", "native"],
+    "enum": ["custom", "native", "concise"],
     "default": "custom"
   },
   "openFilesInNewWindow": {

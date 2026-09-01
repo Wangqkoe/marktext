@@ -8,7 +8,7 @@ import type { ViewMode, ViewModeState } from '@shared/types/viewMode'
 // We keep these as plain strings everywhere else to avoid forcing prematurely
 // narrow casts on consumers that read raw values from disk.
 export type EndOfLine = 'default' | 'lf' | 'crlf'
-export type TitleBarStyle = 'custom' | 'native'
+export type TitleBarStyle = 'custom' | 'native' | 'concise'
 export type StartUpAction = 'restoreAll' | 'lastSession' | 'blank'
 export type TextDirection = 'ltr' | 'rtl'
 export type BulletListMarker = '*' | '+' | '-'

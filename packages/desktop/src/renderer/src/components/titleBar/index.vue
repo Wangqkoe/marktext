@@ -7,46 +7,57 @@
     />
     <div
       v-if="showTitleBar"
+      ref="titleBarElement"
       class="title-bar"
       :class="[
         { active: active },
         { 'tabs-visible': tabBarVisible },
-        { frameless: titleBarStyle === 'custom' },
+        { frameless: isFramelessEditor },
+        { concise: isConcise },
         { isOsx: isOsx }
       ]"
     >
       <div
+        ref="titleElement"
         class="title"
+        :title="filename || 'MarkText'"
         @dblclick.stop="toggleMaxmizeOnMacOS"
       >
-        <span v-if="!filename">MarkText</span>
-        <span v-else>
+        <span
+          class="filename"
+          :class="{ isOsx: platform === 'darwin' }"
+          dir="ltr"
+          @click="rename"
+        >
+          {{ visibleTitle }}
           <span
-            v-for="(path, index) of paths"
-            :key="index"
-          >
-            {{ path }}
-            <el-icon
-              class="path-arrow"
-              :size="12"
-            >
-              <ArrowRight />
-            </el-icon>
-          </span>
-          <span
-            class="filename"
-            :class="{ isOsx: platform === 'darwin' }"
-            @click="rename"
-          >
-            {{ filename }}
-          </span>
-          <span
+            v-if="filename"
             class="save-dot"
             :class="{ show: !isSaved }"
           />
         </span>
       </div>
-      <div :class="showCustomTitleBar ? 'left-toolbar title-no-drag' : 'right-toolbar'">
+      <nav
+        v-if="isConcise"
+        ref="leftToolbarElement"
+        class="concise-menu title-no-drag"
+      >
+        <button
+          v-for="item in conciseMenus"
+          :key="item.section"
+          type="button"
+          class="concise-menu-button"
+          :data-menu-section="item.section"
+          @click.stop="handleConciseMenuClick(item.section, $event)"
+        >
+          {{ item.label }}
+        </button>
+      </nav>
+      <div
+        v-else
+        ref="leftToolbarElement"
+        :class="showCustomTitleBar ? 'left-toolbar title-no-drag' : 'right-toolbar'"
+      >
         <div
           v-if="showCustomTitleBar"
           class="frameless-titlebar-menu title-no-drag"
@@ -56,9 +67,10 @@
         </div>
       </div>
       <div
-        v-if="titleBarStyle === 'custom' && !isFullScreen && !isOsx"
+        v-if="isFramelessEditor && !isFullScreen"
+        ref="rightToolbarElement"
         class="right-toolbar"
-        :class="[{ 'title-no-drag': titleBarStyle === 'custom' }]"
+        :class="[{ 'title-no-drag': isFramelessEditor }]"
       >
         <div
           class="frameless-titlebar-button frameless-titlebar-close"
@@ -114,14 +126,20 @@
 <script setup lang="ts">
 import { usePreferencesStore } from '@/store/preferences.js'
 import { useLayoutStore } from '@/store/layout.js'
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
 import { PATH_SEPARATOR } from '../../config'
 import { isOsx as isOsxPlatform } from '@/util'
 import { shouldShowInAppTitleBar } from './visibility'
 import { useEditorStore } from '@/store/editor'
-import { ArrowRight } from '@element-plus/icons-vue'
+import { useI18n } from 'vue-i18n'
+import {
+  APPLICATION_MENU_SECTIONS,
+  type ApplicationMenuSection,
+  type MenuPopupPosition
+} from '@shared/types/menu'
+import { truncateTitleMiddle, withoutMenuMnemonic } from './display'
 
 interface ProjectInfo {
   name?: string
@@ -140,6 +158,7 @@ const props = defineProps<{
 const preferencesStore = usePreferencesStore()
 const layoutStore = useLayoutStore()
 const editorStore = useEditorStore()
+const { t } = useI18n()
 
 const isOsx = isOsxPlatform
 const windowIconMinimize = minimizePath
@@ -149,6 +168,12 @@ const windowIconClose = closePath
 
 const isFullScreen = ref(false)
 const isMaximized = ref(false)
+const titleBarElement = ref<HTMLElement | null>(null)
+const titleElement = ref<HTMLElement | null>(null)
+const leftToolbarElement = ref<HTMLElement | null>(null)
+const rightToolbarElement = ref<HTMLElement | null>(null)
+const titleAvailableWidth = ref(0)
+let titleResizeObserver: ResizeObserver | null = null
 
 onMounted(async () => {
   try {
@@ -159,15 +184,84 @@ onMounted(async () => {
     isFullScreen.value = !!fs
     isMaximized.value = !!max
   } catch {}
+
+  await nextTick()
+  updateTitleLayout()
+  titleResizeObserver = new ResizeObserver(updateTitleLayout)
+  for (const element of [
+    titleBarElement.value,
+    leftToolbarElement.value,
+    rightToolbarElement.value
+  ]) {
+    if (element) titleResizeObserver.observe(element)
+  }
 })
 
 const { titleBarStyle } = storeToRefs(preferencesStore)
 const { tabBarVisible } = storeToRefs(layoutStore)
 
+const isConcise = computed(() => titleBarStyle.value === 'concise' && !isOsx)
+const isFramelessEditor = computed(() => {
+  return !isOsx && (titleBarStyle.value === 'custom' || titleBarStyle.value === 'concise')
+})
+
 const paths = computed(() => {
   if (!props.pathname) return []
   const pathnameToken = props.pathname.split(PATH_SEPARATOR).filter((i) => i)
   return pathnameToken.slice(0, pathnameToken.length - 1).slice(-3)
+})
+
+const fullTitle = computed(() => {
+  if (!props.filename) return 'MarkText'
+  return isConcise.value ? props.filename : [...paths.value, props.filename].join(' › ')
+})
+
+const measureTitle = (candidate: string): number => {
+  const element = titleElement.value
+  if (!element) return Number.POSITIVE_INFINITY
+  const style = window.getComputedStyle(element)
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+  if (!context) return Number.POSITIVE_INFINITY
+  context.font = style.font
+  return context.measureText(candidate).width
+}
+
+const visibleTitle = computed(() =>
+  truncateTitleMiddle(fullTitle.value, titleAvailableWidth.value, measureTitle)
+)
+
+const conciseMenuKeys: Record<ApplicationMenuSection, string> = {
+  file: 'menu.file.file',
+  edit: 'menu.edit.edit',
+  paragraph: 'menu.paragraph.title',
+  format: 'menu.format.format',
+  window: 'menu.window.title',
+  theme: 'menu.theme.theme',
+  view: 'menu.view.view',
+  help: 'menu.help.help'
+}
+
+const conciseMenus = computed(() =>
+  APPLICATION_MENU_SECTIONS.map((section) => ({
+    section,
+    label: withoutMenuMnemonic(t(conciseMenuKeys[section]))
+  }))
+)
+
+function updateTitleLayout(): void {
+  const bar = titleBarElement.value
+  if (!bar) return
+  const leftWidth = leftToolbarElement.value?.getBoundingClientRect().width ?? 0
+  const rightWidth = rightToolbarElement.value?.getBoundingClientRect().width ?? 0
+  const safeInset = Math.ceil(Math.max(leftWidth, rightWidth))
+  bar.style.setProperty('--title-safe-inset', `${safeInset}px`)
+  titleAvailableWidth.value = Math.max(0, bar.clientWidth - safeInset * 2 - 16)
+}
+
+watch([isFullScreen, isConcise], async() => {
+  await nextTick()
+  updateTitleLayout()
 })
 
 const showCustomTitleBar = computed(() => {
@@ -222,6 +316,21 @@ const handleMenuClick = () => {
   window.electron.windowControl.popupApplicationMenu({ x: 23, y: 20 })
 }
 
+const handleConciseMenuClick = (section: ApplicationMenuSection, event: MouseEvent) => {
+  const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const position: MenuPopupPosition = {
+    x: Math.round(bounds.left),
+    y: Math.round(bounds.bottom)
+  }
+  const controls = window.electron.windowControl as typeof window.electron.windowControl & {
+    popupApplicationSubmenu(
+      section: ApplicationMenuSection,
+      position: MenuPopupPosition
+    ): void
+  }
+  controls.popupApplicationSubmenu(section, position)
+}
+
 const rename = () => {
   if (props.platform === 'darwin') {
     editorStore.RESPONSE_FOR_RENAME()
@@ -253,6 +362,7 @@ const offLeaveFullScreen = window.electron.ipcRenderer.on(
 )
 
 onBeforeUnmount(() => {
+  titleResizeObserver?.disconnect()
   offMaximize()
   offUnmaximize()
   offEnterFullScreen()
@@ -270,6 +380,8 @@ onBeforeUnmount(() => {
   right: 0;
 }
 .title-bar {
+  --title-safe-inset: 142px;
+
   -webkit-app-region: drag;
   user-select: none;
   background: transparent;
@@ -293,14 +405,19 @@ img {
   vertical-align: top;
 }
 .title {
-  padding: 0 142px;
+  position: absolute;
+  left: 50%;
+  width: max(0px, calc(100% - 2 * var(--title-safe-inset)));
+  padding: 0 8px;
+  box-sizing: border-box;
+  transform: translateX(-50%);
   height: 100%;
   line-height: var(--appShellTitleBarHeight);
   font-size: 14px;
   text-align: center;
-  transition: all 0.25s ease-in-out;
+  transition: color 0.25s ease-in-out;
   & .filename {
-    transition: all 0.25s ease-in-out;
+    transition: color 0.25s ease-in-out;
   }
   &::after {
     content: '';
@@ -312,13 +429,11 @@ img {
     -webkit-app-region: no-drag;
   }
 }
-div.title > span {
-  /* Workaround for GH#339 */
+.title > .filename {
   display: block;
-  direction: rtl;
   overflow: hidden;
-  text-overflow: clip;
   white-space: nowrap;
+  unicode-bidi: isolate;
 }
 
 .title-bar .title .filename.isOsx:hover {
@@ -351,6 +466,31 @@ div.title > span {
   width: 118px; /* + 2*10px padding*/
   display: flex;
   flex-direction: row;
+}
+.concise-menu {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: flex;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.concise-menu-button {
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 5px;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 30px;
+  cursor: default;
+}
+.concise-menu-button:hover,
+.concise-menu-button:focus-visible {
+  outline: none;
+  background: var(--appShellHoverBg);
 }
 .right-toolbar {
   height: 100%;

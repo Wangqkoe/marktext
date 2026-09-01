@@ -16,6 +16,8 @@ import type { IUserPreferences } from '@shared/types/preferences'
 import type { LayoutMenuState } from '@shared/types/layout'
 import type { ViewModeState } from '@shared/types/viewMode'
 
+let currentAppMenu: AppMenu | null = null
+
 const RECENTLY_USED_DOCUMENTS_FILE_NAME = 'recently-used-documents.json'
 const MAX_RECENTLY_USED_DOCUMENTS = 12
 
@@ -26,6 +28,11 @@ export const MenuType = {
 } as const
 
 export type MenuTypeValue = (typeof MenuType)[keyof typeof MenuType]
+
+export const getLiveWindowMenu = (windowId: number): Menu | null => {
+  const entry = currentAppMenu?.windowMenus.get(windowId)
+  return entry?.type === MenuType.EDITOR ? entry.menu : null
+}
 
 interface WindowMenuEntry {
   menu: Menu | null
@@ -64,6 +71,7 @@ class AppMenu {
     this.isOsxOrWindows = isOsx || isWindows
     this.activeWindowId = -1
     this.windowMenus = new Map()
+    currentAppMenu = this
 
     // Initialize main process language from preferences
     this._initializeLanguage()

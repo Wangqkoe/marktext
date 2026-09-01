@@ -9,6 +9,10 @@ export const getTitleBarStyleOptions = (): PrefSelectOption<string>[] => [
   {
     label: t('preferences.general.window.titleBarStyle.native'),
     value: 'native'
+  },
+  {
+    label: t('preferences.general.window.titleBarStyle.concise'),
+    value: 'concise'
   }
 ]
 

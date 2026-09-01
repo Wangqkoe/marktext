@@ -23,3 +23,16 @@ export interface MenuPopupPosition {
   x: number
   y: number
 }
+
+export const APPLICATION_MENU_SECTIONS = [
+  'file',
+  'edit',
+  'paragraph',
+  'format',
+  'window',
+  'theme',
+  'view',
+  'help'
+] as const
+
+export type ApplicationMenuSection = (typeof APPLICATION_MENU_SECTIONS)[number]

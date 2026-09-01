@@ -4,7 +4,7 @@
     <side-bar />
     <div
       class="pref-content"
-      :class="{ frameless: titleBarStyle === 'custom' || isOsx }"
+      :class="{ frameless: isFramelessTitleBar }"
     >
       <div
         v-if="!showCustomTitleBar"
@@ -31,12 +31,16 @@ const preferencesStore = usePreferencesStore()
 // Computed properties
 const { theme, titleBarStyle } = storeToRefs(preferencesStore)
 
+const isFramelessTitleBar = computed<boolean>(() => {
+  return isOsx || titleBarStyle.value === 'custom' || titleBarStyle.value === 'concise'
+})
+
 const showCustomTitleBar = computed<boolean>(() => {
   // Always show the custom title bar on macOS to provide a close button
   if (isOsx) {
     return true
   }
-  return titleBarStyle.value === 'custom'
+  return titleBarStyle.value === 'custom' || titleBarStyle.value === 'concise'
 })
 
 // Watchers

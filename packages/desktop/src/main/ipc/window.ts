@@ -7,7 +7,14 @@ import {
   type WebContents
 } from 'electron'
 import log from 'electron-log'
-import type { MenuTemplate, MenuTemplateItem, MenuPopupPosition } from '@shared/types/menu'
+import {
+  APPLICATION_MENU_SECTIONS,
+  type ApplicationMenuSection,
+  type MenuTemplate,
+  type MenuTemplateItem,
+  type MenuPopupPosition
+} from '@shared/types/menu'
+import { getLiveWindowMenu } from '../menu'
 
 const windowFromEvent = (event: IpcMainEvent): BrowserWindow | null =>
   BrowserWindow.fromWebContents(event.sender)
@@ -154,4 +161,22 @@ export const registerWindowHandlers = (): void => {
       log.error('application menu popup failed:', err)
     }
   })
+
+  ipcMain.on(
+    'mt::menu::popup-application-submenu',
+    (event, section: ApplicationMenuSection, position?: MenuPopupPosition) => {
+      if (process.platform === 'darwin') return
+      const win = windowFromEvent(event)
+      if (!win || win.isDestroyed()) return
+      const index = APPLICATION_MENU_SECTIONS.indexOf(section)
+      if (index < 0) return
+      const submenu = getLiveWindowMenu(win.id)?.items[index]?.submenu
+      if (!submenu) return
+      try {
+        submenu.popup({ window: win, x: position?.x, y: position?.y })
+      } catch (err) {
+        log.error('application submenu popup failed:', err)
+      }
+    }
+  )
 }
