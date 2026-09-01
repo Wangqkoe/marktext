@@ -6,6 +6,7 @@ import {
   type WorkspaceTabMenuActions,
   type WorkspaceTabMenuTarget
 } from '@/contextMenu/tabs'
+import { matchesFolderRootIdentity } from '@/contextMenu/tabs/folderTarget'
 import bus from '@/bus'
 
 const normalizeTestPath = (pathname: string): string => {
@@ -176,7 +177,7 @@ describe('workspace tab context menu', () => {
       viewId: 'right-view',
       documentId: 'right-document',
       fileKey: 'C:\\Users\\Writer\\Notes\\same.md',
-      folderRoot: 'c:/users/writer/notes/'
+      folderRoot: { pathname: 'c:/users/writer/notes/', generation: 7 }
     })
     const items = createWorkspaceTabMenuItems(clicked, actions)
     const folder = items.find((item) => item.id === 'closeThisFolder')
@@ -192,7 +193,7 @@ describe('workspace tab context menu', () => {
     const actions = createActions()
     const clicked = target({
       fileKey: '/workspace/nested/note.md',
-      folderRoot: '/workspace'
+      folderRoot: { pathname: '/workspace', generation: 1 }
     })
     const items = createWorkspaceTabMenuItems(clicked, actions)
     const folder = items.find((item) => item.id === 'openThisFolder')
@@ -200,6 +201,20 @@ describe('workspace tab context menu', () => {
     await folder?.click?.({}, null)
     expect(actions.openFolder).toHaveBeenCalledWith(clicked, '/workspace/nested')
     expect(actions.closeFolder).not.toHaveBeenCalled()
+  })
+
+  it('matches a captured Folder root only while its generation is still current', () => {
+    const captured = { pathname: 'C:\\Users\\Writer\\Notes\\', generation: 7 }
+
+    expect(matchesFolderRootIdentity(captured, {
+      pathname: 'c:/users/writer/notes',
+      generation: 7
+    })).toBe(true)
+    expect(matchesFolderRootIdentity(captured, {
+      pathname: 'c:/users/writer/notes',
+      generation: 8
+    })).toBe(false)
+    expect(matchesFolderRootIdentity(captured, null)).toBe(false)
   })
 
   it('provides every workspace menu and command string in the desktop locales', () => {

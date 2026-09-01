@@ -193,8 +193,7 @@ const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
 
 // Computed properties
-const { createCache } = storeToRefs(projectStore)
-const { clipboard } = storeToRefs(projectStore)
+const { createCache, clipboard, folderRootIdentity } = storeToRefs(projectStore)
 const { openedFilesInSidebar } = storeToRefs(preferencesStore)
 
 // The createCache state is `{ dirname, type }` while an input is shown, and
@@ -206,7 +205,10 @@ const createCacheDirname = computed<string | undefined>(() => {
 })
 
 const resolveOpenedFileWorkspaceMenu = (documentId: string) =>
-  resolveWorkspaceTabMenu(documentId, props.projectTree?.pathname)
+  resolveWorkspaceTabMenu(
+    documentId,
+    folderRootIdentity.value ? { ...folderRootIdentity.value } : undefined
+  )
 
 // Methods
 const openFolder = (): void => {

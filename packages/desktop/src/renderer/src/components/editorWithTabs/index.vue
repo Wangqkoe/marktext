@@ -30,6 +30,7 @@ import {
   type WorkspaceTabMenuActions,
   type WorkspaceTabMenuTarget
 } from '@/contextMenu/tabs'
+import { matchesFolderRootIdentity } from '@/contextMenu/tabs/folderTarget'
 import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload, PortableHistory } from '@shared/workspace'
 import { useEditorStore } from '@/store/editor'
@@ -76,11 +77,9 @@ const workspaceTabActions: WorkspaceTabMenuActions = {
     window.electron.ipcRenderer.send('mt::cmd-open-folder-in-current-window', directoryPath)
   },
   closeFolder: (target) => {
-    const currentRoot = projectStore.projectTree?.pathname
-    if (
-      target.folderRoot && currentRoot &&
-      window.fileUtils.isSamePathSync(target.folderRoot, currentRoot)
-    ) window.electron.ipcRenderer.send('mt::cmd-close-folder')
+    if (matchesFolderRootIdentity(target.folderRoot, projectStore.folderRootIdentity)) {
+      window.electron.ipcRenderer.send('mt::cmd-close-folder')
+    }
   }
 }
 const unregisterWorkspaceTabMenuResolver = registerWorkspaceTabMenuResolver((documentId, folderRoot) => {
@@ -95,7 +94,7 @@ const unregisterWorkspaceTabMenuResolver = registerWorkspaceTabMenuResolver((doc
       documentId: tab.documentId,
       ...(tab.fileKey ? { fileKey: tab.fileKey } : {}),
       dirty: tab.dirty,
-      ...(folderRoot ? { folderRoot } : {})
+      ...(folderRoot ? { folderRoot: { ...folderRoot } } : {})
     },
     actions: workspaceTabActions
   }

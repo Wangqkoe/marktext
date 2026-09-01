@@ -14,6 +14,7 @@ import { popupContextMenu } from '../popupMenu'
 import type { ContextMenuItem } from '../popupMenu'
 import { t } from '../../i18n'
 import type { WorkspaceResult } from '@shared/workspace'
+import type { FolderRootIdentity } from '@shared/types/ipc'
 import { resolveFolderMenuTarget } from './folderTarget'
 
 type MenuItemShape = {
@@ -48,7 +49,7 @@ export interface WorkspaceTabMenuTarget {
   readonly documentId: string
   readonly fileKey?: string
   readonly dirty?: boolean
-  readonly folderRoot?: string
+  readonly folderRoot?: FolderRootIdentity
 }
 
 export interface WorkspaceTabMenuActions {
@@ -67,7 +68,7 @@ export interface WorkspaceTabMenuWorkspace {
 
 export type WorkspaceTabMenuResolver = (
   documentId: string,
-  folderRoot?: string
+  folderRoot?: FolderRootIdentity
 ) => WorkspaceTabMenuWorkspace | undefined
 
 let workspaceTabMenuResolver: WorkspaceTabMenuResolver | undefined
@@ -83,7 +84,7 @@ export const registerWorkspaceTabMenuResolver = (
 
 export const resolveWorkspaceTabMenu = (
   documentId: string,
-  folderRoot?: string
+  folderRoot?: FolderRootIdentity
 ): WorkspaceTabMenuWorkspace | undefined => workspaceTabMenuResolver?.(documentId, folderRoot)
 
 const workspaceItem = (
@@ -129,7 +130,7 @@ export const createWorkspaceTabMenuItems = (
   const closeOthers = getCloseOthers()
   const closeSaved = getCloseSaved()
   const closeAll = getCloseAll()
-  const folderTarget = resolveFolderMenuTarget(pathname, target.folderRoot)
+  const folderTarget = resolveFolderMenuTarget(pathname, target.folderRoot?.pathname)
   const folder = (
     folderTarget.kind === 'close' ? getCloseThisFolder() : getOpenThisFolder()
   ) as MenuItemShape

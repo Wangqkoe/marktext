@@ -97,7 +97,7 @@ const emit = defineEmits<{
 const editorStore = useEditorStore()
 const projectStore = useProjectStore()
 const { currentFile: legacyCurrentFile, tabs: legacyTabs } = storeToRefs(editorStore)
-const { projectTree } = storeToRefs(projectStore)
+const { folderRootIdentity } = storeToRefs(projectStore)
 const tabs = computed<TabRow[]>(() => {
   if (props.pane) {
     return props.pane.tabs.map((tab) => ({
@@ -284,7 +284,9 @@ const handleContextMenu = (event: MouseEvent, tab: IFileState) => {
             documentId: tab.id,
             ...(tab.pathname ? { fileKey: tab.pathname } : {}),
             dirty: !tab.isSaved,
-            ...(projectTree.value?.pathname ? { folderRoot: projectTree.value.pathname } : {})
+            ...(folderRootIdentity.value
+              ? { folderRoot: { ...folderRootIdentity.value } }
+              : {})
           },
           actions: props.workspaceActions
         }

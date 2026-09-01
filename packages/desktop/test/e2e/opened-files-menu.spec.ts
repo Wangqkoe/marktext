@@ -111,7 +111,7 @@ const captureMenu = async(
 }
 
 const clickCapturedMenuItem = async(app: ElectronApplication, label: string): Promise<void> => {
-  await app.evaluate(({ BrowserWindow }, itemLabel) => {
+  await app.evaluate(async({ BrowserWindow }, itemLabel) => {
     const state = global as unknown as {
       __mtOpenedFilesMenuDriver?: {
         lastMenu?: {
@@ -124,7 +124,7 @@ const clickCapturedMenuItem = async(app: ElectronApplication, label: string): Pr
       (candidate) => candidate.label === itemLabel
     )
     if (!item?.click) throw new Error(`Captured context menu item ${itemLabel} is unavailable`)
-    item.click(undefined, win, win?.webContents)
+    await item.click(undefined, win, win?.webContents)
   }, label)
 }
 
@@ -253,6 +253,52 @@ test('tab bar and focused-pane Opened Files share the captured complete menu', a
     expect(untitledOpenedMenu.find((item) => item.label === 'Open This Folder')).toMatchObject({
       enabled: false
     })
+    await expectNoRendererErrors(app)
+  } finally {
+    await restoreMenuDriver(app)
+    await app.close().catch(() => undefined)
+    fs.rmSync(fixture, { recursive: true, force: true })
+  }
+})
+
+test('a stale Close This Folder item cannot close a reopened root generation', async() => {
+  test.setTimeout(60_000)
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-folder-menu-generation-'))
+  const profile = path.join(fixture, 'profile')
+  const root = path.join(fixture, 'root')
+  const file = path.join(root, 'note.md')
+  fs.mkdirSync(root, { recursive: true })
+  fs.writeFileSync(file, '# Note\n')
+
+  const { app, page } = await launchElectron([root], {
+    userDataDir: profile,
+    userDataDirOwnership: 'caller',
+    suppressErrorDialog: true
+  })
+  try {
+    await waitForFolderRoot(page, 'root')
+    await page.getByTitle(file, { exact: true }).click()
+    await installMenuDriver(app)
+
+    const oldMenu = await captureMenu(app, page.locator('.opened-file').first())
+    expect(oldMenu.find((item) => item.label === 'Close This Folder')).toMatchObject({
+      enabled: true
+    })
+
+    await page.evaluate(() => {
+      window.electron.ipcRenderer.send('mt::cmd-close-folder')
+    })
+    await expect(page.locator('.project-tree')).toHaveCount(0)
+    await expect(page.locator('.tree-view .open-project')).toBeVisible()
+
+    await page.evaluate((rootPath) => {
+      window.electron.ipcRenderer.send('mt::cmd-open-folder-in-current-window', rootPath)
+    }, root)
+    await waitForFolderRoot(page, 'root')
+
+    await clickCapturedMenuItem(app, 'Close This Folder')
+    await expect(page.locator('.project-tree > .title')).toContainText('root')
+    await expect(page.locator('.tree-view .open-project')).toHaveCount(0)
     await expectNoRendererErrors(app)
   } finally {
     await restoreMenuDriver(app)

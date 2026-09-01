@@ -1,3 +1,5 @@
+import type { FolderRootIdentity } from '@shared/types/ipc'
+
 export interface FolderMenuTarget {
   readonly kind: 'open' | 'close'
   readonly directoryPath?: string
@@ -29,4 +31,16 @@ export const resolveFolderMenuTarget = (
     return { kind: 'close', directoryPath, enabled: true }
   }
   return { kind: 'open', directoryPath, enabled: true }
+}
+
+export const matchesFolderRootIdentity = (
+  captured: FolderRootIdentity | null | undefined,
+  current: FolderRootIdentity | null | undefined,
+  paths: FolderPathOperations = rendererPathOperations()
+): boolean => {
+  if (!captured || !current || captured.generation !== current.generation) return false
+  return paths.isSamePath(
+    paths.normalize(captured.pathname),
+    paths.normalize(current.pathname)
+  )
 }
