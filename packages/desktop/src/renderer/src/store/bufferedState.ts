@@ -54,3 +54,8 @@ export const debouncedSendBufferedState = debounce(() => {
     console.error('Failed to update buffered state', err)
   })
 }, BUFFERED_STATE_DEBOUNCE_MS)
+
+export const persistBufferedStateImmediately = (): Promise<unknown> => {
+  debouncedSendBufferedState.cancel()
+  return sendBufferedState()
+}

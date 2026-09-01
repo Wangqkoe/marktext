@@ -24,6 +24,14 @@ export const getNewDirectory = () => ({
   }
 })
 
+export const getCloseFolder = () => ({
+  label: t('contextMenu.sideBar.closeFolder'),
+  id: 'closeFolderMenuItem',
+  click(_menuItem: unknown, _browserWindow: unknown) {
+    contextMenu.closeFolder()
+  }
+})
+
 export const getCOPY = () => ({
   label: t('contextMenu.sideBar.copy'),
   id: 'copyMenuItem',
@@ -75,6 +83,7 @@ export const getShowInFolder = () => ({
 // Retained for backward compatibility
 export const NEW_FILE = getNewFile()
 export const NEW_DIRECTORY = getNewDirectory()
+export const CLOSE_FOLDER = getCloseFolder()
 export const COPY = getCOPY()
 export const CUT = getCUT()
 export const PASTE = getPASTE()

@@ -286,4 +286,16 @@ describe('canonical shell layout state', () => {
     layoutStore.toggleTabBar()
     expect(layoutStore.tabBarVisible).toBe(true)
   })
+
+  it('closes a Folder root into visible Files without changing the tab bar', () => {
+    const layoutStore = useLayoutStore()
+    layoutStore.selectSidebarView('toc')
+    layoutStore.toggleTabBar()
+
+    layoutStore.closeFolderLayout({ scheduleBufferUpdate: false })
+
+    expect(layoutStore.sidebarView).toBe('files')
+    expect(layoutStore.sidebarVisible).toBe(true)
+    expect(layoutStore.tabBarVisible).toBe(true)
+  })
 })

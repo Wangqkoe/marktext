@@ -43,6 +43,14 @@ export default function(
       click(_menuItem, browserWindow) {
         actions.openFolder((browserWindow as BrowserWindow | undefined) ?? null)
       }
+    },
+    {
+      id: 'closeFolderMenuItem',
+      label: t('menu.file.closeFolder'),
+      enabled: false,
+      click(_menuItem, browserWindow) {
+        actions.closeFolder((browserWindow as BrowserWindow | undefined) ?? null)
+      }
     }
   ]
 

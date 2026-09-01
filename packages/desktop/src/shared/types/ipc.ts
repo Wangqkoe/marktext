@@ -44,6 +44,17 @@ import type {
   DocumentSaveAck
 } from '@shared/workspace/documentIo'
 
+export interface FolderRootIdentity {
+  pathname: string
+  generation: number
+}
+
+export interface FolderTreeChangePayload {
+  root: FolderRootIdentity
+  type: string
+  change: FileChangeDetail
+}
+
 // =================================================================
 // Invoke channels (renderer → main, returns Promise<T>)
 // =================================================================
@@ -121,7 +132,7 @@ export interface IpcInvokeChannels {
 export interface IpcSendChannels {
   'app-create-editor-window': [config?: unknown]
   'app-create-settings-window': []
-  'app-open-directory-by-id': [windowId: number, dirPath: string]
+  'app-open-directory-by-id': [windowId: number, dirPath: string, openInSameWindow?: boolean]
   'app-open-file-by-id': [windowId: number, filePath: string, options?: unknown]
   'app-open-files-by-id': [windowId: number, filePaths: string[], options?: unknown]
   'app-open-markdown-by-id': [windowId: number, markdown: string, options?: unknown]
@@ -142,11 +153,13 @@ export interface IpcSendChannels {
   'mt::close-window': []
   'mt::close-window-confirm': [unsavedFiles: UnsavedFile[]]
   'mt::cmd-close-window': []
+  'mt::cmd-close-folder': []
   'mt::cmd-import-file': []
   'mt::cmd-open-file-in-new-window': [filePath: string]
   'mt::cmd-new-editor-window': []
   'mt::cmd-open-file': []
   'mt::cmd-open-folder': []
+  'mt::cmd-open-folder-in-current-window': [directoryPath: string]
   'mt::cmd-toggle-autosave': []
   'mt::editor-selection-changed': [windowId: number, state: unknown]
   'mt::format-link-click': [payload: { data: unknown; dirname: string }]
@@ -227,11 +240,12 @@ export interface IpcSendChannels {
   'watcher-unwatch-all-by-id': [windowId: number]
   'watcher-unwatch-directory': [windowId: number, path: string]
   'watcher-unwatch-file': [windowId: number, path: string]
-  'watcher-watch-directory': [windowId: number, path: string]
+  'watcher-watch-directory': [windowId: number, path: string, root?: FolderRootIdentity]
   'watcher-watch-file': [windowId: number, path: string]
   'window-add-file-path': [windowId: number, filePath: string]
   'window-change-file-path': [windowId: number, oldPath: string, newPath: string]
   'window-close-by-id': [windowId: number]
+  'window-close-folder-by-id': [windowId: number]
   'window-file-saved': [windowId: number, pathname: string, contentHash: string]
   'window-reload-by-id': [windowId: number]
   'window-toggle-always-on-top': [windowId: number]
@@ -288,7 +302,8 @@ export interface IpcMainEventChannels {
   'mt::menu::click': [message: { windowId: number; id?: string; popupId: string }]
   'mt::menu::closed': [message: { windowId: number; popupId: string; selected: boolean }]
   'mt::new-untitled-tab': [selected?: boolean, markdown?: string]
-  'mt::open-directory': [directoryPath: string]
+  'mt::close-directory': [root: FolderRootIdentity]
+  'mt::open-directory': [root: FolderRootIdentity]
   'mt::open-new-tab': [
     markdownDocument: MarkdownDocument | null,
     options?: TabOptions,
@@ -318,7 +333,7 @@ export interface IpcMainEventChannels {
   'mt::tabs-cycle-right': []
   'mt::toggle-view-mode-entry': [entry: ViewMode]
   'mt::update-file': [payload: { type: 'add' | 'change' | 'unlink'; change: FileChangeDetail }]
-  'mt::update-object-tree': [payload: unknown]
+  'mt::update-object-tree': [payload: FolderTreeChangePayload]
   'mt::user-preference': [partial: unknown]
   'mt::window-active-status': [active: boolean]
   'mt::window-enter-full-screen': []

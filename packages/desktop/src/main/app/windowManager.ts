@@ -12,6 +12,7 @@ import type Preference from '../preferences'
 import { WindowType } from '../windows/base'
 import type { WindowTypeValue } from '../windows/base'
 import type EditorWindow from '../windows/editor'
+import type { FolderRootIdentity } from '@shared/types/ipc'
 
 class WindowActivityList {
   // Oldest             Newest
@@ -380,6 +381,8 @@ class WindowManager extends TypedEmitter<WindowManagerEvents> {
     // Force close a BrowserWindow
     ipcMain.on('mt::close-window', (e) => {
       const win = BrowserWindow.fromWebContents(e.sender)
+      const editor = win ? this.get(win.id) as EditorWindow | undefined : undefined
+      editor?.clearPersistedFolderRoot()
       // Before closing, update the buffer store if needed
       this.editorBufferStore.handleClose(
         (win as unknown as { restoreBufferId?: string })?.restoreBufferId,
@@ -424,8 +427,15 @@ class WindowManager extends TypedEmitter<WindowManagerEvents> {
     onInternalChannel('watcher-watch-file', (win: IBrowserWindow, filePath: string) => {
       this._watcher.watch(win, filePath, 'file')
     })
-    onInternalChannel('watcher-watch-directory', (win: IBrowserWindow, pathname: string) => {
-      this._watcher.watch(win, pathname, 'dir')
+    onInternalChannel(
+      'watcher-watch-directory',
+      (win: IBrowserWindow, pathname: string, root: FolderRootIdentity) => {
+        this._watcher.watch(win, pathname, 'dir', root)
+      }
+    )
+    onInternalChannel('window-close-folder-by-id', (windowId: number) => {
+      const editor = this.get(windowId) as EditorWindow | undefined
+      editor?.closeFolder()
     })
     onInternalChannel('watcher-unwatch-file', (win: IBrowserWindow, filePath: string) => {
       this._watcher.unwatch(win, filePath, 'file')

@@ -9,6 +9,7 @@ import { getContentHash, loadMarkdownFile } from '../filesystem/markdown'
 import { isLinux, isOsx } from '../config'
 import type { BrowserWindow } from 'electron'
 import type { LineEnding } from '@shared/types/files'
+import type { FolderRootIdentity } from '@shared/types/ipc'
 import type Preference from '../preferences'
 
 // TODO(refactor): Please see GH#1035.
@@ -36,8 +37,16 @@ interface WatcherEntry {
   watcher: FSWatcher
   pathname: string
   type: WatchType
+  root: FolderRootIdentity | null
   close: () => void
 }
+
+interface WatcherEventPayload {
+  type: string
+  change: { pathname: string; [key: string]: unknown }
+}
+
+type WatcherEventSender = (payload: WatcherEventPayload) => void
 
 const add = async(
   win: BrowserWindow,
@@ -46,7 +55,8 @@ const add = async(
   endOfLine: LineEnding,
   autoGuessEncoding: boolean,
   trimTrailingNewline: number,
-  autoNormalizeLineEndings: boolean
+  autoNormalizeLineEndings: boolean,
+  sendEvent: WatcherEventSender
 ): Promise<void> => {
   const stats = await fsPromises.stat(pathname)
   const birthTime = stats.birthtime
@@ -92,16 +102,16 @@ const add = async(
         return
       }
     }
-    win.webContents.send(EVENT_NAME[type], {
+    sendEvent({
       type: 'add',
       change: file
     })
   }
 }
 
-const unlink = (win: BrowserWindow, pathname: string, type: WatchType): void => {
+const unlink = (pathname: string, sendEvent: WatcherEventSender): void => {
   const file = { pathname }
-  win.webContents.send(EVENT_NAME[type], {
+  sendEvent({
     type: 'unlink',
     change: file
   })
@@ -114,13 +124,14 @@ const change = async(
   endOfLine: LineEnding,
   autoGuessEncoding: boolean,
   trimTrailingNewline: number,
-  autoNormalizeLineEndings: boolean
+  autoNormalizeLineEndings: boolean,
+  sendEvent: WatcherEventSender
 ): Promise<void> => {
   if (type === 'dir') {
     // Only send mtimeMs so the sidebar can re-sort; skip loading file content.
     try {
       const stats = await fsPromises.stat(pathname)
-      win.webContents.send('mt::update-object-tree', {
+      sendEvent({
         type: 'change',
         change: { pathname, mtimeMs: stats.mtimeMs }
       })
@@ -138,7 +149,7 @@ const change = async(
         fsPromises.stat(pathname)
       ])
       const file = { pathname, data, mtimeMs: stats.mtimeMs }
-      win.webContents.send('mt::update-file', {
+      sendEvent({
         type: 'change',
         change: file
       })
@@ -154,7 +165,7 @@ const change = async(
   }
 }
 
-const addDir = (win: BrowserWindow, pathname: string, type: WatchType): void => {
+const addDir = (pathname: string, type: WatchType, sendEvent: WatcherEventSender): void => {
   if (type === 'file') return
 
   const directory = {
@@ -168,17 +179,17 @@ const addDir = (win: BrowserWindow, pathname: string, type: WatchType): void => 
     files: []
   }
 
-  win.webContents.send('mt::update-object-tree', {
+  sendEvent({
     type: 'addDir',
     change: directory
   })
 }
 
-const unlinkDir = (win: BrowserWindow, pathname: string, type: WatchType): void => {
+const unlinkDir = (pathname: string, type: WatchType, sendEvent: WatcherEventSender): void => {
   if (type === 'file') return
 
   const directory = { pathname }
-  win.webContents.send('mt::update-object-tree', {
+  sendEvent({
     type: 'unlinkDir',
     change: directory
   })
@@ -188,16 +199,23 @@ class Watcher {
   private _preferences: Preference
   private _ignoreChangeEvents: IgnoreEntry[]
   private _pendingFileEventChecks: Map<string, Promise<void>>
+  private _activeDirectoryRoots: Map<number, FolderRootIdentity>
   watchers: Record<string, WatcherEntry>
 
   constructor(preferences: Preference) {
     this._preferences = preferences
     this._ignoreChangeEvents = []
     this._pendingFileEventChecks = new Map()
+    this._activeDirectoryRoots = new Map()
     this.watchers = {}
   }
 
-  watch(win: BrowserWindow, watchPath: string, type: WatchType = 'dir'): () => void {
+  watch(
+    win: BrowserWindow,
+    watchPath: string,
+    type: WatchType = 'dir',
+    rootIdentity?: FolderRootIdentity
+  ): () => void {
     const usePolling = isOsx ? true : this._preferences.getItem<boolean>('watcherUsePolling')
 
     const id = getUniqueId()
@@ -253,6 +271,23 @@ class Watcher {
     let disposed = false
     let enospcReached = false
     let renameTimer: NodeJS.Timeout | null = null
+    const root = type === 'dir'
+      ? (rootIdentity ?? { pathname: watchPath, generation: 0 })
+      : null
+    const isCurrent = (): boolean => {
+      if (disposed || !root) return !disposed
+      const activeRoot = this._activeDirectoryRoots.get(win.id)
+      return !!activeRoot &&
+        activeRoot.generation === root.generation &&
+        activeRoot.pathname === root.pathname
+    }
+    const sendEvent: WatcherEventSender = (payload) => {
+      if (!isCurrent()) return
+      win.webContents.send(
+        EVENT_NAME[type],
+        root ? { ...payload, root } : payload
+      )
+    }
 
     watcher
       .on('add', async(pathname: string) => {
@@ -271,7 +306,8 @@ class Watcher {
             eol,
             autoGuessEncoding,
             trimTrailingNewline,
-            autoNormalizeLineEndings
+            autoNormalizeLineEndings,
+            sendEvent
           )
         }
       })
@@ -291,13 +327,14 @@ class Watcher {
             eol,
             autoGuessEncoding,
             trimTrailingNewline,
-            autoNormalizeLineEndings
+            autoNormalizeLineEndings,
+            sendEvent
           )
         }
       })
-      .on('unlink', (pathname: string) => unlink(win, pathname, type))
-      .on('addDir', (pathname: string) => addDir(win, pathname, type))
-      .on('unlinkDir', (pathname: string) => unlinkDir(win, pathname, type))
+      .on('unlink', (pathname: string) => unlink(pathname, sendEvent))
+      .on('addDir', (pathname: string) => addDir(pathname, type, sendEvent))
+      .on('unlinkDir', (pathname: string) => unlinkDir(pathname, type, sendEvent))
       .on('raw', (event: string, subpath: string, details: unknown) => {
         if (
           globalThis.MARKTEXT_DEBUG_VERBOSE >= 3
@@ -345,6 +382,15 @@ class Watcher {
 
     const closeFn = (): void => {
       disposed = true
+      if (root) {
+        const activeRoot = this._activeDirectoryRoots.get(win.id)
+        if (
+          activeRoot?.generation === root.generation &&
+          activeRoot.pathname === root.pathname
+        ) {
+          this._activeDirectoryRoots.delete(win.id)
+        }
+      }
       if (this.watchers[id]) {
         delete this.watchers[id]
       }
@@ -360,7 +406,11 @@ class Watcher {
       watcher,
       pathname: watchPath,
       type,
+      root,
       close: closeFn
+    }
+    if (root) {
+      this._activeDirectoryRoots.set(win.id, root)
     }
 
     return closeFn
@@ -370,27 +420,21 @@ class Watcher {
     for (const id of Object.keys(this.watchers)) {
       const w = this.watchers[id]
       if (w.win === win && w.pathname === watchPath && w.type === type) {
-        w.watcher.close()
-        delete this.watchers[id]
+        w.close()
         break
       }
     }
   }
 
   unwatchByWindowId(windowId: number): void {
-    const watchers: FSWatcher[] = []
-    const watchIds: string[] = []
+    const entries: WatcherEntry[] = []
     for (const id of Object.keys(this.watchers)) {
       const w = this.watchers[id]
       if (w.win.id === windowId) {
-        watchers.push(w.watcher)
-        watchIds.push(id)
+        entries.push(w)
       }
     }
-    if (watchers.length) {
-      watchIds.forEach((id) => delete this.watchers[id])
-      watchers.forEach((watcher) => watcher.close())
-    }
+    entries.forEach(({ close }) => close())
   }
 
   close(): void {
@@ -398,6 +442,7 @@ class Watcher {
     this.watchers = {}
     this._ignoreChangeEvents = []
     this._pendingFileEventChecks.clear()
+    this._activeDirectoryRoots.clear()
   }
 
   /**

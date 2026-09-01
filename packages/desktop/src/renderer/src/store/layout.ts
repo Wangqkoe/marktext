@@ -221,6 +221,17 @@ export const useLayoutStore = defineStore('layout', () => {
     )
   }
 
+  function closeFolderLayout({ scheduleBufferUpdate = true }: OpenProjectLayoutOptions = {}): void {
+    applyLayout(
+      {
+        ...currentLayout(),
+        sidebarView: 'files',
+        sidebarVisible: true
+      },
+      { persistSidebarVisibility: true, scheduleBufferUpdate }
+    )
+  }
+
   const handleLayoutAction = (action: unknown): void => {
     if (!isLayoutAction(action)) return
 
@@ -266,6 +277,7 @@ export const useLayoutStore = defineStore('layout', () => {
     showTabBar,
     toggleTabBar,
     openProjectLayout,
+    closeFolderLayout,
     listenForLayoutActions
   }
 })

@@ -303,6 +303,7 @@ class AppMenu {
       updateMenuItem(oldMenu, newMenu, 'focusModeMenuItem')
       updateMenuItem(oldMenu, newMenu, 'sideBarMenuItem')
       updateMenuItem(oldMenu, newMenu, 'tabBarMenuItem')
+      updateMenuItemEnabled(oldMenu, newMenu, 'closeFolderMenuItem')
 
       // update window menu
       value.menu = newMenu
@@ -335,6 +336,7 @@ class AppMenu {
         updateMenuItem(oldMenu, rebuilt, 'focusModeMenuItem')
         updateMenuItem(oldMenu, rebuilt, 'sideBarMenuItem')
         updateMenuItem(oldMenu, rebuilt, 'tabBarMenuItem')
+        updateMenuItemEnabled(oldMenu, rebuilt, 'closeFolderMenuItem')
         newMenu = rebuilt
       } else if (type === MenuType.SETTINGS) {
         newMenu = this._buildSettingMenu().menu
@@ -377,6 +379,11 @@ class AppMenu {
     const menus = this.getWindowMenuById(windowId)
     const menu = menus.getMenuItemById('alwaysOnTopMenuItem')
     if (menu) menu.checked = flag
+  }
+
+  updateFolderRootMenu(windowId: number, hasRoot: boolean): void {
+    const menu = this.getWindowMenuById(windowId).getMenuItemById('closeFolderMenuItem')
+    if (menu) menu.enabled = hasRoot
   }
 
   /**
@@ -560,6 +567,12 @@ const updateMenuItem = (oldMenus: Menu, newMenus: Menu, id: string): void => {
   if (oldItem && newItem) {
     newItem.checked = oldItem.checked
   }
+}
+
+const updateMenuItemEnabled = (oldMenus: Menu, newMenus: Menu, id: string): void => {
+  const oldItem = oldMenus.getMenuItemById(id)
+  const newItem = newMenus.getMenuItemById(id)
+  if (oldItem && newItem) newItem.enabled = oldItem.enabled
 }
 
 // ----------------------------------------------

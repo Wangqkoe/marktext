@@ -674,6 +674,16 @@ ipcMain.on('mt::cmd-open-folder', (e) => {
   openFolder(win)
 })
 
+ipcMain.on('mt::cmd-open-folder-in-current-window', (e, pathname: string) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  openFolderInCurrentWindow(win, pathname)
+})
+
+ipcMain.on('mt::cmd-close-folder', (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  closeFolder(win)
+})
+
 ipcMain.on('mt::cmd-close-window', (e) => {
   const win = BrowserWindow.fromWebContents(e.sender)
   if (win) {
@@ -769,6 +779,18 @@ export const openFileOrFolder = (win: BrowserWindow, pathname: string): void => 
   } else {
     console.error(`[ERROR] Cannot open unknown file: "${resolvedPath}"`)
   }
+}
+
+export const openFolderInCurrentWindow = (win: BrowserWindow | null, pathname: string): boolean => {
+  if (!win) return false
+  const resolvedPath = normalizeAndResolvePath(pathname)
+  if (!isDirectory(resolvedPath)) return false
+  ipcMain.emit('app-open-directory-by-id', win.id, resolvedPath, true)
+  return true
+}
+
+export const closeFolder = (win: BrowserWindow | null): void => {
+  if (win) ipcMain.emit('window-close-folder-by-id', win.id)
 }
 
 export const newBlankTab = (win: Win): void => {

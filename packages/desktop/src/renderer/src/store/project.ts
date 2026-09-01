@@ -16,9 +16,10 @@ import notice from '../services/notification'
 import { getFileStateFromData } from './help'
 import { useLayoutStore } from './layout'
 import { useEditorStore } from './editor'
-import { debouncedSendBufferedState } from './bufferedState'
+import { debouncedSendBufferedState, persistBufferedStateImmediately } from './bufferedState'
 import type { TreeNode } from '../components/sideBar/types'
 import type { FileChangeDetail } from '@shared/types/files'
+import type { FolderRootIdentity, FolderTreeChangePayload } from '@shared/types/ipc'
 
 type ProjectTree = TreeNode
 type TreeChange = FileChangeDetail
@@ -76,6 +77,7 @@ interface ClipboardEntry {
 }
 
 interface PendingEvent {
+  root: FolderRootIdentity
   type: string
   change: TreeChange
 }
@@ -92,6 +94,8 @@ export const useProjectStore = defineStore('project', () => {
   const clipboard = ref<ClipboardEntry | null>(null)
   const projectTree = ref<ProjectTree | null>(null)
   const pendingTreeEvents = ref<PendingEvent[]>([])
+  const folderRootIdentity = ref<FolderRootIdentity | null>(null)
+  const folderRootGeneration = ref(0)
 
   const preferencesStore = usePreferencesStore()
 
@@ -104,14 +108,52 @@ export const useProjectStore = defineStore('project', () => {
     }
   )
 
+  const normalizeRootIdentity = (
+    root: string | FolderRootIdentity
+  ): FolderRootIdentity | null => {
+    const pathname = normalizeProjectRoot(typeof root === 'string' ? root : root.pathname)
+    if (!pathname) return null
+    if (
+      typeof root !== 'string' &&
+      (!Number.isSafeInteger(root.generation) || root.generation < 0)
+    ) {
+      return null
+    }
+    return {
+      pathname,
+      generation: typeof root === 'string'
+        ? folderRootGeneration.value + 1
+        : Math.max(0, Math.trunc(root.generation))
+    }
+  }
+
+  const isSameRoot = (a: FolderRootIdentity, b: FolderRootIdentity): boolean =>
+    a.generation === b.generation && window.fileUtils.isSamePathSync(a.pathname, b.pathname)
+
+  const clearRootOwnedState = (): void => {
+    activeItem.value = {}
+    createCache.value = {}
+    newFileNameCache.value = ''
+    renameCache.value = null
+    clipboard.value = null
+    projectTree.value = null
+    pendingTreeEvents.value = []
+  }
+
   function OPEN_PROJECT(
-    pathname: string,
+    root: string | FolderRootIdentity,
     { revealLayout = true, scheduleBufferUpdate = true }: OpenProjectOptions = {}
   ): void {
     const layoutStore = useLayoutStore()
-    const tree = createProjectRoot(pathname)
+    const identity = normalizeRootIdentity(root)
+    if (!identity || identity.generation < folderRootGeneration.value) return
+    const tree = createProjectRoot(identity.pathname)
     if (!tree) return
 
+    const queuedEvents = pendingTreeEvents.value.filter((event) => isSameRoot(event.root, identity))
+    clearRootOwnedState()
+    folderRootGeneration.value = identity.generation
+    folderRootIdentity.value = identity
     projectTree.value = tree
 
     if (revealLayout) {
@@ -119,14 +161,33 @@ export const useProjectStore = defineStore('project', () => {
     }
 
     // Process pending events that arrived before projectTree was initialized.
-    for (const event of pendingTreeEvents.value) {
+    for (const event of queuedEvents) {
       _processTreeEvent(event.type, event.change)
     }
-    pendingTreeEvents.value = []
 
     if (scheduleBufferUpdate) {
       debouncedSendBufferedState()
     }
+  }
+
+  function CLOSE_FOLDER(root: FolderRootIdentity): void {
+    const identity = normalizeRootIdentity(root)
+    if (!identity || identity.generation < folderRootGeneration.value) return
+    if (
+      identity.generation === folderRootGeneration.value &&
+      !folderRootIdentity.value &&
+      !projectTree.value
+    ) {
+      return
+    }
+
+    folderRootGeneration.value = identity.generation
+    folderRootIdentity.value = null
+    clearRootOwnedState()
+    useLayoutStore().closeFolderLayout({ scheduleBufferUpdate: false })
+    persistBufferedStateImmediately().catch((err) => {
+      console.error('Failed to persist closed Folder root', err)
+    })
   }
 
   function CREATE_BUFFERED_STATE(): BufferedProjectState {
@@ -141,24 +202,34 @@ export const useProjectStore = defineStore('project', () => {
       if (projectTree.value?.pathname === rootDirectory) return
       OPEN_PROJECT(rootDirectory, { revealLayout: false, scheduleBufferUpdate: false })
     } else {
-      projectTree.value = null
-      pendingTreeEvents.value = []
+      folderRootIdentity.value = null
+      clearRootOwnedState()
     }
   }
 
   function LISTEN_FOR_LOAD_PROJECT(): void {
-    window.electron.ipcRenderer.on('mt::open-directory', (_e, pathname) => {
-      OPEN_PROJECT(String(pathname))
+    window.electron.ipcRenderer.on('mt::open-directory', (_e, root) => {
+      OPEN_PROJECT(root)
+    })
+    window.electron.ipcRenderer.on('mt::close-directory', (_e, root) => {
+      CLOSE_FOLDER(root)
     })
   }
 
   function LISTEN_FOR_UPDATE_PROJECT(): void {
     window.electron.ipcRenderer.on('mt::update-object-tree', (_e, payload) => {
-      const { type, change } = (payload as { type: string; change: TreeChange }) ?? {}
-      if (!projectTree.value) {
-        pendingTreeEvents.value.push({ type, change })
+      const { root, type, change } = (payload as FolderTreeChangePayload) ?? {}
+      const identity = root && normalizeRootIdentity(root)
+      if (!identity || identity.generation < folderRootGeneration.value) return
+
+      const currentRoot = folderRootIdentity.value
+      if (!currentRoot || !projectTree.value) {
+        if (identity.generation > folderRootGeneration.value) {
+          pendingTreeEvents.value.push({ root: identity, type, change })
+        }
         return
       }
+      if (!isSameRoot(currentRoot, identity)) return
       _processTreeEvent(type, change)
     })
   }
@@ -344,7 +415,9 @@ export const useProjectStore = defineStore('project', () => {
     clipboard,
     projectTree,
     pendingTreeEvents,
+    folderRootIdentity,
     OPEN_PROJECT,
+    CLOSE_FOLDER,
     CREATE_BUFFERED_STATE,
     RESTORE_BUFFERED_STATE,
     LISTEN_FOR_LOAD_PROJECT,

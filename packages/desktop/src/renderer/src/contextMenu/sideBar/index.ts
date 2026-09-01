@@ -2,6 +2,7 @@ import {
   SEPARATOR,
   getNewFile,
   getNewDirectory,
+  getCloseFolder,
   getCOPY,
   getCUT,
   getPASTE,
@@ -11,26 +12,38 @@ import {
 } from './menuItems'
 import { popupContextMenu, type ContextMenuItem } from '../popupMenu'
 
-export const showContextMenu = (
-  event: { clientX: number; clientY: number },
+export type SidebarContextTargetKind = 'root' | 'folder' | 'file'
+
+export const createSidebarContextMenuItems = (
+  targetKind: SidebarContextTargetKind,
   hasPathCache: boolean
-): void => {
+): ContextMenuItem[] => {
+  const createGroup: ContextMenuItem[] = [getNewFile(), getNewDirectory(), SEPARATOR]
+  const rootGroup: ContextMenuItem[] = targetKind === 'root'
+    ? [getCloseFolder(), SEPARATOR]
+    : []
+  const pathGroup: ContextMenuItem[] = [getCOPY(), getCUT(), getPASTE(), SEPARATOR]
   const contextItems: ContextMenuItem[] = [
-    getNewFile(),
-    getNewDirectory(),
-    SEPARATOR,
-    getCOPY(),
-    getCUT(),
-    getPASTE(),
-    SEPARATOR,
+    ...createGroup,
+    ...rootGroup,
+    ...pathGroup,
     getRENAME(),
     getDELETE(),
     SEPARATOR,
     getShowInFolder()
   ]
 
-  // PASTE entry (index 5) toggles based on the cached source path.
-  contextItems[5].enabled = hasPathCache
+  const pasteItem = contextItems.find(({ id }) => id === 'pasteMenuItem')
+  if (pasteItem) pasteItem.enabled = hasPathCache
+  return contextItems
+}
+
+export const showContextMenu = (
+  event: { clientX: number; clientY: number },
+  hasPathCache: boolean,
+  targetKind: SidebarContextTargetKind
+): void => {
+  const contextItems = createSidebarContextMenuItems(targetKind, hasPathCache)
 
   const items: ContextMenuItem[] = contextItems.map((item) => {
     if (!item || item.type === 'separator') return item

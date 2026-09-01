@@ -14,8 +14,10 @@ import { switchLanguage } from '../spellchecker'
 import fs from 'fs'
 import type { BootstrapEditorConfig } from '@shared/types/files'
 import type { CrashDraftRecoveryPayload } from '@shared/workspace'
+import type { FolderRootIdentity } from '@shared/types/ipc'
 import { getCrashDraftAdapter, getDocumentIoAdapter, getTransferAdapter } from '../ipc'
 import { attachEditorDocumentIo } from './documentIO'
+import { isDirectory } from 'common/filesystem'
 
 type RawMarkdownDocument = Awaited<ReturnType<typeof loadMarkdownFile>>
 
@@ -60,6 +62,8 @@ class EditorWindow extends BaseWindow {
   // Root directory and file list that are currently opened. These lists are
   // used to find the best window to open new files in.
   private _openedRootDirectory: string | null
+  private _folderRootGeneration: number
+  private _folderRootClosed: boolean
   private _openedFiles: string[] | null
 
   public bufferStoreInfo: BufferStoreInfo | null
@@ -80,6 +84,8 @@ class EditorWindow extends BaseWindow {
     // Root directory and file list that are currently opened. These lists are
     // used to find the best window to open new files in.
     this._openedRootDirectory = ''
+    this._folderRootGeneration = 0
+    this._folderRootClosed = false
     this._openedFiles = []
 
     this.bufferStoreInfo = null
@@ -432,31 +438,130 @@ class EditorWindow extends BaseWindow {
   /**
    * Open a (new) directory and replaces the old one.
    */
-  openFolder(pathname: string): void {
+  openFolder(pathname: string): boolean {
+    const normalizedPathname = pathname ? path.normalize(pathname) : ''
     // TODO: Don't allow new files if quitting.
     if (
-      !pathname ||
+      !normalizedPathname ||
       this.lifecycle === WindowLifecycle.QUITTED ||
-      isSamePathSync(pathname, this._openedRootDirectory ?? '')
+      isSamePathSync(normalizedPathname, this._openedRootDirectory ?? '') ||
+      !isDirectory(normalizedPathname)
     ) {
-      return
+      return false
     }
 
     if (this.lifecycle === WindowLifecycle.READY) {
       const { browserWindow } = this
       const { menu: appMenu, preferences } = this._accessor
+      if (!browserWindow) return false
+
+      const root: FolderRootIdentity = {
+        pathname: normalizedPathname,
+        generation: this._folderRootGeneration + 1
+      }
+      try {
+        const watcherRegistered = ipcMain.emit(
+          'watcher-watch-directory',
+          browserWindow,
+          normalizedPathname,
+          root
+        )
+        if (!watcherRegistered) {
+          log.error('Cannot open Folder root because the directory watcher is unavailable.')
+          return false
+        }
+      } catch (err) {
+        log.error(`Cannot watch Folder root "${normalizedPathname}":`, err)
+        return false
+      }
 
       if (this._openedRootDirectory) {
         ipcMain.emit('watcher-unwatch-directory', browserWindow, this._openedRootDirectory)
       }
 
-      preferences.setItems({ lastOpenedFolder: pathname })
-      appMenu.addRecentlyUsedDocument(pathname)
-      this._openedRootDirectory = pathname
-      ipcMain.emit('watcher-watch-directory', browserWindow, pathname)
-      browserWindow!.webContents.send('mt::open-directory', pathname)
+      this._folderRootGeneration = root.generation
+      this._folderRootClosed = false
+      this._openedRootDirectory = normalizedPathname
+      browserWindow.webContents.send('mt::open-directory', root)
+      try {
+        preferences.setItems({ lastOpenedFolder: normalizedPathname })
+      } catch (err) {
+        log.error('Failed to update the last opened Folder path:', err)
+      }
+      try {
+        appMenu.addRecentlyUsedDocument(normalizedPathname)
+      } catch (err) {
+        log.error('Failed to update recently used Folders:', err)
+      }
+      try {
+        appMenu.updateFolderRootMenu(browserWindow.id, true)
+      } catch (err) {
+        log.error('Failed to enable the Close Folder menu item:', err)
+      }
     } else {
-      this._directoryToOpen = pathname
+      this._directoryToOpen = normalizedPathname
+    }
+    return true
+  }
+
+  closeFolder(): boolean {
+    if (this.lifecycle === WindowLifecycle.QUITTED) return false
+    const pathname = this._openedRootDirectory || this._directoryToOpen
+    if (!pathname) return false
+
+    const browserWindow = this._openedRootDirectory && this.lifecycle === WindowLifecycle.READY
+      ? this.browserWindow
+      : null
+    if (this._openedRootDirectory && this.lifecycle === WindowLifecycle.READY && !browserWindow) {
+      return false
+    }
+
+    this._directoryToOpen = null
+    const root: FolderRootIdentity = {
+      pathname,
+      generation: this._folderRootGeneration + 1
+    }
+    this._folderRootGeneration = root.generation
+    this._folderRootClosed = true
+
+    if (browserWindow) {
+      this._openedRootDirectory = ''
+      try {
+        ipcMain.emit('watcher-unwatch-directory', browserWindow, pathname)
+      } catch (err) {
+        log.error(`Failed to stop the Folder watcher for "${pathname}":`, err)
+      }
+      try {
+        this._accessor.menu.updateFolderRootMenu(browserWindow.id, false)
+      } catch (err) {
+        log.error('Failed to disable the Close Folder menu item:', err)
+      }
+      this.clearPersistedFolderRoot()
+      try {
+        browserWindow.webContents.send('mt::close-directory', root)
+      } catch (err) {
+        log.error('Failed to notify the renderer that the Folder root closed:', err)
+      }
+    } else {
+      this._openedRootDirectory = ''
+      this.clearPersistedFolderRoot()
+    }
+    return true
+  }
+
+  clearPersistedFolderRoot(): void {
+    if (!this._folderRootClosed || !this.bufferStoreInfo) return
+
+    try {
+      const { editorBufferStore } = this._accessor
+      const bufferStore = editorBufferStore.getBufferStoreInfo(this.bufferStoreInfo.id)
+      if (!fs.existsSync(bufferStore.filePath)) return
+      const state = editorBufferStore.readBufferStoreFile(bufferStore.filePath) as RestoredBufferState
+      if (!state.project?.rootDirectory) return
+      state.project = { ...state.project, rootDirectory: '' }
+      editorBufferStore.writeBufferStoreFile(bufferStore.filePath, state)
+    } catch (err) {
+      log.error('Failed to clear Folder root from buffered state:', err)
     }
   }
 
@@ -533,6 +638,7 @@ class EditorWindow extends BaseWindow {
     this._filesToOpen = []
     this._markdownToOpen = []
     this._openedRootDirectory = ''
+    this._folderRootGeneration++
     this._openedFiles = []
 
     browserWindow!.webContents.once('did-finish-load', () => {

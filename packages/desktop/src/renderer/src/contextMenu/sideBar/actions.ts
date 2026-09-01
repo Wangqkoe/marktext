@@ -11,6 +11,10 @@ export const newDirectory = (_menuItem?: MenuItemArg, _browserWindow?: BrowserWi
   bus.emit('SIDEBAR::new', 'directory')
 }
 
+export const closeFolder = (_menuItem?: MenuItemArg, _browserWindow?: BrowserWindowArg): void => {
+  window.electron.ipcRenderer.send('mt::cmd-close-folder')
+}
+
 export const copy = (_menuItem?: MenuItemArg, _browserWindow?: BrowserWindowArg): void => {
   bus.emit('SIDEBAR::copy-cut', 'copy')
 }
