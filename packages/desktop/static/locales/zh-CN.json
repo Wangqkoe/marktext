@@ -11,6 +11,7 @@
       "newWindow": "新建窗口",
       "openFile": "打开文件…",
       "openFolder": "打开文件夹…",
+      "closeFolder": "关闭文件夹",
       "openRecent": "打开最近",
       "clearRecentlyUsed": "清除最近使用",
       "save": "保存",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "新建文件",
       "newDirectory": "新建目录",
+      "closeFolder": "关闭文件夹",
       "copy": "复制",
       "cut": "剪切",
       "paste": "粘贴",
@@ -208,6 +210,8 @@
       "rename": "重命名",
       "copyPath": "复制路径",
       "showInFolder": "在文件夹中显示",
+      "openThisFolder": "打开此文件夹",
+      "closeThisFolder": "关闭此文件夹",
       "moveToNewWindow": "移动到新窗口",
       "openInNewWindow": "在新窗口中打开",
       "openDiskCopyInNewWindow": "在新窗口中打开磁盘副本",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "目录"
+    },
+    "inlineSearch": {
+      "show": "显示行内搜索",
+      "hide": "隐藏行内搜索",
+      "filesPlaceholder": "筛选文件和文件夹（使用 file: 或 folder:）",
+      "outlinePlaceholder": "筛选大纲",
+      "filesNoResults": "没有匹配的文件或文件夹。",
+      "outlineNoResults": "没有匹配的标题。",
+      "filesInputLabel": "筛选文件和文件夹",
+      "outlineInputLabel": "筛选大纲"
     },
     "icons": {
       "files": "文件",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "标题栏样式",
           "custom": "自定义",
+          "concise": "简洁",
           "native": "原生"
         },
         "requiresRestart": "需要重启",

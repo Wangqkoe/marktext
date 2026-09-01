@@ -11,6 +11,7 @@
       "newWindow": "新しいウィンドウ",
       "openFile": "ファイルを開く...",
       "openFolder": "フォルダを開く...",
+      "closeFolder": "フォルダを閉じる",
       "openRecent": "最近使用したファイル",
       "clearRecentlyUsed": "最近使用したファイルをクリア",
       "save": "保存",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "新しいファイル",
       "newDirectory": "新しいフォルダ",
+      "closeFolder": "フォルダを閉じる",
       "copy": "コピー",
       "cut": "切り取り",
       "paste": "貼り付け",
@@ -208,6 +210,8 @@
       "rename": "名前を変更",
       "copyPath": "パスをコピー",
       "showInFolder": "フォルダで表示",
+      "openThisFolder": "このフォルダを開く",
+      "closeThisFolder": "このフォルダを閉じる",
       "moveToNewWindow": "新しいウィンドウに移動",
       "openInNewWindow": "新しいウィンドウで開く",
       "openDiskCopyInNewWindow": "ディスク上のコピーを新しいウィンドウで開く",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "目次"
+    },
+    "inlineSearch": {
+      "show": "インライン検索を表示",
+      "hide": "インライン検索を非表示",
+      "filesPlaceholder": "ファイルとフォルダを絞り込む（file: または folder: を使用）",
+      "outlinePlaceholder": "アウトラインを絞り込む",
+      "filesNoResults": "一致するファイルまたはフォルダはありません。",
+      "outlineNoResults": "一致する見出しはありません。",
+      "filesInputLabel": "ファイルとフォルダを絞り込む",
+      "outlineInputLabel": "アウトラインを絞り込む"
     },
     "icons": {
       "files": "ファイル",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "タイトルバースタイル",
           "custom": "カスタム",
+          "concise": "コンパクト",
           "native": "ネイティブ"
         },
         "requiresRestart": "再起動が必要",

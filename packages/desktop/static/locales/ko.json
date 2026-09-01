@@ -11,6 +11,7 @@
       "newWindow": "새 창",
       "openFile": "파일 열기...",
       "openFolder": "폴더 열기...",
+      "closeFolder": "폴더 닫기",
       "openRecent": "최근 파일",
       "clearRecentlyUsed": "최근 사용 목록 지우기",
       "save": "저장",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "새 파일",
       "newDirectory": "새 디렉터리",
+      "closeFolder": "폴더 닫기",
       "copy": "복사",
       "cut": "잘라내기",
       "paste": "붙여넣기",
@@ -208,6 +210,8 @@
       "rename": "이름 바꾸기",
       "copyPath": "경로 복사",
       "showInFolder": "폴더에서 보기",
+      "openThisFolder": "이 폴더 열기",
+      "closeThisFolder": "이 폴더 닫기",
       "moveToNewWindow": "새 창으로 이동",
       "openInNewWindow": "새 창에서 열기",
       "openDiskCopyInNewWindow": "디스크 사본을 새 창에서 열기",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "목차"
+    },
+    "inlineSearch": {
+      "show": "인라인 검색 표시",
+      "hide": "인라인 검색 숨기기",
+      "filesPlaceholder": "파일 및 폴더 필터링(file: 또는 folder: 사용)",
+      "outlinePlaceholder": "개요 필터링",
+      "filesNoResults": "일치하는 파일이나 폴더가 없습니다.",
+      "outlineNoResults": "일치하는 제목이 없습니다.",
+      "filesInputLabel": "파일 및 폴더 필터링",
+      "outlineInputLabel": "개요 필터링"
     },
     "icons": {
       "files": "파일",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "제목 표시줄 스타일",
           "custom": "사용자 정의",
+          "concise": "간결",
           "native": "네이티브"
         },
         "requiresRestart": "재시작 필요",

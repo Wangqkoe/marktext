@@ -11,6 +11,7 @@
       "newWindow": "Nova Janela",
       "openFile": "Abrir Arquivo...",
       "openFolder": "Abrir Pasta...",
+      "closeFolder": "Fechar Pasta",
       "openRecent": "Abrir Recente",
       "clearRecentlyUsed": "Limpar Recentes",
       "save": "Salvar",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "Novo Arquivo",
       "newDirectory": "Nova Pasta",
+      "closeFolder": "Fechar Pasta",
       "copy": "Copiar",
       "cut": "Cortar",
       "paste": "Colar",
@@ -208,6 +210,8 @@
       "rename": "Renomear",
       "copyPath": "Copiar caminho",
       "showInFolder": "Mostrar na pasta",
+      "openThisFolder": "Abrir Esta Pasta",
+      "closeThisFolder": "Fechar Esta Pasta",
       "moveToNewWindow": "Mover para uma nova janela",
       "openInNewWindow": "Abrir em uma nova janela",
       "openDiskCopyInNewWindow": "Abrir cópia do disco em uma nova janela",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "Índice"
+    },
+    "inlineSearch": {
+      "show": "Mostrar pesquisa em linha",
+      "hide": "Ocultar pesquisa em linha",
+      "filesPlaceholder": "Filtrar arquivos e pastas (use file: ou folder:)",
+      "outlinePlaceholder": "Filtrar estrutura",
+      "filesNoResults": "Nenhum arquivo ou pasta correspondente.",
+      "outlineNoResults": "Nenhum título correspondente.",
+      "filesInputLabel": "Filtrar arquivos e pastas",
+      "outlineInputLabel": "Filtrar estrutura"
     },
     "icons": {
       "files": "Arquivos",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "Estilo da Barra de Título",
           "custom": "Personalizado",
+          "concise": "Conciso",
           "native": "Nativo"
         },
         "requiresRestart": "Requer reinicialização",

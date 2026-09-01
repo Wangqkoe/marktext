@@ -1,4 +1,59 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest'
+
+const localeDirectory = resolve(dirname(fileURLToPath(import.meta.url)), '../../../static/locales')
+const supportedLocales = ['en', 'de', 'es', 'fr', 'ja', 'ko', 'pt', 'tr', 'zh-CN', 'zh-TW'] as const
+
+const desktopNavigationKeys = [
+  'menu.file.closeFolder',
+  'contextMenu.sideBar.closeFolder',
+  'contextMenu.tabs.openThisFolder',
+  'contextMenu.tabs.closeThisFolder',
+  'preferences.general.window.titleBarStyle.concise',
+  'sideBar.inlineSearch.show',
+  'sideBar.inlineSearch.hide',
+  'sideBar.inlineSearch.filesPlaceholder',
+  'sideBar.inlineSearch.outlinePlaceholder',
+  'sideBar.inlineSearch.filesNoResults',
+  'sideBar.inlineSearch.outlineNoResults',
+  'sideBar.inlineSearch.filesInputLabel',
+  'sideBar.inlineSearch.outlineInputLabel'
+] as const
+
+const getMessage = (messages: Record<string, unknown>, key: string): unknown => {
+  return key.split('.').reduce<unknown>((value, segment) => {
+    return value && typeof value === 'object'
+      ? (value as Record<string, unknown>)[segment]
+      : undefined
+  }, messages)
+}
+
+const loadLocale = (locale: (typeof supportedLocales)[number]): Record<string, unknown> => {
+  return JSON.parse(readFileSync(resolve(localeDirectory, `${locale}.json`), 'utf8'))
+}
+
+describe('desktop navigation locale scaffold', () => {
+  it.each(supportedLocales)('defines every new UI message in %s', (locale) => {
+    const messages = loadLocale(locale)
+
+    for (const key of desktopNavigationKeys) {
+      expect(getMessage(messages, key), `${locale}: ${key}`).toEqual(expect.any(String))
+      expect((getMessage(messages, key) as string).trim(), `${locale}: ${key}`).not.toBe('')
+    }
+  })
+
+  it.each(supportedLocales)('keeps the stable Files filter tokens in %s', (locale) => {
+    const placeholder = getMessage(
+      loadLocale(locale),
+      'sideBar.inlineSearch.filesPlaceholder'
+    ) as string
+
+    expect(placeholder.match(/file:/g)).toHaveLength(1)
+    expect(placeholder.match(/folder:/g)).toHaveLength(1)
+  })
+})
 
 interface MockI18nUtils {
   loadTranslations: Mock

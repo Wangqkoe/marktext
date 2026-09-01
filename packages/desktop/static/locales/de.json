@@ -11,6 +11,7 @@
       "newWindow": "Neues Fenster",
       "openFile": "Datei öffnen...",
       "openFolder": "Ordner öffnen...",
+      "closeFolder": "Ordner schließen",
       "openRecent": "Zuletzt verwendet",
       "clearRecentlyUsed": "Zuletzt verwendet löschen",
       "save": "Speichern",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "Neue Datei",
       "newDirectory": "Neuer Ordner",
+      "closeFolder": "Ordner schließen",
       "copy": "Kopieren",
       "cut": "Ausschneiden",
       "paste": "Einfügen",
@@ -208,6 +210,8 @@
       "rename": "Umbenennen",
       "copyPath": "Pfad kopieren",
       "showInFolder": "Im Ordner anzeigen",
+      "openThisFolder": "Diesen Ordner öffnen",
+      "closeThisFolder": "Diesen Ordner schließen",
       "moveToNewWindow": "In neues Fenster verschieben",
       "openInNewWindow": "In neuem Fenster öffnen",
       "openDiskCopyInNewWindow": "Datenträgerkopie in neuem Fenster öffnen",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "Inhaltsverzeichnis"
+    },
+    "inlineSearch": {
+      "show": "Inline-Suche anzeigen",
+      "hide": "Inline-Suche ausblenden",
+      "filesPlaceholder": "Dateien und Ordner filtern (file: oder folder: verwenden)",
+      "outlinePlaceholder": "Gliederung filtern",
+      "filesNoResults": "Keine passenden Dateien oder Ordner.",
+      "outlineNoResults": "Keine passenden Überschriften.",
+      "filesInputLabel": "Dateien und Ordner filtern",
+      "outlineInputLabel": "Gliederung filtern"
     },
     "icons": {
       "files": "Dateien",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "Titelleistenstil",
           "custom": "Benutzerdefiniert",
+          "concise": "Kompakt",
           "native": "Nativ"
         },
         "requiresRestart": "Erfordert Neustart",

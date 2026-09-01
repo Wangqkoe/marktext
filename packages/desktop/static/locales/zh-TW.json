@@ -11,6 +11,7 @@
       "newWindow": "新建視窗",
       "openFile": "開啟檔案…",
       "openFolder": "開啟資料夾…",
+      "closeFolder": "關閉資料夾",
       "openRecent": "開啟最近使用",
       "clearRecentlyUsed": "清除最近使用",
       "save": "儲存",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "新建檔案",
       "newDirectory": "新建資料夾",
+      "closeFolder": "關閉資料夾",
       "copy": "複製",
       "cut": "剪下",
       "paste": "貼上",
@@ -208,6 +210,8 @@
       "rename": "重新命名",
       "copyPath": "複製路徑",
       "showInFolder": "在資料夾中顯示",
+      "openThisFolder": "開啟此資料夾",
+      "closeThisFolder": "關閉此資料夾",
       "moveToNewWindow": "移至新視窗",
       "openInNewWindow": "在新視窗中開啟",
       "openDiskCopyInNewWindow": "在新視窗中開啟磁碟副本",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "目錄"
+    },
+    "inlineSearch": {
+      "show": "顯示行內搜尋",
+      "hide": "隱藏行內搜尋",
+      "filesPlaceholder": "篩選檔案和資料夾（使用 file: 或 folder:）",
+      "outlinePlaceholder": "篩選大綱",
+      "filesNoResults": "沒有符合的檔案或資料夾。",
+      "outlineNoResults": "沒有符合的標題。",
+      "filesInputLabel": "篩選檔案和資料夾",
+      "outlineInputLabel": "篩選大綱"
     },
     "icons": {
       "files": "檔案",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "標題欄樣式",
           "custom": "自訂",
+          "concise": "精簡",
           "native": "原生"
         },
         "requiresRestart": "需要重新啟動",

@@ -11,6 +11,7 @@
       "newWindow": "New Window",
       "openFile": "Open File...",
       "openFolder": "Open Folder...",
+      "closeFolder": "Close Folder",
       "openRecent": "Open Recent",
       "clearRecentlyUsed": "Clear Recently Used",
       "save": "Save",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "New File",
       "newDirectory": "New Directory",
+      "closeFolder": "Close Folder",
       "copy": "Copy",
       "cut": "Cut",
       "paste": "Paste",
@@ -208,6 +210,8 @@
       "rename": "Rename",
       "copyPath": "Copy path",
       "showInFolder": "Show in folder",
+      "openThisFolder": "Open This Folder",
+      "closeThisFolder": "Close This Folder",
       "moveToNewWindow": "Move to new window",
       "openInNewWindow": "Open in new window",
       "openDiskCopyInNewWindow": "Open disk copy in new window",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "Table Of Contents"
+    },
+    "inlineSearch": {
+      "show": "Show inline search",
+      "hide": "Hide inline search",
+      "filesPlaceholder": "Filter files and folders (use file: or folder:)",
+      "outlinePlaceholder": "Filter outline",
+      "filesNoResults": "No matching files or folders.",
+      "outlineNoResults": "No matching headings.",
+      "filesInputLabel": "Filter files and folders",
+      "outlineInputLabel": "Filter outline"
     },
     "icons": {
       "files": "Files",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "Title Bar Style",
           "custom": "Custom",
+          "concise": "Concise",
           "native": "Native"
         },
         "requiresRestart": "Requires restart",

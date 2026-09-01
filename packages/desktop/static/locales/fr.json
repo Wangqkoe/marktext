@@ -11,6 +11,7 @@
       "newWindow": "Nouvelle fenêtre",
       "openFile": "Ouvrir un fichier...",
       "openFolder": "Ouvrir un dossier...",
+      "closeFolder": "Fermer le dossier",
       "openRecent": "Ouvrir récent",
       "clearRecentlyUsed": "Effacer les récents",
       "save": "Enregistrer",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "Nouveau fichier",
       "newDirectory": "Nouveau dossier",
+      "closeFolder": "Fermer le dossier",
       "copy": "Copier",
       "cut": "Couper",
       "paste": "Coller",
@@ -208,6 +210,8 @@
       "rename": "Renommer",
       "copyPath": "Copier le chemin",
       "showInFolder": "Afficher dans le dossier",
+      "openThisFolder": "Ouvrir ce dossier",
+      "closeThisFolder": "Fermer ce dossier",
       "moveToNewWindow": "Déplacer vers une nouvelle fenêtre",
       "openInNewWindow": "Ouvrir dans une nouvelle fenêtre",
       "openDiskCopyInNewWindow": "Ouvrir la copie sur disque dans une nouvelle fenêtre",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "Table des matières"
+    },
+    "inlineSearch": {
+      "show": "Afficher la recherche intégrée",
+      "hide": "Masquer la recherche intégrée",
+      "filesPlaceholder": "Filtrer les fichiers et dossiers (utilisez file: ou folder:)",
+      "outlinePlaceholder": "Filtrer le plan",
+      "filesNoResults": "Aucun fichier ou dossier correspondant.",
+      "outlineNoResults": "Aucun titre correspondant.",
+      "filesInputLabel": "Filtrer les fichiers et dossiers",
+      "outlineInputLabel": "Filtrer le plan"
     },
     "icons": {
       "files": "Fichiers",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "Style de barre de titre",
           "custom": "Personnalisé",
+          "concise": "Concis",
           "native": "Natif"
         },
         "requiresRestart": "Nécessite un redémarrage",

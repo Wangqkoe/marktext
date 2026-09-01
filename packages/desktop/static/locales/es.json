@@ -11,6 +11,7 @@
       "newWindow": "Nueva Ventana",
       "openFile": "Abrir Archivo...",
       "openFolder": "Abrir Carpeta...",
+      "closeFolder": "Cerrar Carpeta",
       "openRecent": "Abrir Reciente",
       "clearRecentlyUsed": "Limpiar Recientes",
       "save": "Guardar",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "Nuevo Archivo",
       "newDirectory": "Nuevo Directorio",
+      "closeFolder": "Cerrar Carpeta",
       "copy": "Copiar",
       "cut": "Cortar",
       "paste": "Pegar",
@@ -208,6 +210,8 @@
       "rename": "Renombrar",
       "copyPath": "Copiar ruta",
       "showInFolder": "Mostrar en carpeta",
+      "openThisFolder": "Abrir Esta Carpeta",
+      "closeThisFolder": "Cerrar Esta Carpeta",
       "moveToNewWindow": "Mover a una ventana nueva",
       "openInNewWindow": "Abrir en una ventana nueva",
       "openDiskCopyInNewWindow": "Abrir copia del disco en una ventana nueva",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "Tabla de Contenidos"
+    },
+    "inlineSearch": {
+      "show": "Mostrar búsqueda en línea",
+      "hide": "Ocultar búsqueda en línea",
+      "filesPlaceholder": "Filtrar archivos y carpetas (usa file: o folder:)",
+      "outlinePlaceholder": "Filtrar esquema",
+      "filesNoResults": "No hay archivos ni carpetas coincidentes.",
+      "outlineNoResults": "No hay encabezados coincidentes.",
+      "filesInputLabel": "Filtrar archivos y carpetas",
+      "outlineInputLabel": "Filtrar esquema"
     },
     "icons": {
       "files": "Archivos",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "Estilo de Barra de Título",
           "custom": "Personalizado",
+          "concise": "Conciso",
           "native": "Nativo"
         },
         "requiresRestart": "Requiere reinicio",

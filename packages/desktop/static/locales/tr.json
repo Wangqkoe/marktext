@@ -11,6 +11,7 @@
       "newWindow": "Yeni Pencere",
       "openFile": "Dosya Aç...",
       "openFolder": "Klasör Aç...",
+      "closeFolder": "Klasörü Kapat",
       "openRecent": "Son Kullanılanları Aç",
       "clearRecentlyUsed": "Son Kullanılanları Temizle",
       "save": "Kaydet",
@@ -193,6 +194,7 @@
     "sideBar": {
       "newFile": "Yeni Dosya",
       "newDirectory": "Yeni Klasör",
+      "closeFolder": "Klasörü Kapat",
       "copy": "Kopyala",
       "cut": "Kes",
       "paste": "Yapıştır",
@@ -208,6 +210,8 @@
       "rename": "Yeniden Adlandır",
       "copyPath": "Yolu kopyala",
       "showInFolder": "Klasörde göster",
+      "openThisFolder": "Bu Klasörü Aç",
+      "closeThisFolder": "Bu Klasörü Kapat",
       "moveToNewWindow": "Yeni pencereye taşı",
       "openInNewWindow": "Yeni pencerede aç",
       "openDiskCopyInNewWindow": "Disk kopyasını yeni pencerede aç",
@@ -246,6 +250,16 @@
     },
     "toc": {
       "title": "İçindekiler"
+    },
+    "inlineSearch": {
+      "show": "Satır içi aramayı göster",
+      "hide": "Satır içi aramayı gizle",
+      "filesPlaceholder": "Dosya ve klasörleri filtrele (file: veya folder: kullanın)",
+      "outlinePlaceholder": "Ana hatları filtrele",
+      "filesNoResults": "Eşleşen dosya veya klasör yok.",
+      "outlineNoResults": "Eşleşen başlık yok.",
+      "filesInputLabel": "Dosya ve klasörleri filtrele",
+      "outlineInputLabel": "Ana hatları filtrele"
     },
     "icons": {
       "files": "Dosyalar",
@@ -450,6 +464,7 @@
         "titleBarStyle": {
           "title": "Başlık Çubuğu Stili",
           "custom": "Özel",
+          "concise": "Kısa",
           "native": "Yerel"
         },
         "requiresRestart": "Yeniden başlatma gerektirir",
