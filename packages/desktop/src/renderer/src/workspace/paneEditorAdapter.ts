@@ -34,13 +34,18 @@ export interface PaneEditorSurfaceStage {
   cancel(): void
 }
 
+export interface FinalReportPaneEditorAdapter extends PaneEditorAdapter {
+  takeFinalReport(): EditorReport | undefined
+}
+
 /**
  * Production renderer adapter used by pane assembly. `current` changes only
  * after a successful surface refresh, so a failed staging refresh leaves a
  * subsequent controller rollback able to address the old representation.
  */
-export class RendererPaneEditorAdapter implements PaneEditorAdapter {
+export class RendererPaneEditorAdapter implements FinalReportPaneEditorAdapter {
   private current: EditorBindingSnapshot | undefined
+  private finalReport: EditorReport | undefined
   private generation = 0
 
   constructor(
@@ -75,8 +80,17 @@ export class RendererPaneEditorAdapter implements PaneEditorAdapter {
 
   dispose(): void {
     this.generation += 1
+    if (this.current && !this.finalReport) {
+      this.finalReport = this.reporter?.takeFinalReport(this.current)
+    }
     this.current = undefined
     this.reporter?.attach(undefined)
+  }
+
+  takeFinalReport(): EditorReport | undefined {
+    const report = this.finalReport
+    this.finalReport = undefined
+    return report
   }
 
   private isCurrent(snapshot: EditorBindingSnapshot): boolean {
@@ -107,6 +121,7 @@ export interface PaneEditorEventScope {
   readonly documentId: string
   readonly mode: EditorMode
   report(report: EditorReport): WorkspaceResult
+  finalizeScroll(scrollTop: number): void
   flush(): Promise<WorkspaceResult>
   handoffMode(toMode: EditorMode): Promise<WorkspaceResult>
 }
@@ -133,6 +148,10 @@ class RendererPaneEditorEventScope implements PaneEditorEventScope {
     return this.reporter.report(this, report)
   }
 
+  finalizeScroll(scrollTop: number): void {
+    this.reporter.finalizeScroll(this, scrollTop)
+  }
+
   flush(): Promise<WorkspaceResult> {
     return this.reporter.flush(this)
   }
@@ -145,6 +164,10 @@ class RendererPaneEditorEventScope implements PaneEditorEventScope {
 export class PaneEditorLeaseReporter {
   private binding: PaneEditorBinding | undefined
   private activeScope: RendererPaneEditorEventScope | undefined
+  private finalScroll:
+    | { readonly scope: RendererPaneEditorEventScope; readonly scrollTop: number }
+    | undefined
+
   private readonly scopeWaiters = new Set<{
     mode: EditorMode
     resolve: (scope: PaneEditorEventScope | undefined) => void
@@ -158,6 +181,7 @@ export class PaneEditorLeaseReporter {
     this.binding = binding
     if (!binding) {
       this.activeScope = undefined
+      this.finalScroll = undefined
       this.resolveScopeWaiters(undefined)
     }
   }
@@ -222,6 +246,7 @@ export class PaneEditorLeaseReporter {
     if (this.binding && !this.binding.isSnapshotCurrent(scope.snapshot)) {
       throw new Error('pane adapter attempted to activate a stale editor snapshot')
     }
+    if (this.activeScope !== scope) this.finalScroll = undefined
     this.activeScope = scope
     this.resolveScopeWaiters(scope)
   }
@@ -236,6 +261,25 @@ export class PaneEditorLeaseReporter {
       if (current) scope.replaceSnapshot(current)
     }
     return result
+  }
+
+  finalizeScroll(scope: RendererPaneEditorEventScope, scrollTop: number): void {
+    if (!this.matchingLease(scope)) return
+    this.finalScroll = { scope, scrollTop }
+  }
+
+  takeFinalReport(snapshot: EditorBindingSnapshot): EditorReport | undefined {
+    const finalScroll = this.finalScroll
+    this.finalScroll = undefined
+    if (
+      !finalScroll ||
+      this.activeScope !== finalScroll.scope ||
+      finalScroll.scope.snapshot.lease !== snapshot.lease ||
+      finalScroll.scope.paneId !== snapshot.paneId ||
+      finalScroll.scope.viewId !== snapshot.viewId ||
+      finalScroll.scope.mode !== snapshot.view.mode
+    ) return undefined
+    return { scrollTop: finalScroll.scrollTop }
   }
 
   flush(scope: RendererPaneEditorEventScope): Promise<WorkspaceResult> {

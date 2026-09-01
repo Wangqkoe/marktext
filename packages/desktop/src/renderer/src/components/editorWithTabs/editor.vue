@@ -2234,7 +2234,8 @@ onBeforeUnmount(() => {
   }
   scrollHandler = null
   scrollReportGate?.flush()
-  scrollReportGate?.dispose()
+  const finalScrollTop = scrollReportGate?.dispose()
+  if (finalScrollTop !== undefined) paneScope?.finalizeScroll(finalScrollTop)
   scrollReportGate = undefined
 
   resizeObserverForEditor.disconnect()

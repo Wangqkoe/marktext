@@ -10,7 +10,7 @@ export interface ScrollReportFrameScheduler {
 export interface ScrollReportGate {
   request(scrollTop: number): void
   flush(): void
-  dispose(): void
+  dispose(): number | undefined
 }
 
 const browserFrameScheduler: ScrollReportFrameScheduler = {
@@ -37,7 +37,6 @@ export const createScrollReportGate = (
   let frameHandle: number | undefined
   let deferredHandle: number | undefined
   let pendingScrollTop: number | undefined
-  let lastReportedScrollTop: number | undefined
   let retryDelayMs = INITIAL_RETRY_DELAY_MS
   let disposed = false
 
@@ -71,7 +70,14 @@ export const createScrollReportGate = (
   }
 
   const scheduleRetry = () => {
-    if (disposed || pendingScrollTop === undefined || deferredHandle !== undefined) return
+    if (
+      disposed ||
+      pendingScrollTop === undefined ||
+      frameHandle !== undefined ||
+      deferredHandle !== undefined
+    ) {
+      return
+    }
     const delayMs = retryDelayMs
     retryDelayMs = Math.min(retryDelayMs * 2, MAX_RETRY_DELAY_MS)
     const handle = scheduler.defer(() => {
@@ -85,15 +91,9 @@ export const createScrollReportGate = (
   const publish = () => {
     if (disposed || pendingScrollTop === undefined) return
     const scrollTop = pendingScrollTop
-    if (Object.is(scrollTop, lastReportedScrollTop)) {
-      pendingScrollTop = undefined
-      retryDelayMs = INITIAL_RETRY_DELAY_MS
-      return
-    }
     const result = report(scrollTop)
     if (disposed) return
     if (result.status === 'applied') {
-      lastReportedScrollTop = scrollTop
       retryDelayMs = INITIAL_RETRY_DELAY_MS
     } else if (isTemporaryRejection(result)) {
       scheduleRetry()
@@ -111,11 +111,6 @@ export const createScrollReportGate = (
       pendingScrollTop = scrollTop
       cancelDeferred()
       retryDelayMs = INITIAL_RETRY_DELAY_MS
-      if (Object.is(scrollTop, lastReportedScrollTop)) {
-        pendingScrollTop = undefined
-        cancelFrame()
-        return
-      }
       scheduleFrame()
     },
     flush() {
@@ -125,11 +120,13 @@ export const createScrollReportGate = (
       publish()
     },
     dispose() {
-      if (disposed) return
+      if (disposed) return undefined
+      const finalScrollTop = pendingScrollTop
       disposed = true
       pendingScrollTop = undefined
       cancelFrame()
       cancelDeferred()
+      return finalScrollTop
     }
   }
 }

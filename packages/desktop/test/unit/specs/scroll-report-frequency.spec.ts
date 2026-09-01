@@ -6,8 +6,14 @@ import type {
   PaneEditorAdapter,
   PaneEditorBinding
 } from '@shared/workspace'
-import { createScrollReportGate } from '@/util/scrollReportGate'
-import { createWorkspaceProjectionMirror, createWorkspaceRuntime } from '@/workspace'
+import { createScrollReportGate, type ScrollReportGate } from '@/util/scrollReportGate'
+import {
+  createPaneEditorComposition,
+  createWorkspaceProjectionMirror,
+  createWorkspaceRuntime,
+  type PaneEditorEventScope,
+  type PaneEditorSurface
+} from '@/workspace'
 
 class MemoryEditor implements PaneEditorAdapter {
   report: EditorReport = {}
@@ -48,6 +54,10 @@ class ManualFrameScheduler {
     this.deferred.delete(handle)
   }
 
+  get pendingCallbacks(): number {
+    return this.active.size + this.deferred.size
+  }
+
   flush(timestamp = 0): void {
     const callbacks = [...this.active.values()]
     this.active.clear()
@@ -66,6 +76,21 @@ class ManualFrameScheduler {
 
   fireCapturedDeferred(): void {
     for (const callback of this.capturedDeferred.values()) callback()
+  }
+}
+
+class LifecyclePaneSurface implements PaneEditorSurface {
+  readonly scopes: Array<PaneEditorEventScope | undefined> = []
+
+  async stage(_snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope) {
+    return {
+      commit: () => this.scopes.push(scope),
+      cancel: () => undefined
+    }
+  }
+
+  async flush(_snapshot: EditorBindingSnapshot): Promise<EditorReport> {
+    return {}
   }
 }
 
@@ -128,7 +153,7 @@ describe('scroll report frequency', () => {
     gate.request(60)
     scheduler.flush()
 
-    expect(report).toHaveBeenCalledTimes(2)
+    expect(report).toHaveBeenCalledTimes(3)
     expect(controllerListener).toHaveBeenCalledTimes(2)
     expect(mirrorListener).toHaveBeenCalledTimes(2)
 
@@ -138,6 +163,76 @@ describe('scroll report frequency', () => {
     unsubscribeController()
     binding.dispose()
     workspace.dispose()
+  })
+
+  it('reports a value again after a same-lease flush changes the canonical scrollTop', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const editor = new MemoryEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const lease = currentLease(binding)
+    const scheduler = new ManualFrameScheduler()
+    const report = vi.fn((scrollTop: number) => binding.report(lease, { scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
+
+    gate.request(100)
+    scheduler.flush()
+    editor.report = { scrollTop: 200 }
+    expect((await binding.flush(lease)).status).toBe('applied')
+    gate.request(100)
+    scheduler.flush()
+    const finalScrollTop = binding.getSnapshot(lease)?.view.scrollTop
+
+    gate.dispose()
+    binding.dispose()
+    workspace.dispose()
+
+    expect(report.mock.calls).toEqual([[100], [100]])
+    expect(finalScrollTop).toBe(100)
+  })
+
+  it('preserves the final scroll when a component flush is temporarily rejected before unmount', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'one', markdown: 'one' },
+      { documentId: 'two', markdown: 'two' }
+    ])
+    expect((await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })).status).toBe(
+      'applied'
+    )
+    const composition = createPaneEditorComposition({ paneId: 'left', controller: workspace })
+    const surface = new LifecyclePaneSurface()
+    await composition.mount(surface, { id: 'one', markdown: 'one', title: 'one' })
+    const scope = composition.getScope()
+    if (!scope) throw new Error('expected a mounted pane scope')
+    const scheduler = new ManualFrameScheduler()
+    const attempts = vi.fn((scrollTop: number) => scope.report({ scrollTop }))
+    const gate = createScrollReportGate(attempts, scheduler)
+
+    gate.request(100)
+    scheduler.flush()
+    const resizePanes = workspace.execute({ kind: 'set-split-ratio', ratio: 0.4 })
+    gate.request(200)
+    gate.flush()
+    const finalScrollTop = gate.dispose()
+    if (finalScrollTop !== undefined) scope.finalizeScroll(finalScrollTop)
+    composition.unmount(surface)
+
+    expect((await resizePanes).status).toBe('applied')
+    expect((await workspace.execute({ kind: 'set-split-ratio', ratio: 0.5 })).status).toBe('applied')
+    scheduler.fireCaptured()
+    scheduler.fireCapturedDeferred()
+    scheduler.flush()
+    const canonicalScrollTop = workspace
+      .getFacadeSnapshot()
+      .documents.find((document) => document.viewId === scope.viewId)?.scrollTop
+
+    workspace.dispose()
+
+    expect(attempts.mock.results[1]?.value).toEqual({
+      status: 'rejected',
+      reason: 'workspace mutation is in progress'
+    })
+    expect(attempts).toHaveBeenCalledTimes(2)
+    expect(canonicalScrollTop).toBe(200)
   })
 
   it('retries the latest current-lease scroll after a two-pane mutation temporarily rejects it', async() => {
@@ -189,6 +284,73 @@ describe('scroll report frequency', () => {
     expect(report.mock.calls).toEqual([[140], [180], [180]])
     expect(listener).toHaveBeenCalledOnce()
     expect(finalScrollTop).toBe(180)
+  })
+
+  it('keeps one scheduled callback when a temporary rejection reports a reentrant value', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'one', markdown: 'one' },
+      { documentId: 'two', markdown: 'two' }
+    ])
+    expect((await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })).status).toBe(
+      'applied'
+    )
+    const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const lease = currentLease(binding)
+    const scheduler = new ManualFrameScheduler()
+    const gateRef: { gate?: ScrollReportGate } = {}
+    const report = vi.fn((scrollTop: number) => {
+      const result = binding.report(lease, { scrollTop })
+      if (scrollTop === 10) gateRef.gate?.request(20)
+      return result
+    })
+    const gate = createScrollReportGate(report, scheduler)
+    gateRef.gate = gate
+
+    const resizePanes = workspace.execute({ kind: 'set-split-ratio', ratio: 0.4 })
+    gate.request(10)
+    scheduler.flush()
+    const pendingCallbacks = scheduler.pendingCallbacks
+
+    gate.dispose()
+    expect((await resizePanes).status).toBe('applied')
+    binding.dispose()
+    workspace.dispose()
+
+    expect(report).toHaveBeenCalledOnce()
+    expect(pendingCallbacks).toBe(1)
+  })
+
+  it('treats a transfer preflight fence as permanent while another mutation is pending', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'one', markdown: 'one' },
+      { documentId: 'two', markdown: 'two' }
+    ])
+    expect((await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })).status).toBe(
+      'applied'
+    )
+    const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const lease = currentLease(binding)
+    const preflight = await workspace.beginTransferPreflight('left', lease.viewId, 'scroll-preflight')
+    if (!preflight) throw new Error('expected a transfer preflight')
+    const scheduler = new ManualFrameScheduler()
+    const report = vi.fn((scrollTop: number) => binding.report(lease, { scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
+
+    const resizePanes = workspace.execute({ kind: 'set-split-ratio', ratio: 0.4 })
+    gate.request(70)
+    scheduler.flush()
+    expect((await resizePanes).status).toBe('applied')
+    scheduler.flushDeferred()
+    scheduler.flush()
+    const result = report.mock.results[0]?.value
+
+    gate.dispose()
+    await workspace.clearTransferPreflight(preflight.preflightId)
+    binding.dispose()
+    workspace.dispose()
+
+    expect(result).toEqual({ status: 'rejected', reason: 'transfer preflight fence is active' })
+    expect(report).toHaveBeenCalledOnce()
   })
 
   it('flushes the final value on unmount and drops the captured late frame', async() => {
