@@ -109,6 +109,22 @@ class VisibleMemoryEditor extends MemoryEditor {
   }
 }
 
+class DeferredObservationEditor extends MemoryEditor {
+  visibleScrollTop = 0
+  flushBarrier: Promise<void> | undefined
+  onFlushStart: (() => void) | undefined
+
+  override async refresh(snapshot: EditorBindingSnapshot): Promise<void> {
+    this.visibleScrollTop = snapshot.view.scrollTop
+  }
+
+  override async flush(): Promise<EditorReport> {
+    this.onFlushStart?.()
+    await this.flushBarrier
+    return this.report
+  }
+}
+
 class RecordingDocumentIoPort implements DocumentIoPort {
   readonly requests: DocumentIoRequest[] = []
   private readonly listeners = new Set<(observation: DocumentIoObservation) => void>()
@@ -166,6 +182,14 @@ function currentLease(binding: PaneEditorBinding): EditorLease {
   const lease = binding.getLease()
   if (!lease) throw new Error('expected a current editor lease')
   return lease
+}
+
+function deferred(): { readonly promise: Promise<void>; readonly release: () => void } {
+  let release: () => void = () => undefined
+  const promise = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  return { promise, release }
 }
 
 describe('scroll report frequency', () => {
@@ -256,6 +280,98 @@ describe('scroll report frequency', () => {
 
     expect(report.mock.calls).toEqual([[100], [100]])
     expect(finalScrollTop).toBe(100)
+  })
+
+  it('keeps a final scroll newer than an already running editor flush', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const editor = new DeferredObservationEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const lease = currentLease(binding)
+    expect(binding.report(lease, { scrollTop: 100 }).status).toBe('applied')
+    editor.visibleScrollTop = 100
+    const listener = vi.fn()
+    const unsubscribe = workspace.subscribe(listener)
+    const mirror = createWorkspaceProjectionMirror(workspace)
+    const mirrorListener = vi.fn()
+    const unsubscribeMirror = mirror.subscribe(mirrorListener)
+    mirrorListener.mockClear()
+    const flushStarted = deferred()
+    const releaseFlush = deferred()
+    editor.report = {
+      markdown: 'new body',
+      portableHistory: { version: 1, value: ['new-history'] },
+      scrollTop: 100
+    }
+    editor.onFlushStart = flushStarted.release
+    editor.flushBarrier = releaseFlush.promise
+
+    const flush = binding.flush(lease)
+    await flushStarted.promise
+    editor.visibleScrollTop = 200
+    expect(binding.finalizeScroll(lease, 200).status).toBe('applied')
+    releaseFlush.release()
+    expect((await flush).status).toBe('applied')
+    const canonical = workspace.getFacadeSnapshot().documents.find(
+      (document) => document.documentId === 'note'
+    )
+    const activeSnapshot = binding.getSnapshot(lease)
+
+    expect(canonical).toMatchObject({ markdown: 'new body', dirty: true, scrollTop: 200 })
+    expect(activeSnapshot?.document.portableHistory).toEqual({
+      version: 1,
+      value: ['new-history']
+    })
+    expect(activeSnapshot?.view.scrollTop).toBe(200)
+    expect(editor.visibleScrollTop).toBe(200)
+    expect(listener).toHaveBeenCalledTimes(2)
+    expect(mirrorListener).toHaveBeenCalledTimes(2)
+
+    unsubscribeMirror()
+    mirror.dispose()
+    unsubscribe()
+    binding.dispose()
+    workspace.dispose()
+  })
+
+  it('fences an older running flush when final scroll already equals canonical state', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const editor = new DeferredObservationEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const lease = currentLease(binding)
+    expect(binding.report(lease, { scrollTop: 200 }).status).toBe('applied')
+    editor.visibleScrollTop = 200
+    const listener = vi.fn()
+    const unsubscribe = workspace.subscribe(listener)
+    const mirror = createWorkspaceProjectionMirror(workspace)
+    const mirrorListener = vi.fn()
+    const unsubscribeMirror = mirror.subscribe(mirrorListener)
+    mirrorListener.mockClear()
+    const flushStarted = deferred()
+    const releaseFlush = deferred()
+    editor.report = { scrollTop: 100 }
+    editor.onFlushStart = flushStarted.release
+    editor.flushBarrier = releaseFlush.promise
+
+    const flush = binding.flush(lease)
+    await flushStarted.promise
+    expect(binding.finalizeScroll(lease, 200).status).toBe('applied')
+    releaseFlush.release()
+    expect((await flush).status).toBe('applied')
+    const canonical = workspace.getFacadeSnapshot().documents.find(
+      (document) => document.documentId === 'note'
+    )
+
+    expect(canonical?.scrollTop).toBe(200)
+    expect(binding.getSnapshot(lease)?.view.scrollTop).toBe(200)
+    expect(editor.visibleScrollTop).toBe(200)
+    expect(listener).toHaveBeenCalledOnce()
+    expect(mirrorListener).toHaveBeenCalledOnce()
+
+    unsubscribeMirror()
+    mirror.dispose()
+    unsubscribe()
+    binding.dispose()
+    workspace.dispose()
   })
 
   it('ignores an adapter method that attempts to finalize a complete stale editor report', async() => {
@@ -697,6 +813,67 @@ describe('scroll report frequency', () => {
     expect(canonical).toMatchObject({ markdown: 'body', dirty: false, scrollTop: 200 })
     expect(activeSnapshot?.document.portableHistory).toEqual({ version: 1, value: [] })
     expect(activeSnapshot?.view.scrollTop).toBe(200)
+    expect(editor.visibleScrollTop).toBe(200)
+    expect(listener).toHaveBeenCalledOnce()
+    expect(mirrorListener).toHaveBeenCalledOnce()
+
+    unsubscribeMirror()
+    mirror.dispose()
+    unsubscribe()
+    binding.dispose()
+    workspace.dispose()
+  })
+
+  it('revokes a sealed transfer when a later controller flush accepts newer scroll state', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const editor = new VisibleMemoryEditor()
+    editor.report = { scrollTop: 100 }
+    const binding = await workspace.bindPaneEditor('left', editor)
+    const lease = currentLease(binding)
+    const preflight = await workspace.beginTransferPreflight(
+      'left',
+      lease.viewId,
+      'internal-flush-preflight'
+    )
+    if (!preflight) throw new Error('expected a transfer preflight')
+    const scheduler = new ManualFrameScheduler()
+    const report = vi.fn((scrollTop: number) => binding.report(lease, { scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
+    gate.request(200)
+    scheduler.flush()
+    const pendingCallbacks = scheduler.pendingCallbacks
+    gate.dispose()
+    const listener = vi.fn()
+    const unsubscribe = workspace.subscribe(listener)
+    const mirror = createWorkspaceProjectionMirror(workspace)
+    const mirrorListener = vi.fn()
+    const unsubscribeMirror = mirror.subscribe(mirrorListener)
+    mirrorListener.mockClear()
+
+    editor.report = { scrollTop: 200 }
+    const newerSource = await workspace.transferSourceSnapshot('left', lease.viewId)
+    const preparedRevision = await workspace.prepareTransfer(
+      'stale-internal-flush-transfer',
+      preflight.documentId,
+      preflight.viewId,
+      preflight.documentRevision,
+      preflight.preflightId
+    )
+    const canonical = workspace.getFacadeSnapshot().documents.find(
+      (document) => document.documentId === 'note'
+    )
+
+    expect(report.mock.results[0]?.value).toEqual({
+      status: 'rejected',
+      reason: 'transfer preflight fence is active'
+    })
+    expect(report).toHaveBeenCalledOnce()
+    expect(pendingCallbacks).toBe(0)
+    expect(preflight.view.scrollTop).toBe(100)
+    expect(newerSource?.view.scrollTop).toBe(200)
+    expect(preparedRevision).toBeUndefined()
+    expect(canonical?.scrollTop).toBe(200)
+    expect(binding.getSnapshot(lease)?.view.scrollTop).toBe(200)
     expect(editor.visibleScrollTop).toBe(200)
     expect(listener).toHaveBeenCalledOnce()
     expect(mirrorListener).toHaveBeenCalledOnce()

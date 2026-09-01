@@ -48,6 +48,7 @@ interface ViewRecord {
   id: ViewId
   documentId: DocumentId
   state: ViewState
+  scrollObservationEpoch: number
   toc: WorkspaceTocItem[]
   status: WorkspaceStatus
 }
@@ -441,9 +442,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
         if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
         if (!Number.isFinite(scrollTop)) return this.rejected('invalid final scrollTop')
         const view = this.view(candidate.viewId)
-        if (!Object.is(view.state.scrollTop, scrollTop)) {
-          view.state = { ...view.state, scrollTop }
-          this.revokeTransferFencesForView(candidate.viewId)
+        view.scrollObservationEpoch += 1
+        if (this.applyReport(candidate.viewId, { scrollTop })) {
           this.updateBoundSnapshot(bound)
           this.commit()
         }
@@ -453,7 +453,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
         this.enqueue(async() => {
           if (this.hasPreflightForView(candidate.viewId)) return this.rejected('transfer preflight fence is active')
           return this.withLease(bound, candidate, async() => {
-            if (this.applyReport(candidate.viewId, await bound.adapter.flush())) {
+            if (await this.applyAdapterFlush(bound, candidate.viewId)) {
               this.updateBoundSnapshot(bound)
             }
           })
@@ -462,8 +462,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
         this.enqueue(async() =>
           this.withLease(bound, candidate, async() => {
             const view = this.view(candidate.viewId)
-            const report = await bound.adapter.flush()
-            if (this.applyReport(candidate.viewId, report)) {
+            if (await this.applyAdapterFlush(bound, candidate.viewId)) {
               this.updateBoundSnapshot(bound)
               this.commit()
             }
@@ -492,8 +491,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       refresh: async(candidate) =>
         this.enqueue(async() =>
           this.withLease(bound, candidate, async() => {
-            const report = await bound.adapter.flush()
-            if (this.applyReport(candidate.viewId, report)) {
+            if (await this.applyAdapterFlush(bound, candidate.viewId)) {
               this.updateBoundSnapshot(bound)
               this.commit()
             }
@@ -1099,7 +1097,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const bound = this.adapters.get(paneId)
     if (!bound) return
     try {
-      if (this.applyReport(this.requirePane(paneId).activeViewId, await bound.adapter.flush())) {
+      const viewId = this.requirePane(paneId).activeViewId
+      if (await this.applyAdapterFlush(bound, viewId)) {
         this.updateBoundSnapshot(bound)
         this.commit()
       }
@@ -1139,6 +1138,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
 
   private hasPreflightForView(viewId: ViewId): boolean {
     return [...this.transferFences.values()].some(fence => fence.preflightId && fence.viewId === viewId)
+  }
+
+  private async applyAdapterFlush(bound: BoundAdapter, viewId: ViewId): Promise<boolean> {
+    const scrollObservationEpoch = this.view(viewId).scrollObservationEpoch
+    const report = await bound.adapter.flush()
+    return this.applyReport(viewId, report, scrollObservationEpoch)
   }
 
   private revokeTransferFencesForView(viewId: ViewId): void {
@@ -1187,7 +1192,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
     await this.refreshAdapter(paneId, snapshot())
   }
 
-  private applyReport(viewId: ViewId, report: EditorReport): boolean {
+  private applyReport(
+    viewId: ViewId,
+    report: EditorReport,
+    scrollObservationEpoch?: number
+  ): boolean {
     const view = this.view(viewId)
     const document = this.requireDocument(view.documentId)
     let changedDocument = false
@@ -1215,13 +1224,21 @@ export class WorkspaceController implements WorkspaceControllerContract {
       view.status = nextStatus
     }
     if (changedDocument) document.revision += 1
+    const acceptsScroll =
+      scrollObservationEpoch === undefined ||
+      scrollObservationEpoch === view.scrollObservationEpoch
+    const acceptsChangedScroll =
+      acceptsScroll &&
+      report.scrollTop !== undefined &&
+      !Object.is(view.state.scrollTop, report.scrollTop)
     const nextState = {
       ...view.state,
       ...(report.cursor ? { cursor: clone(report.cursor) } : {}),
       ...(report.selection !== undefined ? { selection: clone(report.selection) } : {}),
-      ...(report.scrollTop !== undefined ? { scrollTop: report.scrollTop } : {})
+      ...(acceptsScroll && report.scrollTop !== undefined ? { scrollTop: report.scrollTop } : {})
     }
     const changedView = JSON.stringify(view.state) !== JSON.stringify(nextState)
+    if (acceptsChangedScroll) this.revokeTransferFencesForView(viewId)
     view.state = nextState
     return changedDocument || changedView || changedAuxiliary
   }
@@ -1300,6 +1317,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       id: `view-${this.nextId++}`,
       documentId,
       state: { ...clone(EMPTY_VIEW), ...clone(state) },
+      scrollObservationEpoch: 0,
       toc: [],
       status: {}
     }
