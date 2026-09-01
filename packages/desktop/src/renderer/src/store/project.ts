@@ -221,12 +221,13 @@ export const useProjectStore = defineStore('project', () => {
       const { root, type, change } = (payload as FolderTreeChangePayload) ?? {}
       const identity = root && normalizeRootIdentity(root)
       if (!identity || identity.generation < folderRootGeneration.value) return
+      if (identity.generation > folderRootGeneration.value) {
+        pendingTreeEvents.value.push({ root: identity, type, change })
+        return
+      }
 
       const currentRoot = folderRootIdentity.value
       if (!currentRoot || !projectTree.value) {
-        if (identity.generation > folderRootGeneration.value) {
-          pendingTreeEvents.value.push({ root: identity, type, change })
-        }
         return
       }
       if (!isSameRoot(currentRoot, identity)) return

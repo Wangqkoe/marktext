@@ -58,6 +58,8 @@ vi.hoisted(() => {
         normalize: (pathname: string) => string
         basename: (pathname: string) => string
         dirname: (pathname: string) => string
+        isAbsolute: (pathname: string) => boolean
+        relative: (from: string, to: string) => string
       }
       fileUtils?: {
         hasMarkdownExtension: (name: string) => boolean
@@ -80,7 +82,9 @@ vi.hoisted(() => {
     sep: '/',
     normalize: (pathname) => pathname.replaceAll('\\', '/'),
     basename: (pathname) => pathname.split('/').filter(Boolean).at(-1) ?? '',
-    dirname: (pathname) => pathname.slice(0, pathname.lastIndexOf('/'))
+    dirname: (pathname) => pathname.slice(0, pathname.lastIndexOf('/')),
+    isAbsolute: (pathname) => pathname.startsWith('/'),
+    relative: (from, to) => to.startsWith(`${from}/`) ? to.slice(from.length + 1) : ''
   }
   testWindow.window.fileUtils ??= {
     hasMarkdownExtension: (name) => name.endsWith('.md'),
@@ -327,5 +331,83 @@ describe('renderer Folder root lifecycle', () => {
 
     lifecycle.CLOSE_FOLDER({ pathname: '/new-root', generation: 4 })
     expect(store.projectTree).toBeNull()
+  })
+
+  it('replays initial directory and file events when a ready watcher replaces an active root', () => {
+    const store = useProjectStore()
+    store.LISTEN_FOR_LOAD_PROJECT()
+    store.LISTEN_FOR_UPDATE_PROJECT()
+    const open = rendererFixtures.ipcListeners.get('mt::open-directory')
+    const update = rendererFixtures.ipcListeners.get('mt::update-object-tree')
+
+    open?.({}, { pathname: '/old-root', generation: 1 })
+    update?.({}, {
+      root: { pathname: '/new-root', generation: 2 },
+      type: 'addDir',
+      change: { pathname: '/new-root/nested' }
+    })
+    update?.({}, {
+      root: { pathname: '/new-root', generation: 2 },
+      type: 'add',
+      change: {
+        pathname: '/new-root/nested/inside.md',
+        name: 'inside.md',
+        isDirectory: false,
+        isFile: true,
+        isMarkdown: true
+      }
+    })
+
+    expect(store.projectTree?.pathname).toBe('/old-root')
+    expect(store.projectTree?.folders).toEqual([])
+    expect(store.pendingTreeEvents).toHaveLength(2)
+
+    open?.({}, { pathname: '/new-root', generation: 2 })
+
+    expect(store.pendingTreeEvents).toEqual([])
+    expect(store.projectTree?.pathname).toBe('/new-root')
+    expect(store.projectTree?.folders).toHaveLength(1)
+    expect(store.projectTree?.folders[0]).toMatchObject({
+      pathname: '/new-root/nested',
+      files: [expect.objectContaining({
+        pathname: '/new-root/nested/inside.md',
+        name: 'inside.md'
+      })]
+    })
+  })
+
+  it('keeps failed replacement events derived and clears them on a later generation', () => {
+    const store = useProjectStore()
+    store.LISTEN_FOR_LOAD_PROJECT()
+    store.LISTEN_FOR_UPDATE_PROJECT()
+    const open = rendererFixtures.ipcListeners.get('mt::open-directory')
+    const update = rendererFixtures.ipcListeners.get('mt::update-object-tree')
+
+    open?.({}, { pathname: '/old-root', generation: 1 })
+    update?.({}, {
+      root: { pathname: '/failed-root', generation: 2 },
+      type: 'addDir',
+      change: { pathname: '/failed-root/must-not-appear' }
+    })
+    update?.({}, {
+      root: { pathname: '/old-root', generation: 1 },
+      type: 'addDir',
+      change: { pathname: '/old-root/still-current' }
+    })
+
+    expect(store.projectTree?.pathname).toBe('/old-root')
+    expect(store.projectTree?.folders.map(({ name }) => name)).toEqual(['still-current'])
+    expect(store.pendingTreeEvents).toHaveLength(1)
+
+    update?.({}, {
+      root: { pathname: '/final-root', generation: 3 },
+      type: 'addDir',
+      change: { pathname: '/final-root/complete' }
+    })
+    open?.({}, { pathname: '/final-root', generation: 3 })
+
+    expect(store.pendingTreeEvents).toEqual([])
+    expect(store.projectTree?.pathname).toBe('/final-root')
+    expect(store.projectTree?.folders.map(({ name }) => name)).toEqual(['complete'])
   })
 })

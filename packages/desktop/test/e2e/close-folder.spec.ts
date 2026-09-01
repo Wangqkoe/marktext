@@ -95,6 +95,45 @@ test('Close Folder appears only in the Folder root context menu at the specified
   }
 })
 
+test('current-window Folder replacement replays the complete new tree without old nodes', async() => {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-folder-replacement-'))
+  const oldRoot = path.join(fixtureRoot, 'old-root')
+  const newRoot = path.join(fixtureRoot, 'new-root')
+  fs.mkdirSync(path.join(oldRoot, 'old-only'), { recursive: true })
+  fs.mkdirSync(path.join(newRoot, 'nested'), { recursive: true })
+  fs.writeFileSync(path.join(oldRoot, 'old.md'), '# Old root\n')
+  fs.writeFileSync(path.join(newRoot, 'top.md'), '# New root\n')
+  fs.writeFileSync(path.join(newRoot, 'nested', 'inside.md'), '# Nested file\n')
+  const { app, page } = await launchElectron([oldRoot])
+
+  try {
+    await waitForFolderRoot(page, 'old-root')
+    await expect(page.locator('.project-tree')).toContainText('old-only')
+    await expect(page.locator('.project-tree')).toContainText('old.md')
+
+    await page.evaluate((pathname) => {
+      window.electron.ipcRenderer.send('mt::set-user-preference', {
+        openFolderInNewWindow: true
+      })
+      window.electron.ipcRenderer.send('mt::cmd-open-folder-in-current-window', pathname)
+    }, newRoot)
+
+    await waitForFolderRoot(page, 'new-root')
+    await expect.poll(() => app.windows().length).toBe(1)
+    const newTree = page.locator('.project-tree')
+    await expect(newTree).toContainText('nested')
+    await expect(newTree).toContainText('top.md')
+    await expect(newTree).not.toContainText('old-only')
+    await expect(newTree).not.toContainText('old.md')
+
+    await newTree.locator('.side-bar-folder .folder-name').filter({ hasText: 'nested' }).click()
+    await expect(newTree.locator('.side-bar-file').filter({ hasText: 'inside.md' })).toBeVisible()
+  } finally {
+    await app.close().catch(() => undefined)
+    fs.rmSync(fixtureRoot, { recursive: true, force: true })
+  }
+})
+
 test('Close Folder preserves tabs and dirty buffers and rejects the old generation', async() => {
   test.setTimeout(60_000)
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-close-folder-'))
