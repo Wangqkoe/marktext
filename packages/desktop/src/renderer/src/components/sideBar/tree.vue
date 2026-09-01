@@ -8,7 +8,7 @@
       <div class="title">
         <el-icon
           class="icon-arrow"
-          :class="{ fold: !showOpenedFiles }"
+          :class="{ fold: !effectiveShowOpenedFiles }"
           :size="12"
           @click.stop="toggleOpenedFiles()"
         >
@@ -71,7 +71,7 @@
       >
         <el-icon
           class="icon-arrow"
-          :class="{ fold: !showDirectories }"
+          :class="{ fold: !effectiveShowDirectories }"
           :size="12"
           @click.stop="toggleDirectories()"
         >
@@ -201,6 +201,8 @@ const input = ref<HTMLInputElement | null>(null)
 const baseCollapsedByKey = reactive(new Map<string, boolean>())
 const searchCollapsedKeys = ref<Set<string>>(new Set())
 const manuallyExpandedKeys = ref<Set<string>>(new Set())
+const searchShowDirectories = ref<boolean | null>(null)
+const searchShowOpenedFiles = ref<boolean | null>(null)
 
 const projectStore = useProjectStore()
 const editorStore = useEditorStore()
@@ -219,14 +221,17 @@ const hasFilesResults = computed(
     filteredTree.value.files.length > 0 ||
     filteredTree.value.folders.length > 0
 )
-const effectiveShowOpenedFiles = computed(() =>
-  filteredTree.value.active
-    ? openedFilesInSidebar.value && filteredTabs.value.length > 0
-    : showOpenedFiles.value
-)
-const effectiveShowDirectories = computed(() =>
-  filteredTree.value.active ? true : showDirectories.value
-)
+const effectiveShowOpenedFiles = computed(() => {
+  if (!filteredTree.value.active) return showOpenedFiles.value
+  return (
+    searchShowOpenedFiles.value ??
+    (openedFilesInSidebar.value && filteredTabs.value.length > 0)
+  )
+})
+const effectiveShowDirectories = computed(() => {
+  if (!filteredTree.value.active) return showDirectories.value
+  return searchShowDirectories.value ?? true
+})
 
 const folderKey = (folder: TreeNode): string => folder.id || folder.pathname
 
@@ -273,6 +278,8 @@ watch(
     if (query?.length) return
     searchCollapsedKeys.value = new Set()
     manuallyExpandedKeys.value = new Set()
+    searchShowDirectories.value = null
+    searchShowOpenedFiles.value = null
   }
 )
 
@@ -319,11 +326,19 @@ const handleRootContextMenu = (event: MouseEvent): void => {
 }
 
 const toggleOpenedFiles = (): void => {
+  if (filteredTree.value.active) {
+    searchShowOpenedFiles.value = !effectiveShowOpenedFiles.value
+    return
+  }
   showOpenedFiles.value = !showOpenedFiles.value
   localStorage.setItem(SHOW_OPENED_FILES_KEY, String(showOpenedFiles.value))
 }
 
 const toggleDirectories = (): void => {
+  if (filteredTree.value.active) {
+    searchShowDirectories.value = !effectiveShowDirectories.value
+    return
+  }
   showDirectories.value = !showDirectories.value
   localStorage.setItem(SHOW_DIRECTORIES_KEY, String(showDirectories.value))
 }

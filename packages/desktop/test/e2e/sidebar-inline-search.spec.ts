@@ -102,13 +102,11 @@ const visibleFileNames = (page: Page): Promise<string[]> =>
 const visibleFolderNames = (page: Page): Promise<string[]> =>
   page.locator('.project-tree .folder-name:visible > span').allTextContents()
 
-test.describe.configure({ mode: 'serial' })
-
 test.describe('Files and Outline inline search', () => {
   let app: ElectronApplication
   let page: Page
 
-  test.beforeAll(async() => {
+  test.beforeEach(async() => {
     const launched = await launchWithMarkdown(MARKDOWN)
     app = launched.app
     page = launched.page
@@ -118,7 +116,7 @@ test.describe('Files and Outline inline search', () => {
     await expect(page.locator('.project-tree')).toBeVisible()
   })
 
-  test.afterAll(async() => {
+  test.afterEach(async() => {
     if (app) await app.close()
   })
 
@@ -150,6 +148,7 @@ test.describe('Files and Outline inline search', () => {
   })
 
   test('shows full original directory contents on manual expansion and restores prior collapse', async() => {
+    await page.getByRole('button', { name: 'Show inline search' }).click()
     const input = page.getByRole('textbox', { name: 'Filter files and folders' })
     await input.fill('archive')
     await expect(page.locator('.folder-name', { hasText: 'archive' })).toBeVisible()
@@ -166,6 +165,56 @@ test.describe('Files and Outline inline search', () => {
     await input.press('Escape')
     await expect(input).toHaveCount(0)
     await expect(page.locator('.side-bar-file', { hasText: 'guide-notes.md' })).toHaveCount(0)
+  })
+
+  test('keeps Folder root and Opened Files section toggles inside the search overlay', async() => {
+    const rootTitle = page.locator('.project-tree > .title > span')
+    const openedTitle = page.locator('.opened-files > .title > span')
+    const rootContents = page.locator('.project-tree > .tree-wrapper')
+    const openedContents = page.locator('.opened-files > .opened-files-list')
+
+    await rootTitle.click()
+    await openedTitle.click()
+    await expect(rootContents).toBeHidden()
+    await expect(openedContents).toBeHidden()
+    await expect.poll(() => page.evaluate(() => ({
+      directories: localStorage.getItem('side-bar-show-directories'),
+      opened: localStorage.getItem('side-bar-show-opened-files')
+    }))).toEqual({ directories: 'false', opened: 'false' })
+
+    await page.getByRole('button', { name: 'Show inline search' }).click()
+    const input = page.getByRole('textbox', { name: 'Filter files and folders' })
+    await input.fill('note')
+    await expect(rootContents).toBeVisible()
+    await expect(openedContents).toBeVisible()
+
+    await rootTitle.click()
+    await openedTitle.click()
+    await expect(rootContents).toBeHidden()
+    await expect(openedContents).toBeHidden()
+    await expect.poll(() => page.evaluate(() => ({
+      directories: localStorage.getItem('side-bar-show-directories'),
+      opened: localStorage.getItem('side-bar-show-opened-files')
+    }))).toEqual({ directories: 'false', opened: 'false' })
+
+    await input.fill('')
+    await expect(rootContents).toBeHidden()
+    await expect(openedContents).toBeHidden()
+    await expect.poll(() => page.evaluate(() => ({
+      directories: localStorage.getItem('side-bar-show-directories'),
+      opened: localStorage.getItem('side-bar-show-opened-files')
+    }))).toEqual({ directories: 'false', opened: 'false' })
+
+    await input.fill('note')
+    await expect(rootContents).toBeVisible()
+    await expect(openedContents).toBeVisible()
+    await page.getByRole('button', { name: 'Hide inline search' }).click()
+    await expect(rootContents).toBeHidden()
+    await expect(openedContents).toBeHidden()
+    await expect.poll(() => page.evaluate(() => ({
+      directories: localStorage.getItem('side-bar-show-directories'),
+      opened: localStorage.getItem('side-bar-show-opened-files')
+    }))).toEqual({ directories: 'false', opened: 'false' })
   })
 
   test('recomputes the projection for watcher-like updates, Folder replacement, and no root', async() => {
@@ -242,9 +291,7 @@ test.describe('Files and Outline inline search', () => {
   })
 
   test('keeps the input open across Files/Outline, clears it, and preserves duplicate heading keys', async() => {
-    if (!(await page.getByRole('textbox', { name: 'Filter files and folders' }).count())) {
-      await page.getByRole('button', { name: 'Show inline search' }).click()
-    }
+    await page.getByRole('button', { name: 'Show inline search' }).click()
     const filesInput = page.getByRole('textbox', { name: 'Filter files and folders' })
     await filesInput.fill('guide')
     await page.getByRole('tab', { name: 'Outline' }).click()
@@ -290,6 +337,7 @@ test.describe('Files and Outline inline search', () => {
   })
 
   test('second toggle closes and Edit Find in Folder still opens the independent Search view', async() => {
+    await page.getByRole('button', { name: 'Show inline search' }).click()
     await page.getByRole('button', { name: 'Hide inline search' }).click()
     await expect(page.getByRole('textbox', { name: 'Filter outline' })).toHaveCount(0)
 

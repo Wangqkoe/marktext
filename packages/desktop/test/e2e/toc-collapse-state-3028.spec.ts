@@ -109,5 +109,21 @@ test.describe('TOC collapse state survives edits (#3028)', () => {
     // After the live TOC update, "B" must still be collapsed (B1 hidden).
     await expect.poll(() => readVisibleTocLabels(page), { timeout: 8000 })
       .toEqual(['A', 'B', 'C2'])
+
+    // The assertion intentionally dirties the on-disk fixture. Invoke the
+    // application menu only after the product assertion, so Electron can close
+    // without waiting on the dirty document prompt during afterAll.
+    await app.evaluate(({ Menu, BrowserWindow }) => {
+      const saveItem = Menu.getApplicationMenu()?.items
+        .flatMap((top) => top.submenu?.items ?? [])
+        .find((item) => item.label === 'Save')
+      const win = BrowserWindow.getAllWindows()[0]
+      if (!saveItem || !win) throw new Error('Save menu item unavailable')
+      saveItem.click(undefined, win, win.webContents)
+    })
+    await expect.poll(
+      () => page.evaluate(() => !!document.querySelector('.editor-tabs li.unsaved')),
+      { timeout: 8000 }
+    ).toBe(false)
   })
 })
