@@ -5,7 +5,7 @@
 - Local branch: `codex/t07-desktop-navigation-acceptance`
 - Frozen Spec: `docs/specs/desktop-ui-folder-navigation.md`
 - Detailed scroll evidence: `docs/testing/desktop-scroll-profile.md`
-- User final Acceptance: **not completed and not announced by this document**
+- User final Acceptance: **Windows Passed; Linux Untested; macOS Untested**
 
 ## Included tickets
 
@@ -62,25 +62,25 @@ Content checks found `mt::cmd-close-folder` in main and renderer, `window-close-
 
 ## Windows repeatable and manual matrix
 
-Automated Electron interaction is reported as automated evidence, not as human manual Acceptance.
+Automated Electron interaction remains reported as automated evidence. The user subsequently completed the Windows manual Acceptance and declared it Passed; rows that were unavailable to the headless execution task are therefore marked Passed by user Acceptance without rewriting the earlier automation evidence.
 
-| Scenario                                                                             | Status      | Evidence/limit                                                                                                                                                                               |
-| ------------------------------------------------------------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Custom and Concise, normal and 550px narrow                                          | Passed      | Automated real Electron window; 30px Concise bar, eight menus, live submenu state, safe center, controls, hover title and narrow extension retention.                                        |
-| Native, light at 100% and dark at 125% preference zoom                               | Passed      | Automated painted-window regression. Physical monitor scaling at 125% was not exercised.                                                                                                     |
-| Maximized window                                                                     | Untested    | No interactive maximize/restore pass was performed.                                                                                                                                          |
-| `123.md`, `2026-08-30.md`, `1.2.3.md`, Chinese, English, Arabic/RTL and mixed titles | Passed      | Unit table covers every named sample; Custom/Concise Electron E2E covers a mixed date/LTR/Arabic filename at normal and 550px widths. Human visual reading remains part of final Acceptance. |
-| Folder root/File menus, Close Folder, root replacement and restart                   | Passed      | Automated Electron lifecycle/generation/menu tests.                                                                                                                                          |
-| Tabs and Opened Files, captured pane, untitled and folder action                     | Passed      | Automated shared-menu tests plus workspace transfer regression.                                                                                                                              |
-| Files/Outline inline search and independent Find in Folder                           | Passed      | Automated prefix, empty/no-root, replacement, manual expansion, overlay reset, duplicate Outline key and ripgrep regressions.                                                                |
-| Files spacing/divider and TOC wrap                                                   | Passed      | Automated computed layout/hit-target and unlimited-wrap checks. Light/dark/custom-theme human visual comparison was not performed.                                                           |
-| Wheel and long-document WYSIWYG reporting                                            | Passed      | Automated Playwright wheel and direct DOM scroll; no post-input continuation; final workspace state converged.                                                                               |
-| Native scrollbar thumb                                                               | Unavailable | No physical thumb drag path in headless Electron; direct DOM scroll is automated but is not claimed as physical thumb input.                                                                 |
-| Physical touchpad                                                                    | Unavailable | No physical touchpad input path in this execution environment.                                                                                                                               |
-| Dense Files/Outline/Search, long Preferences, many tabs human smoke                  | Untested    | Static overflow inventory and targeted automation exist; no human interactive device session was performed.                                                                                  |
-| Custom theme                                                                         | Untested    | No reliable custom-theme fixture or human visual session was available.                                                                                                                      |
-| Linux                                                                                | Unavailable | Windows-only host.                                                                                                                                                                           |
-| macOS, including absence of Concise                                                  | Unavailable | Windows-only host; platform guard is covered by unit logic, not a macOS run.                                                                                                                 |
+| Scenario                                                                             | Status   | Evidence/limit                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Custom and Concise, normal and 550px narrow                                          | Passed   | Automated real Electron window; 30px Concise bar, eight menus, live submenu state, safe center, controls, hover title and narrow extension retention.                                             |
+| Native, light at 100% and dark at 125% preference zoom                               | Passed   | Automated painted-window regression; physical Windows display coverage was accepted by the user in the final manual pass.                                                                         |
+| Maximized window                                                                     | Passed   | Covered by the user's final Windows manual Acceptance.                                                                                                                                            |
+| `123.md`, `2026-08-30.md`, `1.2.3.md`, Chinese, English, Arabic/RTL and mixed titles | Passed   | Unit table covers every named sample; Custom/Concise Electron E2E covers a mixed date/LTR/Arabic filename at normal and 550px widths, and the user completed the final Windows visual Acceptance. |
+| Folder root/File menus, Close Folder, root replacement and restart                   | Passed   | Automated Electron lifecycle/generation/menu tests.                                                                                                                                               |
+| Tabs and Opened Files, captured pane, untitled and folder action                     | Passed   | Automated shared-menu tests plus workspace transfer regression.                                                                                                                                   |
+| Files/Outline inline search and independent Find in Folder                           | Passed   | Automated prefix, empty/no-root, replacement, manual expansion, overlay reset, duplicate Outline key and ripgrep regressions.                                                                     |
+| Files spacing/divider and TOC wrap                                                   | Passed   | Automated computed layout/hit-target and unlimited-wrap checks plus the user's final Windows manual Acceptance.                                                                                   |
+| Wheel and long-document WYSIWYG reporting                                            | Passed   | Automated Playwright wheel and direct DOM scroll; no post-input continuation; final workspace state converged.                                                                                    |
+| Native scrollbar thumb                                                               | Passed   | Headless automation could not perform a physical thumb drag; this physical Windows item is covered by the user's final manual Acceptance.                                                         |
+| Physical touchpad                                                                    | Passed   | Headless automation had no physical input path; this physical Windows item is covered by the user's final manual Acceptance.                                                                      |
+| Dense Files/Outline/Search, long Preferences, many tabs human smoke                  | Passed   | Static overflow inventory and targeted automation are supplemented by the user's final Windows manual Acceptance.                                                                                 |
+| Custom theme                                                                         | Passed   | Covered by the user's final Windows manual Acceptance.                                                                                                                                            |
+| Linux                                                                                | Untested | The user reported that Linux was not tested.                                                                                                                                                      |
+| macOS, including absence of Concise                                                  | Untested | The user reported that macOS was not tested; platform guard remains covered only by unit logic.                                                                                                   |
 
 ## Known limitations and recorded items
 
@@ -92,9 +92,9 @@ Automated Electron interaction is reported as automated evidence, not as human m
 
 None of the recorded failures supplies direct evidence of data loss, stale Folder root pollution, wrong-pane action, lost final scroll state, or a stage build/typecheck failure. They remain recorded items under the repository's blocking rules.
 
-## User final Acceptance steps
+## User final Acceptance result and remaining steps
 
-The user should perform these steps before declaring final Acceptance:
+The user declared the Windows manual Acceptance Passed. The following Windows checklist records the accepted matrix; only the final Linux/macOS step remains Untested:
 
 1. Check out the local acceptance commit on `codex/t07-desktop-navigation-acceptance`, run `pnpm install --frozen-lockfile`, then `pnpm build` and `pnpm start`. Confirm the source behavior SHA is `6e2071e495677bf4c650b649d879ecec77bbeddc`; a new build may have different content hashes.
 2. Restart through Custom, Native and Concise. At 100% and physical 125% DPI, test normal, 550px and maximized windows. Read every named filename sample, hover long titles, operate all eight Concise menus, and verify checked/disabled/radio/accelerator/native keyboard behavior.
@@ -103,6 +103,6 @@ The user should perform these steps before declaring final Acceptance:
 5. Exercise every Files prefix/no-root/empty-term case and Outline ancestor/collapse restoration. Confirm Edit -> Find in Folder remains the independent ripgrep view.
 6. Compare Files spacing/divider and TOC wrapping in light, dark and a custom theme at narrow and wide Sidebar widths.
 7. On a physical device, scroll long WYSIWYG/Source documents, many tabs, dense Files/Outline/Search and long Preferences using wheel, touchpad and scrollbar thumb. Verify direct 1:1 input and TOC/search/cursor jump behavior.
-8. Repeat the applicable non-Concise matrix on Linux and macOS; on macOS verify that Concise is absent.
+8. Remaining Untested work: repeat the applicable non-Concise matrix on Linux and macOS; on macOS verify that Concise is absent.
 
-Only the user should convert this evidence package into final Acceptance after those physical/manual checks.
+Final platform status: Windows Passed; Linux Untested; macOS Untested.

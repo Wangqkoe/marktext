@@ -284,10 +284,9 @@ pnpm build
 - Fresh typecheck 与 build passed；fresh bundle 的哈希和内容命中记录在验收证据文档。
 - 全仓 lint/unit/E2E 仍有明确隔离的既有失败或 runner teardown 问题；完整命令、失败决策和人工/平台限制记录在验收证据文档，不把它们写成 Passed。
 - 未发现数据丢失、旧 root 污染、wrong-pane action、scroll final-state 丢失、核心构建失败或本 Spec 核心功能不可用的直接证据。
-- 本阶段不宣布用户最终 Acceptance 已完成。
+- 用户最终人工 Acceptance：Windows Passed；Linux Untested；macOS Untested。既有自动化失败与记录项分类保持不变。
 
 ### 11.3 剩余 frontier
 
-1. 用户在真实 Windows 设备完成 Custom/Native/Concise、物理 125% DPI、最大化、custom theme、touchpad 和 scrollbar thumb矩阵。
-2. 在 Linux/macOS 运行平台矩阵；macOS 真实确认无 Concise。
-3. 仓库后续独立票据处理既有 full lint、source-image unit harness、document-integrity/layout restart runner 和 `scroll-up-arrow` 基线问题；在没有新直接证据前不把它们混入本阶段实现。
+1. 在 Linux/macOS 运行平台矩阵；macOS 真实确认无 Concise。两平台当前均为 Untested。
+2. 仓库后续独立票据处理既有 full lint、source-image unit harness、document-integrity/layout restart runner 和 `scroll-up-arrow` 基线问题；在没有新直接证据前不把它们混入本阶段实现。
