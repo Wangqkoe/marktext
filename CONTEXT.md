@@ -4,6 +4,10 @@ MarkText is a Markdown editing context that presents Markdown source through a r
 
 ## Language
 
+**Folder root**:
+The root directory attached to the current editing window and presented in Files.
+_Avoid_: Project
+
 **LaTeX math delimiters**:
 An optional Markdown extension comprising the inline math delimiter and display math delimiter forms.
 _Avoid_: LaTeX brackets, bracket math
