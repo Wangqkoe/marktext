@@ -1,11 +1,20 @@
 # Desktop UI and Folder navigation acceptance evidence
 
 - Evidence date: 2026-09-01
-- Behavior/build source SHA: `6e2071e495677bf4c650b649d879ecec77bbeddc`
-- Local branch: `codex/t07-desktop-navigation-acceptance`
+- Long-term integration branch: `codex/marktext-feature-development-2026-08`
+- Accepted implementation and Windows package source SHA: `cbdfdb4f36bd5bfda919ce363ca09e82ce9f1074`
+- Historical T07 automation source SHA: `6e2071e495677bf4c650b649d879ecec77bbeddc`
+- Historical T07 evidence branch: `codex/t07-desktop-navigation-acceptance`
 - Frozen Spec: `docs/specs/desktop-ui-folder-navigation.md`
 - Detailed scroll evidence: `docs/testing/desktop-scroll-profile.md`
+- Windows package manifest: `docs/testing/desktop-ui-folder-navigation-windows-package.md`
 - User final Acceptance: **Windows Passed; Linux Untested; macOS Untested**
+
+## Evidence provenance
+
+The final accepted implementation and Windows package were produced from `cbdfdb4f36bd5bfda919ce363ca09e82ce9f1074` on the long-term integration branch. The automated matrix, historical fresh-build hashes, and T07 command results below were captured earlier from behavior source `6e2071e495677bf4c650b649d879ecec77bbeddc`; they are retained as historical evidence and were not rerun or relabeled as results from `cbdfdb4f`. The package manifest records the separate fresh Windows packaging run from `cbdfdb4f`.
+
+The frozen Spec intentionally retains its historical top-level “待实现” state and was not rewritten during closeout. Final implementation and platform status are authoritative in this acceptance document and `docs/wayfinder/desktop-ui-folder-navigation.md`.
 
 ## Included tickets
 
@@ -38,7 +47,7 @@ Statuses use only `Passed`, `Failed`, `Skipped`, `Unavailable`, and `Untested`.
 | Full lint                           | Failed | `pnpm lint`: 115 errors and 221 warnings. All errors are in three files unchanged from the stage baseline: `.scratch/.../summarize-physical-trace.cjs`, `document-io-coordinator.spec.ts`, and `document-io-electron-adapter.spec.ts`. Isolated ESLint over all 73 changed code/test files passed with 0 errors and 79 warnings. Existing, non-blocking repository debt; no unrelated mass formatting. |
 | Typecheck                           | Passed | `pnpm typecheck`                                                                                                                                                                                                                                                                                                                                                                                       |
 | Full unit                           | Failed | `pnpm test:unit`: 74 files/992 tests passed, 1 skipped; 10 deterministic failures in unchanged `source-code-image-action.spec.ts` because its source-extraction harness does not inject Vue `computed`; first run also hit Windows `VirtualAlloc`/fork-spawn noise. Isolated stage suite passed: 14 files/125 tests.                                                                                   |
-| Full E2E                            | Failed | `pnpm test:e2e` started 354 tests but existing `all-blocks-roundtrip`, anchor and audit-document-integrity failures repeatedly hung worker teardown. The coordinating task requested termination after the bounded window, so the full set did not finish. Focused stage and adjacent groups below supply the acceptance evidence.                                                                     |
+| Full E2E                            | Failed | `pnpm test:e2e` started 354 tests but existing `all-blocks-roundtrip`, anchor and audit-document-integrity failures repeatedly hung worker teardown. The run was terminated after the bounded test window, so the full set did not finish. Focused stage and adjacent groups below supply the acceptance evidence.                                                                                     |
 | Stage E2E                           | Passed | Eight changed specs: 25/25 passed. Covers Close Folder lifecycle/generation/restart/dirty tabs, Concise/live menu/bidi, captured tab/Opened Files menus, scroll reporting/final state, Files spacing/divider, TOC wrap, and Files/Outline filtering/overlay recovery.                                                                                                                                  |
 | i18n/titlebar/search/jump adjacency | Failed | 12/14 passed: i18n, menu sanity, Native light 100%/dark 125%, ripgrep, Source TOC and WYSIWYG TOC passed. Unchanged `layout-persistence.spec.ts` timed out across restart, and unchanged `scroll-up-arrow.spec.ts` remained at `scrollTop=0`; both reproduced alone. T06's profile documents the latter at its baseline.                                                                               |
 | Startup/save/transfer adjacency     | Passed | `workspace-startup-policy`, `workspace-native-file-save`, `workspace-transfer`, and `workspace-transfer-electron`: 36/36 passed.                                                                                                                                                                                                                                                                       |
@@ -49,7 +58,7 @@ The target unit/E2E coverage also exercises i18n; titlebar visibility/display/li
 
 ## Freshness evidence
 
-`packages/desktop/out` did not exist before the build. E2E was run only after that build. The generated output was inspected before removal and was not committed.
+For the historical T07 run at `6e2071e495677bf4c650b649d879ecec77bbeddc`, `packages/desktop/out` did not exist before the build. E2E was run only after that build. The generated output was inspected before removal and was not committed. These hashes are not claimed as a rebuild from the later accepted/package source `cbdfdb4f36bd5bfda919ce363ca09e82ce9f1074`.
 
 | Output                                       | SHA-256                                                            |
 | -------------------------------------------- | ------------------------------------------------------------------ |
@@ -88,7 +97,7 @@ Automated Electron interaction remains reported as automated evidence. The user 
 2. Full unit is red on the unchanged source-image source-extraction harness; the stage unit suite is green.
 3. Full E2E cannot be claimed green or complete. Existing document-integrity/round-trip failures and Electron teardown hangs prevented completion. `layout-persistence` and `scroll-up-arrow` also fail alone; direct stage lifecycle, scroll final-state and programmatic TOC/Source jump coverage is green.
 4. The pnpm install reports that the package-level `uiohook-napi@1.5.5` build script is not approved; the repository postinstall nevertheless completed its explicit native-module rebuild.
-5. No installer, unpacked distributable, `packages/desktop/out`, Playwright result, or other temporary artifact is committed. The handoff is the local source branch plus reproducible build steps.
+5. No installer, unpacked distributable, `packages/desktop/out`, Playwright result, or other temporary artifact is committed. The durable source handoff is `codex/marktext-feature-development-2026-08` at `cbdfdb4f36bd5bfda919ce363ca09e82ce9f1074`; the Windows package manifest records the local binary delivery separately.
 
 None of the recorded failures supplies direct evidence of data loss, stale Folder root pollution, wrong-pane action, lost final scroll state, or a stage build/typecheck failure. They remain recorded items under the repository's blocking rules.
 
@@ -96,7 +105,7 @@ None of the recorded failures supplies direct evidence of data loss, stale Folde
 
 The user declared the Windows manual Acceptance Passed. The following Windows checklist records the accepted matrix; only the final Linux/macOS step remains Untested:
 
-1. Check out the local acceptance commit on `codex/t07-desktop-navigation-acceptance`, run `pnpm install --frozen-lockfile`, then `pnpm build` and `pnpm start`. Confirm the source behavior SHA is `6e2071e495677bf4c650b649d879ecec77bbeddc`; a new build may have different content hashes.
+1. Check out `codex/marktext-feature-development-2026-08` at `cbdfdb4f36bd5bfda919ce363ca09e82ce9f1074`, run `pnpm install --frozen-lockfile`, then `pnpm build` and `pnpm start`. A new build may have different content hashes from the historical T07 evidence recorded above.
 2. Restart through Custom, Native and Concise. At 100% and physical 125% DPI, test normal, 550px and maximized windows. Read every named filename sample, hover long titles, operate all eight Concise menus, and verify checked/disabled/radio/accelerator/native keyboard behavior.
 3. With saved, dirty and untitled tabs in both panes, compare tab and Opened Files menus. Exercise Move/Open/Split, Open/Close This Folder, root/subdirectory/file context menus and File menu enabled state.
 4. Close a Folder root, immediately mutate the old directory, open another root, edit/save retained documents, then exit immediately and restart. Confirm no old nodes/root return and recent/picker paths remain.

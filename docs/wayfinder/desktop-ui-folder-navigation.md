@@ -1,11 +1,14 @@
 # 桌面 UI 与文件夹导航 Wayfinder
 
 - 初始代码基线：`6bd21820029885e08ae8e4938cede71ad9ae30ca`
-- 最终行为集成：`6e2071e495677bf4c650b649d879ecec77bbeddc`
+- 长期集成分支：`codex/marktext-feature-development-2026-08`
+- 最终验收与 Windows 打包源：`cbdfdb4f36bd5bfda919ce363ca09e82ce9f1074`
+- 历史 T07 自动化行为源：`6e2071e495677bf4c650b649d879ecec77bbeddc`
 - 核对日期：2026-09-01
-- 仓库绝对根目录：`C:\Users\1407\.codex\worktrees\ab4a\Marktext`
+- 路径约定：除非另有说明，本文路径均相对于仓库根目录
 - 配套 Spec：`docs/specs/desktop-ui-folder-navigation.md`
 - 验收证据：`docs/testing/desktop-ui-folder-navigation-acceptance.md`
+- Windows 打包清单：`docs/testing/desktop-ui-folder-navigation-windows-package.md`
 
 本文前十节保留初始代码地图和实现 frontier，供追溯设计依据；第 11 节记录最终集成后的事实 seam、验证边界和剩余 frontier。聊天探索是检索线索，不是代码事实；行号为大致定位，后续提交会自然漂移。
 
@@ -278,15 +281,31 @@ pnpm build
 
 ### 11.2 最终状态
 
+- 长期集成分支为 `codex/marktext-feature-development-2026-08`；最终验收实现和 Windows 打包源均为 `cbdfdb4f36bd5bfda919ce363ca09e82ce9f1074`。
 - 阶段目标 unit：14 files / 125 tests passed。
 - 阶段目标 E2E：8 specs / 25 tests passed。
 - startup/save/transfer 邻接 E2E：36/36 passed；i18n、Native titlebar、menu、ripgrep、TOC/Source jump 邻接项通过。
 - Fresh typecheck 与 build passed；fresh bundle 的哈希和内容命中记录在验收证据文档。
+- Windows x64 fresh package 的产物、哈希、签名与 smoke 结果记录在 `docs/testing/desktop-ui-folder-navigation-windows-package.md`；二进制未进入 Git。
 - 全仓 lint/unit/E2E 仍有明确隔离的既有失败或 runner teardown 问题；完整命令、失败决策和人工/平台限制记录在验收证据文档，不把它们写成 Passed。
 - 未发现数据丢失、旧 root 污染、wrong-pane action、scroll final-state 丢失、核心构建失败或本 Spec 核心功能不可用的直接证据。
 - 用户最终人工 Acceptance：Windows Passed；Linux Untested；macOS Untested。既有自动化失败与记录项分类保持不变。
 
-### 11.3 剩余 frontier
+### 11.3 阶段分支与 worktree 归档
+
+以下本轮 10 个 T01–T07 阶段分支已逐一通过 `git cherry codex/marktext-feature-development-2026-08 <stage-branch>` 核验；每个分支的 patch-unique（`+`）计数均为 0，其阶段提交均可在长期分支中找到 patch-equivalent（`-`）内容：
+
+- T01：`codex/t01-concise-titlebar`、`codex/t01-concise-titlebar-fix`
+- T02：`codex/t02-close-folder-lifecycle`
+- T03：`codex/t03-shared-tab-opened-menu`、`codex/t03-folder-generation-fix`
+- T04：`codex/t04-sidebar-visual-toc-wrap`
+- T05：`codex/t05-sidebar-inline-search`
+- T06：`codex/t06-renderer-scroll-performance`、`codex/t06-renderer-scroll-retry-fix`
+- T07：`codex/t07-desktop-navigation-acceptance`
+
+这些阶段 worktree 因而可以清理；阶段内容仍可由上述 Git 分支和长期集成分支重建。本归档不删除分支。名称相近但属于其他开发轮次的 `codex/t01-workspace-controller-session-foundation`、`codex/t03-split-workspace-tab-drag`、`codex/t05-integration-evidence` 和 `codex/t07-physical-drag-evidence` 不在本轮清理范围内。
+
+### 11.4 剩余 frontier
 
 1. 在 Linux/macOS 运行平台矩阵；macOS 真实确认无 Concise。两平台当前均为 Untested。
 2. 仓库后续独立票据处理既有 full lint、source-image unit harness、document-integrity/layout restart runner 和 `scroll-up-arrow` 基线问题；在没有新直接证据前不把它们混入本阶段实现。
