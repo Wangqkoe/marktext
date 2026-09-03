@@ -24,6 +24,9 @@ const EVENT_NAME = {
 
 type WatchType = 'dir' | 'file'
 
+export const isUncPath = (pathname: string): boolean =>
+  /^(?:\\\\|\/\/)[^\\/]+[\\/][^\\/]+/.test(pathname)
+
 interface IgnoreEntry {
   windowId: number
   pathname: string
@@ -240,7 +243,9 @@ class Watcher {
     rootIdentity: FolderRootIdentity | undefined,
     waitForDirectoryReady: boolean
   ): DirectoryWatcherCandidate {
-    const usePolling = isOsx ? true : this._preferences.getItem<boolean>('watcherUsePolling')
+    const usePolling = isOsx || isUncPath(watchPath)
+      ? true
+      : this._preferences.getItem<boolean>('watcherUsePolling')
 
     const id = getUniqueId()
 
