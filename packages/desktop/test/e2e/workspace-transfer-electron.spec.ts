@@ -15,6 +15,22 @@ const forceTerminate = async(app: ElectronApplication | undefined): Promise<void
   await exited
 }
 
+const observeSourceTabClosures = async(app: ElectronApplication): Promise<void> => {
+  await app.evaluate(({ BrowserWindow, ipcMain }) => {
+    const source = BrowserWindow.getAllWindows()[0]?.webContents
+    if (!source) throw new Error('source window is unavailable')
+    const paths: string[] = []
+    ;(global as unknown as { __mtTransferSourceClosedPaths?: string[] }).__mtTransferSourceClosedPaths = paths
+    ipcMain.on('mt::window-tab-closed', (event, pathname: string) => {
+      if (event.sender === source) paths.push(pathname)
+    })
+  })
+}
+
+const sourceTabClosures = (app: ElectronApplication): Promise<string[]> => app.evaluate(() =>
+  (global as unknown as { __mtTransferSourceClosedPaths: string[] }).__mtTransferSourceClosedPaths
+)
+
 for (const scenario of [
   { kind: 'saved', edit: '', expectedDirty: false },
   { kind: 'dirty', edit: ' dirty move', expectedDirty: true },
@@ -27,6 +43,7 @@ for (const scenario of [
     fs.writeFileSync(file, '# Move action content\n')
     const { app, page } = await launchElectron(kind === 'untitled' ? [] : [file], { userDataDir: profile, userDataDirOwnership: 'caller' })
     try {
+      await observeSourceTabClosures(app)
       await expect(page.locator('.editor-with-tabs')).toBeVisible()
       if (edit) await typeIntoEditor(page, edit)
       const tabId = await page.locator('.tabs-container li').first().getAttribute('data-id')
@@ -38,6 +55,7 @@ for (const scenario of [
         return driver.__mtMoveTabToNewWindow?.({ tabId: id!, paneId: 'left' })
       }, tabId)
       expect(result).toMatchObject({ status: 'applied' })
+      await expect.poll(() => sourceTabClosures(app)).toEqual(kind === 'untitled' ? [] : [file])
       await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
       const target = (await app.windows()).find(candidate => candidate !== page)
       expect(target).toBeTruthy()
@@ -346,6 +364,7 @@ test('keeps the source usable when production target creation fails before autho
     transferFault: 'target-create-once'
   })
   try {
+    await observeSourceTabClosures(app)
     await expect(page.locator('.editor-with-tabs')).toBeVisible()
     const tabId = await page.locator('.tabs-container li').first().getAttribute('data-id')
     expect(tabId).toBeTruthy()
@@ -356,6 +375,7 @@ test('keeps the source usable when production target creation fails before autho
       return driver.__mtMoveTabToNewWindow?.({ tabId: id!, paneId: 'left' })
     }, tabId)
     expect(first).toMatchObject({ status: 'failed', reason: expect.stringContaining('target creation') })
+    expect(await sourceTabClosures(app)).toEqual([])
     await expect(page.locator('body')).toContainText('Target failure source')
     await expect(page.locator('.tabs-container li')).toHaveCount(1)
     await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1)
@@ -367,6 +387,7 @@ test('keeps the source usable when production target creation fails before autho
       return driver.__mtMoveTabToNewWindow?.({ tabId: id!, paneId: 'left' })
     }, tabId)
     expect(second).toMatchObject({ status: 'applied' })
+    await expect.poll(() => sourceTabClosures(app)).toEqual([file])
     await expect(page.locator('.tabs-container li')).toHaveCount(1)
     await expect(page.locator('.tabs-container li')).toContainText('New Tab')
   } finally {

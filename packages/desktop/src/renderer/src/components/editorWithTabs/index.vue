@@ -355,6 +355,12 @@ const acknowledgeTransferCommand = async (command: TransferCommand): Promise<Tra
     const response = await transfer.payload(command.transferId, command.capability)
     if (!response.durable) return { status: 'nack', reason: response.reason }
     const closed = await controller.releaseTransfer(command.transferId, response.payload.sourceDocumentId, response.payload.sourceViewId)
+    if (closed.status === 'applied' && response.payload.fileKey &&
+      !controller.getFacadeSnapshot().documents.some(document => document.documentId === response.payload.sourceDocumentId)) {
+      // Move releases the final source view without the normal tab-close edge.
+      // Keep main's opened-path registry in sync so this window can reopen it.
+      window.electron.ipcRenderer.send('mt::window-tab-closed', response.payload.fileKey)
+    }
     return closed.status === 'applied' ? { status: 'ok' } : { status: 'nack', reason: workspaceReason(closed) }
   }
   if (command.operation === 'activate') {
