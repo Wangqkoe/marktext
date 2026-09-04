@@ -215,6 +215,8 @@
       "moveToNewWindow": "Yeni pencereye taşı",
       "openInNewWindow": "Yeni pencerede aç",
       "openDiskCopyInNewWindow": "Disk kopyasını yeni pencerede aç",
+      "moveToRight": "Sağa taşı",
+      "moveToLeft": "Sola taşı",
       "splitRight": "Sağa böl"
     }
   },
@@ -756,7 +758,8 @@
     "workspace": {
       "moveToNewWindow": "Sekmeyi yeni pencereye taşı",
       "openInNewWindow": "Disk kopyasını yeni pencerede aç",
-      "splitRight": "Sağa böl"
+      "moveToRight": "Sağa taşı",
+      "moveToLeft": "Sola taşı"
     },
     "mt": {
       "hide": "MarkText'i Gizle",

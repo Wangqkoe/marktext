@@ -215,6 +215,8 @@
       "moveToNewWindow": "Déplacer vers une nouvelle fenêtre",
       "openInNewWindow": "Ouvrir dans une nouvelle fenêtre",
       "openDiskCopyInNewWindow": "Ouvrir la copie sur disque dans une nouvelle fenêtre",
+      "moveToRight": "Déplacer à droite",
+      "moveToLeft": "Déplacer à gauche",
       "splitRight": "Scinder à droite"
     }
   },
@@ -756,7 +758,8 @@
     "workspace": {
       "moveToNewWindow": "Déplacer l’onglet vers une nouvelle fenêtre",
       "openInNewWindow": "Ouvrir la copie sur disque dans une nouvelle fenêtre",
-      "splitRight": "Scinder à droite"
+      "moveToRight": "Déplacer à droite",
+      "moveToLeft": "Déplacer à gauche"
     },
     "mt": {
       "hide": "Masquer MarkText",

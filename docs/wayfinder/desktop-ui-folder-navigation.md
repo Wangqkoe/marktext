@@ -1,5 +1,7 @@
 # 桌面 UI 与文件夹导航 Wayfinder
 
+后续功能导航：[Move tabs 与真正的 Split Right 规格](../specs/move-tabs-and-split-right.md)及[验收清单](../testing/move-tabs-and-split-right.md)。下文历史 Move/Open/Split 引用保留原阶段含义；旧 Split 移动动作现称 Move to Right / Move to Left，新的 Split Right 才表示保留左侧并增加同文档右侧视图。本导航不将历史通过结果视为新功能验收。
+
 - 初始代码基线：`6bd21820029885e08ae8e4938cede71ad9ae30ca`
 - 长期集成分支：`codex/marktext-feature-development-2026-08`
 - 最终验收与 Windows 打包源：`cbdfdb4f36bd5bfda919ce363ca09e82ce9f1074`

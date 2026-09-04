@@ -215,6 +215,8 @@
       "moveToNewWindow": "移动到新窗口",
       "openInNewWindow": "在新窗口中打开",
       "openDiskCopyInNewWindow": "在新窗口中打开磁盘副本",
+      "moveToRight": "移至右侧",
+      "moveToLeft": "移至左侧",
       "splitRight": "向右拆分"
     }
   },
@@ -756,7 +758,8 @@
     "workspace": {
       "moveToNewWindow": "将标签页移动到新窗口",
       "openInNewWindow": "在新窗口中打开磁盘副本",
-      "splitRight": "向右拆分"
+      "moveToRight": "移至右侧",
+      "moveToLeft": "移至左侧"
     },
     "mt": {
       "hide": "隐藏 MarkText",

@@ -1,5 +1,7 @@
 # 桌面 UI 与文件夹导航 Tickets
 
+> 历史票据：下文 Move/Open/Split 是原阶段术语。旧 Split 移动动作现称 Move to Right / Move to Left；真正的同文档 Split Right 另见[后续规格](../specs/move-tabs-and-split-right.md)，本票据结果不作为其验收证据。
+
 - 输入 Spec：`docs/specs/desktop-ui-folder-navigation.md`
 - 代码地图：`docs/wayfinder/desktop-ui-folder-navigation.md`
 - 基线：`6bd21820029885e08ae8e4938cede71ad9ae30ca`

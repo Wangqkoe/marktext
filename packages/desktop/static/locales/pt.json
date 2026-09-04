@@ -215,6 +215,8 @@
       "moveToNewWindow": "Mover para uma nova janela",
       "openInNewWindow": "Abrir em uma nova janela",
       "openDiskCopyInNewWindow": "Abrir cópia do disco em uma nova janela",
+      "moveToRight": "Mover para a direita",
+      "moveToLeft": "Mover para a esquerda",
       "splitRight": "Dividir à direita"
     }
   },
@@ -756,7 +758,8 @@
     "workspace": {
       "moveToNewWindow": "Mover aba para uma nova janela",
       "openInNewWindow": "Abrir cópia do disco em uma nova janela",
-      "splitRight": "Dividir à direita"
+      "moveToRight": "Mover para a direita",
+      "moveToLeft": "Mover para a esquerda"
     },
     "mt": {
       "hide": "Ocultar MarkText",

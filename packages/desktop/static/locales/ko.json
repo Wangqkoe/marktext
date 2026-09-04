@@ -215,6 +215,8 @@
       "moveToNewWindow": "새 창으로 이동",
       "openInNewWindow": "새 창에서 열기",
       "openDiskCopyInNewWindow": "디스크 사본을 새 창에서 열기",
+      "moveToRight": "오른쪽으로 이동",
+      "moveToLeft": "왼쪽으로 이동",
       "splitRight": "오른쪽으로 분할"
     }
   },
@@ -756,7 +758,8 @@
     "workspace": {
       "moveToNewWindow": "탭을 새 창으로 이동",
       "openInNewWindow": "디스크 사본을 새 창에서 열기",
-      "splitRight": "오른쪽으로 분할"
+      "moveToRight": "오른쪽으로 이동",
+      "moveToLeft": "왼쪽으로 이동"
     },
     "mt": {
       "hide": "MarkText 숨기기",

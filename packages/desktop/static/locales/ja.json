@@ -215,6 +215,8 @@
       "moveToNewWindow": "新しいウィンドウに移動",
       "openInNewWindow": "新しいウィンドウで開く",
       "openDiskCopyInNewWindow": "ディスク上のコピーを新しいウィンドウで開く",
+      "moveToRight": "右へ移動",
+      "moveToLeft": "左へ移動",
       "splitRight": "右に分割"
     }
   },
@@ -756,7 +758,8 @@
     "workspace": {
       "moveToNewWindow": "タブを新しいウィンドウに移動",
       "openInNewWindow": "ディスク上のコピーを新しいウィンドウで開く",
-      "splitRight": "右に分割"
+      "moveToRight": "右へ移動",
+      "moveToLeft": "左へ移動"
     },
     "mt": {
       "hide": "MarkTextを隠す",

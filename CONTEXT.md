@@ -4,6 +4,22 @@ MarkText is a Markdown editing context that presents Markdown source through a r
 
 ## Language
 
+**Document**:
+A Markdown document with one shared content, unsaved-change state, edit history, save lifecycle and file identity, regardless of how many views display it.
+_Avoid_: Tab, view (when referring to the document itself)
+
+**View**:
+A tab's presentation of a document, with its own scroll position, cursor and editing mode; multiple views can display the same document.
+_Avoid_: Document copy, independent file
+
+**Move to Left or Right**:
+A relocation of a tab's view to the corresponding pane, not a second view of the document.
+_Avoid_: Split Left, Split Right (for relocation)
+
+**Split Right**:
+A second view of the same document in the right pane, with the original left view retained.
+_Avoid_: Move to Right, copy document
+
 **Folder root**:
 The root directory attached to the current editing window and presented in Files.
 _Avoid_: Project

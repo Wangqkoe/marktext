@@ -215,6 +215,8 @@
       "moveToNewWindow": "Move to new window",
       "openInNewWindow": "Open in new window",
       "openDiskCopyInNewWindow": "Open disk copy in new window",
+      "moveToRight": "Move to Right",
+      "moveToLeft": "Move to Left",
       "splitRight": "Split Right"
     }
   },
@@ -756,7 +758,8 @@
     "workspace": {
       "moveToNewWindow": "Move tab to new window",
       "openInNewWindow": "Open disk copy in new window",
-      "splitRight": "Split Right"
+      "moveToRight": "Move to Right",
+      "moveToLeft": "Move to Left"
     },
     "mt": {
       "hide": "Hide MarkText",

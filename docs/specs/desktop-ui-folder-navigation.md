@@ -1,5 +1,7 @@
 # 桌面 UI 与文件夹导航优化 Spec
 
+> 历史冻结规格：本文的既有 Move/Open/Split 组保留当时术语。旧 Split 移动动作的后续名称与真正的同文档 Split Right 见 [Move tabs 与 Split Right 规格](move-tabs-and-split-right.md)；不改写本阶段原验收范围。
+
 - 状态：用户已确认，待实现
 - 最终确认日期：2026-08-31
 - 基线：`6bd21820029885e08ae8e4938cede71ad9ae30ca`

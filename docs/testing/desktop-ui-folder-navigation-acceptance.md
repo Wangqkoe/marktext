@@ -1,5 +1,7 @@
 # Desktop UI and Folder navigation acceptance evidence
 
+> Historical evidence: the Move/Open/Split references below use the original movement terminology. The replacement Move to Right / Move to Left names and genuine same-document Split Right are defined in the [later specification](../specs/move-tabs-and-split-right.md). These historical passes do not verify that later feature.
+
 - Evidence date: 2026-09-01
 - Long-term integration branch: `codex/marktext-feature-development-2026-08`
 - Accepted implementation and Windows package source SHA: `cbdfdb4f36bd5bfda919ce363ca09e82ce9f1074`
