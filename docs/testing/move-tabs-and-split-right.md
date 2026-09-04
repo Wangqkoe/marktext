@@ -1,6 +1,6 @@
 # Move tabs and Split Right acceptance evidence
 
-Status: **Implementation complete; focused automated validation passed.** Windows human acceptance is **Pending**; Linux/macOS are **Untested**.
+Status: **Implementation complete; focused automated validation passed.** Windows human acceptance: **User-confirmed Passed, 2026-09-03**, for the eight checks below; Linux/macOS are **Untested**.
 
 Specification: [Move tabs and Split Right](../specs/move-tabs-and-split-right.md).
 
@@ -86,13 +86,28 @@ node node_modules/eslint/bin/eslint.js @splitCodeFiles
 
 An earlier wrapper invocation joined the file array into a single unmatched pattern and checked no files; only the corrected direct command above is counted as lint evidence.
 
+## Windows human acceptance — 2026-09-03
+
+The user explicitly confirmed “1–8 全通过” for the following eight checks against HEAD `a15c5ef01793be45e61c334fafd2bf3cd3959efb`, with source/test commit `dd5e1dadb4d550095c8718c2f758685be38fd36f`. The session used an isolated temporary profile and test files A/B/C with `autoSave=false`, without changing everyday configuration. The existing renderer build was reused; its SHA-256 was independently rechecked during this round and matched `3DE9A7E2CE0B43D515E83ECAC13FADBFC9E559A7F54CAF52462473ED340D0B49`.
+
+1. **Passed:** B's Move to Right / Move to Left and physical mouse dragging between panes move the tab without copying it.
+2. **Passed:** Explicit left-pane Split Right on A retains both views; repeating it creates neither extra tabs nor a third pane.
+3. **Passed:** Tab and Opened Files context menus agree; there is no Split Left, and right-pane Split Right is disabled.
+4. **Passed:** Editing, undo and redo synchronize in both directions without lost characters or older content reappearing.
+5. **Passed:** Right-pane Ctrl+E switches its Source mode independently; both panes scroll independently.
+6. **Passed:** With the right pane focused, Ctrl+N and opening C from the directory still open on the left.
+7. **Passed:** Save / Save As to `A-saved.md` synchronizes both titles and saved state; closing and reopening preserves the correct content.
+8. **Passed:** Closing one dirty shared view causes no prompt or content loss; closing the final view prompts, and Cancel preserves it.
+
+This confirmation covers only items 1–8. In particular, Move to New Window restrictions were not separately confirmed by the user; their existing automated coverage above remains the evidence. This documentation-only closeout ran no new automated tests, build or installer packaging and did not clean up acceptance windows or temporary files.
+
 ## Review closure and boundaries
 
 The option-change stale-revision defect and captured native-close/reopen blank-document race were fixed and independently reproduced as resolved. Additional peer asynchronous-stage overwrite, close, dispose and failure probes passed. The final narrowed review reported no remaining confirmed direct blocker.
 
 The coordinator independently inspected the mixed-mode screenshot and confirmed both modes visible with the same text. The screenshot is an ignored local artifact, not durable required evidence or human acceptance.
 
-- Windows human physical drag and manual acceptance: **Pending**. Automated Electron pointer input does not satisfy this check.
+- Windows human physical drag and manual acceptance: **User-confirmed Passed, 2026-09-03**, limited to the eight recorded checks; this is separate from automated Electron pointer evidence.
 - Linux/macOS: **Untested**; no cross-platform pass is inferred from Windows.
 - No installer was rebuilt and nothing was pushed.
 - An earlier accidental broad unit run was stopped. The pre-existing `source-code-image-action` computed-injection failure is documented in prior acceptance; neither that interrupted run nor historical navigation passes are presented as this feature's passing evidence.

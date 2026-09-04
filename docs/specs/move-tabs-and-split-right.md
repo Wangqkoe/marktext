@@ -1,6 +1,6 @@
 # Move tabs and Split Right
 
-- Status: implementation contract from user request; implementation complete and focused automated validation passed. Windows human acceptance pending; Linux/macOS untested.
+- Status: implementation contract from user request; implementation complete and focused automated validation passed. Windows human acceptance: user-confirmed passed on 2026-09-03 for the eight recorded checks; Linux/macOS untested.
 - Final source/test commit: `dd5e1dadb4d550095c8718c2f758685be38fd36f`.
 - Baseline: `a4184af194ef351dd6f9239b8fb782a6646b0303`.
 - Evidence: [acceptance results and platform boundaries](../testing/move-tabs-and-split-right.md).
