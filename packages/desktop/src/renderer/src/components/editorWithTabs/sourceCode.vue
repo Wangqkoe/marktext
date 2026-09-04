@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
+import { ref, markRaw, watch, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { findMarkdownHeadingLine, scrollSourceEditorToLine } from '@/util/sourceModeToc'
@@ -471,7 +471,7 @@ onMounted(async () => {
 
   // For some reason, code mirror does not seem to play well with Vue's refs if we reference editor.value directly.
   // See https://github.com/codemirror/codemirror5/issues/6886 - hence, we need to use a local variable first.
-  const codeMirrorInstance = codeMirror(container, codeMirrorConfig)
+  const codeMirrorInstance = markRaw(codeMirror(container, codeMirrorConfig))
   editor.value = codeMirrorInstance
   tabId.value = id
   listenChange()
