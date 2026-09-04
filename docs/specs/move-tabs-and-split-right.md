@@ -4,6 +4,7 @@
 - Final source/test commit: `dd5e1dadb4d550095c8718c2f758685be38fd36f`.
 - Baseline: `a4184af194ef351dd6f9239b8fb782a6646b0303`.
 - Evidence: [acceptance results and platform boundaries](../testing/move-tabs-and-split-right.md).
+- Windows x64 packaging: fresh NSIS/ZIP from `b60e6b9a` passed artifact checks; packaged GUI behavior smoke is Pending (desktop access unavailable). See the [package manifest](../testing/move-tabs-and-split-right-windows-package.md). No installation or push was performed.
 
 ## Actions and entry points
 

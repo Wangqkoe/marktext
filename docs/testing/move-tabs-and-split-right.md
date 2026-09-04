@@ -109,5 +109,5 @@ The coordinator independently inspected the mixed-mode screenshot and confirmed 
 
 - Windows human physical drag and manual acceptance: **User-confirmed Passed, 2026-09-03**, limited to the eight recorded checks; this is separate from automated Electron pointer evidence.
 - Linux/macOS: **Untested**; no cross-platform pass is inferred from Windows.
-- No installer was rebuilt and nothing was pushed.
+- The earlier implementation/manual-acceptance closeouts did not rebuild an installer. A subsequent fresh Windows x64 build from `b60e6b9a` produced verified NSIS/ZIP deliverables; see the [package manifest](move-tabs-and-split-right-windows-package.md). Packaged startup was observed, but the packaged GUI behavior smoke remains Pending because desktop access was unavailable. Nothing was installed or pushed.
 - An earlier accidental broad unit run was stopped. The pre-existing `source-code-image-action` computed-injection failure is documented in prior acceptance; neither that interrupted run nor historical navigation passes are presented as this feature's passing evidence.
