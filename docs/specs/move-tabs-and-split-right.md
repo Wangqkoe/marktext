@@ -5,6 +5,7 @@
 - Baseline: `a4184af194ef351dd6f9239b8fb782a6646b0303`.
 - Evidence: [acceptance results and platform boundaries](../testing/move-tabs-and-split-right.md).
 - Windows x64 packaging: fresh NSIS/ZIP from `b60e6b9a` passed artifact checks; packaged GUI behavior smoke is Pending (desktop access unavailable). See the [package manifest](../testing/move-tabs-and-split-right-windows-package.md). No installation or push was performed.
+- Subsequent repair: `b60e6b9a` was affected by the Move-to-new-window / target-close / source-reopen defect, fixed at `8027278b`; see [repair evidence](../testing/transfer-source-reopen.md) and [replacement package](../testing/transfer-source-reopen-windows-package.md). Historical results above are retained; new-fix human acceptance remains Pending.
 
 ## Actions and entry points
 

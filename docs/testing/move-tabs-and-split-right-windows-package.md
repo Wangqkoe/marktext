@@ -1,5 +1,7 @@
 # Move tabs and Split Right Windows package manifest
 
+Superseded repair status: this `b60e6b9a` package was later confirmed affected by the Move-to-new-window / close-target / source-reopen defect. Its GUI smoke below remains historically Pending, not Passed. See the [repair evidence](transfer-source-reopen.md) and [replacement Windows package](transfer-source-reopen-windows-package.md); old artifacts and results are preserved.
+
 - Build date: 2026-09-03 (America/Los_Angeles).
 - Source SHA: `b60e6b9a0ba5d7c060a18a02f03e0a853077009f`.
 - Application/source/test commit: `dd5e1dadb4d550095c8718c2f758685be38fd36f`; subsequent commits through the source SHA record documentation and acceptance.

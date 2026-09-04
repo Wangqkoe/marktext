@@ -4,6 +4,8 @@ Status: **Implementation complete; focused automated validation passed.** Window
 
 Specification: [Move tabs and Split Right](../specs/move-tabs-and-split-right.md).
 
+Subsequent repair: the separately reported Move-to-new-window / close-target / source-reopen defect affected the `b60e6b9a` package and was fixed at `8027278b`. See [repair validation](transfer-source-reopen.md) and the [replacement package manifest](transfer-source-reopen-windows-package.md). The historical human checks below did not cover that exact sequence; the old packaged GUI Pending result is unchanged.
+
 - Baseline: `a4184af194ef351dd6f9239b8fb782a6646b0303`.
 - Final source/test commit: `dd5e1dadb4d550095c8718c2f758685be38fd36f`.
 - Documentation/locale implementation: `b9dc34b373875f6b761579d7289b0dab692c0eaa`.
