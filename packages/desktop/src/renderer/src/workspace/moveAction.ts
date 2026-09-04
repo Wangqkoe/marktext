@@ -16,6 +16,12 @@ export const createMoveTabToNewWindowAction = (
   transfer: RendererTransferPort,
   sourceFlusher?: MoveSourceFlusher
 ) => async(tabId: string, paneId: PaneId, releasePoint?: NativeExternalReleasePoint): Promise<unknown> => {
+  const tab = controller.getProjection().panes.find(pane => pane.paneId === paneId)?.tabs.find(tab => tab.documentId === tabId || tab.viewId === tabId)
+  if (tab && controller.hasOtherView(tab.viewId)) {
+    const reason = 'Close the other split view before moving this document to a new window.'
+    await controller.execute({ kind: 'replace-warnings', warnings: [{ id: 'shared-document-move', kind: 'conflict', message: reason }] })
+    return { status: 'rejected', reason }
+  }
   const requestId = crypto.randomUUID()
   if (sourceFlusher && !await sourceFlusher.flushSource(paneId, tabId)) {
     return { status: 'rejected', reason: 'explicit source tab is unavailable' }

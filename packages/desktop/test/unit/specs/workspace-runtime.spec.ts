@@ -465,7 +465,7 @@ describe('WorkspaceRuntime', () => {
       { documentId: 'left-doc', markdown: 'left', title: 'left' },
       { documentId: 'right-doc', markdown: 'right', title: 'right' }
     ])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const left = createPaneEditorComposition({ paneId: 'left', controller: workspace })
     const right = createPaneEditorComposition({ paneId: 'right', controller: workspace })
     const leftSurface = new MemoryPaneSurface()
@@ -489,7 +489,7 @@ describe('WorkspaceRuntime', () => {
       { documentId: 'left-doc', fileKey: '/left.md', markdown: 'left', title: 'left' },
       { documentId: 'right-doc', fileKey: '/right.md', markdown: 'right', title: 'right' }
     ])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const port = new RecordingDocumentIoPort()
     const left = createPaneEditorComposition({ paneId: 'left', controller: workspace, documentIoPort: port })
     const right = createPaneEditorComposition({ paneId: 'right', controller: workspace, documentIoPort: port })
@@ -503,10 +503,10 @@ describe('WorkspaceRuntime', () => {
     const rightView = paneById(workspace.getProjection(), 'right').activeViewId
 
     expect((await workspace.execute({ kind: 'move-view', viewId: rightView, targetPaneId: 'left' })).status).toBe('applied')
-    await vi.waitFor(() => expect(port.requests).toContainEqual(expect.objectContaining({
+    expect(port.requests).not.toContainEqual(expect.objectContaining({
       kind: 'unbind', documentId: 'right-doc', ownerFence: oldRightFence
-    })))
-    await vi.waitFor(() => expect(port.ownerFences.get('right-doc')).not.toBe(oldRightFence))
+    }))
+    expect(port.ownerFences.get('right-doc')).toBe(oldRightFence)
     const activeFence = expectDefined(port.ownerFences.get('right-doc'))
     expect(workspace.getProjection().panes).toHaveLength(1)
     expect(oldRightScope.report({ markdown: 'stale editor write' }).status).toBe('rejected')
@@ -515,7 +515,7 @@ describe('WorkspaceRuntime', () => {
     expect(await right.execute({ kind: 'save' })).not.toMatchObject({ status: 'applied' })
     expect(port.requests.filter((request) => request.kind === 'save')).toHaveLength(savesBefore)
     const warningsBefore = workspace.getProjection().warnings
-    port.observe({ documentId: 'right-doc', ownerFence: oldRightFence, kind: 'conflict' })
+    port.observe({ documentId: 'right-doc', ownerFence: `${oldRightFence}:retired`, kind: 'conflict' })
     expect(workspace.getProjection().warnings).toEqual(warningsBefore)
 
     left.unmount(leftSurface)
@@ -809,7 +809,7 @@ describe('WorkspaceRuntime', () => {
       { documentId: 'one', fileKey: '/one.md', markdown: 'one' },
       { documentId: 'two', fileKey: '/two.md', markdown: 'two' }
     ])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const left = new MemoryEditor()
     const right = new MemoryEditor()
     await workspace.bindPaneEditor('left', left)
@@ -877,7 +877,7 @@ describe('WorkspaceRuntime', () => {
 
   it('moves a View rather than its Document and collapses an empty pane', async() => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const right = tabAt(paneAt(workspace.getProjection(), 1), 0)
     expect(
       (await workspace.execute({ kind: 'move-view', viewId: right.viewId, targetPaneId: 'left' }))
@@ -911,7 +911,7 @@ describe('WorkspaceRuntime', () => {
         { fileKey: '/three.md' },
         { fileKey: '/four.md' }
       ])
-      await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+      await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
       const leftEditor = new MemoryEditor()
       const rightEditor = new MemoryEditor()
       const left = await workspace.bindPaneEditor('left', leftEditor)
@@ -959,7 +959,7 @@ describe('WorkspaceRuntime', () => {
       { fileKey: '/three.md' },
       { fileKey: '/four.md' }
     ])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const leftEditor = new MemoryEditor()
     const rightEditor = new MemoryEditor()
     const left = await workspace.bindPaneEditor('left', leftEditor)
@@ -987,7 +987,7 @@ describe('WorkspaceRuntime', () => {
         { fileKey: '/three.md' },
         { fileKey: '/four.md' }
       ])
-      await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+      await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
       const left = await workspace.bindPaneEditor('left', new MemoryEditor())
       const rightEditor = new MemoryEditor()
       const right = await workspace.bindPaneEditor('right', rightEditor)
@@ -1035,7 +1035,7 @@ describe('WorkspaceRuntime', () => {
       { fileKey: '/three.md' },
       { fileKey: '/four.md' }
     ])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const left = await workspace.bindPaneEditor('left', new MemoryEditor())
     const rightEditor = new MemoryEditor()
     await workspace.bindPaneEditor('right', rightEditor)
@@ -1062,7 +1062,7 @@ describe('WorkspaceRuntime', () => {
 
   it('flushes survivor edits before move/close collapse and target edits before focus refresh', async() => {
     const moveWorkspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
-    await moveWorkspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await moveWorkspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const moveLeftEditor = new MemoryEditor()
     const moveLeft = await moveWorkspace.bindPaneEditor('left', moveLeftEditor)
     const moveRight = await moveWorkspace.bindPaneEditor('right', new MemoryEditor())
@@ -1091,7 +1091,7 @@ describe('WorkspaceRuntime', () => {
     ])
 
     const closeWorkspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
-    await closeWorkspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await closeWorkspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const closeLeftEditor = new MemoryEditor()
     const closeLeft = await closeWorkspace.bindPaneEditor('left', closeLeftEditor)
     const closeRight = await closeWorkspace.bindPaneEditor('right', new MemoryEditor())
@@ -1122,7 +1122,7 @@ describe('WorkspaceRuntime', () => {
     expect(closeLeftEditor.active?.status).toEqual({ wordCount: 4 })
 
     const focusWorkspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
-    await focusWorkspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await focusWorkspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     await focusWorkspace.bindPaneEditor('left', new MemoryEditor())
     const focusRightEditor = new MemoryEditor()
     const focusRight = await focusWorkspace.bindPaneEditor('right', focusRightEditor)
@@ -1157,7 +1157,7 @@ describe('WorkspaceRuntime', () => {
   it('keeps the surviving binding continuous across collapse in both directions', async() => {
     for (const direction of ['right-to-left', 'left-to-right'] as const) {
       const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
-      await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+      await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
       const leftEditor = new MemoryEditor()
       const rightEditor = new MemoryEditor()
       const leftBinding = await workspace.bindPaneEditor('left', leftEditor)
@@ -1190,7 +1190,7 @@ describe('WorkspaceRuntime', () => {
       { documentId: 'left-doc', fileKey: '/left.md', markdown: 'left', title: 'left' },
       { documentId: 'right-doc', fileKey: '/right.md', markdown: 'right', title: 'right' }
     ])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const port = new RecordingDocumentIoPort()
     const left = createPaneEditorComposition({ paneId: 'left', controller: workspace, documentIoPort: port })
     const right = createPaneEditorComposition({ paneId: 'right', controller: workspace, documentIoPort: port })
@@ -1207,9 +1207,9 @@ describe('WorkspaceRuntime', () => {
       (await workspace.execute({ kind: 'move-view', viewId: moving.viewId, targetPaneId: 'right' }))
         .status
     ).toBe('applied')
-    await vi.waitFor(() => expect(port.requests).toContainEqual(expect.objectContaining({
+    expect(port.requests).not.toContainEqual(expect.objectContaining({
       kind: 'unbind', documentId: 'right-doc', ownerFence: oldRightFence
-    })))
+    }))
     expect(workspace.getProjection().panes).toHaveLength(1)
     expect(oldRightScope.report({ markdown: 'stale right surface' }).status).toBe('rejected')
 
@@ -1220,7 +1220,7 @@ describe('WorkspaceRuntime', () => {
     expect((await left.execute({ kind: 'save' })).status).toBe('applied')
     expect(await right.execute({ kind: 'save' })).not.toMatchObject({ status: 'applied' })
     const warningsBefore = workspace.getProjection().warnings
-    port.observe({ documentId: 'right-doc', ownerFence: oldRightFence, kind: 'conflict' })
+    port.observe({ documentId: 'right-doc', ownerFence: `${oldRightFence}:retired`, kind: 'conflict' })
     expect(workspace.getProjection().warnings).toEqual(warningsBefore)
     expect(workspace.getFacadeSnapshot().documents.find((document) => document.documentId === moving.documentId)?.markdown)
       .toBe('left surface remains live')
@@ -1230,7 +1230,7 @@ describe('WorkspaceRuntime', () => {
 
   it('keeps controller and adapter aligned when a collapse refresh fails', async() => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const leftEditor = new MemoryEditor()
     const leftBinding = await workspace.bindPaneEditor('left', leftEditor)
     await workspace.bindPaneEditor('right', new MemoryEditor())
@@ -1257,7 +1257,7 @@ describe('WorkspaceRuntime', () => {
   it('keeps the survivor binding usable after closing the last tab in either pane', async() => {
     for (const closingPane of ['left', 'right'] as const) {
       const workspace = createWorkspaceRuntime([{ fileKey: '/one.md' }, { fileKey: '/two.md' }])
-      await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+      await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
       const leftBinding = await workspace.bindPaneEditor('left', new MemoryEditor())
       const rightBinding = await workspace.bindPaneEditor('right', new MemoryEditor())
       const oldLease = currentLease(leftBinding)
@@ -1459,7 +1459,7 @@ describe('WorkspaceRuntime', () => {
 
   it('keeps unaffected pane bindings isolated while global projection revisions remain monotonic', async() => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/left.md' }, { fileKey: '/right.md' }])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const leftEditor = new MemoryEditor()
     const rightEditor = new MemoryEditor()
     const left = await workspace.bindPaneEditor('left', leftEditor)
@@ -1606,7 +1606,7 @@ describe('WorkspaceRuntime', () => {
 
   it('routes JSON-only TOC/status through the focused pane and exposes assembly warnings immutably', async() => {
     const workspace = createWorkspaceRuntime([{ fileKey: '/left.md' }, { fileKey: '/right.md' }])
-    await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
     const left = await workspace.bindPaneEditor('left', new MemoryEditor())
     const right = await workspace.bindPaneEditor('right', new MemoryEditor())
     left.report(currentLease(left), {

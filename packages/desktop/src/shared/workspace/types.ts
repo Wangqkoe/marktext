@@ -170,8 +170,11 @@ export type WorkspaceCommand =
     readonly replacePristineBlank?: boolean
   }
   | { readonly kind: 'activate-view'; readonly paneId: PaneId; readonly viewId: ViewId }
+  /** Normal reopen of a captured document; never creates a file-backed blank. */
+  | { readonly kind: 'open-existing-document'; readonly documentId: DocumentId; readonly fileKey: FileKey }
   | { readonly kind: 'focus-pane'; readonly paneId: PaneId }
-  | { readonly kind: 'split-pane'; readonly targetPaneId: PaneId }
+  | { readonly kind: 'move-to-pane'; readonly targetPaneId: PaneId; readonly viewId?: ViewId }
+  | { readonly kind: 'split-right'; readonly paneId: PaneId; readonly viewId: ViewId }
   | { readonly kind: 'set-split-ratio'; readonly ratio: number }
   | { readonly kind: 'move-view'; readonly viewId: ViewId; readonly targetPaneId: PaneId }
   /** Reorders a View within its existing pane. `beforeViewId` appends when omitted. */

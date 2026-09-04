@@ -603,7 +603,7 @@ describe('scroll report frequency', () => {
       { documentId: 'one', markdown: 'one' },
       { documentId: 'two', markdown: 'two' }
     ])
-    expect((await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })).status).toBe(
+    expect((await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })).status).toBe(
       'applied'
     )
     const composition = createPaneEditorComposition({ paneId: 'left', controller: workspace })
@@ -648,7 +648,7 @@ describe('scroll report frequency', () => {
       { documentId: 'one', markdown: 'one' },
       { documentId: 'two', markdown: 'two' }
     ])
-    expect((await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })).status).toBe(
+    expect((await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })).status).toBe(
       'applied'
     )
     const left = await workspace.bindPaneEditor('left', new MemoryEditor())
@@ -699,7 +699,7 @@ describe('scroll report frequency', () => {
       { documentId: 'one', markdown: 'one' },
       { documentId: 'two', markdown: 'two' }
     ])
-    expect((await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })).status).toBe(
+    expect((await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })).status).toBe(
       'applied'
     )
     const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
@@ -733,7 +733,7 @@ describe('scroll report frequency', () => {
       { documentId: 'one', markdown: 'one' },
       { documentId: 'two', markdown: 'two' }
     ])
-    expect((await workspace.execute({ kind: 'split-pane', targetPaneId: 'right' })).status).toBe(
+    expect((await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })).status).toBe(
       'applied'
     )
     const binding = await workspace.bindPaneEditor('left', new MemoryEditor())

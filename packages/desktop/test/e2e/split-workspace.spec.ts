@@ -3,9 +3,32 @@ import type { ElectronApplication, Page } from 'playwright'
 import { execFileSync, type ChildProcess } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { launchElectron, launchWithMarkdown, sendIpcToRenderer, waitForEditor, waitForMenuReady } from './helpers'
+import { clickMenuById, launchElectron, launchWithMarkdown, sendIpcToRenderer, waitForEditor, waitForMenuReady } from './helpers'
+import type { WorkspaceFacadeSnapshot } from '../../src/shared/workspace'
 
 const tabSelector = '.tabs-container > li'
+
+const snapshotOf = (page: Page): Promise<WorkspaceFacadeSnapshot> => page.evaluate(() =>
+  (window as unknown as { __mtWorkspaceSnapshot(): WorkspaceFacadeSnapshot }).__mtWorkspaceSnapshot()
+)
+
+const tabMenuAction = async(app: ElectronApplication, tab: ReturnType<Page['locator']>, label: string): Promise<void> => {
+  await app.evaluate(({ Menu }) => {
+    Menu.prototype.popup = function() {
+      ;(global as unknown as { __sharedViewMenu: unknown }).__sharedViewMenu = this
+    }
+  })
+  await tab.dispatchEvent('contextmenu', { clientX: 20, clientY: 20 })
+  await expect.poll(() => app.evaluate(() => !!(global as unknown as { __sharedViewMenu?: unknown }).__sharedViewMenu)).toBe(true)
+  await app.evaluate(({ BrowserWindow }, itemLabel) => {
+    const state = global as unknown as { __sharedViewMenu?: { items: Array<{ label: string; enabled: boolean; click(...args: unknown[]): void }> } }
+    const item = state.__sharedViewMenu?.items.find(item => item.label === itemLabel)
+    if (!item?.enabled) throw new Error(`Menu action unavailable: ${itemLabel}`)
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    item.click(undefined, win, win?.webContents)
+    delete state.__sharedViewMenu
+  }, label)
+}
 
 const terminate = async(child: ChildProcess): Promise<void> => {
   if (child.exitCode !== null) return
@@ -37,6 +60,8 @@ const paneText = (page: Page, index: number): Promise<string> =>
   page.locator('.workspace-pane').nth(index).locator('.editor-component').innerText()
 
 const appendInPane = async(page: Page, index: number, text: string): Promise<void> => {
+  await page.locator('.workspace-pane').nth(index).locator('span.mu-paragraph-content').first().click()
+  await expect.poll(async() => (await snapshotOf(page)).projection.focusedPaneId).toBe(index === 0 ? 'left' : 'right')
   expect(await page.evaluate((paneIndex) => {
     const root = document.querySelectorAll<HTMLElement>('.workspace-pane .editor-component')[paneIndex]
     const target = root?.querySelector('span.mu-paragraph-content')
@@ -91,7 +116,132 @@ test.describe('Split workspace', () => {
     }
   })
 
-  test('previews edge candidates, cancels invalid gestures, and splits only on document-area release', async() => {
+  test('Split Right shares one single-tab document, edits and undo from both panes, and coalesces Move', async() => {
+    await page.locator(tabSelector).nth(1).locator('.close-icon').click()
+    await expect(page.locator(tabSelector)).toHaveCount(1)
+    await tabMenuAction(app, page.locator(tabSelector), 'Split Right')
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+    const snapshot = await snapshotOf(page)
+    expect(new Set(snapshot.documents.map(document => document.documentId)).size).toBe(1)
+    expect(new Set(snapshot.documents.map(document => document.viewId)).size).toBe(2)
+    await appendInPane(page, 1, ' RIGHT')
+    await expect.poll(() => paneText(page, 0)).toContain('RIGHT')
+    await expect.poll(() => paneText(page, 1)).toContain('RIGHT')
+    await appendInPane(page, 0, ' LEFT')
+    await expect.poll(() => paneText(page, 1)).toContain('LEFT')
+    await sendIpcToRenderer(app, 'mt::editor-edit-action', 'undo')
+    await expect.poll(() => paneText(page, 0)).not.toContain('LEFT')
+    await expect.poll(() => paneText(page, 1)).not.toContain('LEFT')
+    await page.locator('.workspace-pane').nth(1).locator('.tab-select').click()
+    await expect(page.locator('.workspace-pane').nth(1)).toHaveClass(/focused/)
+    await sendIpcToRenderer(app, 'mt::editor-edit-action', 'undo')
+    await expect.poll(() => paneText(page, 0)).not.toContain('RIGHT')
+    await tabMenuAction(app, page.locator('.workspace-pane').nth(0).locator(tabSelector), 'Split Right')
+    await expect(page.locator(tabSelector)).toHaveCount(2)
+    await tabMenuAction(app, page.locator('.workspace-pane').nth(1).locator(tabSelector), 'Move to Left')
+    await expect(page.locator('.workspace-pane')).toHaveCount(1)
+    await expect(page.locator(tabSelector)).toHaveCount(1)
+    expect((await snapshotOf(page)).documents[0]!.markdown.trim()).toBe('alpha pane')
+  })
+
+  test('shared document refresh preserves the other view cursor and scroll', async() => {
+    const markdown = Array.from({ length: 80 }, (_, index) => `Paragraph ${index} has enough text for independent scrolling.`).join('\n\n')
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, markdown)
+    await expect(page.locator(tabSelector)).toHaveCount(3)
+    await tabMenuAction(app, page.locator('.tabs-container > li.active'), 'Split Right')
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+    await appendInPane(page, 1, ' RIGHT_CURSOR')
+    await expect.poll(() => paneText(page, 0)).toContain('RIGHT_CURSOR')
+    await page.locator('.workspace-pane').nth(0).locator('.tab-select[aria-selected="true"]').click()
+    const rightId = (await snapshotOf(page)).projection.panes[1]!.activeViewId
+    const rightBefore = (await snapshotOf(page)).documents.find(document => document.viewId === rightId)!
+    const rightScroller = page.locator('.workspace-pane').nth(1).locator('.editor-component')
+    await rightScroller.evaluate(element => { element.scrollTop = 350; element.dispatchEvent(new Event('scroll')) })
+    await expect.poll(async() => (await snapshotOf(page)).documents.find(document => document.viewId === rightId)?.scrollTop).toBe(350)
+    await appendInPane(page, 0, ' LEFT_CHANGE')
+    await expect.poll(() => paneText(page, 1)).toContain('LEFT_CHANGE')
+    expect(await rightScroller.evaluate(element => element.scrollTop)).toBe(350)
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === rightId)?.cursor).toEqual(rightBefore.cursor)
+  })
+
+  test('shared views keep a single dirty-close decision and Save As writes the remaining draft', async() => {
+    const savePath = path.join(path.dirname(primaryFilePath), 'shared-save-as.md')
+    await app.evaluate(({ ipcMain }, target) => {
+      const state = { calls: 0, decision: 'cancel' }
+      ;(global as unknown as { __sharedClose: typeof state }).__sharedClose = state
+      ipcMain.removeHandler('mt::workspace::confirm-document-close')
+      ipcMain.handle('mt::workspace::confirm-document-close', () => { state.calls++; return state.decision })
+      ipcMain.removeHandler('mt::workspace::choose-document-path')
+      ipcMain.handle('mt::workspace::choose-document-path', () => ({ status: 'selected', pathname: target }))
+    }, savePath)
+    await tabMenuAction(app, page.locator(tabSelector).nth(1), 'Split Right')
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+    await appendInPane(page, 1, ' DIRTY')
+    await expect.poll(() => paneText(page, 0)).toContain('DIRTY')
+    await page.locator('.workspace-pane').nth(0).locator(tabSelector).nth(1).locator('.close-icon').click()
+    await expect(page.locator(tabSelector)).toHaveCount(2)
+    expect(await app.evaluate(() => (global as unknown as { __sharedClose: { calls: number } }).__sharedClose.calls)).toBe(0)
+    await page.locator('.workspace-pane').nth(1).locator('.close-icon').click()
+    await expect.poll(() => app.evaluate(() => (global as unknown as { __sharedClose: { calls: number } }).__sharedClose.calls)).toBe(1)
+    await expect(page.locator(tabSelector)).toHaveCount(2)
+    expect(fs.existsSync(savePath)).toBe(false)
+    await app.evaluate(() => { (global as unknown as { __sharedClose: { decision: string } }).__sharedClose.decision = 'save' })
+    await page.locator('.workspace-pane').nth(1).locator('.close-icon').click()
+    await expect.poll(() => fs.existsSync(savePath)).toBe(true)
+    await expect.poll(() => fs.readFileSync(savePath, 'utf8')).toContain('DIRTY')
+    await expect(page.locator('.workspace-pane')).toHaveCount(1)
+    await expect(page.locator(tabSelector)).toHaveCount(1)
+  })
+
+  test('a right-focused split keeps new tabs and normal file opens on the left', async() => {
+    await tabMenuAction(app, page.locator(tabSelector).nth(1), 'Split Right')
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+    const filePath = path.join(path.dirname(primaryFilePath), 'fresh-left.md')
+    fs.writeFileSync(filePath, 'fresh left document\n')
+    await page.evaluate(file => window.electron.ipcRenderer.send('mt::open-file', file, {}), filePath)
+    await expect(page.locator('.workspace-pane').nth(0).locator(tabSelector)).toHaveCount(3)
+    await expect.poll(() => paneText(page, 0)).toContain('fresh left document')
+    await page.locator('.workspace-pane').nth(1).click()
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'fresh left tab\n')
+    await expect(page.locator('.workspace-pane').nth(0).locator(tabSelector)).toHaveCount(4)
+    await expect(page.locator('.workspace-pane').nth(1).locator(tabSelector)).toHaveCount(1)
+    expect((await snapshotOf(page)).projection.focusedPaneId).toBe('left')
+  })
+
+  test('mixed WYSIWYG and Source views stay visible and share edits and undo', async() => {
+    await tabMenuAction(app, page.locator(tabSelector).nth(1), 'Split Right')
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+    await waitForMenuReady(app)
+    await clickMenuById(app, 'sourceCodeModeMenuItem')
+    const source = page.locator('.workspace-pane').nth(1).locator('.CodeMirror')
+    await expect(source).toBeVisible()
+    await expect(page.locator('.workspace-pane').nth(0).locator('.editor-wrapper')).not.toHaveClass(/source/)
+    await source.click()
+    await source.evaluate(element => {
+      const cm = (element as unknown as Element & { CodeMirror: { setCursor(position: { line: number; ch: number }): void; replaceSelection(text: string): void } }).CodeMirror
+      cm.setCursor({ line: 0, ch: 9 })
+      cm.replaceSelection(' SOURCE')
+    })
+    await expect.poll(() => paneText(page, 0)).toContain('SOURCE')
+    await sendIpcToRenderer(app, 'mt::editor-edit-action', 'undo')
+    await expect.poll(() => paneText(page, 0)).not.toContain('SOURCE')
+    await appendInPane(page, 0, ' WYSIWYG')
+    await expect(source).toBeVisible()
+    await expect(source).toContainText('WYSIWYG')
+    await page.screenshot({ path: test.info().outputPath('shared-document-mixed-mode.png') })
+    await page.locator('.workspace-pane').nth(1).locator('.tab-select').click()
+    await sendIpcToRenderer(app, 'mt::editor-edit-action', 'undo')
+    await expect.poll(() => paneText(page, 0)).not.toContain('WYSIWYG')
+    await page.locator('.workspace-pane').nth(0).locator(tabSelector).nth(0).locator('.close-icon').click()
+    await page.locator('.workspace-pane').nth(0).locator(tabSelector).nth(0).locator('.close-icon').click()
+    await expect(page.locator('.workspace-pane')).toHaveCount(1)
+    const survivingSource = page.locator('.CodeMirror')
+    await expect(survivingSource).toBeVisible()
+    await sendIpcToRenderer(app, 'mt::editor-edit-action', 'redo')
+    await expect(survivingSource).toContainText('WYSIWYG')
+  })
+
+  test('previews edge candidates, cancels invalid gestures, and moves only on document-area release', async() => {
     const root = await workspaceBox(page)
     const tab = page.locator(tabSelector).nth(1)
     const initialTabOrder = await page.locator(tabSelector).evaluateAll(tabs => tabs.map(tab => tab.getAttribute('data-id')))
@@ -215,6 +365,8 @@ test.describe('Split workspace', () => {
     await page.locator('.workspace-pane').nth(1).click()
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'right extra\n')
     await expect(page.locator('.workspace-pane')).toHaveCount(2)
+    await expect(page.locator('.workspace-pane').nth(0).locator(tabSelector)).toHaveCount(2)
+    await tabMenuAction(app, page.locator('.workspace-pane').nth(0).locator('.tabs-container > li.active'), 'Move to Right')
     const rightTabs = page.locator('.workspace-pane').nth(1).locator(tabSelector)
     await expect(rightTabs).toHaveCount(2)
     await rightTabs.nth(0).locator('.tab-select').focus()
@@ -231,7 +383,7 @@ test.describe('Split workspace', () => {
     await expect.poll(() => paneText(page, 0)).not.toContain('AFTER_COLLAPSE')
   })
 
-  test('enforces the 720px split threshold, split minimums, reset, reduced motion, and no third pane', async() => {
+  test('enforces the 720px edge-move threshold, split minimums, reset, reduced motion, and no third pane', async() => {
     await setWorkspaceWidth(page, 719)
     let root = await workspaceBox(page)
     const tabs = page.locator(tabSelector)

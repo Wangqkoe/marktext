@@ -6,6 +6,7 @@ import type {
   EditorLease,
   EditorMode,
   EditorReport,
+  FileKey,
   PaneEditorAdapter,
   PaneEditorBinding,
   PaneId,
@@ -42,6 +43,7 @@ interface DocumentRecord {
   adjustLineEndingOnSave: boolean
   trailingNewline: TrailingNewlinePolicy
   ownerFence: string
+  sharedHistory: boolean
 }
 
 interface ViewRecord {
@@ -106,6 +108,7 @@ interface BoundAdapter {
   readonly adapter: PaneEditorAdapter
   lease?: EditorLease
   snapshot?: EditorBindingSnapshot
+  refreshing?: boolean
 }
 
 // Muya may vary only terminal line breaks while round-tripping source mode or
@@ -428,11 +431,13 @@ export class WorkspaceController implements WorkspaceControllerContract {
       report: (candidate, report) => {
         if (this.disposed) return this.rejected('workspace controller is disposed')
         if (!this.validLease(bound, candidate)) return this.rejected('stale editor lease')
+        if (!this.documentIsCurrent(bound)) return this.rejected('stale document revision')
         if (this.hasPreflightForView(candidate.viewId)) return this.rejected('transfer preflight fence is active')
-        if (this.pendingOperations > 0) return this.rejected('workspace mutation is in progress')
+        if (this.pendingOperations > 0 || bound.refreshing) return this.rejected('workspace mutation is in progress')
         const changed = this.applyReport(candidate.viewId, report)
         if (changed) {
           this.updateBoundSnapshot(bound)
+          this.refreshSharedEditors(bound)
           this.commit()
         }
         return this.applied()
@@ -444,7 +449,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
         const view = this.view(candidate.viewId)
         view.scrollObservationEpoch += 1
         if (this.applyReport(candidate.viewId, { scrollTop })) {
-          this.updateBoundSnapshot(bound)
+          if (this.documentIsCurrent(bound) && !bound.refreshing) this.updateBoundSnapshot(bound)
           this.commit()
         }
         return this.applied()
@@ -522,13 +527,13 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
   }
 
-  private enqueue<T>(work: () => Promise<T>): Promise<T> {
-    this.pendingOperations += 1
+  private enqueue<T>(work: () => Promise<T>, blocksReports = true): Promise<T> {
+    if (blocksReports) this.pendingOperations += 1
     const run = async(): Promise<T> => {
       try {
         return await work()
       } finally {
-        this.pendingOperations -= 1
+        if (blocksReports) this.pendingOperations -= 1
       }
     }
     const result = this.operationTail.then(run, run)
@@ -544,15 +549,19 @@ export class WorkspaceController implements WorkspaceControllerContract {
     try {
       switch (command.kind) {
         case 'new-tab':
-          return await this.newTab(command.paneId ?? this.focusedPaneId, command.markdown)
+          return await this.newTab('left', command.markdown)
         case 'open-document':
           return await this.openDocument(command.document, command.selected, command.replacePristineBlank)
+        case 'open-existing-document':
+          return await this.openExistingDocument(command.documentId, command.fileKey)
         case 'activate-view':
           return await this.activate(command.paneId, command.viewId, true)
         case 'focus-pane':
           return await this.focus(command.paneId)
-        case 'split-pane':
-          return await this.split(command.targetPaneId)
+        case 'move-to-pane':
+          return await this.moveToPane(command.targetPaneId, command.viewId)
+        case 'split-right':
+          return await this.splitRight(command.paneId, command.viewId)
         case 'set-split-ratio':
           return this.setSplitRatio(command.ratio)
         case 'move-view':
@@ -634,12 +643,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
         (document) => document.fileKey === input.fileKey
       )
       if (existing) {
-        const existingView = this.requireViewForDocument(existing.id)
-        const pane = this.requirePaneForView(existingView.id)
-        return this.activate(pane.id, existingView.id, true)
+        return this.openExistingDocument(existing.id, input.fileKey)
       }
     }
-    const pane = this.requirePane(this.focusedPaneId)
+    const pane = this.requirePane('left')
     await this.flushPane(pane.id)
     let replaceableBlankViewId: ViewId | undefined
     if (selected && replacePristineBlank) {
@@ -660,8 +667,17 @@ export class WorkspaceController implements WorkspaceControllerContract {
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
     if (selected) pane.activeViewId = view.id
+    if (selected) this.focusedPaneId = 'left'
     this.commit()
     return this.applied()
+  }
+
+  private async openExistingDocument(documentId: DocumentId, fileKey: FileKey): Promise<WorkspaceResult> {
+    const document = this.documents.get(documentId)
+    if (!document || document.fileKey !== fileKey) return this.rejected('the requested document was closed or renamed before reopening')
+    const leftViewId = this.requirePane('left').viewIds.find(id => this.view(id).documentId === documentId)
+    if (leftViewId) return this.activate('left', leftViewId, true)
+    return this.move(this.requireViewForDocument(documentId).id, 'left')
   }
 
   private async activate(paneId: PaneId, viewId: ViewId, focus: boolean): Promise<WorkspaceResult> {
@@ -690,17 +706,41 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.applied()
   }
 
-  private async split(targetPaneId: PaneId): Promise<WorkspaceResult> {
+  private async splitRight(paneId: PaneId, viewId: ViewId): Promise<WorkspaceResult> {
+    const source = this.panes.get(paneId)
+    if (paneId !== 'left' || !source?.viewIds.includes(viewId)) return this.rejected('Split Right requires a left-pane tab')
+    if (this.hasPreflightForView(viewId)) return this.rejected('transfer preflight fence is active')
+    await this.flushPane('left')
+    const original = this.view(viewId)
+    const right = this.panes.get('right')
+    const existing = right?.viewIds.find(id => this.view(id).documentId === original.documentId)
+    if (existing) return this.activate('right', existing, true)
+    const view = this.makeView(original.documentId, original.state)
+    view.toc = clone(original.toc)
+    view.status = clone(original.status)
+    if (right) await this.flushAndRefresh('right', () => this.snapshotForRecord('right', view, this.requireDocument(view.documentId)))
+    this.views.set(view.id, view)
+    this.requireDocument(original.documentId).sharedHistory = true
+    const target = right ?? this.createPane('right')
+    target.viewIds.push(view.id)
+    target.activeViewId = view.id
+    this.focusedPaneId = 'right'
+    this.commit()
+    return this.applied()
+  }
+
+  private async moveToPane(targetPaneId: PaneId, viewId?: ViewId): Promise<WorkspaceResult> {
     if (targetPaneId !== 'left' && targetPaneId !== 'right') return this.rejected('invalid pane')
-    if (this.panes.size === 2) return this.rejected('workspace already has two panes')
+    if (this.panes.size === 2) return this.move(viewId ?? this.requirePane(this.focusedPaneId).activeViewId, targetPaneId)
     const source = this.requirePane('left')
-    if (source.viewIds.length < 2) return this.rejected('split requires a remaining tab')
+    if (source.viewIds.length < 2) return this.rejected('move requires a remaining tab')
+    if (viewId && !source.viewIds.includes(viewId)) return this.rejected('view is not in pane')
     await this.flushPane(source.id)
-    const movingId = source.activeViewId
+    const movingId = viewId ?? source.activeViewId
     const remaining = source.viewIds.filter((id) => id !== movingId)
     const sourceId: PaneId = targetPaneId === 'left' ? 'right' : 'left'
     const moved = this.view(movingId)
-    const newSourceActive = this.firstViewId(remaining, 'split source')
+    const newSourceActive = remaining.includes(source.activeViewId) ? source.activeViewId : this.firstViewId(remaining, 'move source')
     const adapterActiveId = targetPaneId === 'left' ? moved.id : newSourceActive
     await this.refreshAdapter('left', this.snapshotFor('left', adapterActiveId))
     const sourcePane: PaneRecord = {
@@ -724,6 +764,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (!source || !target) return this.rejected('missing source or target pane')
     if (source.id === target.id) return this.rejected('view is already in target pane')
     await this.flushPane(source.id)
+    const existingId = target.viewIds.find(id => this.view(id).documentId === this.view(viewId).documentId)
+    if (existingId) {
+      await this.activate(target.id, existingId, true)
+      return this.removeView(viewId)
+    }
     const remaining = source.viewIds.filter((id) => id !== viewId)
     const movingActiveView = source.activeViewId === viewId
     const nextSourceActiveId =
@@ -784,7 +829,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (!pane) return this.rejected('missing view')
     if (pane.activeViewId === viewId) await this.flushPane(pane.id)
     const document = this.requireDocument(this.view(viewId).documentId)
-    if (document.dirty) return this.needsCloseCapability(viewId, document)
+    if (document.dirty && !this.hasOtherView(viewId)) return this.needsCloseCapability(viewId, document)
     return this.removeView(viewId)
   }
 
@@ -867,7 +912,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     document.ownerFence = command.ownerFence
     document.observedDiskRevision = command.observedDiskRevision
     for (const bound of this.adapters.values()) {
-      if (bound.snapshot?.documentId === document.id) this.updateBoundSnapshot(bound)
+      if (bound.snapshot?.documentId === document.id && this.documentIsCurrent(bound)) this.updateBoundSnapshot(bound)
     }
     this.commit()
     return this.applied()
@@ -918,6 +963,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
     document.dirty = false
     document.savedMarkdown = document.markdown
     document.conflict = false
+    for (const bound of this.adapters.values()) {
+      if (bound.snapshot?.documentId === document.id && this.documentIsCurrent(bound)) this.updateBoundSnapshot(bound)
+    }
     this.commit()
     return this.applied()
   }
@@ -997,9 +1045,13 @@ export class WorkspaceController implements WorkspaceControllerContract {
   ): WorkspaceResult {
     const document = this.documentForPane(paneId)
     if (!document) return this.rejected('missing pane')
+    const currentBindings = [...this.adapters.values()].filter(bound =>
+      bound.snapshot?.documentId === document.id && this.documentIsCurrent(bound)
+    )
     set(document)
     document.dirty = true
     document.revision += 1
+    for (const bound of currentBindings) this.updateBoundSnapshot(bound)
     this.commit()
     return this.applied()
   }
@@ -1111,7 +1163,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private async captureTransferSource(paneId: PaneId, tabId: string): Promise<TransferSourceSnapshot | undefined> {
     const pane = this.panes.get(paneId)
     const viewId = pane?.viewIds.find(id => id === tabId || this.views.get(id)?.documentId === tabId)
-    if (!pane || !viewId) return undefined
+    if (!pane || !viewId || this.hasOtherView(viewId)) return undefined
     await this.flushPane(paneId)
     const view = this.views.get(viewId)
     if (!view) return undefined
@@ -1141,9 +1193,56 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   private async applyAdapterFlush(bound: BoundAdapter, viewId: ViewId): Promise<boolean> {
+    if (!this.documentIsCurrent(bound)) {
+      const pane = this.paneForView(viewId)
+      if (pane) await this.refreshAdapter(pane.id, this.snapshotFor(pane.id, viewId))
+      return false
+    }
     const scrollObservationEpoch = this.view(viewId).scrollObservationEpoch
     const report = await bound.adapter.flush()
-    return this.applyReport(viewId, report, scrollObservationEpoch)
+    const changed = this.applyReport(viewId, report, scrollObservationEpoch)
+    if (changed) this.refreshSharedEditors(bound)
+    return changed
+  }
+
+  private documentIsCurrent(bound: BoundAdapter): boolean {
+    const snapshot = bound.snapshot
+    return !!snapshot && this.documents.get(snapshot.documentId)?.revision === snapshot.documentRevision
+  }
+
+  /** A stale peer never flushes its old markdown/history over the shared document. */
+  private refreshSharedEditors(origin: BoundAdapter): void {
+    const documentId = origin.snapshot?.documentId
+    for (const [paneId, bound] of this.adapters) {
+      if (bound === origin || bound.snapshot?.documentId !== documentId || this.documentIsCurrent(bound)) continue
+      this.enqueue(async() => {
+        if (this.adapters.get(paneId) !== bound || bound.snapshot?.documentId !== documentId || this.documentIsCurrent(bound)) return
+        try {
+          await this.refreshAdapter(paneId, this.snapshotFor(paneId, this.requirePane(paneId).activeViewId))
+          this.commit()
+        } catch {
+          this.invalidate(bound)
+        }
+      }, false)
+    }
+  }
+
+  /** Assembly-only document ownership snapshots, one per document (not per surface). */
+  getDocumentSnapshots(): readonly EditorBindingSnapshot[] {
+    return [...this.documents.values()].map(document => {
+      const view = this.requireViewForDocument(document.id)
+      return this.snapshotFor(this.requirePaneForView(view.id).id, view.id)
+    })
+  }
+
+  hasOtherView(viewId: ViewId): boolean {
+    const view = this.views.get(viewId)
+    return !!view && [...this.views.values()].some(candidate => candidate.id !== viewId && candidate.documentId === view.documentId)
+  }
+
+  usesSharedHistory(viewId: ViewId): boolean {
+    const view = this.views.get(viewId)
+    return !!view && !!this.documents.get(view.documentId)?.sharedHistory
   }
 
   private revokeTransferFencesForView(viewId: ViewId): void {
@@ -1157,6 +1256,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (!bound) return
     const pane = this.panes.get(paneId)
     const previous = pane?.activeViewId ? this.snapshotFor(paneId, pane.activeViewId) : undefined
+    bound.refreshing = true
     try {
       // A lease names a concrete active pane/view/mode; any controller-driven
       // activation replaces that binding, so the old lease must be inert.
@@ -1181,6 +1281,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
       }
       this.invalidate(bound)
       throw error
+    } finally {
+      bound.refreshing = false
     }
   }
 
@@ -1308,7 +1410,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
       lineEnding: input.lineEnding ?? 'lf',
       adjustLineEndingOnSave: input.adjustLineEndingOnSave ?? false,
       trailingNewline: input.trailingNewline ?? 'preserve',
-      ownerFence: `owner-${id}-${this.nextId++}`
+      ownerFence: `owner-${id}-${this.nextId++}`,
+      sharedHistory: false
     }
   }
 
@@ -1387,10 +1490,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private removeDocumentAndView(viewId: ViewId): void {
     const view = this.views.get(viewId)
     if (!view) return
+    this.views.delete(viewId)
+    if ([...this.views.values()].some(candidate => candidate.documentId === view.documentId)) return
     for (const [requestId, pending] of this.pendingDocumentIo) {
       if (pending.request.documentId === view.documentId) this.pendingDocumentIo.delete(requestId)
     }
-    this.views.delete(viewId)
     this.documents.delete(view.documentId)
   }
 

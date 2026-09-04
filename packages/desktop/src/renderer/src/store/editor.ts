@@ -1444,7 +1444,10 @@ export const useEditorStore = defineStore('editor', {
           console.error('Cannot find workspace tab with pathname:', filePath)
           return
         }
-        workspace.execute({ kind: 'activate-view', paneId: pane.paneId, viewId: tab.viewId }).then((result) => {
+        // Main sends this only when a normal file-open request resolves to an
+        // already-open pathname. Apply the same left-pane policy as fresh opens;
+        // explicit tab/Opened Files activation uses UPDATE_CURRENT_FILE instead.
+        workspace.execute({ kind: 'open-existing-document', documentId: tab.documentId, fileKey: filePath }).then((result) => {
           if (result.status !== 'applied') {
             console.error('Failed to activate workspace tab:', 'reason' in result ? result.reason : result)
           }

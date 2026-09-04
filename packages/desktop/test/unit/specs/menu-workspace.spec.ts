@@ -45,6 +45,7 @@ describe('workspace tab context menu', () => {
     move: vi.fn(),
     open: vi.fn(),
     splitRight: vi.fn(),
+    moveToPane: vi.fn(),
     openFolder: vi.fn(),
     closeFolder: vi.fn()
   })
@@ -66,6 +67,8 @@ describe('workspace tab context menu', () => {
       'separator',
       'moveTabToNewWindow',
       'openTabInNewWindow',
+      'moveTabToLeft',
+      'moveTabToRight',
       'splitTabRight'
     ])
     expect(items.slice(-3).every((item) => !item.submenu)).toBe(true)
@@ -82,17 +85,32 @@ describe('workspace tab context menu', () => {
     expect(items.find((item) => item.id === 'splitTabRight')?.enabled).not.toBe(false)
   })
 
+  it('disables right-pane Split Right and fenced moves without invoking their callbacks', async() => {
+    const actions = { ...createActions(), canMoveToPane: () => false, canMoveToNewWindow: () => false }
+    const items = createWorkspaceTabMenuItems(target({ paneId: 'right' }), actions)
+    for (const id of ['splitTabRight', 'moveTabToLeft', 'moveTabToRight', 'moveTabToNewWindow']) {
+      const item = items.find(item => item.id === id)
+      expect(item?.enabled).toBe(false)
+      await item?.click?.()
+    }
+    expect(actions.activate).not.toHaveBeenCalled()
+    expect(actions.splitRight).not.toHaveBeenCalled()
+    expect(actions.moveToPane).not.toHaveBeenCalled()
+    expect(actions.move).not.toHaveBeenCalled()
+  })
+
   it('labels dirty Open as a disk copy and routes every action to the clicked pane/view', async() => {
     const actions: WorkspaceTabMenuActions = {
       activate: vi.fn(async() => ({ status: 'applied' as const, workspaceRevision: 1 })),
       move: vi.fn(),
       open: vi.fn(),
       splitRight: vi.fn(),
+      moveToPane: vi.fn(),
       openFolder: vi.fn(),
       closeFolder: vi.fn()
     }
     const clicked = target({
-      paneId: 'right',
+      paneId: 'left',
       viewId: 'view-2',
       documentId: 'document-2',
       fileKey: '/note.md',
@@ -101,7 +119,7 @@ describe('workspace tab context menu', () => {
     const items = createWorkspaceTabMenuItems(clicked, actions)
 
     expect(items.find((item) => item.id === 'openTabInNewWindow')?.label).toContain('disk copy')
-    for (const item of items.slice(-3)) await item.click?.({}, null)
+    for (const item of items.slice(-5)) await item.click?.({}, null)
     expect(actions.move).toHaveBeenCalledWith(clicked)
     expect(actions.open).toHaveBeenCalledWith(clicked)
     expect(actions.splitRight).toHaveBeenCalledWith(clicked)
@@ -114,6 +132,7 @@ describe('workspace tab context menu', () => {
       move: vi.fn(),
       open: vi.fn(),
       splitRight: vi.fn(),
+      moveToPane: vi.fn(),
       openFolder: vi.fn(),
       closeFolder: vi.fn()
     }
@@ -156,6 +175,7 @@ describe('workspace tab context menu', () => {
       move: vi.fn(),
       open: vi.fn(),
       splitRight: vi.fn(),
+      moveToPane: vi.fn(),
       openFolder: vi.fn(),
       closeFolder: vi.fn()
     }
@@ -234,7 +254,8 @@ describe('workspace tab context menu', () => {
       expect(messages.commands.workspace).toMatchObject({
         moveToNewWindow: expect.any(String),
         openInNewWindow: expect.any(String),
-        splitRight: expect.any(String)
+        moveToRight: expect.any(String),
+        moveToLeft: expect.any(String)
       })
     }
   })

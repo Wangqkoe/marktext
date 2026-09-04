@@ -1,5 +1,9 @@
 <template>
-  <div ref="root" class="editor-with-tabs" :class="{ split: panes.length === 2, preview: splitPreview, 'preview-left': splitPreview === 'left', 'preview-right': splitPreview === 'right' }">
+  <div
+    ref="root"
+    class="editor-with-tabs"
+    :class="{ split: panes.length === 2, preview: splitPreview, 'preview-left': splitPreview === 'left', 'preview-right': splitPreview === 'right' }"
+  >
     <pane-editor
       v-for="pane in panes"
       :key="pane.paneId"
@@ -17,7 +21,13 @@
       @tab-drag="handleTabDrag"
       @tab-press="handleTabPress(pane.paneId, $event)"
     />
-    <div v-if="panes.length === 2" class="workspace-divider" title="Reset split" @pointerdown="startDivider" @dblclick="controller.execute({ kind: 'set-split-ratio', ratio: 0.5 })" />
+    <div
+      v-if="panes.length === 2"
+      class="workspace-divider"
+      title="Reset split"
+      @pointerdown="startDivider"
+      @dblclick="controller.execute({ kind: 'set-split-ratio', ratio: 0.5 })"
+    />
   </div>
 </template>
 
@@ -72,7 +82,15 @@ const workspaceTabActions: WorkspaceTabMenuActions = {
     // deliberately not sent, so the target opens the last disk version.
     window.electron.ipcRenderer.send('mt::cmd-open-file-in-new-window', target.fileKey)
   },
-  splitRight: () => controller.execute({ kind: 'split-pane', targetPaneId: 'right' }),
+  splitRight: target => controller.execute({ kind: 'split-right', paneId: target.paneId, viewId: target.viewId }),
+  moveToPane: (target, targetPaneId) => controller.execute({ kind: 'move-to-pane', targetPaneId, viewId: target.viewId }),
+  canMoveToPane: (target, targetPaneId) => {
+    const projection = controller.getProjection()
+    return projection.panes.length === 1
+      ? projection.panes[0]!.tabs.length > 1
+      : target.paneId !== targetPaneId
+  },
+  canMoveToNewWindow: target => !controller.hasOtherView(target.viewId),
   openFolder: (_target, directoryPath) => {
     window.electron.ipcRenderer.send('mt::cmd-open-folder-in-current-window', directoryPath)
   },
@@ -157,7 +175,7 @@ const handleTabDrag = (event: {
       const projection = controller.getProjection()
       if (projection.panes.length === 1) {
         controller.execute({ kind: 'activate-view', paneId: 'left', viewId: committedViewId }).then(() =>
-          controller.execute({ kind: 'split-pane', targetPaneId: committedTarget })
+          controller.execute({ kind: 'move-to-pane', targetPaneId: committedTarget, viewId: committedViewId })
         )
       } else {
         controller.execute({ kind: 'move-view', viewId: committedViewId, targetPaneId: committedTarget })

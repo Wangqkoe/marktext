@@ -1,12 +1,21 @@
 <template>
   <div
     class="editor-wrapper"
-    :class="[{ typewriter: typewriter, focus: focus, source: sourceCode }]"
+    :class="[{ typewriter: typewriter, focus: focus, source: props.sourceMode }]"
     :dir="textDirection"
   >
-    <div ref="editorRef" class="editor-component" />
-    <div v-show="imageViewerVisible" class="image-viewer">
-      <span class="icon-close" @click="setImageViewerVisible(false)">
+    <div
+      ref="editorRef"
+      class="editor-component"
+    />
+    <div
+      v-show="imageViewerVisible"
+      class="image-viewer"
+    >
+      <span
+        class="icon-close"
+        @click="setImageViewerVisible(false)"
+      >
         <CloseIcon />
       </span>
       <div ref="imageViewerRef" />
@@ -25,7 +34,10 @@
           {{ t('editor.insertTable.title') }}
         </div>
       </template>
-      <el-form :model="tableChecker" :inline="true">
+      <el-form
+        :model="tableChecker"
+        :inline="true"
+      >
         <el-form-item :label="t('editor.insertTable.rows')">
           <el-input-number
             ref="rowInput"
@@ -51,13 +63,16 @@
           <el-button @click="dialogTableVisible = false">
             {{ t('common.cancel') }}
           </el-button>
-          <el-button type="primary" @click="handleDialogTableConfirm">
+          <el-button
+            type="primary"
+            @click="handleDialogTableConfirm"
+          >
             {{ t('common.ok') }}
           </el-button>
         </div>
       </template>
     </el-dialog>
-    <editor-search v-if="!sourceCode" />
+    <editor-search v-if="!props.sourceMode" />
   </div>
 </template>
 
@@ -203,6 +218,7 @@ const props = defineProps<{
   activeFile?: IFileState
   paneTabs?: readonly IFileState[]
   focused?: boolean
+  sourceMode?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -583,7 +599,7 @@ watch(focus, (value) => {
 // state for the CURRENT cursor context (a code block/table still disables some
 // items) rather than blanket-enabling everything (#3531).
 watch(sourceCode, (isSource) => {
-  if (!props.focused) return
+  if (props.composition.getController()?.getProjection().focusedPaneId !== props.composition.getScope()?.paneId) return
   if (isSource && props.composition.getScope()?.mode !== 'source') {
     props.composition.handoffMode('source').catch((error) => {
       console.error('Failed to hand off pane editor mode:', error)
@@ -877,7 +893,7 @@ watch(
 watch(
   sourceCode,
   (value, oldValue) => {
-    if (!props.focused) return
+    if (props.composition.getController()?.getProjection().focusedPaneId !== props.composition.getScope()?.paneId) return
     if (value && value !== oldValue) {
       caretReporter.cancel()
       if (editor.value) {
@@ -1123,25 +1139,19 @@ const replaceMisspelling = (payload: unknown) => {
   }
 }
 
-const handleUndo = () => {
-  if (sourceCode.value) {
-    return
-  }
-
-  if (editor.value) {
-    editor.value.undo()
-  }
+const applyHistoryAction = async (action: 'undo' | 'redo') => {
+  if (sourceCode.value) return
+  const captured = props.composition.getScope()
+  if (!captured) return
+  const scope = await props.composition.flushScopeForAction(captured)
+  if (!scope) return
+  editor.value?.[action]()
+  // The engine dispatches its change before finishing history/selection work.
+  // Capture the completed boundary, after any pending focus transaction.
+  await scope.flush()
 }
-
-const handleRedo = () => {
-  if (sourceCode.value) {
-    return
-  }
-
-  if (editor.value) {
-    editor.value.redo()
-  }
-}
+const handleUndo = () => applyHistoryAction('undo')
+const handleRedo = () => applyHistoryAction('redo')
 
 const handleSelectAll = () => {
   if (sourceCode.value) {
@@ -1890,6 +1900,40 @@ onMounted(() => {
   muya.init()
   editor.value = muya
 
+  let applyingSourceHistory = false
+  function preserveOutsideSelection (work: () => void): void {
+    const selection = window.getSelection()
+    const preserve = !props.focused || props.sourceMode || !editorRef.value?.contains(document.activeElement)
+    const ranges = preserve && selection ? Array.from({ length: selection.rangeCount }, (_, index) => selection.getRangeAt(index).cloneRange()) : []
+    const activeElement = preserve ? document.activeElement as HTMLElement | null : null
+    try {
+      work()
+    } finally {
+      if (preserve && selection) {
+        if (activeElement && document.activeElement !== activeElement) activeElement.focus({ preventScroll: true })
+        selection.removeAllRanges()
+        for (const range of ranges) if (range.commonAncestorContainer.isConnected) selection.addRange(range)
+      }
+    }
+  }
+  props.composition.setSourceHistoryHandler((report, action) => {
+    if (!editor.value) return report
+    applyingSourceHistory = true
+    try {
+      preserveOutsideSelection(() => {
+        if (action === 'undo') editor.value.undo()
+        else if (action === 'redo') editor.value.redo()
+        else if (report.markdown !== undefined) editor.value.replaceContent(report.markdown)
+      })
+      return {
+        ...report,
+        ...(action ? { markdown: editor.value.getMarkdown() } : {}),
+        ...(portableEngineHistory() ? { portableHistory: portableEngineHistory() } : {})
+      }
+    } finally {
+      applyingSourceHistory = false
+    }
+  })
   paneSurface = {
     async stage (snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope) {
       const previousScope = paneScope
@@ -1900,7 +1944,7 @@ onMounted(() => {
           paneScope = scope
           rebindPaneGeneration?.(scope)
           if (!editor.value) return
-          handleFileChange({
+          preserveOutsideSelection(() => handleFileChange({
             id: snapshot.document.documentId,
             markdown: snapshot.document.markdown,
             cursor: isEngineCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
@@ -1909,7 +1953,7 @@ onMounted(() => {
             scrollTop: snapshot.view.scrollTop,
             workspaceRefresh: true,
             sourceHandoff: props.composition.isSourceHandoff(snapshot)
-          })
+          }))
           if (focusReplacement) nextTick(focusFreshEditor)
           committed = true
         },
@@ -1961,7 +2005,7 @@ onMounted(() => {
         id: legacyTab.id,
         markdown: legacyTab.markdown,
         title: legacyTab.filename,
-        mode: sourceCode.value ? 'source' : 'wysiwyg',
+        mode: props.sourceMode ? 'source' : 'wysiwyg',
         ...(legacyTab.pathname ? { fileKey: legacyTab.pathname } : {})
       })
       .then(() => {
@@ -2049,7 +2093,7 @@ onMounted(() => {
     if (!scope) return
 
     jsonChangeListener = () => {
-      if (!editor.value) return
+      if (!editor.value || applyingSourceHistory) return
       const markdown = editor.value.getMarkdown()
       const toc = editor.value.getTOC()
       const wordCount = muyaWordCount(markdown)
@@ -2086,7 +2130,7 @@ onMounted(() => {
     scrollReportGate = generationScrollReportGate
     scrollHandler = () => generationScrollReportGate.request(container.scrollTop)
     selectionChangeListener = (changes: MuyaChange) => {
-      if (!editor.value) return
+      if (!editor.value || applyingSourceHistory) return
       const cursor = controllerCursor()
       if (
         scope.report({

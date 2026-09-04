@@ -236,7 +236,7 @@ test.describe('raw HTML details disclosure in the desktop editor', () => {
   })
 })
 
-test('keeps the escaped details block in preview through a split-pane theme change', async() => {
+test('keeps the escaped details block in preview through a move-to-pane theme change', async() => {
   const { app, page } = await launchWithMarkdown(CLOSED)
   try {
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, '# Other pane\n')

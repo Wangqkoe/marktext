@@ -1,5 +1,9 @@
 <template>
-  <section class="workspace-pane" :class="{ focused }" @pointerdown="focusPane">
+  <section
+    class="workspace-pane"
+    :class="{ focused }"
+    @pointerdown="focusPane"
+  >
     <tabs
       v-show="tabBarVisible"
       :composition="composition"
@@ -9,7 +13,10 @@
       @tab-drag="$emit('tab-drag', $event)"
       @tab-press="$emit('tab-press', $event)"
     />
-    <div v-if="activeFile" class="container">
+    <div
+      v-if="activeFile"
+      class="container"
+    >
       <editor
         :markdown="activeFile.markdown"
         :cursor="activeFile.cursor"
@@ -20,6 +27,7 @@
         :active-file="activeFile"
         :pane-tabs="paneFiles"
         :focused="focused"
+        :source-mode="activeMode === 'source'"
         @caret-position="$emit('caret-position', $event)"
       />
       <source-code

@@ -23,7 +23,7 @@ const openFixtures = async(app: ElectronApplication, fixtures: readonly string[]
 
 const openFixture = async(app: ElectronApplication, fixture: string): Promise<void> => openFixtures(app, [fixture])
 
-test('opens a native File > Open selection into the focused workspace pane', async() => {
+test('opens a native File > Open selection into the left workspace pane', async() => {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-open-'))
   const fixture = path.join(profile, 'native-file-open.md')
   const sentinel = 'STAB002_NATIVE_FILE_OPEN_SENTINEL'
@@ -198,7 +198,7 @@ test('STAB-010 reopens a saved tab through native File > Open after its split pa
   }
 })
 
-test('opens a native File > Open selection in the currently focused split pane', async() => {
+test('opens a native File > Open selection on the left while the right pane is focused', async() => {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-open-split-'))
   const first = path.join(profile, 'first.md')
   const second = path.join(profile, 'second.md')
@@ -238,7 +238,7 @@ test('opens a native File > Open selection in the currently focused split pane',
         focusedPaths: focusedPane?.tabs.map((tab) => documentForView.get(tab.viewId)).sort(),
         otherPaths: snapshot?.projection.panes.filter((pane) => pane.paneId !== focusedPane?.paneId).flatMap((pane) => pane.tabs.map((tab) => documentForView.get(tab.viewId))).sort()
       }
-    }), { timeout: 5_000 }).toEqual({ focusedPaths: [first, focused].sort(), otherPaths: [second] })
+    }), { timeout: 5_000 }).toEqual({ focusedPaths: [second, focused].sort(), otherPaths: [first] })
   } finally {
     const child = app.process()
     if (child.exitCode === null) {
@@ -297,7 +297,7 @@ test('opens a native multi-selection without retaining or double-closing the pri
   }
 })
 
-test('activates an already-open file in a non-focused pane through native File > Open', async() => {
+test('moves an already-open right-only file left through native File > Open', async() => {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-native-file-open-duplicate-split-'))
   const first = path.join(profile, 'first.md')
   const second = path.join(profile, 'second.md')
@@ -334,7 +334,7 @@ test('activates an already-open file in a non-focused pane through native File >
         activePath: active?.fileKey,
         documentCount: snapshot?.documents.length
       }
-    }), { timeout: 5_000 }).toEqual({ focusedPaths: [first], activePath: first, documentCount: 2 })
+    }), { timeout: 5_000 }).toEqual({ focusedPaths: [first, second].sort(), activePath: first, documentCount: 2 })
   } finally {
     const child = app.process()
     if (child.exitCode === null) {

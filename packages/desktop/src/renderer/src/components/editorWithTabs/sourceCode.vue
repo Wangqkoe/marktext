@@ -1,5 +1,8 @@
 <template>
-  <div ref="sourceCodeContainer" class="source-code" />
+  <div
+    ref="sourceCodeContainer"
+    class="source-code"
+  />
 </template>
 
 <script setup lang="ts">
@@ -52,6 +55,7 @@ const viewDestroyed = ref(false)
 const tabId = ref<string | null>(null)
 let sourceEventScope: PaneEditorEventScope | undefined
 let sourceDocumentId: string | undefined
+let receivingSharedDocument = false
 const sourceScopeAbort = new AbortController()
 const focusedBusHandlers = new Map<string, (...args: any[]) => void>()
 const onFocused = (event: string, handler: (...args: any[]) => void): void => {
@@ -109,7 +113,16 @@ watch(
       typeof markdown === 'string' &&
       markdown !== editor.value.getValue()
     ) {
-      editor.value.setValue(markdown)
+      const selections = editor.value.listSelections()
+      const scrollTop = sourceCodeContainer.value?.scrollTop ?? 0
+      receivingSharedDocument = true
+      try {
+        editor.value.setValue(markdown)
+        editor.value.setSelections(selections, 0, { scroll: false })
+        if (sourceCodeContainer.value) sourceCodeContainer.value.scrollTop = scrollTop
+      } finally {
+        receivingSharedDocument = false
+      }
     }
   }
 )
@@ -265,22 +278,24 @@ const handleSelectAll = () => {
   }
 }
 
-const handleUndo = () => {
+const handleUndo = async () => {
   if (!sourceCode.value) {
     return
   }
 
   if (editor.value) {
+    if (await props.composition.sharedSourceHistory('undo')) return
     editor.value.execCommand('undo')
   }
 }
 
-const handleRedo = () => {
+const handleRedo = async () => {
   if (!sourceCode.value) {
     return
   }
 
   if (editor.value) {
+    if (await props.composition.sharedSourceHistory('redo')) return
     editor.value.execCommand('redo')
   }
 }
@@ -342,6 +357,7 @@ const handleImageAction = (payload: unknown) => {
 }
 
 const saveContent = (cm: CMInstance) => {
+  if (receivingSharedDocument) return
   const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(cm)
   // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
   const wordCount = getWordCount(newMarkdown)
@@ -399,6 +415,13 @@ onMounted(async () => {
     styleActiveLine: true,
     direction: textDirection,
     viewportMargin: Infinity,
+    extraKeys: {
+      'Ctrl-Z': handleUndo,
+      'Cmd-Z': handleUndo,
+      'Ctrl-Y': handleRedo,
+      'Ctrl-Shift-Z': handleRedo,
+      'Cmd-Shift-Z': handleRedo
+    },
     lineNumberFormatter (line: number) {
       if (line % 10 === 0 || line === 1) {
         return line

@@ -162,8 +162,8 @@ test('tab bar and focused-pane Opened Files share the captured complete menu', a
     const nestedTab = page.locator('.tabs-container > li').nth(1)
     await expect(nestedTab).toHaveAttribute('title', nestedFile)
     const splitMenu = await captureMenu(app, nestedTab)
-    expect(splitMenu.find((item) => item.label === 'Split Right')).toMatchObject({ enabled: true })
-    await clickCapturedMenuItem(app, 'Split Right')
+    expect(splitMenu.find((item) => item.label === 'Move to Right')).toMatchObject({ enabled: true })
+    await clickCapturedMenuItem(app, 'Move to Right')
     await expect(page.locator('.workspace-pane')).toHaveCount(2)
     const leftTab = page.locator('.workspace-pane').nth(0).locator('.tabs-container > li')
     const rightTab = page.locator('.workspace-pane').nth(1).locator('.tabs-container > li')
@@ -191,6 +191,8 @@ test('tab bar and focused-pane Opened Files share the captured complete menu', a
       'separator',
       'Move to new window',
       'Open in new window',
+      'Move to Left',
+      'Move to Right',
       'Split Right'
     ])
 
@@ -243,7 +245,7 @@ test('tab bar and focused-pane Opened Files share the captured complete menu', a
     await page.locator('.workspace-pane').nth(1).locator('.new-file').click()
     const untitledTab = page
       .locator('.workspace-pane')
-      .nth(1)
+      .nth(0)
       .locator('.tabs-container > li')
       .last()
     const untitledOpenedFile = page.locator('.opened-file').last()

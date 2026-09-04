@@ -14,7 +14,7 @@ const workspaceBox = async(page: Page) => {
   return box
 }
 
-const splitAtLeftEdge = async(page: Page, tab: ReturnType<Page['locator']>): Promise<void> => {
+const moveToLeftEdge = async(page: Page, tab: ReturnType<Page['locator']>): Promise<void> => {
   const tabBox = await tab.boundingBox()
   const workspace = await workspaceBox(page)
   if (!tabBox) throw new Error('tab is not visible')
@@ -86,7 +86,7 @@ test('composes focused-pane routing, typed save transport, Move history, last-ta
     await expect(page.locator('.editor-with-tabs')).toBeVisible()
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'Untitled pane\n')
     await expect(page.locator(tabSelector)).toHaveCount(2)
-    await splitAtLeftEdge(page, page.locator(tabSelector).nth(1))
+    await moveToLeftEdge(page, page.locator(tabSelector).nth(1))
 
     await appendInPane(page, 0, ' LEFT_STAYS')
     await expect.poll(() => paneText(page, 0)).toContain('LEFT_STAYS')

@@ -57,6 +57,9 @@ export interface WorkspaceTabMenuActions {
   move(target: WorkspaceTabMenuTarget): void | Promise<unknown>
   open(target: WorkspaceTabMenuTarget): void | Promise<unknown>
   splitRight(target: WorkspaceTabMenuTarget): void | Promise<unknown>
+  moveToPane(target: WorkspaceTabMenuTarget, paneId: 'left' | 'right'): void | Promise<unknown>
+  canMoveToPane?(target: WorkspaceTabMenuTarget, paneId: 'left' | 'right'): boolean
+  canMoveToNewWindow?(target: WorkspaceTabMenuTarget): boolean
   openFolder(target: WorkspaceTabMenuTarget, directoryPath: string): void | Promise<unknown>
   closeFolder(target: WorkspaceTabMenuTarget): void | Promise<unknown>
 }
@@ -105,6 +108,7 @@ const wrapWorkspaceClick = (
   return {
     ...item,
     click: async() => {
+      if (item.enabled === false) return
       let activated: WorkspaceResult
       try {
         activated = await actions.activate(target)
@@ -159,7 +163,7 @@ export const createWorkspaceTabMenuItems = (
     copyPath as MenuItemShape,
     showInFolder as MenuItemShape,
     SEPARATOR,
-    workspaceItem('moveTabToNewWindow', t('contextMenu.tabs.moveToNewWindow'), true, () =>
+    workspaceItem('moveTabToNewWindow', t('contextMenu.tabs.moveToNewWindow'), actions.canMoveToNewWindow?.(target) ?? true, () =>
       actions.move(target)
     ),
     workspaceItem(
@@ -172,7 +176,13 @@ export const createWorkspaceTabMenuItems = (
       !!pathname,
       () => actions.open(target)
     ),
-    workspaceItem('splitTabRight', t('contextMenu.tabs.splitRight'), true, () =>
+    ...(['left', 'right'] as const).map(paneId => workspaceItem(
+      paneId === 'left' ? 'moveTabToLeft' : 'moveTabToRight',
+      t(paneId === 'left' ? 'contextMenu.tabs.moveToLeft' : 'contextMenu.tabs.moveToRight'),
+      actions.canMoveToPane?.(target, paneId) ?? target.paneId !== paneId,
+      () => actions.moveToPane(target, paneId)
+    )),
+    workspaceItem('splitTabRight', t('contextMenu.tabs.splitRight'), target.paneId === 'left', () =>
       actions.splitRight(target)
     )
   ].map((item) =>
