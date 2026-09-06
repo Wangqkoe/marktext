@@ -3,7 +3,7 @@
 - Specification baseline: `e2ba0adbc2244404e7f6e8bb7566e35715a28a68`.
 - Source commit: `f93434a67bc4291d4c2facaa34c21df21b315237`.
 - Test follow-up: `0ec0fbef0ea8c4cb7c246c38a9c7be46235d23ed`.
-- Status: implementation complete and focused automated validation passed. Windows physical human acceptance was user-confirmed passed on 2026-09-06 for the eight checks recorded below; Linux/macOS are **Untested**.
+- Status: implementation complete and focused automated validation passed. Windows physical human acceptance was user-confirmed passed on 2026-09-06 for the eight checks and restart-persistence follow-up recorded below; Linux/macOS are **Untested**.
 - Distribution: no package was produced, and no installation or push was performed.
 
 ## Implemented scope
@@ -77,4 +77,8 @@ The user confirmed all eight numbered checks passed on **2026-09-06**:
 
 Acceptance used isolated temporary fixtures containing **43 Markdown files and 12 directories**, plus an isolated application profile and instance. The evidence does not depend on a machine-specific path or process ID.
 
-This physical pass does not claim separate human confirmation of `pointercancel`, persistence across an application restart, or absence of live movement in another already-open window; those retain the automated evidence above. No physical Linux or macOS acceptance was performed, so both platforms remain **Untested**. No package was produced, no package-level smoke or installation acceptance was performed, and nothing was installed or pushed.
+### Restart persistence follow-up
+
+In the same isolated profile, the divider ratio was adjusted, the running isolated application instance was explicitly closed, and the application was restarted without recreating the profile. The user visually confirmed that the divider restored the adjusted position and reported no issue. This user-confirmed Windows manual pass covers persistence across an application restart.
+
+This physical pass does not claim separate human confirmation of `pointercancel` or absence of live movement in another already-open window; those retain the automated evidence above. No physical Linux or macOS acceptance was performed, so both platforms remain **Untested**. No package was produced, no package-level smoke or installation acceptance was performed, and nothing was installed or pushed.

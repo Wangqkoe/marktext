@@ -99,7 +99,7 @@ Place focused divider coverage next to the existing Files visual and inline-sear
 
 ## Manual acceptance
 
-The Windows result is limited to the eight user-confirmed checks recorded in the [implementation and validation record](../testing/files-sidebar-divider.md). Pointer cancellation, restart persistence, and non-live updates in another already-open window retain automated evidence but were not separately confirmed in that physical acceptance.
+The Windows result includes the eight user-confirmed checks and the subsequent same-profile restart-persistence check recorded in the [implementation and validation record](../testing/files-sidebar-divider.md). Pointer cancellation and non-live updates in another already-open window retain automated evidence but were not separately confirmed in that physical acceptance.
 
 - Drag the divider with a mouse or other pointer through normal and minimum-clamped positions; confirm live motion, hover highlight, `row-resize`, thin rule, and the usable hit target.
 - Release, restart the application, and create or reload another window; confirm persistence without live movement in a window that was already open.
