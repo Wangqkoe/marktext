@@ -49,7 +49,7 @@ The source smoke directory was deleted only after this copy and verification. Th
 
 ## Actual cleanup result
 
-The completed cleanup removed **13,050,672,804 bytes** in total (approximately **12.154 GiB** or **13.051 GB**) of reproducible or superseded data.
+The completed cleanup removed **14,671,335,640 bytes** in total (approximately **13.664 GiB** or **14.671 GB**) of reproducible or superseded data.
 
 ### Removed worktrees
 
@@ -85,6 +85,12 @@ Before deletion, a `Win32_Process` inspection confirmed that no Electron or Mark
 
 One Node process enumerated the exact Temp root and validated both the parent directory and required `marktext-` name prefix before removing each entry. All 749 entries were removed successfully, leaving zero matching top-level entries. The final `f93434a6` delivery and its compact `evidence` directory are outside `%TEMP%` and remained intact.
 
+### Active coordination worktree artifacts
+
+The `d3af` checkout at `C:\Users\1407\.codex\worktrees\d3af\Marktext` remained in place because its coordinating task was still running. After confirming that no Electron process used it, its reproducible `node_modules` directory was removed, releasing **1,620,662,836 bytes**. The checkout had no `out` or `dist` directory to remove.
+
+These dependencies are not durable evidence and can be reconstructed with `pnpm install --frozen-lockfile`. Removing them did not change tracked content; the Git worktree remained clean. The remaining `d3af` checkout must be removed by subsequent coordination after this task has closed and the final record is integrated.
+
 ### Removed branches
 
 The following local branches were deleted after their retained work and documentation were confirmed integrated:
@@ -104,7 +110,7 @@ Thirty-two completed MarkText coordination, prototype, T00-T07, review, and pack
 
 ## Boundaries and remaining work
 
-- Retained: `codex/marktext-feature-development-2026-08`, its worktree, the current cleanup branch/worktree while active, the three repository records, and `E:\Program Files\Marktext-builds\f93434a6` with its extracted evidence.
+- Retained: `codex/marktext-feature-development-2026-08`, its worktree, the current record branch and dependency-free `d3af` checkout while active, the three repository records, and `E:\Program Files\Marktext-builds\f93434a6` with its extracted evidence.
 - Pending: physical human acceptance of the packaged installer.
 - Untested: Linux and macOS.
 - Untouched: the main worktree at `E:\Program Files\Marktext`, which already contained user changes before cleanup.
