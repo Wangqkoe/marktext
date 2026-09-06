@@ -1,6 +1,10 @@
 # Files sidebar divider
 
-- Status: shared understanding confirmed 2026-09-06; implementation pending.
+- Status: implementation complete; focused automated validation passed. Windows human acceptance **Pending**; Linux/macOS **Untested**.
+- Baseline: `e2ba0adbc2244404e7f6e8bb7566e35715a28a68`.
+- Source commit: `f93434a67bc4291d4c2facaa34c21df21b315237`.
+- Test follow-up: `0ec0fbef0ea8c4cb7c246c38a9c7be46235d23ed`.
+- Evidence: [implementation and validation record](../testing/files-sidebar-divider.md).
 - This is a local, reversible UI layout preference. No ADR is required.
 
 ## Goal and product model
