@@ -1,6 +1,6 @@
 # Files sidebar divider archive and cleanup ledger
 
-This ledger is the durable hand-off for the Files sidebar divider work. It records what must remain after the associated Codex tasks, worktrees, build directories, and temporary evidence are cleaned up. The detailed behavioral contract and evidence remain in the [specification](../specs/files-sidebar-divider.md), [development validation record](files-sidebar-divider.md), and [Windows package record](files-sidebar-divider-windows-package.md).
+This ledger is the durable hand-off and completed cleanup record for the Files sidebar divider work. The detailed behavioral contract and evidence remain in the [specification](../specs/files-sidebar-divider.md), [development validation record](files-sidebar-divider.md), and [Windows package record](files-sidebar-divider-windows-package.md).
 
 ## Durable archive
 
@@ -16,7 +16,7 @@ This ledger is the durable hand-off for the Files sidebar divider work. It recor
 | Long-term integration branch               | `codex/marktext-feature-development-2026-08` |
 | Delivery directory                         | `E:\Program Files\Marktext-builds\f93434a6`  |
 
-At cleanup planning time, the long-term integration branch and the feature-record, package, and cleanup branches all contained `a6c0a739`; the package and cleanup worktrees were also at that commit. This ledger must be integrated into `codex/marktext-feature-development-2026-08` before deleting its temporary cleanup branch or worktree.
+The initial archive ledger commit `a5d75629a7baf8dafc1229e78f338749d59dc90a` was fast-forwarded into `codex/marktext-feature-development-2026-08` before cleanup. A previously retained documentation patch at `2822f5e1` was checked with `git cherry`; its cherry-pick was empty because the same change was already integrated.
 
 The Windows x64 development build passed all eight user acceptance checks and the same-profile restart-persistence follow-up on 2026-09-06. The unpacked Windows package subsequently passed three effective runs of its eight-stage automated smoke scenario. Physical human acceptance of the packaged installer remains **Pending**. Linux and macOS remain **Untested**.
 
@@ -31,40 +31,73 @@ The delivery directory is the only build-output location intended for retention.
 | `marktext-win-x64-0.20.0-rc.1-setup.exe.blockmap` | `B8CBCAA0834CEA5710D74881B93E40EA87E146286B6D410068FA0C8FAF12437B` |
 | `latest.yml`                                      | `04BCAC9A273325BC8B2AAF2D9D52A97A930365ED7CB3C0A275C1F4392F89062A` |
 
-Retain `BUILD-INFO.txt` and `SHA256SUMS.txt` beside these artifacts. The installer is unsigned, so Windows may display a security warning.
+`BUILD-INFO.txt` and `SHA256SUMS.txt` remain beside these artifacts. The four distribution hashes were recomputed after cleanup and still match. The installer is unsigned, so Windows may display a security warning.
 
-## Cleanup disposition
+## Preserved package evidence
 
-The following disposition is intentionally conservative. Removal should happen only after this ledger is present on the long-term branch and each named worktree is clean.
+Before deleting the package-smoke temporary directory, its independent coordinator result was distilled into `E:\Program Files\Marktext-builds\f93434a6\evidence`. That retained directory contains `report.json`, four screenshots, `README.txt`, and `EVIDENCE-SHA256SUMS.txt`. The five evidence-file hashes were verified after copying:
 
-### Retain
+| Evidence file            | SHA-256                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `report.json`            | `30F1549E160A01952C227437FAD3C332E5F44BCEB6593E4E23D5EA40DDD2A314` |
+| `01-default-no-root.png` | `DA9F9C9279ED3B7ADE297BBDECAAEB74D2A722BF03045E10004F9353389F7E33` |
+| `02-overflow.png`        | `47F557CB188AB902E055AD03E19142D786CD83F7C83618E8FBDF7242DAE4454B` |
+| `03-before-restart.png`  | `F6C90090EF350428AE9A202F92F77BC61E24364827398F8E119DAB29075F342C` |
+| `04-after-restart.png`   | `A3F17CA5274B0F0598B866E878AC20EDAB174C82A01C05BA56785B3DE69D5B36` |
 
-- `codex/marktext-feature-development-2026-08` and its worktree at `E:\Program Files\Marktext-worktrees\marktext-feature-development-2026-08` as the continuing development line.
-- `E:\Program Files\Marktext-builds\f93434a6` as the verified Windows delivery.
-- The three repository records linked at the top of this ledger.
-- The package smoke evidence under `C:\Users\1407\AppData\Local\Temp\marktext-package-smoke-f93434a6-20260906T1324Z` until packaged-build physical acceptance is complete or explicitly waived. It is supplementary evidence; the durable result is already summarized in the package record.
+The source smoke directory was deleted only after this copy and verification. The delivery-level evidence now remains available while packaged-build physical acceptance is pending.
 
-### Safe to remove after integration checks
+## Actual cleanup result
 
-- Worktree `C:\Users\1407\.codex\worktrees\pkdivider\Marktext`, including its generated `dist`, dependencies, and other reproducible build output, after confirming it is clean and the delivery hashes still match `SHA256SUMS.txt`.
-- Worktree `C:\Users\1407\.codex\worktrees\d3af\Marktext` after this ledger is integrated and the coordinating task no longer needs it.
-- Branches `codex/files-sidebar-divider-spec`, `codex/package-files-sidebar-divider`, and `codex/record-files-sidebar-cleanup` after their required commits are reachable from the retained long-term branch and no worktree uses them.
-- Superseded prototype branch `codex/prototype-sidebar-spacing-divider`, provided its useful design conclusions are confirmed to be represented by the specification and no active task still references it.
-- Isolated development-acceptance fixtures `C:\Users\1407\AppData\Local\Temp\marktext-divider-acceptance-787109c73775401c81dad1a40c5fea42` and `C:\Users\1407\AppData\Local\Temp\marktext-divider-acceptance-9f94f8dd76614e82b2a3566dc4a4dcca` after confirming no owned test process still uses them.
-- The retained package-smoke temp directory after packaged-build physical acceptance is completed or waived; the repository record and delivery checksums are sufficient for long-term history.
-- Completed divider implementation, documentation, launch, acceptance, packaging, and review Codex tasks, including the task roles `document_files_sidebar_divider`, `launch_divider_acceptance`, `manual_acceptance_launch`, and `package_files_sidebar_divider`, once no follow-up message is pending. Archive them rather than deleting repository history.
+The cleanup removed **12,172,693,490 bytes** (approximately **11.337 GiB**) of reproducible or superseded data.
 
-Do not treat unrelated packaging worktrees (`ce20`, `pkb60e6`, and `pkreopen`) or their branches as part of this feature's cleanup. Their owners and retained deliveries must be audited separately.
+### Removed worktrees
 
-## Cleanup gates
+All four packaging worktrees were clean before removal:
 
-Before removing any item above:
+| Worktree                                            | Bytes removed |
+| --------------------------------------------------- | ------------: |
+| `C:\Users\1407\.codex\worktrees\ce20\Marktext`      | 2,456,468,582 |
+| `C:\Users\1407\.codex\worktrees\pkb60e6\Marktext`   | 2,456,644,197 |
+| `C:\Users\1407\.codex\worktrees\pkdivider\Marktext` | 2,456,777,325 |
+| `C:\Users\1407\.codex\worktrees\pkreopen\Marktext`  | 2,456,698,244 |
 
-1. Confirm this ledger is reachable from `codex/marktext-feature-development-2026-08` and that the retained worktree is clean.
-2. Recompute the four delivery SHA-256 values and compare them with `E:\Program Files\Marktext-builds\f93434a6\SHA256SUMS.txt`.
-3. Confirm every temporary worktree is clean, no active process is using it, and all unique commits are reachable from the retained branch.
-4. Remove worktrees before deleting their branches; prune only stale worktree metadata afterward.
-5. Keep the package-smoke evidence while packaged-build physical acceptance is pending unless the user explicitly chooses to discard it.
-6. Archive only completed Codex tasks; keep the coordinating task until cleanup and its verification are recorded.
+Git worktree removal encountered Windows `Filename too long` errors. Worktree metadata was removed first; remaining directories were then deleted with Node `fs.rmSync` only after validating the exact paths and required path prefixes. No broad or unresolved path was used.
 
-No filesystem resource, task, worktree, branch, or build artifact was deleted while creating this ledger.
+### Removed superseded deliveries and temporary evidence
+
+| Removed directory                                                                               | Bytes removed |
+| ----------------------------------------------------------------------------------------------- | ------------: |
+| `E:\Program Files\Marktext-builds\cbdfdb4f`                                                     |   299,364,236 |
+| `E:\Program Files\Marktext-builds\b60e6b9a`                                                     |   775,988,782 |
+| `E:\Program Files\Marktext-builds\8027278b`                                                     |   775,997,206 |
+| `C:\Users\1407\AppData\Local\Temp\marktext-package-smoke-f93434a6-20260906T1324Z`               |   484,198,452 |
+| `C:\Users\1407\AppData\Local\Temp\marktext-divider-acceptance-787109c73775401c81dad1a40c5fea42` |       409,687 |
+| `C:\Users\1407\AppData\Local\Temp\marktext-divider-acceptance-9f94f8dd76614e82b2a3566dc4a4dcca` |    10,146,779 |
+
+The three old package deliveries had been superseded by the retained `f93434a6` delivery. The smoke result and screenshots were preserved in the retained delivery before their source directory was removed.
+
+### Removed branches
+
+The following local branches were deleted after their retained work and documentation were confirmed integrated:
+
+- `codex/package-desktop-ui-folder-navigation-cbdfdb4f`
+- `codex/package-move-tabs-split-right-b60e6b9a`
+- `codex/package-transfer-source-reopen`
+- `codex/package-files-sidebar-divider`
+- `codex/files-sidebar-divider-spec`
+- `codex/prototype-sidebar-spacing-divider`
+
+The long-term branch `codex/marktext-feature-development-2026-08` and the active documentation branch `codex/record-files-sidebar-cleanup` were retained. The current `d3af` worktree was also retained because the coordinating task was still running; it can be removed after this final record is integrated and the task ends.
+
+### Archived Codex tasks
+
+Thirty-two completed MarkText coordination, prototype, T00-T07, review, and packaging tasks were submitted through the Codex archive API, and all 32 calls succeeded. The live MarkText task list then contained only the current coordinating task. The explicit archived list exposed two top-level tasks; the remaining archived entries are historical or delegated tasks.
+
+## Boundaries and remaining work
+
+- Retained: `codex/marktext-feature-development-2026-08`, its worktree, the current cleanup branch/worktree while active, the three repository records, and `E:\Program Files\Marktext-builds\f93434a6` with its extracted evidence.
+- Pending: physical human acceptance of the packaged installer.
+- Untested: Linux and macOS.
+- Untouched: the main worktree at `E:\Program Files\Marktext`, which already contained user changes before cleanup.
+- No repository content was pushed, and no source file was modified as part of cleanup documentation.
