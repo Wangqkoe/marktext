@@ -101,8 +101,10 @@ The following local branches were deleted after their retained work and document
 - `codex/package-files-sidebar-divider`
 - `codex/files-sidebar-divider-spec`
 - `codex/prototype-sidebar-spacing-divider`
+- `codex/record-files-sidebar-cleanup`
+- `codex/record-active-worktree-artifact-cleanup`
 
-The long-term branch `codex/marktext-feature-development-2026-08` and the active documentation branch `codex/record-files-sidebar-cleanup` were retained. The current `d3af` worktree was also retained because the coordinating task was still running; it can be removed after this final record is integrated and the task ends.
+Both cleanup-record branches were deleted after their commits were fast-forwarded into `codex/marktext-feature-development-2026-08`. The long-term branch is the only retained branch from this cleanup sequence. The current `d3af` worktree remained as a detached checkout because the coordinating task was still running; it can be removed after this final record is integrated and the task ends.
 
 ### Archived Codex tasks
 
@@ -110,7 +112,7 @@ Thirty-two completed MarkText coordination, prototype, T00-T07, review, and pack
 
 ## Boundaries and remaining work
 
-- Retained: `codex/marktext-feature-development-2026-08`, its worktree, the current record branch and dependency-free `d3af` checkout while active, the three repository records, and `E:\Program Files\Marktext-builds\f93434a6` with its extracted evidence.
+- Retained: `codex/marktext-feature-development-2026-08`, its worktree, the dependency-free detached `d3af` checkout while the current task remains active, the three repository records, and `E:\Program Files\Marktext-builds\f93434a6` with its extracted evidence.
 - Pending: physical human acceptance of the packaged installer.
 - Untested: Linux and macOS.
 - Untouched: the main worktree at `E:\Program Files\Marktext`, which already contained user changes before cleanup.
