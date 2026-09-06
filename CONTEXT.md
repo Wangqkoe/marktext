@@ -24,6 +24,18 @@ _Avoid_: Move to Right, copy document
 The root directory attached to the current editing window and presented in Files.
 _Avoid_: Project
 
+**Opened files region**:
+The region in Files that lists the document views currently open in the editing window.
+_Avoid_: Opened Files pane, tabs (when referring to the region)
+
+**Folder tree region**:
+The region in Files that presents the Folder root hierarchy, or the Open Folder entry point when no Folder root is attached.
+_Avoid_: Project tree, folder pane
+
+**Sidebar divider**:
+The draggable boundary in Files that allocates vertical space between the Opened files region and Folder tree region.
+_Avoid_: Fixed separator, pane splitter
+
 **LaTeX math delimiters**:
 An optional Markdown extension comprising the inline math delimiter and display math delimiter forms.
 _Avoid_: LaTeX brackets, bracket math
