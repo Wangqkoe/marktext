@@ -1,10 +1,11 @@
 # Files sidebar divider
 
-- Status: implementation complete; focused automated validation passed. Windows human acceptance user-confirmed passed on 2026-09-06; Linux/macOS **Untested**.
+- Status: implementation complete; focused automated validation and Windows package smoke passed. Windows development-build human acceptance was user-confirmed passed on 2026-09-06; physical acceptance of the packaged build is **Pending**. Linux/macOS are **Untested**.
 - Baseline: `e2ba0adbc2244404e7f6e8bb7566e35715a28a68`.
 - Source commit: `f93434a67bc4291d4c2facaa34c21df21b315237`.
 - Test follow-up: `0ec0fbef0ea8c4cb7c246c38a9c7be46235d23ed`.
-- Evidence: [implementation and validation record](../testing/files-sidebar-divider.md).
+- Evidence: [implementation and validation record](../testing/files-sidebar-divider.md) and [Windows package record](../testing/files-sidebar-divider-windows-package.md).
+- Distribution: an unsigned Windows x64 package was produced from final build HEAD `c7ec1d9947967d568ead4232dba89f11d6b6555f`; it was validated and copied to the external delivery directory without installation or publication.
 - This is a local, reversible UI layout preference. No ADR is required.
 
 ## Goal and product model

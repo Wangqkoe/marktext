@@ -4,7 +4,7 @@
 - Source commit: `f93434a67bc4291d4c2facaa34c21df21b315237`.
 - Test follow-up: `0ec0fbef0ea8c4cb7c246c38a9c7be46235d23ed`.
 - Status: implementation complete and focused automated validation passed. Windows physical human acceptance was user-confirmed passed on 2026-09-06 for the eight checks and restart-persistence follow-up recorded below; Linux/macOS are **Untested**.
-- Distribution: no package was produced, and no installation or push was performed.
+- Distribution at the time of this implementation and development-build acceptance record: no package had been produced, and no installation or push was performed. A subsequent unsigned Windows x64 package was produced and validated; see the [Windows package record](files-sidebar-divider-windows-package.md).
 
 ## Implemented scope
 
@@ -81,4 +81,4 @@ Acceptance used isolated temporary fixtures containing **43 Markdown files and 1
 
 In the same isolated profile, the divider ratio was adjusted, the running isolated application instance was explicitly closed, and the application was restarted without recreating the profile. The user visually confirmed that the divider restored the adjusted position and reported no issue. This user-confirmed Windows manual pass covers persistence across an application restart.
 
-This physical pass does not claim separate human confirmation of `pointercancel` or absence of live movement in another already-open window; those retain the automated evidence above. No physical Linux or macOS acceptance was performed, so both platforms remain **Untested**. No package was produced, no package-level smoke or installation acceptance was performed, and nothing was installed or pushed.
+This physical pass does not claim separate human confirmation of `pointercancel` or absence of live movement in another already-open window; those retain the automated evidence above. No physical Linux or macOS acceptance was performed, so both platforms remain **Untested**. At the time of this development-build acceptance, no package had been produced, no package-level smoke or installation acceptance had been performed, and nothing had been installed or pushed. Subsequent package evidence is recorded separately in the [Windows package record](files-sidebar-divider-windows-package.md).
