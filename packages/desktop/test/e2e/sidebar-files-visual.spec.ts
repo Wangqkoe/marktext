@@ -73,10 +73,10 @@ test.describe('Files sidebar visual hierarchy', () => {
     if (app) await app.close()
   })
 
-  test('applies the 12px inset to every Files row and the confirmed divider spacing', async() => {
+  test('applies the 12px inset and renders a thin divider in a 5px hit target', async() => {
     const styles = await page.evaluate(() => {
       const tree = document.querySelector('.tree-view') as HTMLElement
-      const opened = document.querySelector('.opened-files') as HTMLElement
+      const divider = document.querySelector('.sidebar-divider') as HTMLElement
       const read = (selector: string) =>
         getComputedStyle(document.querySelector(selector) as HTMLElement)
       return {
@@ -86,11 +86,10 @@ test.describe('Files sidebar visual hierarchy', () => {
         openedRowPadding: read('.opened-files .opened-file').paddingLeft,
         folderRowPadding: read('.project-tree .folder-name').paddingLeft,
         fileRowPadding: read('.project-tree .side-bar-file').paddingLeft,
-        dividerWidth: getComputedStyle(opened).borderBottomWidth,
-        dividerStyle: getComputedStyle(opened).borderBottomStyle,
-        dividerColor: getComputedStyle(opened).borderBottomColor,
-        paddingBottom: getComputedStyle(opened).paddingBottom,
-        marginBottom: getComputedStyle(opened).marginBottom
+        dividerHeight: getComputedStyle(divider).height,
+        dividerCursor: getComputedStyle(divider).cursor,
+        dividerRuleHeight: getComputedStyle(divider, '::after').height,
+        dividerColor: getComputedStyle(divider, '::after').backgroundColor
       }
     })
 
@@ -101,11 +100,10 @@ test.describe('Files sidebar visual hierarchy', () => {
       openedRowPadding: '47px',
       folderRowPadding: '22px',
       fileRowPadding: '22px',
-      dividerWidth: '1px',
-      dividerStyle: 'solid',
-      dividerColor: expect.not.stringMatching(/^rgba\([^)]*, 0\)$/),
-      paddingBottom: '9px',
-      marginBottom: '7px'
+      dividerHeight: '5px',
+      dividerCursor: 'row-resize',
+      dividerRuleHeight: '1px',
+      dividerColor: expect.not.stringMatching(/^rgba\([^)]*, 0\)$/)
     })
   })
 

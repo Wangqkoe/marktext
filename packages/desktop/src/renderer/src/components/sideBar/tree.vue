@@ -1,9 +1,13 @@
 <template>
-  <div class="tree-view">
+  <div
+    ref="treeView"
+    class="tree-view"
+  >
     <!-- Opened tabs -->
     <div
       v-if="openedFilesInSidebar"
       class="opened-files"
+      :style="{ height: `${openedFilesHeight}px` }"
     >
       <div class="title">
         <el-icon
@@ -59,6 +63,15 @@
         </transition-group>
       </div>
     </div>
+
+    <div
+      v-if="openedFilesInSidebar"
+      class="sidebar-divider"
+      role="separator"
+      aria-orientation="horizontal"
+      @pointerdown="startDividerDrag"
+      @dblclick="resetDivider"
+    />
 
     <!-- Project tree view -->
     <div
@@ -160,7 +173,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, reactive, watch } from 'vue'
+import { ref, computed, onBeforeUnmount, onMounted, nextTick, reactive, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/store/project'
 import { useEditorStore } from '@/store/editor'
@@ -193,9 +206,22 @@ const depth = 0
 // The section state survives both renderer remounts and application restart.
 const SHOW_DIRECTORIES_KEY = 'side-bar-show-directories'
 const SHOW_OPENED_FILES_KEY = 'side-bar-show-opened-files'
+const DIVIDER_RATIO_KEY = 'side-bar-files-divider-ratio'
+const DIVIDER_SIZE = 5
+const OPENED_FILES_MIN_HEIGHT = 58
+const FOLDER_TREE_MIN_HEIGHT = 60
 const readSectionExpanded = (key: string): boolean => localStorage.getItem(key) !== 'false'
+const readDividerRatio = (): number => {
+  const stored = localStorage.getItem(DIVIDER_RATIO_KEY)
+  if (stored === null) return 0.5
+  const value = Number(stored)
+  return Number.isFinite(value) && value >= 0 && value <= 1 ? value : 0.5
+}
 const showDirectories = ref(readSectionExpanded(SHOW_DIRECTORIES_KEY))
 const showOpenedFiles = ref(readSectionExpanded(SHOW_OPENED_FILES_KEY))
+const treeView = ref<HTMLElement | null>(null)
+const treeHeight = ref(0)
+const dividerRatio = ref(readDividerRatio())
 const createName = ref('')
 const input = ref<HTMLInputElement | null>(null)
 const baseCollapsedByKey = reactive(new Map<string, boolean>())
@@ -211,6 +237,14 @@ const preferencesStore = usePreferencesStore()
 // Computed properties
 const { createCache, clipboard, folderRootIdentity } = storeToRefs(projectStore)
 const { openedFilesInSidebar } = storeToRefs(preferencesStore)
+const clampDividerPosition = (position: number, height: number): number => {
+  const maximum = Math.max(0, height - DIVIDER_SIZE - FOLDER_TREE_MIN_HEIGHT)
+  const minimum = Math.min(OPENED_FILES_MIN_HEIGHT, maximum)
+  return Math.max(minimum, Math.min(maximum, position))
+}
+const openedFilesHeight = computed(() =>
+  clampDividerPosition(treeHeight.value * dividerRatio.value, treeHeight.value)
+)
 const filteredTree = computed(() =>
   filterFilesTree(props.projectTree, props.query ?? '', manuallyExpandedKeys.value)
 )
@@ -224,8 +258,7 @@ const hasFilesResults = computed(
 const effectiveShowOpenedFiles = computed(() => {
   if (!filteredTree.value.active) return showOpenedFiles.value
   return (
-    searchShowOpenedFiles.value ??
-    (openedFilesInSidebar.value && filteredTabs.value.length > 0)
+    searchShowOpenedFiles.value ?? (openedFilesInSidebar.value && filteredTabs.value.length > 0)
   )
 })
 const effectiveShowDirectories = computed(() => {
@@ -348,6 +381,59 @@ const toggleDirectories = (): void => {
   localStorage.setItem(SHOW_DIRECTORIES_KEY, String(showDirectories.value))
 }
 
+let dividerObserver: ResizeObserver | undefined
+let dividerPointerId: number | undefined
+let dragStartRatio = dividerRatio.value
+
+const removeDividerListeners = (): void => {
+  window.removeEventListener('pointermove', moveDivider)
+  window.removeEventListener('pointerup', commitDividerDrag)
+  window.removeEventListener('pointercancel', cancelDividerDrag)
+}
+
+const moveDivider = (event: PointerEvent): void => {
+  const rect = treeView.value?.getBoundingClientRect()
+  if (dividerPointerId !== event.pointerId || !rect || rect.height <= 0) return
+  const position = clampDividerPosition(event.clientY - rect.top, rect.height)
+  dividerRatio.value = position / rect.height
+}
+
+const finishDividerDrag = (event: PointerEvent): boolean => {
+  if (dividerPointerId !== event.pointerId) return false
+  dividerPointerId = undefined
+  removeDividerListeners()
+  return true
+}
+
+const commitDividerDrag = (event: PointerEvent): void => {
+  if (!finishDividerDrag(event)) return
+  localStorage.setItem(DIVIDER_RATIO_KEY, String(dividerRatio.value))
+}
+
+const cancelDividerDrag = (event: PointerEvent): void => {
+  if (!finishDividerDrag(event)) return
+  dividerRatio.value = dragStartRatio
+}
+
+const startDividerDrag = (event: PointerEvent): void => {
+  if (event.button !== 0 || dividerPointerId !== undefined) return
+  dividerPointerId = event.pointerId
+  dragStartRatio = dividerRatio.value
+  try {
+    ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+  } catch {
+    // Synthetic pointer events used by automation do not own browser capture.
+  }
+  window.addEventListener('pointermove', moveDivider)
+  window.addEventListener('pointerup', commitDividerDrag)
+  window.addEventListener('pointercancel', cancelDividerDrag)
+}
+
+const resetDivider = (): void => {
+  dividerRatio.value = 0.5
+  localStorage.setItem(DIVIDER_RATIO_KEY, String(dividerRatio.value))
+}
+
 // From createFileOrDirectoryMixins
 const handleInputFocus = (): void => {
   nextTick(() => {
@@ -363,6 +449,12 @@ const handleInputEnter = (): void => {
 }
 
 onMounted(() => {
+  dividerObserver = new ResizeObserver(() => {
+    treeHeight.value = treeView.value?.clientHeight ?? 0
+  })
+  if (treeView.value) dividerObserver.observe(treeView.value)
+  treeHeight.value = treeView.value?.clientHeight ?? 0
+
   bus.on('SIDEBAR::show-new-input', handleInputFocus)
 
   // Hide rename / create inputs on outside clicks. Buttons that open these
@@ -390,6 +482,12 @@ onMounted(() => {
       projectStore.renameCache = null
     }
   })
+})
+
+onBeforeUnmount(() => {
+  dividerPointerId = undefined
+  dividerObserver?.disconnect()
+  removeDividerListeners()
 })
 </script>
 
@@ -465,15 +563,14 @@ onMounted(() => {
 .opened-files {
   display: flex;
   flex-direction: column;
-  padding-bottom: 9px;
-  margin-bottom: 7px;
-  border-bottom: 1px solid var(--appShellVisibleDivider);
+  min-height: 0;
+  flex: 0 0 auto;
 }
 .default-cursor {
   cursor: pointer;
 }
 .opened-files .opened-files-list {
-  max-height: 112px;
+  min-height: 0;
   overflow: auto;
   flex: 1;
 }
@@ -482,10 +579,32 @@ onMounted(() => {
   width: 8px;
 }
 
+.sidebar-divider {
+  position: relative;
+  flex: 0 0 5px;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.sidebar-divider::after {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--appShellVisibleDivider);
+  content: '';
+}
+
+.sidebar-divider:hover::after {
+  background: var(--highlightThemeColor);
+}
+
 .project-tree {
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
   flex: 1;
 }
 
@@ -528,12 +647,14 @@ onMounted(() => {
   opacity: 1;
 }
 .open-project {
+  box-sizing: border-box;
+  min-height: 0;
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: space-around;
   align-items: center;
-  padding-bottom: 100px;
+  padding-bottom: min(100px, calc(100% - 52px));
 }
 
 .open-project .centered-group {
