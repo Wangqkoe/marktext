@@ -3,7 +3,7 @@
 - Specification baseline: `e2ba0adbc2244404e7f6e8bb7566e35715a28a68`.
 - Source commit: `f93434a67bc4291d4c2facaa34c21df21b315237`.
 - Test follow-up: `0ec0fbef0ea8c4cb7c246c38a9c7be46235d23ed`.
-- Status: implementation complete and focused automated validation passed. Windows physical human acceptance is **Pending**; Linux/macOS are **Untested**.
+- Status: implementation complete and focused automated validation passed. Windows physical human acceptance was user-confirmed passed on 2026-09-06 for the eight checks recorded below; Linux/macOS are **Untested**.
 - Distribution: no package was produced, and no installation or push was performed.
 
 ## Implemented scope
@@ -62,17 +62,19 @@ The successful checks emitted only record-level warnings:
 
 None indicated a failed assertion, lint error, type error, build failure, data risk, or missing accepted behavior, so they are non-blocking.
 
-## Manual acceptance checklist
+## Windows human acceptance results
 
-Windows physical human acceptance remains **Pending**. It must verify:
+The user confirmed all eight numbered checks passed on **2026-09-06**:
 
-- The divider presents a thin theme-appropriate rule, hover highlight, `row-resize` cursor, and practical pointer hit target.
-- Pointer drag tracks live, release persists, cancellation restores the drag-start position, and double-click resets to `50%`.
-- A saved ratio survives application restart and appears in subsequently created or reloaded windows without moving a different window that was already open.
-- Window resizing and inline-search show/hide temporarily clamp and recompute correctly, then restore the saved ratio; changing search results or region contents does not move the divider.
-- Both titles remain fixed while file and tree contents scroll independently.
-- Collapsed Opened Files retains its allocated empty height; no Folder root retains the lower region and complete Open Folder control.
-- Disabling Opened Files hides its region and divider and gives Folder tree full height; re-enabling restores the ratio.
-- Outline has no divider, and returning to Files restores the previous allocation.
+1. The default divider appeared at the midpoint; hover highlighting and the `row-resize` cursor were present.
+2. Pointer dragging resized the regions, and double-click restored the midpoint.
+3. Changing the number of Opened Files did not move the divider.
+4. The Opened files and Folder tree contents scrolled independently while both titles remained fixed.
+5. Collapsing Opened Files retained its allocated blank space and left the divider draggable.
+6. Showing and hiding inline search recomputed/restored the layout, and switching to Outline hid the divider while returning to Files restored it.
+7. Close Folder left the no-root lower region present with the existing Open Folder entry point.
+8. Disabling Opened Files in settings hid its region and divider and gave Folder tree the available height; re-enabling restored the divider allocation.
 
-No physical Linux or macOS acceptance was performed; both platforms remain **Untested**. No package-level smoke or installation acceptance was performed because no distributable package was built.
+Acceptance used isolated temporary fixtures containing **43 Markdown files and 12 directories**, plus an isolated application profile and instance. The evidence does not depend on a machine-specific path or process ID.
+
+This physical pass does not claim separate human confirmation of `pointercancel`, persistence across an application restart, or absence of live movement in another already-open window; those retain the automated evidence above. No physical Linux or macOS acceptance was performed, so both platforms remain **Untested**. No package was produced, no package-level smoke or installation acceptance was performed, and nothing was installed or pushed.

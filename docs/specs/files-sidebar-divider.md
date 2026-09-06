@@ -1,6 +1,6 @@
 # Files sidebar divider
 
-- Status: implementation complete; focused automated validation passed. Windows human acceptance **Pending**; Linux/macOS **Untested**.
+- Status: implementation complete; focused automated validation passed. Windows human acceptance user-confirmed passed on 2026-09-06; Linux/macOS **Untested**.
 - Baseline: `e2ba0adbc2244404e7f6e8bb7566e35715a28a68`.
 - Source commit: `f93434a67bc4291d4c2facaa34c21df21b315237`.
 - Test follow-up: `0ec0fbef0ea8c4cb7c246c38a9c7be46235d23ed`.
@@ -98,6 +98,8 @@ Targeted tests must cover:
 Place focused divider coverage next to the existing Files visual and inline-search tests so the fixed inset, search expansion, and divider geometry are exercised together where practical. Required repository validation includes the relevant targeted tests, typecheck, lint, and build. Existing unrelated warnings are recorded rather than expanded into this scope.
 
 ## Manual acceptance
+
+The Windows result is limited to the eight user-confirmed checks recorded in the [implementation and validation record](../testing/files-sidebar-divider.md). Pointer cancellation, restart persistence, and non-live updates in another already-open window retain automated evidence but were not separately confirmed in that physical acceptance.
 
 - Drag the divider with a mouse or other pointer through normal and minimum-clamped positions; confirm live motion, hover highlight, `row-resize`, thin rule, and the usable hit target.
 - Release, restart the application, and create or reload another window; confirm persistence without live movement in a window that was already open.
