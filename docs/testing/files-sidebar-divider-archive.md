@@ -49,7 +49,7 @@ The source smoke directory was deleted only after this copy and verification. Th
 
 ## Actual cleanup result
 
-The cleanup removed **12,172,693,490 bytes** (approximately **11.337 GiB**) of reproducible or superseded data.
+The completed cleanup removed **13,050,672,804 bytes** in total (approximately **12.154 GiB** or **13.051 GB**) of reproducible or superseded data.
 
 ### Removed worktrees
 
@@ -76,6 +76,14 @@ Git worktree removal encountered Windows `Filename too long` errors. Worktree me
 | `C:\Users\1407\AppData\Local\Temp\marktext-divider-acceptance-9f94f8dd76614e82b2a3566dc4a4dcca` |    10,146,779 |
 
 The three old package deliveries had been superseded by the retained `f93434a6` delivery. The smoke result and screenshots were preserved in the retained delivery before their source directory was removed.
+
+### Global MarkText temporary-directory sweep
+
+A subsequent audit of `%TEMP%` found 749 top-level `marktext-*` historical test, manual-acceptance, and diagnostic entries left by multiple earlier MarkText stages, not only the Files sidebar divider work. The scan accounted for **877,979,314 bytes** (approximately **0.818 GiB**), containing 18,644 directories and 7,202 files, with no scan errors.
+
+Before deletion, a `Win32_Process` inspection confirmed that no Electron or MarkText process referenced any of these temporary paths. The only MarkText-related process was the retained final-delivery installer, PID `19644`, running from the delivery directory; it was not touched.
+
+One Node process enumerated the exact Temp root and validated both the parent directory and required `marktext-` name prefix before removing each entry. All 749 entries were removed successfully, leaving zero matching top-level entries. The final `f93434a6` delivery and its compact `evidence` directory are outside `%TEMP%` and remained intact.
 
 ### Removed branches
 
