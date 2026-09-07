@@ -183,16 +183,16 @@ const runTrial = async (count: number, trial: number) => {
       suppressErrorDialog: true
     })
     app = launched.app
+    let page = launched.page
+    await page.setViewportSize({ width: 1280, height: 720 })
+    await waitForEditor(page, 30000)
+    await waitForMenuReady(app, 30000)
     const runtimeVersions = (await app.evaluate(() => ({
       electron: process.versions.electron,
       node: process.versions.node,
       chromium: process.versions.chrome,
       executablePath: process.execPath
     }))) as RuntimeVersions
-    let page = launched.page
-    await page.setViewportSize({ width: 1280, height: 720 })
-    await waitForEditor(page, 30000)
-    await waitForMenuReady(app, 30000)
     const rowsDeadline = Date.now() + 60000
     let observedWindows: Array<{ url: string; rows: number }> = []
     while (Date.now() < rowsDeadline) {
