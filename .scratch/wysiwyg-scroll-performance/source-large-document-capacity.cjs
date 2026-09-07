@@ -810,12 +810,7 @@ function queryExistingPids(pids, runCommand = command, platform = process.platfo
   return { successful: true, existingPids }
 }
 
-async function pollPidsGone(
-  pids,
-  timeoutMs,
-  queryPids = queryExistingPids,
-  wait = delay
-) {
+async function pollPidsGone(pids, timeoutMs, queryPids = queryExistingPids, wait = delay) {
   const startedAt = performance.now()
   const queries = []
   let query = queryPids(pids)
@@ -1223,11 +1218,9 @@ function trialPlans() {
 function repositoryIdentity() {
   const repositoryHeadAtRun = gitText(['rev-parse', 'HEAD'])
   const branchAtRun = gitText(['branch', '--show-current'])
-  const repositoryStatus = command(
-    'git',
-    ['status', '--porcelain=v1', '--untracked-files=all'],
-    { cwd: repositoryRoot }
-  )
+  const repositoryStatus = command('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
+    cwd: repositoryRoot
+  })
   const productionStatus = command(
     'git',
     ['status', '--porcelain=v1', '--untracked-files=all', '--', ...productionPathspecs],
@@ -1251,8 +1244,7 @@ function repositoryIdentity() {
     repositoryCleanAtStart: commandSucceeded(repositoryStatus) && repositoryStatus.stdout === '',
     repositoryStatus,
     productionPathspecs,
-    productionPathsClean:
-      commandSucceeded(productionStatus) && productionStatus.stdout === '',
+    productionPathsClean: commandSucceeded(productionStatus) && productionStatus.stdout === '',
     productionStatus,
     productionPathsMatchRequiredStartingSha: productionBaselineDiff.status === 0,
     productionBaselineDiff,
@@ -1269,7 +1261,10 @@ function verifyRepositoryIdentity(identity) {
   const requirements = [
     ['repository was clean before build and measurement', identity.repositoryCleanAtStart],
     ['production paths were clean', identity.productionPathsClean],
-    ['production paths matched the required starting SHA', identity.productionPathsMatchRequiredStartingSha],
+    [
+      'production paths matched the required starting SHA',
+      identity.productionPathsMatchRequiredStartingSha
+    ],
     ['harness file was clean', identity.harnessClean],
     ['HEAD was the commit that last changed the harness', identity.harnessCommitIsHead]
   ]
@@ -1332,11 +1327,7 @@ function baseArtifact() {
     build: {
       type: 'local production Electron build',
       status: 'not-started',
-      measurementCommand: [
-        'node',
-        harnessRelativePath,
-        ...process.argv.slice(2)
-      ].join(' ')
+      measurementCommand: ['node', harnessRelativePath, ...process.argv.slice(2)].join(' ')
     },
     runtime: {
       harnessNode: {
@@ -1489,69 +1480,49 @@ async function runCleanupSelfTests() {
   assert.equal(discoveryParseFailure.successful, false)
   cases.push('process discovery parse failure is fatal')
 
-  const discoveryFailure = await closeAndVerifyProcessTree(
-    { close: async () => {} },
-    100,
-    {
-      platform: 'win32',
-      windowsProcessTree: () => ({
-        method: 'self-test',
-        successful: false,
-        failure: 'injected discovery failure',
-        pids: []
-      })
-    }
-  )
+  const discoveryFailure = await closeAndVerifyProcessTree({ close: async () => {} }, 100, {
+    platform: 'win32',
+    windowsProcessTree: () => ({
+      method: 'self-test',
+      successful: false,
+      failure: 'injected discovery failure',
+      pids: []
+    })
+  })
   assert.equal(discoveryFailure.successful, false)
   cases.push('failed discovery cannot become successful cleanup')
 
-  const queryFailure = await closeAndVerifyProcessTree(
-    { close: async () => {} },
-    100,
-    {
-      platform: 'win32',
-      windowsProcessTree: () => successfulDiscovery,
-      pollPidsGone: async () => ({
-        ...verifiedPoll([]),
-        querySuccessful: false,
-        allExited: false,
-        queryFailure: 'injected query failure'
-      })
-    }
-  )
+  const queryFailure = await closeAndVerifyProcessTree({ close: async () => {} }, 100, {
+    platform: 'win32',
+    windowsProcessTree: () => successfulDiscovery,
+    pollPidsGone: async () => ({
+      ...verifiedPoll([]),
+      querySuccessful: false,
+      allExited: false,
+      queryFailure: 'injected query failure'
+    })
+  })
   assert.equal(queryFailure.successful, false)
   cases.push('PID query failure is fatal')
 
   const killPolls = [verifiedPoll([100, 101]), verifiedPoll([100, 101]), verifiedPoll([])]
-  const killFailure = await closeAndVerifyProcessTree(
-    { close: async () => {} },
-    100,
-    {
-      platform: 'win32',
-      windowsProcessTree: () => successfulDiscovery,
-      pollPidsGone: async () => killPolls.shift(),
-      command: () => commandFailure
-    }
-  )
+  const killFailure = await closeAndVerifyProcessTree({ close: async () => {} }, 100, {
+    platform: 'win32',
+    windowsProcessTree: () => successfulDiscovery,
+    pollPidsGone: async () => killPolls.shift(),
+    command: () => commandFailure
+  })
   assert.equal(killFailure.afterForcedCleanup.allExited, true)
   assert.equal(killFailure.successful, false)
   cases.push('failed taskkill is fatal even when later verification finds no PIDs')
 
-  const timeoutPolls = [
-    verifiedPoll([100, 101]),
-    verifiedPoll([100, 101]),
-    verifiedPoll([101])
-  ]
-  const exitTimeout = await closeAndVerifyProcessTree(
-    { close: async () => {} },
-    100,
-    {
-      platform: 'win32',
-      windowsProcessTree: () => successfulDiscovery,
-      pollPidsGone: async () => timeoutPolls.shift(),
-      command: () => commandSuccess
-    }
-  )
+  const timeoutPolls = [verifiedPoll([100, 101]), verifiedPoll([100, 101]), verifiedPoll([101])]
+  const exitTimeout = await closeAndVerifyProcessTree({ close: async () => {} }, 100, {
+    platform: 'win32',
+    windowsProcessTree: () => successfulDiscovery,
+    pollPidsGone: async () => timeoutPolls.shift(),
+    command: () => commandSuccess
+  })
   assert.equal(exitTimeout.successful, false)
   cases.push('bounded exit verification timeout is fatal')
 
