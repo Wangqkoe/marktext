@@ -6,8 +6,14 @@ import { createMoveTabToNewWindowAction, createPaneEditorComposition, createWork
 class Editor implements PaneEditorAdapter {
   snapshot!: EditorBindingSnapshot
   flushes = 0
+  report: EditorReport = {}
+  flushBarrier?: Promise<void>
   async refresh(snapshot: EditorBindingSnapshot) { this.snapshot = snapshot }
-  async flush(): Promise<EditorReport> { this.flushes++; return {} }
+  async flush(): Promise<EditorReport> {
+    this.flushes++
+    await this.flushBarrier
+    return this.report
+  }
 }
 
 const split = async(workspace: ReturnType<typeof createWorkspaceRuntime>) => {
@@ -91,6 +97,50 @@ describe('shared document views', () => {
     expect(left.report(left.getLease()!, { markdown: 'three' }).status).toBe('applied')
     await workspace.execute({ kind: 'focus-pane', paneId: 'right' })
     expect(rightEditor.snapshot.document.markdown).toBe('three')
+  })
+
+  it('captures only the latest peer scroll before replacing its editor generation', async() => {
+    const workspace = createWorkspaceRuntime([{ markdown: 'one' }])
+    const { rightId } = await split(workspace)
+    const leftEditor = new Editor()
+    const rightEditor = new Editor()
+    const left = await workspace.bindPaneEditor('left', leftEditor)
+    const right = await workspace.bindPaneEditor('right', rightEditor)
+    const rightLease = right.getLease()
+    const leftLease = left.getLease()
+    if (!rightLease || !leftLease) throw new Error('expected both shared View leases')
+    let releaseFlush!: () => void
+    rightEditor.flushBarrier = new Promise(resolve => { releaseFlush = resolve })
+    rightEditor.report = {
+      markdown: 'stale peer markdown',
+      portableHistory: { version: 1, value: ['stale-peer-history'] },
+      cursor: { line: 8, column: 8 },
+      selection: {
+        anchor: { line: 8, column: 8 },
+        head: { line: 8, column: 8 }
+      },
+      scrollTop: 350
+    }
+
+    expect(left.report(leftLease, {
+      markdown: 'current markdown',
+      portableHistory: { version: 1, value: ['current-history'] }
+    }).status).toBe('applied')
+    await vi.waitFor(() => expect(rightEditor.flushes).toBe(1))
+    expect(right.finalizeScroll(rightLease, 400).status).toBe('applied')
+    releaseFlush()
+    await vi.waitFor(() => expect(rightEditor.snapshot.document.markdown).toBe('current markdown'))
+
+    const rightView = workspace.getFacadeSnapshot().documents.find(document => document.viewId === rightId)
+    expect(rightView).toMatchObject({
+      markdown: 'current markdown',
+      portableHistory: { version: 1, value: ['current-history'] },
+      dirty: true,
+      cursor: { line: 0, column: 0 },
+      scrollTop: 400
+    })
+    expect(rightView?.selection).toBeNull()
+    expect(rightEditor.snapshot.view).toMatchObject({ cursor: { line: 0, column: 0 }, scrollTop: 400 })
   })
 
   it('adds a shared view to an existing right pane and updates both identities on Save As', async() => {

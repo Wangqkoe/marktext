@@ -1218,7 +1218,15 @@ export class WorkspaceController implements WorkspaceControllerContract {
       this.enqueue(async() => {
         if (this.adapters.get(paneId) !== bound || bound.snapshot?.documentId !== documentId || this.documentIsCurrent(bound)) return
         try {
-          await this.refreshAdapter(paneId, this.snapshotFor(paneId, this.requirePane(paneId).activeViewId))
+          const viewId = this.requirePane(paneId).activeViewId
+          const scrollObservationEpoch = this.view(viewId).scrollObservationEpoch
+          // This peer is stale by definition: capture only its View-local live
+          // scroll, never its old document, history, cursor, or selection data.
+          const { scrollTop } = await bound.adapter.flush()
+          if (Number.isFinite(scrollTop)) {
+            this.applyReport(viewId, { scrollTop }, scrollObservationEpoch)
+          }
+          await this.refreshAdapter(paneId, this.snapshotFor(paneId, viewId))
           this.commit()
         } catch {
           this.invalidate(bound)
