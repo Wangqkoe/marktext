@@ -214,6 +214,14 @@ test.describe('Tab switch restores the per-tab scroll position', () => {
       return el ? el.scrollTop : -1
     })
 
+  const scrollGeometry = (): Promise<{ scrollTop: number; maxScrollTop: number } | null> =>
+    page.evaluate(() => {
+      const el = document.querySelector('.editor-component') as HTMLElement | null
+      return el
+        ? { scrollTop: el.scrollTop, maxScrollTop: el.scrollHeight - el.clientHeight }
+        : null
+    })
+
   test('scrollTop is restored on a returned-to tab while the other tab stays at top', async() => {
     // Establish an older idle-committed position, then leave a newer Live
     // Scroll Position pending when the user switches away.
@@ -265,12 +273,19 @@ test.describe('Tab switch restores the per-tab scroll position', () => {
       return snapshot.documents.find(document => document.viewId === viewId)?.scrollTop
     }, original.viewId))).toBe(captured)
 
-    // Switch back to tab A — its scrollTop must be (approximately) restored.
-    // Tolerance is generous: real layout height drives `scrollToCords` clamping.
+    // Switch back to tab A. The latest captured position may be clamped by the
+    // current layout, but restoring the older committed position is not valid.
     await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 0)
-    await expect.poll(() => scrollTop(), { timeout: 5000 }).toBeGreaterThan(1000)
-    const restored = await scrollTop()
-    expect(Math.abs(restored - captured)).toBeLessThan(captured)
+    await expect.poll(async() => {
+      const geometry = await scrollGeometry()
+      return geometry ? Math.min(captured, geometry.maxScrollTop) : -1
+    }, { timeout: 5000 }).toBeGreaterThan(original.scrollTop)
+    await expect.poll(async() => {
+      const geometry = await scrollGeometry()
+      return geometry
+        ? Math.abs(geometry.scrollTop - Math.min(captured, geometry.maxScrollTop))
+        : Number.POSITIVE_INFINITY
+    }, { timeout: 5000 }).toBeLessThanOrEqual(1)
     await page.waitForTimeout(200)
     expect((await page.evaluate((viewId) => {
       const snapshot = (window as unknown as {
