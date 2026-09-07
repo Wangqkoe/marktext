@@ -12,6 +12,10 @@ _Avoid_: Tab, view (when referring to the document itself)
 A tab's presentation of a document, with its own scroll position, cursor and editing mode; multiple views can display the same document.
 _Avoid_: Document copy, independent file
 
+**Scroll Performance Contract**:
+The shared measurement and acceptance vocabulary for every scroll surface, covering benchmark fixtures, input modes and thresholds without requiring a common runtime scrolling engine; each surface retains its native or surface-specific semantics and implementation. Confirmed performance problems are separated by root cause into WYSIWYG scrolling pressure from global projection/TOC updates, Source large-document capacity and Opened Files scale pressure.
+_Avoid_: Shared scroll engine, universal scroll implementation
+
 **Live Scroll Position**:
 The current scroll offset presented by a View while scrolling, before it becomes the Committed Scroll Position.
 _Avoid_: Saved scroll position, persisted scroll position
