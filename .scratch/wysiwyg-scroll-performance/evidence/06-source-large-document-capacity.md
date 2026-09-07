@@ -1,6 +1,6 @@
 # Ticket 06: Source large-document capacity investigation
 
-- Status: **investigating**; automated causal work complete, physical scrollbar-thumb validation pending manual execution
+- Status: **complete**; automated causal work and the physical scrollbar-thumb validation are recorded. The confirmed 50k P1 capacity defect remains for a follow-up implementation ticket.
 - Required production-source baseline: `f15604cac0d7cc337bdb4d174157a89643854c53`
 - Clean harness/measured HEAD: `3393a3ece1536344d03b156891fd1b6bae30d11c`
 - Branch: `codex/wysiwyg-scroll-06-source-investigation-repair-3`
@@ -26,7 +26,7 @@ The investigation now has a causal account rather than a correlation-only accoun
 
 The smallest promising remediation boundary is therefore two explicit seams, not an assumed universal scroll engine: Source layout/viewport ownership in `sourceCode.vue`, and the full-state reference-definition collection called by `InlineRenderer.patch`. A production proposal must preserve Source scroll/TOC/cursor semantics and must prove whether reference definitions can be cached or collected once per document update. The disposable interventions do not themselves constitute a production fix.
 
-The ticket remains open because this environment cannot credibly convert protocol-generated pointer events into evidence about a human physically grabbing the OS/Chromium scrollbar thumb. That row is marked **Unavailable / Pending manual** below; it is not reported as passed.
+The manual physical-thumb matrix closes the investigation's evidence gap without claiming a production repair. The 10k result is acceptable. All three 50k rounds reached the requested positions without a reported crash, but the thumb remained visibly unresponsive and stalled for up to a few seconds; this confirms the existing P1 capacity defect.
 
 ## Pre-registered falsifiable hypotheses
 
@@ -149,18 +149,28 @@ The listed DOM-primitive row sums `getBoundingClientRect`, `elt`, `removeChild`,
 
 The intervention removed exactly one production `change` and one `cursorActivity` handler. Source-entry time remained baseline-like (3.40 s at 10k; 22.51 s at 50k), so these handlers do not explain construction. They do explain a material portion of first-input delay. The production handlers call `getMarkdownAndCursor`, `getValue`, `getWordCount`, and `composition.reportSource`; the profiler retains `wordCount` and CodeMirror display work in the first-input window. A production repair must retain document synchronization and status correctness rather than simply removing the handlers.
 
-## Real wheel and pending physical thumb
+## Real wheel and physical-thumb validation
 
 The harness points at the visible Source surface and dispatches eight `page.mouse.wheel(0, 600)` inputs. It records each renderer `wheel` event, `event.isTrusted`, the actual active scroll target, scroll events, first movement, final offset, and driver elapsed time. Production uses the outer `.source-code` container; the disposable fixed-viewport intervention uses the CodeMirror scroller. All 96 timing-matrix wheel inputs were observed as trusted and every trial moved the applicable scroll target.
 
-**Physical scrollbar thumb: Unavailable / Pending manual.** Playwright/CDP-generated pointer input cannot prove behavior of a physical mouse interacting with the OS/Chromium thumb on this host. Execute and attach the following before closing the ticket:
+### Manual execution environment and identity
 
-1. Run the same production build and open a generated 10k fixture in a fresh profile.
-2. Enter Source and wait until the first typed character is visibly accepted.
-3. With a physical mouse, grab the Source vertical scrollbar thumb, drag to approximately 50%, then the bottom, then the top.
-4. Record continuous thumb tracking, visible content tracking, longest apparent freeze, final reachability, any crash, and any lost input.
-5. Repeat three times, then repeat all steps for 50k.
-6. Attach OS build, display scale, viewport, physical input device, and a timestamped screen recording.
+The human-operated matrix used the build worktree at `C:\Users\1407\.codex\worktrees\cb6b\Marktext`, launched from `packages\desktop`, at commit `35f93b483942f5dc4bc4d57aa932120ad23ebcb0`. The isolated profile family was `marktext-source-manual-20260907-01`, with `profiles/10k-round-1..3` and `profiles/50k-round-1..3`. The first attempted 10k round 2 launch incorrectly used the monorepo root and failed; it is not counted as a trial. The successful retry used `10k-round-2-retry-1`. The temporary launcher was then corrected to use `packages\desktop`. For 50k round 3, PID `33824` was verified running without an early exit.
+
+The host was Windows 11 Pro `10.0.26200` (`26200`), x64. At evidence collection, the user display registry reported `AppliedDPI=96` (nominal 100% scale), and the active display mode reported by the NVIDIA adapter was `2560x1440` at 144 Hz. Windows identified the pointing device only as `HID-compliant mouse`, Microsoft driver, status `OK`, device ID `HID\VID_046D&PID_C52B&MI_01&COL01\7&68A9055&0&0000`; the physical model was not recorded. The application viewport for these manual trials was not independently recorded and is unknown. These environment queries were collected after the trials, so they document the host state at evidence recording rather than prove that every setting remained unchanged throughout every round.
+
+### Manual result matrix
+
+| Fixture / round | Human-reported physical-thumb result                                                                           | Reachability and safety                                                                                               | Recording                                                                                                                                                                                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 10k round 1     | Thumb was comparatively responsive; visible content followed it; longest stall was a fraction of a second.     | Approximately 50%, bottom, and top were all reachable; no crash and no lost input were reported.                      | `C:\Users\1407\Videos\Captures\fixture-10k.md 2026-09-07 04-12-59.mp4`; 7,776,069 bytes; modified `2026-09-07 04:13:33 -07:00`; SHA-256 `a111a6704c5a0472d66b0e5f90784a38f4fd10ce2f6c8c20c1cf25aa0246d2b2`.                                                          |
+| 10k round 2     | Thumb was responsive with almost no stall.                                                                     | Approximately 50%, bottom, and top were all reachable; no crash was reported. Lost input was not reported either way. | `C:\Users\1407\Videos\Captures\fixture-10k.md 2026-09-07 04-25-22.mp4`; 9,289,415 bytes; modified `2026-09-07 04:25:47 -07:00`; SHA-256 `b810fd6c08f1df5139ebadedf47d75d956a48468815c032852025fdd06af5e78`.                                                          |
+| 10k round 3     | The user reported no difference from round 2 and marked the round passed.                                      | No separate per-dimension report was made.                                                                            | The user chose not to record this round; no recording is claimed.                                                                                                                                                                                                    |
+| 50k round 1     | Thumb was not very responsive and visibly stalled; stalls ranged from a fraction of a second to a few seconds. | Approximately 50%, bottom, and top were all reachable; no crash was reported. Lost input was not reported either way. | `C:\Users\1407\Videos\Captures\DESKTOP-6K8S0NK - TeamViewer 2026-09-07 21-37-11.mp4`; 57,834,054 bytes; modified `2026-09-07 06:37:40 -07:00` (the filename itself contains `21-37-11`); SHA-256 `dd4038e2c08b62ed048c7733d705a9788ff1b371c4f70729c2ea08a9cb6bdf28`. |
+| 50k round 2     | The user reported the same result as round 1, with stalls of a few seconds.                                    | Other observations were reported as the same as round 1.                                                              | No recording was required or claimed.                                                                                                                                                                                                                                |
+| 50k round 3     | The user reported the result was also the same as round 1.                                                     | Other observations were reported as the same as round 1.                                                              | No recording was required or claimed.                                                                                                                                                                                                                                |
+
+The three files claimed above were present when this evidence was recorded; their byte sizes, local modification times, and SHA-256 digests were independently checked. The manual acceptance conclusion is limited to the reported observations: physical thumb behavior is acceptable at 10k, while the repeatable lack of responsiveness and multi-second stalls at 50k confirm the already-classified P1/high capacity defect. Completing this matrix closes Ticket 06 as an investigation; it does not mean the 50k product defect is fixed or accepted.
 
 ## Cleanup evidence
 
@@ -195,7 +205,7 @@ A pre-final smoke run against harness commit `015280658722211c8834344b9ea195f3cc
 - Whether `_collectReferenceDefinitions` should be cached, invalidated once per document update, or avoided during Source handoff; the profile names the work but does not prove the safe design.
 - The remaining DevTools unclassified task time is not partitioned into paint, browser-native DOM work, and other engine work. GC is sampled but not a dominant named function.
 - Initial filesystem read, Markdown-to-Muya parsing, model construction, and first WYSIWYG rendering remain grouped inside the pre-Source phase.
-- Physical scrollbar-thumb behavior is pending manual validation. Installed-package, Linux, and macOS behavior are also unmeasured.
+- Installed-package, Linux, and macOS physical scrollbar-thumb behavior remains unmeasured.
 
 ## Follow-up repair boundary
 
@@ -204,7 +214,6 @@ A repair specification is warranted, but production implementation remains out o
 1. Prototype finite Source materialization at the `sourceCode.vue` layout/scroll-owner seam while keeping one authoritative live/committed scroll position and all existing Source behaviors.
 2. Add a focused Muya benchmark proving how often `_collectReferenceDefinitions` runs during Source handoff, then test one correctness-preserving cache/invalidation or skip boundary.
 3. Coalesce Source content/status reporting without weakening shared-document, dirty-state, word-count, cursor, history, or save semantics.
-4. Run the pending physical-thumb matrix and attach its evidence.
 
 The eventual acceptance matrix should require on this reference machine:
 
@@ -214,4 +223,4 @@ The eventual acceptance matrix should require on this reference machine:
 - renderer working-set growth from pre-Source at or below 512 MiB; and
 - unchanged TOC navigation, cursor/selection, undo/redo, external reload scroll restoration, Source/WYSIWYG transitions, saving, shared views, and exact Markdown round-trip.
 
-No WYSIWYG scroll-report change, universal scroll engine, custom wheel physics, persistence migration, speculative framework, or unrelated refactor belongs in this ticket. Ticket 06 remains **investigating** until the physical-thumb row is executed and attached.
+No WYSIWYG scroll-report change, universal scroll engine, custom wheel physics, persistence migration, speculative framework, or unrelated refactor belongs in this ticket. Ticket 06 is **complete** because the investigation and required evidence matrix are recorded; the confirmed 50k P1 capacity defect still requires a separate implementation ticket.

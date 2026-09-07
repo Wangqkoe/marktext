@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** investigating — automated causal evidence is complete; physical scrollbar-thumb validation is pending manual execution, so this ticket is not complete.
+**Status:** complete — automated causal evidence and the physical scrollbar-thumb matrix are recorded. The 50k P1 capacity defect remains open for a separate implementation ticket; this investigation is not a claim that the product defect is fixed.
 
 - [x] Deterministic 10,000-line and 50,000-line Source fixtures are defined with document shape, byte size, line characteristics, and heading/content mix recorded.
 - [x] The reproduction records time to open the document, time to enter Source mode, readiness for input, DOM or editor materialization scale, memory pressure, scroll response, and representative input-to-visible-update latency.
@@ -19,6 +19,6 @@
 - [x] No production fix, speculative runtime framework, or unrelated refactor is implemented as part of this investigation.
 - [x] Findings remain independent from WYSIWYG acceptance unless direct evidence demonstrates a shared causal bottleneck.
 - [x] Real Source wheel input is exercised with Playwright `page.mouse.wheel`; renderer evidence confirms trusted wheel events and scroll movement at both scales.
-- [ ] A human validates the physical OS/Chromium scrollbar thumb with the executable steps in the evidence. Protocol-generated pointer input cannot satisfy this row, and the ticket must remain open until the result is attached.
+- [x] A human validated the physical OS/Chromium scrollbar thumb for three 10k and three 50k rounds. The evidence records the reported behavior, reachability, crash/data-loss reporting limits, isolated profiles, launch correction, available recordings and hashes, and environmental unknowns without treating the 50k result as a repair pass.
 
 Evidence: [Source large-document capacity investigation](../evidence/06-source-large-document-capacity.md)
