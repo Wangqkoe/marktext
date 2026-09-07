@@ -4,16 +4,27 @@
 
 **Blocked by:** 02: Capture final scroll across View transitions
 
-**Status:** ready-for-agent
+**Status:** implemented
 
-- [ ] Move to New Window captures the source surface's latest Live Scroll Position before ownership transfers, and the destination View opens at that position.
-- [ ] Closing a tab or window invalidates its pending idle work so no callback from the destroyed surface can update a surviving or replacement View.
-- [ ] Editor unmount and refresh capture the latest finite position at the lifecycle boundary and fence callbacks owned by the replaced surface.
-- [ ] When a temporary workspace mutation rejects an ordinary idle commit, the system retains only the newest candidate for the current lease and retries it a bounded number of times.
-- [ ] Repeated scroll events or mutation conflicts cannot accumulate an unbounded number of timers, animation-frame callbacks, or retries.
-- [ ] A stale lease, transferred lease, permanently fenced View, disposed surface, or superseded generation is rejected without retrying or overwriting its successor.
-- [ ] If lifecycle capture and pending adapter or idle work overlap, the latest valid observation for the current owner wins in a deterministic order.
-- [ ] Forced late timer and callback tests prove that an old surface cannot change the successor View's Committed Scroll Position.
-- [ ] Scroll-only capture carries only a finite position value and cannot overwrite Markdown, portable history, selection, dirty state, or other editor data with an older snapshot.
-- [ ] Scroll-only lifecycle work does not create an unintended DocumentIO write or crash draft, while legitimate concurrent content and history updates continue to follow existing ownership rules.
-- [ ] The behavior remains current-session continuity only; no cross-restart or crash-recovery persistence is introduced.
+- [x] Move to New Window captures the source surface's latest Live Scroll Position before ownership transfers, and the destination View opens at that position.
+- [x] Closing a tab or window invalidates its pending idle work so no callback from the destroyed surface can update a surviving or replacement View.
+- [x] Editor unmount and refresh capture the latest finite position at the lifecycle boundary and fence callbacks owned by the replaced surface.
+- [x] When a temporary workspace mutation rejects an ordinary idle commit, the system retains only the newest candidate for the current lease and retries it a bounded number of times.
+- [x] Repeated scroll events or mutation conflicts cannot accumulate an unbounded number of timers, animation-frame callbacks, or retries.
+- [x] A stale lease, transferred lease, permanently fenced View, disposed surface, or superseded generation is rejected without retrying or overwriting its successor.
+- [x] If lifecycle capture and pending adapter or idle work overlap, the latest valid observation for the current owner wins in a deterministic order.
+- [x] Forced late timer and callback tests prove that an old surface cannot change the successor View's Committed Scroll Position.
+- [x] Scroll-only capture carries only a finite position value and cannot overwrite Markdown, portable history, selection, dirty state, or other editor data with an older snapshot.
+- [x] Scroll-only lifecycle work does not create an unintended DocumentIO write or crash draft, while legitimate concurrent content and history updates continue to follow existing ownership rules.
+- [x] The behavior remains current-session continuity only; no cross-restart or crash-recovery persistence is introduced.
+
+## Evidence
+
+- RED — bounded retry: `pnpm --filter marktext exec vitest run test/unit/specs/scroll-report-frequency.spec.ts -t "stops retrying a current-lease scroll after bounded temporary rejections"` failed because all 12 forced retry cycles still called the workspace reporter. GREEN: the gate now permits three retries for the latest finite candidate, leaves no scheduled callback after exhaustion, and retains the value only for a later synchronous lifecycle finalization.
+- RED — production Move command: `pnpm --filter marktext exec playwright test --config=test/e2e/playwright.config.ts test/e2e/workspace-transfer-electron.spec.ts -g "moves the latest live WYSIWYG scroll position"` observed source Live Scroll Position `1200` and a successful Move, but the target DOM remained at `0`. GREEN: the transfer target now initializes its new View from the already sealed `payload.view`; the same command passes with target DOM and Committed Scroll Position both `1200` while the source value was still uncommitted when the command began.
+- Passed — focused auxiliary seams: `pnpm --filter marktext exec vitest run test/unit/specs/scroll-report-frequency.spec.ts test/unit/specs/move-action-preflight.spec.ts test/unit/specs/workspace-runtime.spec.ts test/unit/specs/workspace-shared-view.spec.ts test/unit/specs/workspace-projection-mirror.spec.ts` (5 files, 91 tests). These include forced late timer/frame callbacks, stale and transferred leases, permanent fences, successor generations, real Vue parent/child unmount order, concurrent adapter flush ordering, finite scroll-only payloads, Markdown/history/dirty preservation, and DocumentIO/crash-draft isolation.
+- Passed — production Electron transfer seam: `pnpm --filter marktext exec playwright test --config=test/e2e/playwright.config.ts test/e2e/workspace-transfer-electron.spec.ts` (11/11), including saved/dirty/untitled Moves, final Live Scroll Position, File Close Tab on the singleton target, dirty history, renderer reload endpoint fencing, target-creation rollback, and authorized recovery. Every run used a caller-owned temporary `userDataDir`; the test process tree was force-terminated and the profile removed in `finally`.
+- Passed — related renderer/transition regression: the combined `renderer-scroll-performance.spec.ts`, `split-workspace.spec.ts`, `tab-switch-cursor.spec.ts`, and `view-modes.spec.ts` run completed 30 passed / 2 failed / 1 skipped. The scroll performance, Split Right, tab scroll restoration, and both mode transitions passed. The load-sensitive immediate pre-idle assertion in `Move to Right and Move to Left preserve...` received the already committed `700` instead of pre-idle `0`, then passed 1/1 when rerun alone. The dirty undo test completed its behavior assertions but timed out in the unchanged `afterAll app.close()` both in the combined run and alone; neither failure enters this diff's transfer-target or scroll-retry paths.
+- Passed — `pnpm --filter marktext typecheck`; `pnpm --filter marktext build` (existing Vite dynamic/static import warnings only); changed-file ESLint (0 errors, 14 pre-existing non-null warnings in `workspace-transfer-electron.spec.ts`); and `git diff --check` (working-copy LF/CRLF notices only).
+- Failed, unrelated baseline — full `pnpm --filter marktext test:unit` completed 77/78 files with 1,035 passed / 1 skipped; all 10 failures are the unchanged extracted `source-code-image-action.spec.ts` setup stopping at `ReferenceError: computed is not defined`. Full `pnpm lint` also reaches unrelated existing errors in the native-gesture prototype and DocumentIO tests, plus a generated Playwright result file; none of the changed files has a lint error.
+- Scope: current-session continuity only. No persistence schema, DocumentIO write, crash-draft payload, cross-restart restoration, packaging, physical-input acceptance, or cross-platform claim was added; those later ticket 05 concerns remain untested here.

@@ -278,7 +278,8 @@ const openTransferPayload = async (
       ...(portableHistory ? { portableHistory } : {}),
       title: payload.title,
       ...(payload.fileKey ? { fileKey: payload.fileKey, observedDiskRevision: payload.observedDiskRevision } : {}),
-      conflict: payload.conflict
+      conflict: payload.conflict,
+      view: payload.view
     }
   })
   if (opened.status !== 'applied') throw new Error(workspaceReason(opened))

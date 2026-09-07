@@ -78,6 +78,63 @@ for (const scenario of [
   })
 }
 
+test('moves the latest live WYSIWYG scroll position through the user action command', async() => {
+  test.setTimeout(60_000)
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-transfer-scroll-'))
+  const fixture = path.resolve(__dirname, 'data/wysiwyg-scroll-400-headings.md')
+  const { app, page } = await launchElectron([fixture], {
+    userDataDir: profile,
+    userDataDirOwnership: 'caller'
+  })
+  try {
+    await expect(page.locator('.editor-with-tabs')).toBeVisible()
+    const tabId = await page.locator('.tabs-container li').first().getAttribute('data-id')
+    if (!tabId) throw new Error('source tab is missing its id')
+
+    const moved = await page.evaluate(async(id) => {
+      const driver = window as unknown as {
+        __mtMoveTabToNewWindow?: (input: {
+          tabId: string
+          paneId: 'left' | 'right'
+        }) => Promise<unknown>
+        __mtWorkspaceSnapshot?: () => {
+          documents: Array<{ scrollTop: number }>
+        }
+      }
+      const container = document.querySelector<HTMLElement>('.editor-component')
+      if (!container || !driver.__mtMoveTabToNewWindow || !driver.__mtWorkspaceSnapshot) {
+        throw new Error('Move action surface is unavailable')
+      }
+      const committedBefore = driver.__mtWorkspaceSnapshot().documents[0]?.scrollTop
+      container.scrollTop = 1_200
+      container.dispatchEvent(new Event('scroll'))
+      const liveScrollTop = container.scrollTop
+      const result = await driver.__mtMoveTabToNewWindow({ tabId: id, paneId: 'left' })
+      return { committedBefore, liveScrollTop, result }
+    }, tabId)
+
+    expect(moved.committedBefore).toBe(0)
+    expect(moved.liveScrollTop).toBe(1_200)
+    expect(moved.result).toMatchObject({ status: 'applied' })
+    await expect.poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(2)
+    const target = (await app.windows()).find(candidate => candidate !== page)
+    if (!target) throw new Error('moved target window was not found')
+    await expect(target.locator('.editor-with-tabs')).toBeVisible()
+    await expect.poll(() => target.locator('.editor-component').evaluate(element => element.scrollTop)).toBe(
+      moved.liveScrollTop
+    )
+    await expect.poll(() => target.evaluate(() => {
+      const driver = window as unknown as {
+        __mtWorkspaceSnapshot?: () => { documents: Array<{ scrollTop: number }> }
+      }
+      return driver.__mtWorkspaceSnapshot?.().documents[0]?.scrollTop
+    })).toBe(moved.liveScrollTop)
+  } finally {
+    await forceTerminate(app)
+    fs.rmSync(profile, { recursive: true, force: true })
+  }
+})
+
 test('moves a tab once when the native menu callback precedes its selected item click', async() => {
   test.setTimeout(60_000)
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-transfer-context-menu-'))
