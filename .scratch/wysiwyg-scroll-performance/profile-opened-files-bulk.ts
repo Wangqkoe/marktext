@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { performance as nodePerformance } from 'node:perf_hooks'
 import { _electron, type CDPSession, type ElectronApplication, type Page } from 'playwright'
 import {
@@ -45,6 +46,8 @@ const scenariosSetting = process.env.OPENED_FILES_SCENARIOS ?? 'baseline'
 const deliverySetting =
   process.env.OPENED_FILES_DELIVERY === 'ready-batch' ? 'ready-batch' : 'startup'
 const feedbackAssertSetting = process.env.OPENED_FILES_FEEDBACK_ASSERT === '1' ? '1' : '0'
+const settledInputSetting = process.env.OPENED_FILES_SETTLED_INPUT === '1' ? '1' : '0'
+const freshBuildSetting = process.env.OPENED_FILES_FRESH_BUILD === '1' ? '1' : '0'
 const outputSetting =
   process.env.OPENED_FILES_OUTPUT ??
   '.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-bulk.json'
@@ -61,17 +64,42 @@ const scenarios = scenariosSetting
   .map((value) => value.trim())
   .filter(Boolean) as Scenario[]
 const feedbackAssert = feedbackAssertSetting === '1'
+const settledInput = settledInputSetting === '1'
+const freshBuild = freshBuildSetting === '1'
 const delivery = deliverySetting
 const outputPath = path.resolve(outputSetting)
 const projectRoot = path.resolve(__dirname, '../..')
 const desktopRoot = path.join(projectRoot, 'packages', 'desktop')
 const scriptPath = '.scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts'
+const referenceViewport = { width: 1280, height: 480 }
 
 const median = (values: readonly number[]): number | null => {
   if (!values.length) return null
   const sorted = [...values].sort((left, right) => left - right)
   return sorted[Math.floor(sorted.length / 2)]
 }
+
+const percentile = (values: readonly number[], fraction: number): number => {
+  if (!values.length) return 0
+  const sorted = [...values].sort((left, right) => left - right)
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))]
+}
+
+const summarizeDurations = (values: readonly number[]) => ({
+  count: values.length,
+  totalMs: values.reduce((sum, value) => sum + value, 0),
+  p95Ms: percentile(values, 0.95),
+  maximumMs: Math.max(0, ...values)
+})
+
+const summarizeFrameGaps = (gaps: readonly number[]) => ({
+  samples: gaps.length,
+  medianMs: percentile(gaps, 0.5),
+  p95Ms: percentile(gaps, 0.95),
+  maximumMs: Math.max(0, ...gaps),
+  over50Ms: gaps.filter((gap) => gap > 50).length,
+  over50Rate: gaps.length ? gaps.filter((gap) => gap > 50).length / gaps.length : 0
+})
 
 const fixtureBody = (index: number, scenario: Scenario): string => {
   if (scenario === 'tiny-content') return `# Opened file ${String(index).padStart(3, '0')}\n`
@@ -176,6 +204,168 @@ const readLightCounts = (page: Page) =>
     }
   })
 
+const readTaskDurationMs = async (session: CDPSession): Promise<number> => {
+  const metrics = (await session.send('Performance.getMetrics')) as {
+    metrics: Array<{ name: string; value: number }>
+  }
+  const taskDuration = metrics.metrics.find((metric) => metric.name === 'TaskDuration')?.value
+  if (taskDuration === undefined) throw new Error('CDP TaskDuration metric is unavailable')
+  return taskDuration * 1000
+}
+
+const captureSettledWindow = async (
+  page: Page,
+  session: CDPSession,
+  key: string,
+  durationMs: number,
+  action?: () => Promise<void>
+) => {
+  await page.evaluate(`(() => {
+    window.__openedFilesSettledCaptures ||= {};
+    const captureKey = ${JSON.stringify(key)};
+    const captureDurationMs = ${durationMs};
+    const capture = { timestamps: [], longTasks: [], trustedWheelEvents: 0, done: false };
+    window.__openedFilesSettledCaptures[captureKey] = capture;
+    const list = document.querySelector('.opened-files-list');
+    if (!list) throw new Error('Opened Files container is unavailable');
+    const onWheel = event => { if (event.isTrusted) capture.trustedWheelEvents += 1; };
+    list.addEventListener('wheel', onWheel);
+    const observer = new PerformanceObserver(entries => {
+      for (const entry of entries.getEntries()) capture.longTasks.push(entry.duration);
+    });
+    observer.observe({ type: 'longtask', buffered: false });
+    const started = performance.now();
+    requestAnimationFrame(function tick(timestamp) {
+      capture.timestamps.push(timestamp);
+      if (performance.now() - started < captureDurationMs) requestAnimationFrame(tick);
+      else {
+        observer.disconnect();
+        list.removeEventListener('wheel', onWheel);
+        capture.done = true;
+      }
+    });
+  })()`)
+  const taskBeforeMs = await readTaskDurationMs(session)
+  if (action) await action()
+  await page.waitForFunction(
+    (captureKey) => {
+      const driver = window as typeof window & {
+        __openedFilesSettledCaptures?: Record<string, { done: boolean }>
+      }
+      return driver.__openedFilesSettledCaptures?.[captureKey]?.done === true
+    },
+    key,
+    { timeout: durationMs + 10000 }
+  )
+  const taskAfterMs = await readTaskDurationMs(session)
+  const captured = await page.evaluate((captureKey) => {
+    const driver = window as typeof window & {
+      __openedFilesSettledCaptures?: Record<
+        string,
+        { timestamps: number[]; longTasks: number[]; trustedWheelEvents: number }
+      >
+    }
+    const value = driver.__openedFilesSettledCaptures?.[captureKey]
+    if (!value) throw new Error(`settled capture ${captureKey} is unavailable`)
+    return value
+  }, key)
+  const gaps = captured.timestamps
+    .slice(1)
+    .map((timestamp, index) => timestamp - captured.timestamps[index])
+  return {
+    durationMs,
+    frameGaps: summarizeFrameGaps(gaps),
+    longTasks: summarizeDurations(captured.longTasks),
+    taskDurationMs: taskAfterMs - taskBeforeMs,
+    trustedWheelEvents: captured.trustedWheelEvents
+  }
+}
+
+const measureSettledInput = async (page: Page, session: CDPSession, count: number, trial: number) => {
+  await session.send('Performance.enable')
+  const list = page.locator('.opened-files-list')
+  const initiallyVisible = await list.isVisible()
+  if (!initiallyVisible) {
+    await page.locator('.opened-files .title').click()
+    await list.waitFor({ state: 'visible' })
+  }
+  await list.evaluate((element) => {
+    element.scrollTop = 0
+  })
+  const geometry = await list.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    maximumScrollTop: element.scrollHeight - element.clientHeight,
+    initialScrollTop: element.scrollTop
+  }))
+  if (geometry.maximumScrollTop <= 0) {
+    throw new Error(
+      `Opened Files container does not overflow at exact scale ${count}: ${JSON.stringify(geometry)}`
+    )
+  }
+  const idle = await captureSettledWindow(page, session, `idle-${count}-${trial}`, 1800)
+  const revisionBefore = await page.evaluate(() => {
+    const driver = window as typeof window & {
+      __mtWorkspaceSnapshot?: () => { projection: { workspaceRevision: number } }
+    }
+    const snapshot = driver.__mtWorkspaceSnapshot?.()
+    if (!snapshot) throw new Error('workspace snapshot driver is unavailable')
+    return snapshot.projection.workspaceRevision
+  })
+  await list.hover()
+  const wheel = await captureSettledWindow(
+    page,
+    session,
+    `wheel-${count}-${trial}`,
+    2400,
+    async () => {
+      for (let index = 0; index < 80; index++) await page.mouse.wheel(0, 240)
+    }
+  )
+  const finalScrollTop = await list.evaluate((element) => element.scrollTop)
+  const revisionAfter = await page.evaluate(() => {
+    const driver = window as typeof window & {
+      __mtWorkspaceSnapshot?: () => { projection: { workspaceRevision: number } }
+    }
+    const snapshot = driver.__mtWorkspaceSnapshot?.()
+    if (!snapshot) throw new Error('workspace snapshot driver is unavailable')
+    return snapshot.projection.workspaceRevision
+  })
+  await session.send('Performance.disable')
+  return {
+    protocol:
+      'after exact workspace Documents and Opened Files rows are both ready, wait 1000 ms, capture an idle window, then send trusted Playwright mouse-wheel input over the real container',
+    openedFilesRegionInitiallyExpanded: initiallyVisible,
+    geometry,
+    idle,
+    wheel: {
+      ...wheel,
+      method: 'Playwright page.mouse.wheel over the hovered Opened Files container',
+      cadence: '80 wheel events with deltaY=240, issued serially without an inserted delay',
+      finalScrollTop,
+      reachedMaximum: Math.abs(finalScrollTop - geometry.maximumScrollTop) <= 1,
+      revisionDelta: revisionAfter - revisionBefore,
+      status:
+        finalScrollTop > 0 &&
+        wheel.trustedWheelEvents > 0 &&
+        revisionAfter === revisionBefore
+          ? 'Passed'
+          : 'Failed'
+    },
+    scrollbarThumb: {
+      status: 'Unavailable',
+      limitation:
+        'No physical human scrollbar-thumb measurement was performed. Automated pointer input is not classified as physical thumb acceptance.'
+    },
+    programmaticContainerPositioning: {
+      status: 'NotApplicableToInputAcceptance',
+      limitation:
+        'scrollTop was reset only before measurement; no programmatic positioning was used to establish wheel movement or reachability.'
+    }
+  }
+}
+
 const readMainProbe = (app: ElectronApplication) =>
   app.evaluate(() => {
     const state = global as unknown as {
@@ -197,11 +387,11 @@ const readMainProbe = (app: ElectronApplication) =>
   })
 
 const setReferenceViewport = (app: ElectronApplication): Promise<void> =>
-  app.evaluate(({ BrowserWindow }) => {
+  app.evaluate(({ BrowserWindow }, viewport) => {
     const window = BrowserWindow.getAllWindows().find((candidate) => !candidate.isDestroyed())
     if (!window) throw new Error('editor window is unavailable for viewport configuration')
-    window.setContentSize(1280, 720)
-  })
+    window.setContentSize(viewport.width, viewport.height)
+  }, referenceViewport)
 
 const installWindowSendProbe = (app: ElectronApplication): Promise<void> =>
   app.evaluate(({ BrowserWindow }) => {
@@ -368,6 +558,13 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
   if (!firstFile) throw new Error('at least one fixture file is required')
   const fixtureBytes = fs.statSync(firstFile).size
   const consoleErrors: string[] = []
+  const cleanup = {
+    status: 'Pending',
+    appClose: 'Pending',
+    temporaryRoot: root,
+    targetValidated: false,
+    rootRemoved: false
+  }
   let app: ElectronApplication | undefined
   try {
     const launchStarted = nodePerformance.now()
@@ -383,18 +580,16 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
         desktopRoot,
         '--user-data-dir',
         profile,
-        ...(delivery === 'startup' ? [corpus, ...files] : [])
+        ...(delivery === 'startup'
+          ? [corpus, ...files]
+          : settledInput
+            ? [corpus, firstFile]
+            : [])
       ],
       cwd: desktopRoot,
       env,
       timeout: 30000
     })
-    const runtimeVersions = (await app.evaluate(() => ({
-      electron: process.versions.electron,
-      node: process.versions.node,
-      chromium: process.versions.chrome,
-      executablePath: process.execPath
-    }))) as RuntimeVersions
     await installMainProbe(app, scenario === 'watchers-disabled')
     const page = await app.firstWindow()
     await installWindowSendProbe(app)
@@ -408,16 +603,25 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
     await page.waitForLoadState('domcontentloaded')
     await waitForEditor(page, 30000)
     await waitForMenuReady(app, 30000)
+    const runtimeVersions = (await app.evaluate(() => ({
+      electron: process.versions.electron,
+      node: process.versions.node,
+      chromium: process.versions.chrome,
+      executablePath: process.execPath
+    }))) as RuntimeVersions
+    let measurementStarted = launchStarted
     if (scenario === 'list-hidden') await setOpenedFilesPreference(page, false)
     if (scenario === 'projection-detached') await detachProjectionConsumer(page)
     if (delivery === 'ready-batch') {
       await resetMainProbe(app)
       await startProfile(session)
-      await emitReadyBatch(app, files)
+      // Include dispatch itself in document-ready latency. Older evidence that
+      // started this clock after emitReadyBatch measured post-dispatch latency.
+      measurementStarted = nodePerformance.now()
+      await emitReadyBatch(app, settledInput ? files.slice(1) : files)
     }
     const samples: BulkSample[] = []
     const deadline = Date.now() + 90000
-    const measurementStarted = delivery === 'ready-batch' ? nodePerformance.now() : launchStarted
     let observedDocuments = -1
     let openedRows = -1
     let observationMethod = ''
@@ -455,6 +659,27 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
       ? nodePerformance.now() - measurementStarted
       : null
     const bulkProfile = await stopProfile(session)
+    if (settledInput && (delivery !== 'ready-batch' || scenario !== 'baseline')) {
+      throw new Error('settled input measurement requires ready-batch baseline')
+    }
+    if (settledInput && !reachedExactCount) {
+      throw new Error(`exact ${count}-Document readiness was not reached`)
+    }
+    if (settledInput) {
+      await page.waitForFunction(
+        (exactCount) => {
+          const driver = window as typeof window & {
+            __mtWorkspaceSnapshot?: () => { documents: unknown[] }
+          }
+          return (
+            driver.__mtWorkspaceSnapshot?.().documents.length === exactCount &&
+            document.querySelectorAll('.opened-files-list .opened-file').length === exactCount
+          )
+        },
+        count,
+        { timeout: 30000 }
+      )
+    }
     await page.waitForTimeout(1000)
     const settledAtMs = nodePerformance.now() - measurementStarted
     const structure = await readStructure(page)
@@ -474,6 +699,9 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
       const state = global as unknown as { __mt_renderer_errors__?: unknown[] }
       return state.__mt_renderer_errors__?.length ?? 0
     })
+    const settledInputMeasurement = settledInput
+      ? await measureSettledInput(page, session, count, trial)
+      : null
     return {
       scenario,
       count,
@@ -488,7 +716,9 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
         openingMethod:
           delivery === 'startup'
             ? 'isolated Electron profile; CLI receives the corpus directory plus the exact child Markdown path set'
-            : 'isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank'
+            : settledInput
+              ? 'isolated Electron profile reaches renderer/menu ready with the corpus folder and fixture 1 already open, then main app-open-files-by-id delivers fixtures 2..N; the final requested corpus remains exactly N Documents/rows'
+              : 'isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank'
       },
       delivery,
       observationMethod,
@@ -503,18 +733,33 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
       bulkProfile,
       consoleErrors,
       rendererErrors,
-      runtimeVersions
+      runtimeVersions,
+      settledInputMeasurement,
+      cleanup
     }
   } finally {
-    if (app) await app.close().catch(() => undefined)
+    if (app) {
+      try {
+        await app.close()
+        cleanup.appClose = 'Passed'
+      } catch {
+        cleanup.appClose = 'Failed'
+      }
+    } else {
+      cleanup.appClose = 'NotLaunched'
+    }
     await new Promise((resolve) => setTimeout(resolve, 500))
     const resolvedRoot = path.resolve(root)
     const cleanupTargetIsSafe =
       path.dirname(resolvedRoot).toLowerCase() === path.resolve(driveRoot).toLowerCase() &&
       path.basename(resolvedRoot).startsWith('m7b-')
     if (cleanupTargetIsSafe) {
+      cleanup.targetValidated = true
       fs.rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+      cleanup.rootRemoved = !fs.existsSync(root)
+      cleanup.status = cleanup.appClose === 'Passed' && cleanup.rootRemoved ? 'Passed' : 'Failed'
     } else {
+      cleanup.status = 'Failed'
       process.stderr.write(`refusing to remove unexpected profile root: ${resolvedRoot}\n`)
       process.exitCode = 1
     }
@@ -523,9 +768,44 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
 
 let persistFailure: ((error: unknown) => void) | null = null
 
+const runFreshBuild = () => {
+  if (!freshBuild) {
+    return {
+      status: 'Skipped',
+      exitCode: null,
+      command: 'pnpm run build',
+      workingDirectory: projectRoot,
+      detail: 'OPENED_FILES_FRESH_BUILD was not enabled.'
+    }
+  }
+  const startedAt = new Date().toISOString()
+  const result = spawnSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['run', 'build'], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+    shell: false
+  })
+  const finishedAt = new Date().toISOString()
+  const exitCode = result.status ?? 1
+  return {
+    status: exitCode === 0 ? 'Passed' : 'Failed',
+    exitCode,
+    command: 'pnpm run build',
+    workingDirectory: projectRoot,
+    startedAt,
+    finishedAt,
+    stdoutTail: result.stdout.slice(-4000),
+    stderrTail: result.stderr.slice(-4000),
+    detail: result.error?.message ?? 'Build process completed.'
+  }
+}
+
 const main = async () => {
   const startedAt = new Date().toISOString()
   const results: Awaited<ReturnType<typeof runTrial>>[] = []
+  const buildExecution = runFreshBuild()
+  if (buildExecution.status === 'Failed') {
+    throw new Error(`fresh production build failed with exit ${buildExecution.exitCode}`)
+  }
   const measurementIdentity = captureMeasurementIdentity(
     projectRoot,
     applicationSourceRevision,
@@ -538,6 +818,8 @@ const main = async () => {
     OPENED_FILES_SCENARIOS: scenariosSetting,
     OPENED_FILES_DELIVERY: deliverySetting,
     OPENED_FILES_FEEDBACK_ASSERT: feedbackAssertSetting,
+    OPENED_FILES_SETTLED_INPUT: settledInputSetting,
+    OPENED_FILES_FRESH_BUILD: freshBuildSetting,
     OPENED_FILES_OUTPUT: outputSetting
   })
   let execution: {
@@ -571,6 +853,7 @@ const main = async () => {
         runtimeVersions: results[0]?.runtimeVersions ?? null
       },
       reproduction,
+      buildExecution,
       execution,
       limitations: [
         'Windows-only unpackaged Electron measurement; installed packages and Linux/macOS are untested.',
@@ -588,7 +871,7 @@ const main = async () => {
         logicalProcessorCount: cpu.length,
         totalRamBytes: os.totalmem(),
         harnessNode: process.version,
-        configuredContentViewport: { width: 1280, height: 720 },
+        configuredContentViewport: referenceViewport,
         automation: 'Playwright-controlled Electron window',
         headless: false
       },
@@ -623,6 +906,11 @@ const main = async () => {
         )
         const result = await runTrial(count, trial, scenario)
         results.push(result)
+        if (result.cleanup.status !== 'Passed') {
+          throw new Error(
+            `cleanup failed for ${scenario}/${count}/trial-${trial}: ${JSON.stringify(result.cleanup)}`
+          )
+        }
         process.stdout.write(
           `result ${scenario}/${count}: exact=${result.reachedExactDocumentCount} ` +
             `documentReady=${result.exactDocumentReadyMs?.toFixed(1) ?? 'timeout'}ms ` +

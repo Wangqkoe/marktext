@@ -19,6 +19,15 @@ const gitStatus = (projectRoot: string): string =>
     encoding: 'utf8'
   }).replace(/\r?\n$/, '')
 
+const productionPaths = [
+  'packages',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'electron-builder.yml',
+  'electron.vite.config.ts'
+]
+
 const relativePath = (projectRoot: string, target: string): string =>
   path.relative(projectRoot, target).replaceAll(path.sep, '/')
 
@@ -70,6 +79,24 @@ export const captureMeasurementIdentity = (
   const harnessSha = git(projectRoot, ['rev-parse', 'HEAD'])
   const porcelain = gitStatus(projectRoot)
   const entries = porcelain ? porcelain.split(/\r?\n/) : []
+  const committedProductionChanges = git(projectRoot, [
+    'diff',
+    '--name-only',
+    `${applicationSourceSha}..HEAD`,
+    '--',
+    ...productionPaths
+  ])
+  const workingProductionChanges = git(projectRoot, [
+    'diff',
+    '--name-only',
+    'HEAD',
+    '--',
+    ...productionPaths
+  ])
+  const productionChangedPaths = [committedProductionChanges, workingProductionChanges]
+    .flatMap((value) => (value ? value.split(/\r?\n/) : []))
+    .filter(Boolean)
+    .filter((value, index, all) => all.indexOf(value) === index)
   const bundleRoot = path.join(projectRoot, 'packages', 'desktop', 'out')
   const electronPackageRoot = path.join(projectRoot, 'node_modules', 'electron')
   const electronPathFile = path.join(electronPackageRoot, 'path.txt')
@@ -89,6 +116,16 @@ export const captureMeasurementIdentity = (
   return {
     applicationSourceSha,
     harnessSha,
+    applicationSourceWorkingTree: {
+      isDirty: productionChangedPaths.length > 0,
+      comparison: `${applicationSourceSha}..HEAD plus uncommitted production paths`,
+      productionPaths,
+      changedPaths: productionChangedPaths
+    },
+    harnessWorkingTree: {
+      isDirty: entries.length > 0,
+      porcelainEntries: entries
+    },
     workingTree: {
       isDirty: entries.length > 0,
       porcelainEntries: entries
