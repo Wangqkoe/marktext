@@ -8,12 +8,14 @@ Bulk harness: `433090a587e45428aa6421d57953a79cf57b1148`
 
 Input harness after readiness repair: `2e354d79cb383ffd56e0be87fcd1e9cc8e96ab69`
 
+Final settled-scale harness: `20279db22da622cc4eb9306bd3e53224f6dc2a98`
+
 ## Outcome
 
-1. **Ready-batch scale pressure remains real.** The comparable completion milestone is now named **document-ready** everywhere: the workspace facade snapshot contains exactly the requested Document count. Exact 20/100/150 ready batches reached both the requested Documents and Opened Files rows in all nine trials. Median document-ready time was 580.9 / 5,277.6 / 8,942.6 ms. This shows no hard ready-batch capacity ceiling through 150, but the 150-file trials were noisy (5.64–16.37 s).
+1. **Ready-batch scale pressure remains real.** The comparable completion milestone is **document-ready**: the workspace facade snapshot contains exactly the requested Document count. The earlier capacity raw reached exact 20/100/150 Documents and rows in all nine trials; its 580.9 / 5,277.6 / 8,942.6 ms values are now accurately labelled **post-dispatch document-ready latency**, because its clock started after `emitReadyBatch`. The final settled-scale protocol moves the clock before dispatch and separately records 668.8 / 5,346.7 / 15,605.6 ms median dispatch-to-document-ready latency. Both runs show no hard ready-batch capacity ceiling through 150 and substantial high-scale variance.
 2. **Startup delivery remains a separate reliability problem.** With exact startup inputs, 20 files completed in 1/3 trials and 100 files in 0/3, although every main-process send and watcher request occurred. Ready-batch completion therefore does not excuse startup loss.
-3. **The Pinia facade/projection consumer is a material contributor, not a complete cause.** Detaching it reduced median 100-file document-ready time from 6,232.4 to 4,598.1 ms (-26.2%) and removed `deepClone$2` and `inertControllerFacadeFile` from the leading profile entries. However, hiding the Opened Files list reduced the same milestone to 4,771.2 ms (-23.4%). This rerun no longer supports ruling out row rendering as a material contributor or ranking it below the Pinia path.
-4. **Native wheel input passed independently.** All three settled 100-floor trials moved the real Opened Files container to 2,723–2,779 px with zero workspace revisions and no frame gap over 50 ms. Physical scrollbar-thumb automation remained **Unavailable**. Programmatic `scrollTop` positioning is only a diagnostic and remains `NotApplicableToInputAcceptance`.
+3. **The Pinia facade/projection consumer is a material contributor, not a complete cause.** In the historical same-boundary comparison, detaching it reduced median 100-file post-dispatch document-ready latency from 6,232.4 to 4,598.1 ms (-26.2%) and removed `deepClone$2` and `inertControllerFacadeFile` from the leading profile entries. However, hiding the Opened Files list reduced the same milestone to 4,771.2 ms (-23.4%). This rerun no longer supports ruling out row rendering as a material contributor or ranking it below the Pinia path.
+4. **Settled native-wheel responsiveness now has an exact scale curve.** After exact Documents and rows and a 1 s settle, all exact 20/100/150 trials delivered 80 trusted `page.mouse.wheel` events to the real container, reached its actual 407 / 2,647 / 4,047 px maximum, and left workspace revision unchanged. Idle and wheel frame-gap p95 stayed 7.0–7.1 ms with zero gaps over 50 ms. Median wheel-window CDP TaskDuration rose 209.0 / 303.1 / 449.8 ms, establishing scale-related task cost even though frames stayed responsive. Physical thumb remains **Unavailable** and programmatic positioning is not input acceptance.
 
 No production code or production test changed.
 
@@ -21,9 +23,9 @@ No production code or production test changed.
 
 [`profile-opened-files-bulk.ts`](../profile-opened-files-bulk.ts) creates exact files, waits for renderer/menu readiness, starts CPU profiling immediately before the real main-process `app-open-files-by-id` action, and stops on the same workspace-snapshot document-ready milestone for every scenario. It retains partial results and records failures.
 
-With `OPENED_FILES_FEEDBACK_ASSERT=1`, the command exits nonzero if an exact count is incomplete or if the 100-file median document-ready latency per requested file exceeds 1.5 times the lower-count median per file.
+With `OPENED_FILES_FEEDBACK_ASSERT=1`, the command exits nonzero if an exact count is incomplete or if the 100-file median post-dispatch document-ready latency per requested file exceeds 1.5 times the lower-count median per file.
 
-| Exact set | Trial document-ready times | Median |
+| Exact set | Trial post-dispatch document-ready latencies | Median |
 | ---: | ---: | ---: |
 | 20 | 671.0 / 404.0 / 639.0 ms | 639.0 ms |
 | 100 | 6,565.3 / 7,062.7 / 4,979.3 ms | 6,565.3 ms |
@@ -49,19 +51,41 @@ Every final raw file records its exact PowerShell command and environment, execu
 
 The source SHA and harness SHA are deliberately separate. The bundle identity is content-derived rather than inferred from either SHA. All four bulk raws used the first clean harness commit; the input harness needed one readiness-order repair after a fully recorded failed attempt and therefore has its own clean commit.
 
+## Final settled responsiveness/task/frame scale curve
+
+[`raw-settled-scale.json`](./07-opened-files-scale-pressure.raw-settled-scale.json) is the final reproducible scale raw. It was generated from clean harness commit `20279db22da622cc4eb9306bd3e53224f6dc2a98` after an in-command fresh production build passed (exit 0). Settled-input mode attaches the corpus folder and opens fixture 1 before the timed batch so the Files surface is visible; the timed dispatch covers fixtures 2..N. Settled input/frame/task measurement does not begin until both the workspace snapshot and rendered row count equal N, followed by a fixed 1,000 ms settle. This same protocol is used for every scale and trial.
+
+The reference content viewport is 1280×480. This is intentionally shorter than the historical 1280×720 viewport because 20 rows did not overflow in the taller layout. In the final layout the real Opened Files container was 246×153 in every trial, making all three exact scales genuinely scrollable without altering production code or fabricating movement.
+
+| Exact scale | Dispatch-to-document-ready trials (ms) | Median | Idle frame p95 trials (ms) | Median idle TaskDuration (ms) | Wheel frame p95 trials (ms) | Median wheel TaskDuration (ms) | Median working set |
+| ---: | --- | ---: | --- | ---: | --- | ---: | ---: |
+| 20 | 668.8 / 571.1 / 747.9 | 668.8 | 7.1 / 7.1 / 7.1 | 126.9 | 7.0 / 7.0 / 7.0 | 209.0 | 481.3 MiB |
+| 100 | 5,346.7 / 3,341.4 / 6,722.1 | 5,346.7 | 7.1 / 7.0 / 7.1 | 159.7 | 7.1 / 7.0 / 7.0 | 303.1 | 791.7 MiB |
+| 150 | 16,383.2 / 13,824.2 / 15,605.6 | 15,605.6 | 7.0 / 7.1 / 7.1 | 157.3 | 7.1 / 7.1 / 7.0 | 449.8 | 880.3 MiB |
+
+Every trial had zero idle or wheel frame gaps over 50 ms (0%); the Long Tasks observer recorded zero entries. CDP `TaskDuration` is therefore the retained task-time indicator: during the fixed 2,400 ms wheel window its median rose 45% from 20 to 100 and 115% from 20 to 150. That establishes settled task cost scaling, but the stable frame gaps show that this workload did not make native list scrolling visibly janky on this host.
+
+Each trial recorded exactly N Documents/rows, 80 trusted wheel events, positive container movement to the actual maximum, zero workspace-revision delta, zero renderer errors, and `cleanup.status = Passed`. Physical human thumb and touchpad input remain Unavailable. `scrollTop` was reset to zero before measurement only; it was not used to establish movement or reachability.
+
+Final identity is explicit: MarkText 0.20.0-rc.1; application source `303dfa39b84b5bffedd9271b27cefbf34be66753` clean; harness `20279db22da622cc4eb9306bd3e53224f6dc2a98` clean; fresh `pnpm run build` Passed/0; bundle manifest `107034fcec4bf0529076a26f63dc02335322904c59262623a57d6813a74be211`; launcher `4135585486d77c0734ee085114ecc38d0422e0c7b96182d7a592ddaca588cd98`; Electron executable `75217fc3770295a1fbf0a2f3f88e59a4a71bdbccce9c7624dd7dd520b484a5be`; runtime Electron 42.1.0 / Node 24.15.0 / Chromium 148.0.7778.97. The raw also retains exact command/environment, build output tails, executable path, OS/CPU/RAM, actual viewport/container geometry, cadence, fixture/delivery, process resources, limitations, and per-trial cleanup targets/results.
+
+### Timing-boundary correction
+
+The older ready-batch harness assigned `measurementStarted` after `emitReadyBatch`; therefore its elapsed values in `raw-feedback.json`, `raw-ready-batch.json`, and `raw-hypotheses.json` are **post-dispatch latency**, not full action latency. Their same-boundary causal comparisons remain valid, so those historical raws are not rewritten. The current harness starts the clock immediately before dispatch, and the final settled raw calls the resulting field dispatch-to-document-ready latency. Runtime versions are now read only after editor/menu readiness; failure to reach reliable readiness aborts the run.
+
 ## Exact scale and capacity boundary
 
 [`raw-ready-batch.json`](./07-opened-files-scale-pressure.raw-ready-batch.json) records a passed execution (exit 0):
 
-| Exact requested set | Trial document-ready times | Median document-ready | Median total working set | Median renderer working set | Exact Documents/rows |
+| Exact requested set | Trial post-dispatch document-ready latencies | Median post-dispatch latency | Median total working set | Median renderer working set | Exact Documents/rows |
 | ---: | ---: | ---: | ---: | ---: | ---: |
 | 20 | 324.6 / 580.9 / 595.1 ms | 580.9 ms | 462.7 MiB | 167.7 MiB | 3/3 |
 | 100 | 5,277.6 / 5,682.7 / 5,157.1 ms | 5,277.6 ms | 723.9 MiB | 391.9 MiB | 3/3 |
 | 150 | 8,942.6 / 16,368.4 / 5,635.4 ms | 8,942.6 ms | 796.1 MiB | 452.8 MiB | 3/3 |
 
-All nine final structures contained exactly the requested workspace Document count and row count, and all main probes recorded exactly the requested sends and watcher requests. At 100 and 150, sampled Electron-process CPU did not show a measured-process ceiling and there were no renderer errors or crashes. These are per-process metrics, not total host utilization, so they cannot rule out host contention. The large 150-file spread is retained as uncertainty rather than normalized away.
+All nine historical capacity structures contained exactly the requested workspace Document count and row count, and all main probes recorded exactly the requested sends and watcher requests. At 100 and 150, sampled Electron-process CPU did not show a measured-process ceiling and there were no renderer errors or crashes. These are per-process metrics, not total host utilization, so they cannot rule out host contention. The large 150-file spread is retained as uncertainty rather than normalized away.
 
-The superseded `raw-10-100-partial.json` and `raw-scroll-repeat.json` remain historical only. They used spare paths and a count floor and do not establish exact capacity.
+The superseded `raw-10-100-partial.json` and `raw-scroll-repeat.json` remain historical only. They used spare paths, incomplete identity, and a count floor and do not establish exact capacity or the final settled responsiveness/task/frame curve.
 
 ## Startup delivery boundary
 
@@ -80,7 +104,7 @@ The probe wraps `webContents.send`; it proves the main send call, not renderer r
 
 All comparisons in [`raw-hypotheses.json`](./07-opened-files-scale-pressure.raw-hypotheses.json) use exact 100-file ready batches, three trials, the same readiness boundary, and the same workspace-snapshot **document-ready** milestone.
 
-| Scenario / falsifiable probe | Trial document-ready times | Median | Change vs baseline | Final rows | Median peak working set |
+| Scenario / falsifiable probe | Trial post-dispatch document-ready latencies | Median | Change vs baseline | Final rows | Median peak working set |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | baseline | 4,257.2 / 6,332.7 / 6,232.4 ms | 6,232.4 ms | — | 100 / 100 / 100 | 576.3 MiB |
 | list-hidden: row work is material if hiding it improves completion | 4,426.5 / 4,771.2 / 5,094.2 ms | 4,771.2 ms | -23.4% | 0 / 0 / 0 | 584.9 MiB |
@@ -112,7 +136,7 @@ The exact shares among command serialization, facade creation, Pinia clone/rebui
 
 ## Native input and WYSIWYG independence
 
-[`raw-input.json`](./07-opened-files-scale-pressure.raw-input.json) uses ten spare real files only to reach a settled 100-row floor after the documented startup race. It is input evidence, not capacity evidence.
+[`raw-input.json`](./07-opened-files-scale-pressure.raw-input.json) uses ten spare real files only to reach a settled 100-row floor after the documented startup race. It remains historical single-scale input evidence, not capacity or final settled-scale evidence; `raw-settled-scale.json` supersedes it for the checked scale-curve acceptance.
 
 | Trial | Actual rows | Actual viewport | Container | Wheel final position | Idle / wheel p95 | Wheel gaps >50 ms | Workspace revision | Physical thumb |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
@@ -130,6 +154,7 @@ The Opened Files wheel profiles do not contain the workspace facade/projection f
 
 - Exact ready-batch document completion and working set rise sharply from 20 to 100 to 150.
 - No hard ready-batch capacity ceiling was observed through exactly 150 Documents and rows.
+- After exact settle, trusted native wheel input remains frame-responsive through 150 on this host (all frame gaps over 50 ms = 0), while fixed-window wheel TaskDuration increases with scale.
 - Startup can plateau short after all main sends/watcher requests; ready-batch delivery avoids that loss in these measurements.
 - Detaching the Pinia facade/projection consumer materially improves the common document-ready milestone and removes its leading profile functions, but does not explain the remaining 4.6 seconds.
 - Native wheel input passes at the 100-row floor without workspace revisions; physical thumb automation is unavailable.
@@ -152,7 +177,7 @@ The Opened Files wheel profiles do not contain the workspace facade/projection f
 
 ## Severity and separate follow-up seams
 
-**Medium / P2 overall.** Startup completeness is a blocking acceptance criterion for any bulk-open repair but remains non-blocking for WYSIWYG scroll-performance acceptance. Bulk-open latency is reproducible at a realistic power-user scale and reaches a median 8.9 seconds at 150 in this run, with one 16.4-second trial, while the workspace stayed stable and native list wheel scrolling remained usable after settling.
+**Medium / P2 overall.** Startup completeness is a blocking acceptance criterion for any bulk-open repair but remains non-blocking for WYSIWYG scroll-performance acceptance. Bulk-open latency is reproducible at a realistic power-user scale: the historical capacity run had 8.9 seconds median post-dispatch latency at 150, while the final seeded settled protocol had 15.6 seconds median dispatch-to-document-ready latency. The workspace stayed stable and native list wheel scrolling remained frame-responsive after settling, although wheel-window TaskDuration rose with scale.
 
 Two separate repair specifications remain warranted:
 
@@ -165,6 +190,7 @@ Non-goals remain speculative virtualization, a shared scroll runtime, content tr
 
 | Raw | Command status | Purpose / limitation |
 | --- | --- | --- |
+| [`raw-settled-scale.json`](./07-opened-files-scale-pressure.raw-settled-scale.json) | Passed, exit 0 (fresh build also Passed, exit 0) | final exact 20/100/150 settled wheel/frame/task/resource curve; physical thumb/touchpad unavailable |
 | [`raw-feedback.json`](./07-opened-files-scale-pressure.raw-feedback.json) | Failed, exit 1 (intentional RED assertion after 6/6 exact trials) | 20/100 feedback loop |
 | [`raw-ready-batch.json`](./07-opened-files-scale-pressure.raw-ready-batch.json) | Passed, exit 0 | exact 20/100/150 capacity and resource evidence |
 | [`raw-startup-handoff.json`](./07-opened-files-scale-pressure.raw-startup-handoff.json) | Passed, exit 0 | startup delivery plateau; command pass does not mean exact product completion |
@@ -177,6 +203,12 @@ The initial input failure was repaired only by moving the runtime-version read a
 ## Exact raw reproduction commands
 
 Run from the repository root. Each final raw also embeds its own command verbatim.
+
+Final exact settled scale (includes fresh build):
+
+```powershell
+$env:OPENED_FILES_APPLICATION_SOURCE_SHA='303dfa39b84b5bffedd9271b27cefbf34be66753'; $env:OPENED_FILES_COUNTS='20,100,150'; $env:OPENED_FILES_TRIALS='3'; $env:OPENED_FILES_SCENARIOS='baseline'; $env:OPENED_FILES_DELIVERY='ready-batch'; $env:OPENED_FILES_FEEDBACK_ASSERT='0'; $env:OPENED_FILES_SETTLED_INPUT='1'; $env:OPENED_FILES_FRESH_BUILD='1'; $env:OPENED_FILES_OUTPUT='.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-settled-scale.json'; pnpm exec tsx '.scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts'
+```
 
 Feedback (expected command exit 1 while RED):
 

@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** complete — second standards repair records uniquely reproducible measurement identities, exact commands/statuses, a common document-ready comparison milestone, the retained input-harness failure, and rerun conclusions in `../evidence/07-opened-files-scale-pressure.md`; no production fix implemented
+**Status:** complete — third standards repair adds a final clean-build, exact 20/100/150 settled native-wheel/frame/task/resource curve, corrects the historical ready-batch timing boundary to post-dispatch latency, and retains uniquely reproducible identities, commands/statuses, cleanup, limitations, and conclusions in `../evidence/07-opened-files-scale-pressure.md`; no production fix implemented
 
-**Input limitation:** native wheel passed. The automated physical scrollbar-thumb drag was attempted but did not move Chromium's overlay/native thumb, so it is recorded as **Unavailable**. Programmatic container positioning is diagnostic only and is not counted as direct scrollbar acceptance.
+**Input limitation:** trusted native wheel passed at exact settled 20/100/150 scale. Physical human scrollbar-thumb and touchpad input remain **Unavailable**; an automated pointer gesture is not classified as physical thumb acceptance. Programmatic container positioning is not counted as direct scrollbar acceptance.
 
 **Capacity boundary:** exact renderer/menu-ready batches reached the common workspace-snapshot document-ready milestone and settled at 20/20, 100/100, and 150/150 Documents/rows in every trial. Startup batches independently plateaued short despite every main-process send, localizing a delivery-readiness race rather than a 100/150-item capacity ceiling.
 
