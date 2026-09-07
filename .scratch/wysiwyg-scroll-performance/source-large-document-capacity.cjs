@@ -11,10 +11,9 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 
 const desktopRoot = path.resolve(__dirname, '../../packages/desktop')
-const electronPath =
-  process.platform === 'win32'
-    ? path.join(desktopRoot, 'node_modules/.bin/electron.cmd')
-    : path.join(desktopRoot, 'node_modules/electron/dist/electron')
+const electronPath = cleanupSelfTestRequested
+  ? null
+  : require(path.join(desktopRoot, 'node_modules/electron'))
 const cpuProfileEnabled = process.argv.includes('--cpu-profile')
 const profilePairRequested = process.argv.includes('--profile-pair')
 const outputPath = path.resolve(
@@ -1273,8 +1272,12 @@ function verifyRepositoryIdentity(identity) {
 }
 
 function executeAndIdentifyBuild() {
-  const buildCommandName = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-  const execution = command(buildCommandName, ['--filter', 'marktext', 'build'], {
+  const buildCommandName = process.platform === 'win32' ? 'powershell.exe' : 'pnpm'
+  const buildArguments =
+    process.platform === 'win32'
+      ? ['-NoProfile', '-NonInteractive', '-Command', '& pnpm --filter marktext build']
+      : ['--filter', 'marktext', 'build']
+  const execution = command(buildCommandName, buildArguments, {
     cwd: repositoryRoot,
     timeout: 300_000
   })
