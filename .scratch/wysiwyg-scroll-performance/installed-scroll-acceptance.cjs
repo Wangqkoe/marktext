@@ -372,6 +372,7 @@ const measureSelectorWheel = async (page, name, selector, pulses = 20, deltaY = 
     responseLatencyMs: probe.wheel[0] && probe.scroll[0] ? probe.scroll[0].at - probe.wheel[0].at : null,
     axis,
     geometry: probe.geometry,
+    platform: 'Windows x64 installed application',
     limitations: axis === 'horizontal' ? 'horizontal movement inferred from overflow; scrollLeft is not captured by the generic vertical probe' : null
   }
 }
@@ -383,7 +384,7 @@ const measureMatrix = async () => {
     const entries = []
     await clickMenu(app, 'tocMenuItem')
     await page.waitForSelector('.side-bar-toc .el-tree-node', { state: 'visible', timeout: 15000 })
-    entries.push(await measureSelectorWheel(page, 'Outline', '.side-bar-toc .el-scrollbar__wrap'))
+    entries.push(await measureSelectorWheel(page, 'Outline', '.side-bar-toc'))
 
     await clickMenu(app, 'sourceCodeModeMenuItem')
     await page.waitForSelector('.source-code .CodeMirror', { state: 'attached', timeout: 30000 })
@@ -398,38 +399,61 @@ const measureMatrix = async () => {
     entries.push(await measureSelectorWheel(page, 'Command palette', '.command-palette ul.commands'))
     await page.keyboard.press('Escape')
 
+    await page.evaluate(() => {
+      const container = document.querySelector('.editor-component')
+      if (!(container instanceof window.HTMLElement)) throw new Error('WYSIWYG unavailable')
+      container.scrollTop = 0
+      container.dispatchEvent(new Event('scroll'))
+    })
+    await page.waitForTimeout(250)
     const beforeSearch = await workspaceSnapshot(page)
+    await startFrameAndInputProbe(page, '.editor-component')
     await app.evaluate(({ BrowserWindow }, payload) => {
       BrowserWindow.getAllWindows()[0].webContents.send(payload.channel, ...payload.args)
     }, { channel: 'mt::editor-edit-action', args: ['find'] })
-    await page.waitForSelector('.search-bar input', { state: 'visible', timeout: 10000 })
-    await page.locator('.search-bar input').fill('Heading 250')
+    await page.waitForSelector('.search-bar .search input', { state: 'visible', timeout: 10000 })
+    await page.locator('.search-bar .search input').fill('Heading 250')
     const searchStarted = Date.now()
+    await page.waitForFunction(() => document.querySelector('.search-bar .search-result')?.textContent?.includes('1 / 1'))
     await page.waitForFunction(() => document.querySelector('.editor-component')?.scrollTop > 0)
     await page.waitForTimeout(400)
     const afterSearch = await workspaceSnapshot(page)
+    const searchProbe = await stopFrameAndInputProbe(page, '.editor-component')
     entries.push({
       name: 'Search',
       outcome: afterSearch.scrollTop > 0 && afterSearch.revision - beforeSearch.revision === 1 ? 'Passed' : 'Failed',
       fixture: 'one exact heading match in 400-heading installed fixture',
       inputSemantics: 'Playwright text fill invokes production Search navigation; programmatic destination, not wheel/physical input',
+      cadence: summarizeGaps(searchProbe.gaps),
+      rawFrameGapsMs: searchProbe.gaps,
       responseLatencyMs: Date.now() - searchStarted,
       finalConvergence: afterSearch,
-      limitations: 'end-to-end elapsed includes polling and animation completion; raw rAF gaps not sampled in this matrix entry'
+      platform: 'Windows x64 installed application',
+      limitations: 'end-to-end elapsed includes polling and animation completion'
     })
     await page.keyboard.press('Escape')
 
     const staticEntries = [
-      ['WYSIWYG', 'Covered by three-run installed benchmark and deterministic gate'],
-      ['Files / Folder tree', 'No Folder root corpus is attached by the 400-heading fixture'],
-      ['Preferences', 'Opens a separate window; automated scroll sampling not implemented in phase 1'],
-      ['Opened Files', 'One-document fixture does not overflow; link T07 exact 20/100/150 settled evidence'],
-      ['Tab-strip horizontal', 'One-document fixture does not overflow'],
-      ['Image-viewer zoom', '400-heading fixture contains no image; physical/gesture zoom remains Pending'],
-      ['Other scrollable popup', 'No representative overflowing popup was opened beyond command palette']
+      ['WYSIWYG', 'Passed', '400 headings', '80 trusted automated wheel pulses', 'Covered by three-run installed benchmark and deterministic gate'],
+      ['Files / Folder tree', 'Untested', 'No Folder root', 'None', 'No Folder root corpus is attached by the 400-heading fixture'],
+      ['Preferences', 'Untested', 'Default preferences', 'None', 'Opens a separate window; automated scroll sampling not implemented in phase 1'],
+      ['Opened Files', 'Untested', 'One open Document', 'None', 'One-document fixture does not overflow; link T07 exact 20/100/150 settled evidence'],
+      ['Tab-strip horizontal', 'Untested', 'One tab', 'None', 'One-document fixture does not overflow'],
+      ['Image-viewer zoom', 'Untested', 'No image', 'None', '400-heading fixture contains no image; physical/gesture zoom remains Pending'],
+      ['Other scrollable popup', 'Untested', 'Command palette is recorded separately', 'None', 'No representative overflowing popup was opened beyond command palette']
     ]
-    for (const [name, limitation] of staticEntries) {
-      entries.push({ name, outcome: name === 'WYSIWYG' ? 'Passed' : 'Untested', limitation })
+    for (const [name, outcome, fixture, inputSemantics, limitations] of staticEntries) {
+      entries.push({
+        name,
+        outcome,
+        fixture,
+        inputSemantics,
+        cadence: null,
+        rawFrameGapsMs: null,
+        responseLatencyMs: null,
+        platform: 'Windows x64 installed application',
+        limitations
+      })
     }
     return { profile, entries }
   } finally {
