@@ -1,0 +1,7 @@
+# Share a scroll performance contract, not a runtime engine
+
+Status: accepted
+
+MarkText uses one [Scroll Performance Contract](../../CONTEXT.md) across scroll surfaces: a common measurement vocabulary, benchmark harness and scale fixtures, input coverage, and acceptance matrix. It does not introduce a shared runtime scroll engine; native and surface-specific semantics remain owned by each surface. The current evidence does not support one runtime abstraction: WYSIWYG showed clear long frames with 400 and 1,000 headings, while the equal-height plain fixture showed 0%, and disabling only workspace scroll reporting reduced the 1,000-heading case to 0%. Folder Tree, Files filtering, Outline, and special-interaction benchmarks showed no comparable long frames. Source at 10,000/50,000 lines and Opened Files at 100 items showed different capacity or pressure risks, with no proof of a shared cause. See the [desktop renderer scroll profile](../testing/desktop-scroll-profile.md).
+
+This choice makes performance results comparable without forcing distinct interactions through an abstraction that could obscure ownership or change behavior. Its cost is that runtime fixes and surface semantics can remain duplicated or surface-specific. Reconsider a shared runtime only when at least two ordinary scrolling surfaces exhibit the same causal bottleneck and a common abstraction measurably improves both.
