@@ -1,0 +1,920 @@
+{
+  "recordedAt": "2026-09-07T05:49:54.019Z",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v24.18.0",
+  "electron": "42.1.0",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "fixtureDefinition": "UTF-8 LF; exactly N nonblank lines; every line 1 mod 100 is an ATX H1; remaining lines are unique fixed-shape plain text",
+  "repetitions": 3,
+  "timeoutsMs": {
+    "launch": 45000,
+    "editorReady": 45000,
+    "sourceEntry": 120000,
+    "input": 20000,
+    "scroll": 30000
+  },
+  "fixtures": [
+    {
+      "lineCount": 10000,
+      "bytes": 776900,
+      "headings": 100,
+      "bodyLines": 9900,
+      "sha256": "8d7a4d0903a787926d979af4f2082155134cb631bc7b6827c14cad141dc95dfd"
+    },
+    {
+      "lineCount": 50000,
+      "bytes": 3884500,
+      "headings": 500,
+      "bodyLines": 49500,
+      "sha256": "cb6d15f95facb7396b6fa010ba0cc9c6ab13890e10e8e72a61132be46d2beeeb"
+    }
+  ],
+  "results": [
+    {
+      "lineCount": 10000,
+      "repetition": 1,
+      "profileIsolation": "marktext-source-capacity-10000-1-K94pt3",
+      "openReadyMs": 5974.6198,
+      "preSourceCadence": {
+        "samples": 48,
+        "medianMs": 31.199999999999818,
+        "p95Ms": 31.600000000000364,
+        "maxMs": 73.62399995231635,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 33804,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 152060,
+          "privateBytesKiB": 113600
+        },
+        {
+          "pid": 6252,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 95844,
+          "privateBytesKiB": 79748
+        },
+        {
+          "pid": 64332,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 54156,
+          "privateBytesKiB": 14812
+        },
+        {
+          "pid": 53420,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 453168,
+          "privateBytesKiB": 481368
+        }
+      ],
+      "sourceEntryMs": 4400.307500000001,
+      "baselineMaterialization": {
+        "lineCount": 10200,
+        "codeChildren": 10200,
+        "renderedLines": 10200,
+        "gutterWrappers": 10200,
+        "allDomElements": 73117,
+        "scrollHeight": 450238,
+        "clientHeight": 746,
+        "viewportMargin": null
+      },
+      "baselineMetrics": [
+        {
+          "pid": 33804,
+          "type": "Browser",
+          "cpuPercent": 0.03594902947243059,
+          "workingSetKiB": 150712,
+          "privateBytesKiB": 112148
+        },
+        {
+          "pid": 6252,
+          "type": "GPU",
+          "cpuPercent": 0.11915845635034024,
+          "workingSetKiB": 96520,
+          "privateBytesKiB": 85212
+        },
+        {
+          "pid": 64332,
+          "type": "Utility",
+          "cpuPercent": 0.0005391577388182931,
+          "workingSetKiB": 54164,
+          "privateBytesKiB": 14816
+        },
+        {
+          "pid": 53420,
+          "type": "Tab",
+          "cpuPercent": 6.889150771447564,
+          "workingSetKiB": 748736,
+          "privateBytesKiB": 720064
+        }
+      ],
+      "sourceIdleCadence": {
+        "samples": 47,
+        "medianMs": 31.200000000000728,
+        "p95Ms": 31.700000000000728,
+        "maxMs": 82.70000000000073,
+        "over50ms": 1
+      },
+      "baselineInputVisibleMs": 189.14820000000145,
+      "baselineScroll": {
+        "elapsedMs": 2559.0999999046326,
+        "samples": 60,
+        "medianGapMs": 31.399999999999636,
+        "p95GapMs": 93.89999999999964,
+        "maxGapMs": 156.1999999999989,
+        "over50ms": 16,
+        "finalScrollTop": 449393,
+        "movedFrames": 60
+      },
+      "viewportInterventionMs": 2116.161,
+      "finiteViewportMaterialization": {
+        "lineCount": 10200,
+        "codeChildren": 10200,
+        "renderedLines": 10200,
+        "gutterWrappers": 10200,
+        "allDomElements": 73118,
+        "scrollHeight": 450139,
+        "clientHeight": 746,
+        "viewportMargin": 10
+      },
+      "finiteViewportMetrics": [
+        {
+          "pid": 33804,
+          "type": "Browser",
+          "cpuPercent": 0.061290669803031786,
+          "workingSetKiB": 158008,
+          "privateBytesKiB": 119764
+        },
+        {
+          "pid": 6252,
+          "type": "GPU",
+          "cpuPercent": 0.2390883788245618,
+          "workingSetKiB": 98428,
+          "privateBytesKiB": 86788
+        },
+        {
+          "pid": 64332,
+          "type": "Utility",
+          "cpuPercent": 0.0032463033374247343,
+          "workingSetKiB": 54168,
+          "privateBytesKiB": 14820
+        },
+        {
+          "pid": 53420,
+          "type": "Tab",
+          "cpuPercent": 5.524470730371569,
+          "workingSetKiB": 866452,
+          "privateBytesKiB": 808784
+        }
+      ],
+      "finiteViewportInputVisibleMs": 197.20119999999952,
+      "finiteViewportScroll": {
+        "elapsedMs": 2292.600000143051,
+        "samples": 60,
+        "medianGapMs": 31.299999999999272,
+        "p95GapMs": 94.20000000000073,
+        "maxGapMs": 156.20000000000073,
+        "over50ms": 9,
+        "finalScrollTop": 449393,
+        "movedFrames": 60
+      },
+      "status": "completed",
+      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
+      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-1-K94pt3 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-1-K94pt3'"
+    },
+    {
+      "lineCount": 10000,
+      "repetition": 2,
+      "profileIsolation": "marktext-source-capacity-10000-2-PE3gMc",
+      "openReadyMs": 4117.530200000001,
+      "preSourceCadence": {
+        "samples": 48,
+        "medianMs": 31.199999999999818,
+        "p95Ms": 31.699999999999818,
+        "maxMs": 60.22799995231617,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 35512,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 152588,
+          "privateBytesKiB": 113244
+        },
+        {
+          "pid": 53948,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 110848,
+          "privateBytesKiB": 81228
+        },
+        {
+          "pid": 35884,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 67528,
+          "privateBytesKiB": 14812
+        },
+        {
+          "pid": 65600,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 475204,
+          "privateBytesKiB": 508184
+        }
+      ],
+      "sourceEntryMs": 3157.483800000002,
+      "baselineMaterialization": {
+        "lineCount": 10200,
+        "codeChildren": 10200,
+        "renderedLines": 10200,
+        "gutterWrappers": 10200,
+        "allDomElements": 73117,
+        "scrollHeight": 450238,
+        "clientHeight": 746,
+        "viewportMargin": null
+      },
+      "baselineMetrics": [
+        {
+          "pid": 35512,
+          "type": "Browser",
+          "cpuPercent": 0.02065435212523183,
+          "workingSetKiB": 151248,
+          "privateBytesKiB": 111784
+        },
+        {
+          "pid": 53948,
+          "type": "GPU",
+          "cpuPercent": 0.10703989842270628,
+          "workingSetKiB": 111476,
+          "privateBytesKiB": 84252
+        },
+        {
+          "pid": 35884,
+          "type": "Utility",
+          "cpuPercent": 0.00020310386621932584,
+          "workingSetKiB": 67536,
+          "privateBytesKiB": 14816
+        },
+        {
+          "pid": 65600,
+          "type": "Tab",
+          "cpuPercent": 6.922672857955475,
+          "workingSetKiB": 784784,
+          "privateBytesKiB": 770832
+        }
+      ],
+      "sourceIdleCadence": {
+        "samples": 48,
+        "medianMs": 31.200000000000728,
+        "p95Ms": 31.699999999999818,
+        "maxMs": 65.85599990463288,
+        "over50ms": 1
+      },
+      "baselineInputVisibleMs": 192.88439999999537,
+      "baselineScroll": {
+        "elapsedMs": 3127.100000143051,
+        "samples": 60,
+        "medianGapMs": 62.100000000000364,
+        "p95GapMs": 124.80000000000109,
+        "maxGapMs": 156.6999999999989,
+        "over50ms": 33,
+        "finalScrollTop": 449393,
+        "movedFrames": 60
+      },
+      "viewportInterventionMs": 2084.2805999999982,
+      "finiteViewportMaterialization": {
+        "lineCount": 10200,
+        "codeChildren": 10200,
+        "renderedLines": 10200,
+        "gutterWrappers": 10200,
+        "allDomElements": 73118,
+        "scrollHeight": 450139,
+        "clientHeight": 746,
+        "viewportMargin": 10
+      },
+      "finiteViewportMetrics": [
+        {
+          "pid": 35512,
+          "type": "Browser",
+          "cpuPercent": 0.0907869018901838,
+          "workingSetKiB": 158264,
+          "privateBytesKiB": 119404
+        },
+        {
+          "pid": 53948,
+          "type": "GPU",
+          "cpuPercent": 0.2437478003061829,
+          "workingSetKiB": 113584,
+          "privateBytesKiB": 86056
+        },
+        {
+          "pid": 35884,
+          "type": "Utility",
+          "cpuPercent": 0.003965772800849083,
+          "workingSetKiB": 67540,
+          "privateBytesKiB": 14820
+        },
+        {
+          "pid": 65600,
+          "type": "Tab",
+          "cpuPercent": 5.442128099810947,
+          "workingSetKiB": 757000,
+          "privateBytesKiB": 700916
+        }
+      ],
+      "finiteViewportInputVisibleMs": 207.30249999999796,
+      "finiteViewportScroll": {
+        "elapsedMs": 2333.7000000476837,
+        "samples": 60,
+        "medianGapMs": 31.299999999999272,
+        "p95GapMs": 94.20000000000073,
+        "maxGapMs": 156.39999999999964,
+        "over50ms": 10,
+        "finalScrollTop": 449393,
+        "movedFrames": 60
+      },
+      "status": "completed",
+      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
+      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-2-PE3gMc '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-2-PE3gMc'"
+    },
+    {
+      "lineCount": 10000,
+      "repetition": 3,
+      "profileIsolation": "marktext-source-capacity-10000-3-JSV0ys",
+      "openReadyMs": 3828.6987999999983,
+      "preSourceCadence": {
+        "samples": 48,
+        "medianMs": 31.300000000000182,
+        "p95Ms": 31.799999999999727,
+        "maxMs": 58.06200014305114,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 50544,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 150324,
+          "privateBytesKiB": 110956
+        },
+        {
+          "pid": 45004,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 110988,
+          "privateBytesKiB": 80256
+        },
+        {
+          "pid": 40116,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 67572,
+          "privateBytesKiB": 14788
+        },
+        {
+          "pid": 14988,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 474964,
+          "privateBytesKiB": 508456
+        }
+      ],
+      "sourceEntryMs": 3108.4168999999965,
+      "baselineMaterialization": {
+        "lineCount": 10200,
+        "codeChildren": 10200,
+        "renderedLines": 10200,
+        "gutterWrappers": 10200,
+        "allDomElements": 73117,
+        "scrollHeight": 450238,
+        "clientHeight": 746,
+        "viewportMargin": null
+      },
+      "baselineMetrics": [
+        {
+          "pid": 50544,
+          "type": "Browser",
+          "cpuPercent": 0.030749031178125417,
+          "workingSetKiB": 147048,
+          "privateBytesKiB": 107576
+        },
+        {
+          "pid": 45004,
+          "type": "GPU",
+          "cpuPercent": 0.10987106541000166,
+          "workingSetKiB": 111592,
+          "privateBytesKiB": 83348
+        },
+        {
+          "pid": 40116,
+          "type": "Utility",
+          "cpuPercent": 0.0002468941825641769,
+          "workingSetKiB": 67580,
+          "privateBytesKiB": 14792
+        },
+        {
+          "pid": 14988,
+          "type": "Tab",
+          "cpuPercent": 6.9361562906456165,
+          "workingSetKiB": 780344,
+          "privateBytesKiB": 763008
+        }
+      ],
+      "sourceIdleCadence": {
+        "samples": 48,
+        "medianMs": 31.200000000000728,
+        "p95Ms": 31.699999999999818,
+        "maxMs": 60.398000095367024,
+        "over50ms": 1
+      },
+      "baselineInputVisibleMs": 177.21420000000217,
+      "baselineScroll": {
+        "elapsedMs": 2333,
+        "samples": 60,
+        "medianGapMs": 31.299999999999272,
+        "p95GapMs": 67.20000004768372,
+        "maxGapMs": 156.1999999999989,
+        "over50ms": 11,
+        "finalScrollTop": 449393,
+        "movedFrames": 60
+      },
+      "viewportInterventionMs": 2035.690699999992,
+      "finiteViewportMaterialization": {
+        "lineCount": 10200,
+        "codeChildren": 10200,
+        "renderedLines": 10200,
+        "gutterWrappers": 10200,
+        "allDomElements": 73118,
+        "scrollHeight": 450139,
+        "clientHeight": 746,
+        "viewportMargin": 10
+      },
+      "finiteViewportMetrics": [
+        {
+          "pid": 50544,
+          "type": "Browser",
+          "cpuPercent": 0.0662233510752419,
+          "workingSetKiB": 154104,
+          "privateBytesKiB": 115188
+        },
+        {
+          "pid": 45004,
+          "type": "GPU",
+          "cpuPercent": 0.23872837152373805,
+          "workingSetKiB": 113584,
+          "privateBytesKiB": 84924
+        },
+        {
+          "pid": 40116,
+          "type": "Utility",
+          "cpuPercent": 0.0036290390105734984,
+          "workingSetKiB": 67588,
+          "privateBytesKiB": 14800
+        },
+        {
+          "pid": 14988,
+          "type": "Tab",
+          "cpuPercent": 5.439073512765512,
+          "workingSetKiB": 872952,
+          "privateBytesKiB": 812056
+        }
+      ],
+      "finiteViewportInputVisibleMs": 193.42990000000282,
+      "finiteViewportScroll": {
+        "elapsedMs": 2239.2999999523163,
+        "samples": 60,
+        "medianGapMs": 31.299999999999272,
+        "p95GapMs": 74.39999999999964,
+        "maxGapMs": 156.5,
+        "over50ms": 8,
+        "finalScrollTop": 449393,
+        "movedFrames": 60
+      },
+      "status": "completed",
+      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
+      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-3-JSV0ys '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-3-JSV0ys'"
+    },
+    {
+      "lineCount": 50000,
+      "repetition": 1,
+      "profileIsolation": "marktext-source-capacity-50000-1-PT49q7",
+      "openReadyMs": 21549.96179999999,
+      "preSourceCadence": {
+        "samples": 45,
+        "medianMs": 32.60000000000218,
+        "p95Ms": 33.29999999999927,
+        "maxMs": 72.90000000000146,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 51772,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 181964,
+          "privateBytesKiB": 142048
+        },
+        {
+          "pid": 63440,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 112588,
+          "privateBytesKiB": 83700
+        },
+        {
+          "pid": 24244,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 67596,
+          "privateBytesKiB": 14776
+        },
+        {
+          "pid": 65928,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 768488,
+          "privateBytesKiB": 709992
+        }
+      ],
+      "sourceEntryMs": 20307.69600000001,
+      "baselineMaterialization": {
+        "lineCount": 51000,
+        "codeChildren": 51000,
+        "renderedLines": 51000,
+        "gutterWrappers": 51000,
+        "allDomElements": 363517,
+        "scrollHeight": 2250345,
+        "clientHeight": 746,
+        "viewportMargin": null
+      },
+      "baselineMetrics": [
+        {
+          "pid": 51772,
+          "type": "Browser",
+          "cpuPercent": 0.028729181711335913,
+          "workingSetKiB": 149400,
+          "privateBytesKiB": 108440
+        },
+        {
+          "pid": 63440,
+          "type": "GPU",
+          "cpuPercent": 0.06826715784355061,
+          "workingSetKiB": 113008,
+          "privateBytesKiB": 86704
+        },
+        {
+          "pid": 24244,
+          "type": "Utility",
+          "cpuPercent": 0.00014797070660913935,
+          "workingSetKiB": 67556,
+          "privateBytesKiB": 14712
+        },
+        {
+          "pid": 65928,
+          "type": "Tab",
+          "cpuPercent": 8.42574993467329,
+          "workingSetKiB": 2631688,
+          "privateBytesKiB": 2619380
+        }
+      ],
+      "sourceIdleCadence": {
+        "samples": 29,
+        "medianMs": 33,
+        "p95Ms": 164.3000000000029,
+        "maxMs": 195.1999999999971,
+        "over50ms": 6
+      },
+      "baselineInputVisibleMs": 1057.1637000000046,
+      "baselineScroll": {
+        "elapsedMs": 14528.099999904633,
+        "samples": 60,
+        "medianGapMs": 230.20000000000437,
+        "p95GapMs": 393.5,
+        "maxGapMs": 423.90000000000146,
+        "over50ms": 60,
+        "finalScrollTop": 2249599,
+        "movedFrames": 60
+      },
+      "viewportInterventionMs": 8312.4712,
+      "finiteViewportMaterialization": {
+        "lineCount": 51000,
+        "codeChildren": 51000,
+        "renderedLines": 51000,
+        "gutterWrappers": 51000,
+        "allDomElements": 363518,
+        "scrollHeight": 2250345,
+        "clientHeight": 746,
+        "viewportMargin": 10
+      },
+      "finiteViewportMetrics": [
+        {
+          "pid": 51772,
+          "type": "Browser",
+          "cpuPercent": 0.04644841548279242,
+          "workingSetKiB": 144604,
+          "privateBytesKiB": 103388
+        },
+        {
+          "pid": 63440,
+          "type": "GPU",
+          "cpuPercent": 0.0956175566926726,
+          "workingSetKiB": 113604,
+          "privateBytesKiB": 86748
+        },
+        {
+          "pid": 24244,
+          "type": "Utility",
+          "cpuPercent": 0.00030781498659781197,
+          "workingSetKiB": 67432,
+          "privateBytesKiB": 14568
+        },
+        {
+          "pid": 65928,
+          "type": "Tab",
+          "cpuPercent": 7.556401727542819,
+          "workingSetKiB": 2570280,
+          "privateBytesKiB": 2518296
+        }
+      ],
+      "finiteViewportInputVisibleMs": 2336.364600000001,
+      "finiteViewportScroll": {
+        "elapsedMs": 20128.799999952316,
+        "samples": 60,
+        "medianGapMs": 329.09999999999127,
+        "p95GapMs": 527.8000000000029,
+        "maxGapMs": 656.6000000000058,
+        "over50ms": 60,
+        "finalScrollTop": 2249599,
+        "movedFrames": 60
+      },
+      "status": "completed",
+      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
+      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-1-PT49q7 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-1-PT49q7'"
+    },
+    {
+      "lineCount": 50000,
+      "repetition": 2,
+      "profileIsolation": "marktext-source-capacity-50000-2-RhNDWY",
+      "openReadyMs": 25615.6385,
+      "preSourceCadence": {
+        "samples": 45,
+        "medianMs": 33,
+        "p95Ms": 33.5,
+        "maxMs": 64.36400014305036,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 29516,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 182192,
+          "privateBytesKiB": 142336
+        },
+        {
+          "pid": 32960,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 111204,
+          "privateBytesKiB": 82740
+        },
+        {
+          "pid": 66428,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 67772,
+          "privateBytesKiB": 14912
+        },
+        {
+          "pid": 16768,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 814768,
+          "privateBytesKiB": 757212
+        }
+      ],
+      "sourceEntryMs": 27085.55899999998,
+      "baselineMaterialization": {
+        "lineCount": 51000,
+        "codeChildren": 51000,
+        "renderedLines": 51000,
+        "gutterWrappers": 51000,
+        "allDomElements": 363517,
+        "scrollHeight": 2250345,
+        "clientHeight": 746,
+        "viewportMargin": null
+      },
+      "baselineMetrics": [
+        {
+          "pid": 29516,
+          "type": "Browser",
+          "cpuPercent": 0.05689308081556323,
+          "workingSetKiB": 149920,
+          "privateBytesKiB": 109616
+        },
+        {
+          "pid": 32960,
+          "type": "GPU",
+          "cpuPercent": 0.08547647031685061,
+          "workingSetKiB": 111708,
+          "privateBytesKiB": 85800
+        },
+        {
+          "pid": 66428,
+          "type": "Utility",
+          "cpuPercent": 0.00009816046241711095,
+          "workingSetKiB": 67728,
+          "privateBytesKiB": 14852
+        },
+        {
+          "pid": 16768,
+          "type": "Tab",
+          "cpuPercent": 7.8847829383868975,
+          "workingSetKiB": 2179072,
+          "privateBytesKiB": 2123368
+        }
+      ],
+      "sourceIdleCadence": {
+        "samples": 25,
+        "medianMs": 32.599999999998545,
+        "p95Ms": 195.90000000000146,
+        "maxMs": 232.1999999999971,
+        "over50ms": 5
+      },
+      "baselineInputVisibleMs": 1720.0627000000095,
+      "baselineScroll": {
+        "elapsedMs": 16493.700000047684,
+        "samples": 60,
+        "medianGapMs": 260,
+        "p95GapMs": 459.09999999999854,
+        "maxGapMs": 596.3000000000029,
+        "over50ms": 60,
+        "finalScrollTop": 2249599,
+        "movedFrames": 60
+      },
+      "viewportInterventionMs": 8509.459499999997,
+      "finiteViewportMaterialization": {
+        "lineCount": 51000,
+        "codeChildren": 51000,
+        "renderedLines": 51000,
+        "gutterWrappers": 51000,
+        "allDomElements": 363518,
+        "scrollHeight": 2250345,
+        "clientHeight": 746,
+        "viewportMargin": 10
+      },
+      "finiteViewportMetrics": [
+        {
+          "pid": 29516,
+          "type": "Browser",
+          "cpuPercent": 0.06265069425505479,
+          "workingSetKiB": 145524,
+          "privateBytesKiB": 104576
+        },
+        {
+          "pid": 32960,
+          "type": "GPU",
+          "cpuPercent": 0.09991524687557175,
+          "workingSetKiB": 112752,
+          "privateBytesKiB": 87672
+        },
+        {
+          "pid": 66428,
+          "type": "Utility",
+          "cpuPercent": 0.00038668538424123665,
+          "workingSetKiB": 67616,
+          "privateBytesKiB": 14720
+        },
+        {
+          "pid": 16768,
+          "type": "Tab",
+          "cpuPercent": 7.361115390694961,
+          "workingSetKiB": 2878716,
+          "privateBytesKiB": 2827928
+        }
+      ],
+      "finiteViewportInputVisibleMs": 1848.9824000000372,
+      "finiteViewportScroll": {
+        "elapsedMs": 16343.200000047684,
+        "samples": 60,
+        "medianGapMs": 262.3999999999942,
+        "p95GapMs": 490.5,
+        "maxGapMs": 491.6999999999971,
+        "over50ms": 60,
+        "finalScrollTop": 2249599,
+        "movedFrames": 60
+      },
+      "status": "completed",
+      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
+      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-2-RhNDWY '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-2-RhNDWY'"
+    },
+    {
+      "lineCount": 50000,
+      "repetition": 3,
+      "profileIsolation": "marktext-source-capacity-50000-3-tBbz3q",
+      "openReadyMs": 20839.16730000003,
+      "preSourceCadence": {
+        "samples": 46,
+        "medianMs": 32.80000000000291,
+        "p95Ms": 33.20000000000073,
+        "maxMs": 59.56199995231509,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 21964,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 182216,
+          "privateBytesKiB": 142256
+        },
+        {
+          "pid": 34600,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 111140,
+          "privateBytesKiB": 81008
+        },
+        {
+          "pid": 44044,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 67780,
+          "privateBytesKiB": 14896
+        },
+        {
+          "pid": 4316,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 810656,
+          "privateBytesKiB": 753148
+        }
+      ],
+      "sourceEntryMs": 22334.579099999974,
+      "baselineMaterialization": {
+        "lineCount": 51000,
+        "codeChildren": 51000,
+        "renderedLines": 51000,
+        "gutterWrappers": 51000,
+        "allDomElements": 363517,
+        "scrollHeight": 2250345,
+        "clientHeight": 746,
+        "viewportMargin": null
+      },
+      "baselineMetrics": [
+        {
+          "pid": 21964,
+          "type": "Browser",
+          "cpuPercent": 0.009914809735639669,
+          "workingSetKiB": 149512,
+          "privateBytesKiB": 108460
+        },
+        {
+          "pid": 34600,
+          "type": "GPU",
+          "cpuPercent": 0.07449805342902778,
+          "workingSetKiB": 111684,
+          "privateBytesKiB": 84116
+        },
+        {
+          "pid": 44044,
+          "type": "Utility",
+          "cpuPercent": -0.024907666841579065,
+          "workingSetKiB": 67632,
+          "privateBytesKiB": 14696
+        },
+        {
+          "pid": 4316,
+          "type": "Tab",
+          "cpuPercent": 7.851951495895834,
+          "workingSetKiB": 2184136,
+          "privateBytesKiB": 2126872
+        }
+      ],
+      "sourceIdleCadence": {
+        "samples": 29,
+        "medianMs": 32.60000000000582,
+        "p95Ms": 162.70000000000437,
+        "maxMs": 195,
+        "over50ms": 5
+      },
+      "baselineInputVisibleMs": 1381.2614999999641,
+      "status": "capacity-limit",
+      "failure": "Error: baseline scroll probe exceeded 30000 ms",
+      "elapsedAtFailureMs": 79075.49370000005,
+      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
+      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-3-tBbz3q '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-3-tBbz3q'"
+    }
+  ]
+}
