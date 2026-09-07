@@ -41,7 +41,7 @@ const timeoutsMs = {
   sourceTriggerThroughFirstAcceptedVisibleInputTotal: 150_000,
   cadence: 8_000,
   wheel: 30_000,
-  electronCloseGrace: 15_000,
+  electronControlledExit: 15_000,
   processTreeExitAfterKill: 15_000,
   directoryCleanupAttempts: 10,
   directoryCleanupRetryDelay: 500
@@ -839,11 +839,24 @@ function deadlineError(error) {
   return errorText(error).includes('exceeded one total')
 }
 
+async function requestElectronExit(app) {
+  return await app.evaluate(({ app: electronApp, BrowserWindow }) => {
+    const windows = BrowserWindow.getAllWindows()
+    for (const window of windows) window.destroy()
+    setTimeout(() => electronApp.exit(0), 25)
+    return {
+      method: 'destroy all isolated test windows, then request app.exit(0)',
+      destroyedWindowCount: windows.length
+    }
+  })
+}
+
 async function closeAndVerifyProcessTree(app, rootPid, operations = {}) {
   const platform = operations.platform || process.platform
   const runCommand = operations.command || command
   const discover = operations.windowsProcessTree || windowsProcessTree
   const poll = operations.pollPidsGone || pollPidsGone
+  const requestExit = operations.requestElectronExit || requestElectronExit
   const discovery =
     platform === 'win32'
       ? discover(rootPid, runCommand)
@@ -851,29 +864,33 @@ async function closeAndVerifyProcessTree(app, rootPid, operations = {}) {
   const cleanupErrors = []
   if (!discovery.successful) cleanupErrors.push(discovery.failure)
 
-  let courtesyClose
+  let controlledExit
   try {
-    await boundedTotal('Electron courtesy close', timeoutsMs.electronCloseGrace, () => app.close())
-    courtesyClose = { status: 'resolved', timeoutMs: timeoutsMs.electronCloseGrace }
+    const request = await boundedTotal(
+      'Electron controlled exit request',
+      timeoutsMs.electronControlledExit,
+      () => requestExit(app)
+    )
+    controlledExit = { status: 'resolved', timeoutMs: timeoutsMs.electronControlledExit, request }
   } catch (error) {
-    courtesyClose = {
+    controlledExit = {
       status: deadlineError(error) ? 'timed-out' : 'failed',
-      timeoutMs: timeoutsMs.electronCloseGrace,
+      timeoutMs: timeoutsMs.electronControlledExit,
       error: errorText(error)
     }
   }
 
   if (!discovery.successful) {
-    if (courtesyClose.status === 'timed-out') {
-      cleanupErrors.push('Electron courtesy close timed out after discovery failed')
-    } else if (courtesyClose.status === 'failed') {
-      cleanupErrors.push('Electron courtesy close failed after discovery failed')
+    if (controlledExit.status === 'timed-out') {
+      cleanupErrors.push('Electron controlled exit timed out after discovery failed')
+    } else if (controlledExit.status === 'failed') {
+      cleanupErrors.push('Electron controlled exit failed after discovery failed')
     }
     return {
       rootPid,
       discovery,
-      courtesyClose,
-      afterCourtesyClose: { status: 'skipped-because-discovery-failed' },
+      controlledExit,
+      afterControlledExit: { status: 'skipped-because-discovery-failed' },
       beforeForcedKill: { status: 'skipped-because-discovery-failed' },
       forcedKillResults: [],
       afterForcedCleanup: { status: 'skipped-because-discovery-failed' },
@@ -882,28 +899,28 @@ async function closeAndVerifyProcessTree(app, rootPid, operations = {}) {
     }
   }
 
-  const afterCourtesyClose = await poll(discovery.pids, 2_000)
-  if (!afterCourtesyClose.querySuccessful) {
-    cleanupErrors.push('PID verification after courtesy close failed')
+  const afterControlledExit = await poll(discovery.pids, 2_000)
+  if (!afterControlledExit.querySuccessful) {
+    cleanupErrors.push('PID verification after controlled exit failed')
   }
-  if (courtesyClose.status === 'timed-out') {
-    cleanupErrors.push('Electron courtesy close timed out')
-  } else if (courtesyClose.status === 'failed') {
-    if (afterCourtesyClose.allExited) {
-      courtesyClose.status = 'already-exited-during-close'
-      courtesyClose.disposition =
+  if (controlledExit.status === 'timed-out') {
+    cleanupErrors.push('Electron controlled exit timed out')
+  } else if (controlledExit.status === 'failed') {
+    if (afterControlledExit.allExited) {
+      controlledExit.status = 'already-exited-during-request'
+      controlledExit.disposition =
         'non-timeout close error accepted only because successful PID verification proved every discovered process already exited'
     } else {
-      cleanupErrors.push('Electron courtesy close failed while discovered processes remained')
+      cleanupErrors.push('Electron controlled exit failed while discovered processes remained')
     }
   }
 
   const kills = []
   let beforeForcedKill = {
-    status: afterCourtesyClose.allExited ? 'not-required-all-processes-exited' : 'pending'
+    status: afterControlledExit.allExited ? 'not-required-all-processes-exited' : 'pending'
   }
-  if (afterCourtesyClose.querySuccessful && !afterCourtesyClose.allExited) {
-    beforeForcedKill = await poll(afterCourtesyClose.remainingPids, 0)
+  if (afterControlledExit.querySuccessful && !afterControlledExit.allExited) {
+    beforeForcedKill = await poll(afterControlledExit.remainingPids, 0)
     if (!beforeForcedKill.querySuccessful) {
       cleanupErrors.push('PID verification immediately before forced kill failed')
     } else if (!beforeForcedKill.allExited && platform === 'win32') {
@@ -938,7 +955,7 @@ async function closeAndVerifyProcessTree(app, rootPid, operations = {}) {
   }
 
   const afterForcedCleanup =
-    afterCourtesyClose.querySuccessful && beforeForcedKill.querySuccessful !== false
+    afterControlledExit.querySuccessful && beforeForcedKill.querySuccessful !== false
       ? await poll(discovery.pids, timeoutsMs.processTreeExitAfterKill)
       : { status: 'skipped-because-an-earlier-PID-query-failed', allExited: false }
   if (afterForcedCleanup.querySuccessful === false) {
@@ -949,8 +966,8 @@ async function closeAndVerifyProcessTree(app, rootPid, operations = {}) {
   return {
     rootPid,
     discovery,
-    courtesyClose,
-    afterCourtesyClose,
+    controlledExit,
+    afterControlledExit,
     beforeForcedKill,
     forcedKillResults: kills,
     afterForcedCleanup,
@@ -1485,6 +1502,7 @@ async function runCleanupSelfTests() {
 
   const discoveryFailure = await closeAndVerifyProcessTree({ close: async () => {} }, 100, {
     platform: 'win32',
+    requestElectronExit: async () => ({ method: 'self-test controlled exit' }),
     windowsProcessTree: () => ({
       method: 'self-test',
       successful: false,
@@ -1497,6 +1515,7 @@ async function runCleanupSelfTests() {
 
   const queryFailure = await closeAndVerifyProcessTree({ close: async () => {} }, 100, {
     platform: 'win32',
+    requestElectronExit: async () => ({ method: 'self-test controlled exit' }),
     windowsProcessTree: () => successfulDiscovery,
     pollPidsGone: async () => ({
       ...verifiedPoll([]),
@@ -1511,6 +1530,7 @@ async function runCleanupSelfTests() {
   const killPolls = [verifiedPoll([100, 101]), verifiedPoll([100, 101]), verifiedPoll([])]
   const killFailure = await closeAndVerifyProcessTree({ close: async () => {} }, 100, {
     platform: 'win32',
+    requestElectronExit: async () => ({ method: 'self-test controlled exit' }),
     windowsProcessTree: () => successfulDiscovery,
     pollPidsGone: async () => killPolls.shift(),
     command: () => commandFailure
@@ -1522,6 +1542,7 @@ async function runCleanupSelfTests() {
   const timeoutPolls = [verifiedPoll([100, 101]), verifiedPoll([100, 101]), verifiedPoll([101])]
   const exitTimeout = await closeAndVerifyProcessTree({ close: async () => {} }, 100, {
     platform: 'win32',
+    requestElectronExit: async () => ({ method: 'self-test controlled exit' }),
     windowsProcessTree: () => successfulDiscovery,
     pollPidsGone: async () => timeoutPolls.shift(),
     command: () => commandSuccess
@@ -1538,6 +1559,9 @@ async function runCleanupSelfTests() {
     100,
     {
       platform: 'win32',
+      requestElectronExit: async () => {
+        throw new Error('application was already closed')
+      },
       windowsProcessTree: () => successfulDiscovery,
       pollPidsGone: async () => verifiedPoll([]),
       command: () => {
@@ -1546,7 +1570,7 @@ async function runCleanupSelfTests() {
     }
   )
   assert.equal(naturallyExited.successful, true)
-  assert.equal(naturallyExited.courtesyClose.status, 'already-exited-during-close')
+  assert.equal(naturallyExited.controlledExit.status, 'already-exited-during-request')
   cases.push('verified natural exit is accepted without taskkill')
 
   let pathCleanupCalls = 0
