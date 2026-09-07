@@ -765,6 +765,37 @@ describe('scroll report frequency', () => {
     expect(finalScrollTop).toBe(180)
   })
 
+  it('stops retrying a current-lease scroll after bounded temporary rejections', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'one', markdown: 'one' },
+      { documentId: 'two', markdown: 'two' }
+    ])
+    expect((await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })).status).toBe(
+      'applied'
+    )
+    const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const lease = currentLease(binding)
+    const scheduler = new ManualFrameScheduler()
+    const report = vi.fn((scrollTop: number) => binding.report(lease, { scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
+
+    const resizePanes = workspace.execute({ kind: 'set-split-ratio', ratio: 0.4 })
+    gate.request(220)
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      scheduler.flushDeferred()
+      scheduler.flush()
+    }
+
+    expect(report.mock.calls.length).toBeLessThan(12)
+    expect(scheduler.pendingCallbacks).toBe(0)
+    expect(binding.getSnapshot(lease)?.view.scrollTop).toBe(0)
+
+    gate.dispose()
+    expect((await resizePanes).status).toBe('applied')
+    binding.dispose()
+    workspace.dispose()
+  })
+
   it('keeps one scheduled callback when a temporary rejection reports a reentrant value', async() => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'one', markdown: 'one' },

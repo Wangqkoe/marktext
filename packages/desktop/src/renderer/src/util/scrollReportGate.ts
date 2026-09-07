@@ -23,6 +23,7 @@ const browserFrameScheduler: ScrollReportFrameScheduler = {
 
 const INITIAL_RETRY_DELAY_MS = 16
 const MAX_RETRY_DELAY_MS = 250
+const MAX_RETRY_ATTEMPTS = 3
 const IDLE_COMMIT_DELAY_MS = 150
 
 const isTemporaryRejection = (result: WorkspaceResult): boolean =>
@@ -41,6 +42,7 @@ export const createScrollReportGate = (
   let pendingScrollTop: number | undefined
   let uncommittedScrollTop: number | undefined
   let retryDelayMs = INITIAL_RETRY_DELAY_MS
+  let retryAttempts = 0
   let disposed = false
 
   const cancelFrame = () => {
@@ -98,7 +100,13 @@ export const createScrollReportGate = (
     ) {
       return
     }
+    if (retryAttempts >= MAX_RETRY_ATTEMPTS) {
+      pendingScrollTop = undefined
+      retryDelayMs = INITIAL_RETRY_DELAY_MS
+      return
+    }
     const delayMs = retryDelayMs
+    retryAttempts += 1
     retryDelayMs = Math.min(retryDelayMs * 2, MAX_RETRY_DELAY_MS)
     const handle = scheduler.defer(() => {
       if (deferredHandle !== handle) return
@@ -116,11 +124,13 @@ export const createScrollReportGate = (
     if (result.status === 'applied') {
       if (Object.is(uncommittedScrollTop, scrollTop)) uncommittedScrollTop = undefined
       retryDelayMs = INITIAL_RETRY_DELAY_MS
+      retryAttempts = 0
     } else if (isTemporaryRejection(result)) {
       scheduleRetry()
       return
     } else {
       retryDelayMs = INITIAL_RETRY_DELAY_MS
+      retryAttempts = 0
     }
     if (Object.is(pendingScrollTop, scrollTop)) pendingScrollTop = undefined
     scheduleIdleCommit()
@@ -133,6 +143,7 @@ export const createScrollReportGate = (
       uncommittedScrollTop = scrollTop
       cancelDeferred()
       retryDelayMs = INITIAL_RETRY_DELAY_MS
+      retryAttempts = 0
       scheduleIdleCommit()
     },
     cancelPending() {
@@ -140,6 +151,7 @@ export const createScrollReportGate = (
       pendingScrollTop = undefined
       uncommittedScrollTop = undefined
       retryDelayMs = INITIAL_RETRY_DELAY_MS
+      retryAttempts = 0
       cancelFrame()
       cancelDeferred()
     },

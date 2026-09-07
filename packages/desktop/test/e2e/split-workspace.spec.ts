@@ -164,6 +164,73 @@ test.describe('Split workspace', () => {
     expect((await snapshotOf(page)).documents.find(document => document.viewId === rightId)?.cursor).toEqual(rightBefore.cursor)
   })
 
+  test('shared document refresh captures an uncommitted live scroll and fences the old generation', async() => {
+    const markdown = Array.from(
+      { length: 80 },
+      (_, index) => `Paragraph ${index} keeps a shared View vertically scrollable.`
+    ).join('\n\n')
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, markdown)
+    await expect(page.locator(tabSelector)).toHaveCount(3)
+    await tabMenuAction(app, page.locator('.tabs-container > li.active'), 'Split Right')
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+
+    await page.locator('.workspace-pane').nth(0).locator('.tab-select[aria-selected="true"]').click()
+    await expect.poll(() => snapshotOf(page).then(snapshot => snapshot.projection.focusedPaneId)).toBe('left')
+    const rightPane = (await snapshotOf(page)).projection.panes[1]
+    if (!rightPane) throw new Error('expected a right pane after Split Right')
+    const rightId = rightPane.activeViewId
+    const rightScroller = page.locator('.workspace-pane').nth(1).locator('.editor-component')
+    const rightLiveScrollTop = await rightScroller.evaluate(element => {
+      const target = window as typeof window & {
+        __mtScrollIdleHarness?: { fireCaptured(): number }
+      }
+      const originalSetTimeout = window.setTimeout
+      const callbacks: Array<() => void> = []
+      let nextHandle = -1
+
+      window.setTimeout = ((handler: TimerHandler, _delay?: number, ...args: unknown[]) => {
+        if (typeof handler === 'function') callbacks.push(() => Reflect.apply(handler, window, args))
+        return nextHandle--
+      }) as typeof window.setTimeout
+      try {
+        element.scrollTop = 350
+        element.dispatchEvent(new Event('scroll'))
+      } finally {
+        window.setTimeout = originalSetTimeout
+      }
+      target.__mtScrollIdleHarness = {
+        fireCaptured() {
+          const count = callbacks.length
+          for (const callback of callbacks) callback()
+          callbacks.length = 0
+          return count
+        }
+      }
+      return element.scrollTop
+    })
+    expect(rightLiveScrollTop).toBe(350)
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === rightId)?.scrollTop).toBe(0)
+
+    await appendInPane(page, 0, ' LEFT_REFRESH')
+    await expect.poll(() => paneText(page, 1)).toContain('LEFT_REFRESH')
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === rightId)?.scrollTop).toBe(
+      rightLiveScrollTop
+    )
+    expect(await rightScroller.evaluate(element => element.scrollTop)).toBe(rightLiveScrollTop)
+
+    const forcedLateCallbacks = await page.evaluate(() => {
+      const harness = (window as typeof window & {
+        __mtScrollIdleHarness?: { fireCaptured(): number }
+      }).__mtScrollIdleHarness
+      return harness?.fireCaptured() ?? 0
+    })
+    expect(forcedLateCallbacks).toBeGreaterThan(0)
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === rightId)?.scrollTop).toBe(
+      rightLiveScrollTop
+    )
+    expect(await rightScroller.evaluate(element => element.scrollTop)).toBe(rightLiveScrollTop)
+  })
+
   test('Split Right inherits the final live position and then keeps both View positions independent', async() => {
     const markdown = Array.from(
       { length: 300 },
