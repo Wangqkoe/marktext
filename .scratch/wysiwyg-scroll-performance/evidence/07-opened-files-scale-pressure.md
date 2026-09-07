@@ -1,185 +1,222 @@
-# Ticket 07 — Opened Files scale-pressure investigation
+# T07 evidence: Opened Files scale pressure
 
-- Status: complete (diagnosis only; no production fix)
-- Baseline: `d9c97636b6830dc1d57b8e7af56695f377e698fe`
-- Branch: `codex/wysiwyg-scroll-07-opened-files-investigation-repair`
-- Recorded: 2026-09-07 America/Los_Angeles
+Date: 2026-09-07
+
+Application/source baseline: `303dfa39b84b5bffedd9271b27cefbf34be66753`
+
+Bulk harness: `433090a587e45428aa6421d57953a79cf57b1148`
+
+Input harness after readiness repair: `2e354d79cb383ffd56e0be87fcd1e9cc8e96ab69`
 
 ## Outcome
 
-Two independent effects were reproduced and separated.
+1. **Ready-batch scale pressure remains real.** The comparable completion milestone is now named **document-ready** everywhere: the workspace facade snapshot contains exactly the requested Document count. Exact 20/100/150 ready batches reached both the requested Documents and Opened Files rows in all nine trials. Median document-ready time was 580.9 / 5,277.6 / 8,942.6 ms. This shows no hard ready-batch capacity ceiling through 150, but the 150-file trials were noisy (5.64–16.37 s).
+2. **Startup delivery remains a separate reliability problem.** With exact startup inputs, 20 files completed in 1/3 trials and 100 files in 0/3, although every main-process send and watcher request occurred. Ready-batch completion therefore does not excuse startup loss.
+3. **The Pinia facade/projection consumer is a material contributor, not a complete cause.** Detaching it reduced median 100-file document-ready time from 6,232.4 to 4,598.1 ms (-26.2%) and removed `deepClone$2` and `inertControllerFacadeFile` from the leading profile entries. However, hiding the Opened Files list reduced the same milestone to 4,771.2 ms (-23.4%). This rerun no longer supports ruling out row rendering as a material contributor or ranking it below the Pinia path.
+4. **Native wheel input passed independently.** All three settled 100-floor trials moved the real Opened Files container to 2,723–2,779 px with zero workspace revisions and no frame gap over 50 ms. Physical scrollbar-thumb automation remained **Unavailable**. Programmatic `scrollTop` positioning is only a diagnostic and remains `NotApplicableToInputAcceptance`.
 
-1. **Ready-batch scale pressure is real.** After the renderer and menu were ready, an exact 20-file set became visible in a three-trial median of 316.7 ms, 100 files in 4,792.3 ms, and 150 files in 10,738.2 ms. Every trial reached exactly 20/20, 100/100, or 150/150 Documents and Opened Files rows, with no renderer or console errors. This establishes no hard capacity boundary through 150 files under the measured ready-batch path, but it shows strongly superlinear row-ready latency and growing memory.
-2. **Bulk-startup missing entries are a delivery-readiness race, not a 100- or 150-document capacity ceiling.** The main process issued every requested `mt::open-new-tab` send and every watcher request, yet startup trials sometimes settled at 17–19 of 20 or 98 of 100 after a three-second no-progress boundary. Sending the same exact set only after renderer/menu readiness reached the complete set in every 20/100/150 trial. The evidence localizes loss to the main-send → renderer-listener/application boundary during startup; it does not prove which event inside that boundary drops the message.
-
-The Opened Files list DOM is not the dominant setup cost. Hiding the list before a 100-file batch changed median row-ready latency from 4,748.8 ms to 4,688.8 ms (-1.3%). Detaching the Pinia workspace-facade projection consumer reduced it to 3,690.3 ms (-22.3%) and removed `deepClone$2`/`inertControllerFacadeFile` from the leading profile entries. That proves the Pinia projection consumer is a material contributor, not that it explains the remaining 3.7 seconds or that one function is the sole cause. File watchers, fixture content length at this scale, and general memory exhaustion were not supported as dominant causes by the bounded probes.
-
-Settled native wheel scrolling passed independently: all three 100-floor trials moved the real Opened Files container to 2,751–2,807 px, matched the 31.6–31.7 ms calibrated idle cadence, had no frame gap over 50 ms, and published zero workspace revisions. The automated physical scrollbar-thumb gesture did not move Chromium's overlay/native thumb and is explicitly **Unavailable**, not passed. Programmatic `scrollTop` positioning is retained only as a container-scrollability and revision-isolation diagnostic; it is not treated as direct scrollbar input.
+No production code or production test changed.
 
 ## Red-capable feedback loop
 
-The retained [`profile-opened-files-bulk.ts`](../profile-opened-files-bulk.ts) creates an exact file set, waits for renderer/menu readiness, starts CPU profiling immediately before emitting the real `app-open-files-by-id` production action, records progress/resource samples until the exact set arrives, and preserves partial results on every trial.
+[`profile-opened-files-bulk.ts`](../profile-opened-files-bulk.ts) creates exact files, waits for renderer/menu readiness, starts CPU profiling immediately before the real main-process `app-open-files-by-id` action, and stops on the same workspace-snapshot document-ready milestone for every scenario. It retains partial results and records failures.
 
-With `OPENED_FILES_FEEDBACK_ASSERT=1`, the runner exits nonzero when either exact count is incomplete or the 100-file median latency per file is more than 1.5 times the lower-count median latency per file. The 50% allowance prevents ordinary noise from defining failure while still enforcing the proposed “no superlinear degradation” contract.
+With `OPENED_FILES_FEEDBACK_ASSERT=1`, the command exits nonzero if an exact count is incomplete or if the 100-file median document-ready latency per requested file exceeds 1.5 times the lower-count median per file.
 
-The final three-trial feedback run was RED:
+| Exact set | Trial document-ready times | Median |
+| ---: | ---: | ---: |
+| 20 | 671.0 / 404.0 / 639.0 ms | 639.0 ms |
+| 100 | 6,565.3 / 7,062.7 / 4,979.3 ms | 6,565.3 ms |
 
-| Exact set |          Trial row-ready times |     Median |
-| --------: | -----------------------------: | ---------: |
-|        20 |       633.9 / 650.6 / 586.7 ms |   633.9 ms |
-|       100 | 5,949.8 / 4,714.9 / 5,339.2 ms | 5,339.2 ms |
+Five times as many files took 10.27 times as long. Normalized slowdown was 2.05, above the fixed 1.5 boundary, so [`raw-feedback.json`](./07-opened-files-scale-pressure.raw-feedback.json) records `feedbackAssessment.verdict = "RED"`, `execution.status = "Failed"`, and exit code 1 after all six exact trials completed. This is the intended red-capable signal.
 
-Five times as many files took 8.42 times as long; normalized slowdown was 1.68, above the 1.5 feedback boundary. The raw result records `feedbackAssessment.verdict = "RED"` in [`raw-feedback.json`](./07-opened-files-scale-pressure.raw-feedback.json). A performance repair can run the identical command and must turn this verdict GREEN without relaxing the policy.
+## Reproducible measurement identity
 
-## Environment, fixture, and isolation
+Every final raw file records its exact PowerShell command and environment, execution status/exit code, limitations, source SHA, harness SHA, pre-run dirty state, bundle hash, launcher and Electron executable hashes, and runtime-read versions.
 
-- Baseline SHA: `d9c97636b6830dc1d57b8e7af56695f377e698fe`
-- Build: production `electron-vite` output, unpackaged Playwright-controlled Electron window
-- Windows 11 Pro 10.0.26200, x64
-- Intel Core i7-10700, 16 logical processors, 34,060,939,264 bytes RAM
-- Node v24.18.0, Electron 42.1.0
-- Configured content viewport: 1280×720; every raw trial also records the actual viewport and Opened Files container dimensions
-- Standard fixture: exactly 6,129 bytes per file, one H1 plus 40 plain paragraphs, no images, diagrams, math, or remote resources
-- Tiny-content probe: one H1 and one trailing newline
-- Each trial used a new validated `C:\m7b-*` or `C:\m7-*` root with an isolated user-data profile and corpus. The application was closed and only that validated temporary root was recursively removed. No user profile or user document was read or modified.
+| Identity field | Recorded value |
+| --- | --- |
+| Application/source SHA | `303dfa39b84b5bffedd9271b27cefbf34be66753` |
+| Bulk harness SHA | `433090a587e45428aa6421d57953a79cf57b1148` |
+| Final input harness SHA | `2e354d79cb383ffd56e0be87fcd1e9cc8e96ab69` |
+| Pre-run working tree | clean (`isDirty = false`) for every final raw |
+| Application bundle | `packages/desktop/out`, 878 files, 23,994,819 bytes, manifest SHA-256 `107034fcec4bf0529076a26f63dc02335322904c59262623a57d6813a74be211` |
+| Electron executable | `node_modules/electron/dist/electron.exe`, SHA-256 `75217fc3770295a1fbf0a2f3f88e59a4a71bdbccce9c7624dd7dd520b484a5be` |
+| Runtime versions | Electron 42.1.0; Node 24.15.0; Chromium 148.0.7778.97 (read from the running Electron main process) |
+| Harness Node | v24.18.0 |
+| Host | Windows 11 Pro 10.0.26200 x64; Intel Core i7-10700; 16 logical processors; 34,060,939,264 bytes RAM |
+| Viewport | configured 1280×720; actual viewport/container geometry retained per trial |
 
-The production build was generated before measurement. Profiling covers the actual batch-processing interval, not a later settled-only action. Per-trial samples include observed Documents/rows, renderer and aggregate Electron process CPU, total working set, settled per-process metrics, CPU-profile nodes, delivery counters, errors, and geometry.
+The source SHA and harness SHA are deliberately separate. The bundle identity is content-derived rather than inferred from either SHA. All four bulk raws used the first clean harness commit; the input harness needed one readiness-order repair after a fully recorded failed attempt and therefore has its own clean commit.
 
 ## Exact scale and capacity boundary
 
-This table comes from [`raw-ready-batch.json`](./07-opened-files-scale-pressure.raw-ready-batch.json). It is a separate capture from the feedback run, which explains normal host-to-host timing variation.
+[`raw-ready-batch.json`](./07-opened-files-scale-pressure.raw-ready-batch.json) records a passed execution (exit 0):
 
-| Exact requested set |            Trial row-ready times | Median row-ready | Median settled total working set | Median settled renderer working set | Exact arrivals |
-| ------------------: | -------------------------------: | ---------------: | -------------------------------: | ----------------------------------: | -------------: |
-|                  20 |         315.0 / 321.9 / 316.7 ms |         316.7 ms |                        466.2 MiB |                           167.6 MiB |            3/3 |
-|                 100 |   4,792.3 / 4,276.1 / 5,468.6 ms |       4,792.3 ms |                        722.9 MiB |                           391.3 MiB |            3/3 |
-|                 150 | 9,024.8 / 11,904.7 / 10,738.2 ms |      10,738.2 ms |                        799.4 MiB |                           451.4 MiB |            3/3 |
+| Exact requested set | Trial document-ready times | Median document-ready | Median total working set | Median renderer working set | Exact Documents/rows |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 20 | 324.6 / 580.9 / 595.1 ms | 580.9 ms | 462.7 MiB | 167.7 MiB | 3/3 |
+| 100 | 5,277.6 / 5,682.7 / 5,157.1 ms | 5,277.6 ms | 723.9 MiB | 391.9 MiB | 3/3 |
+| 150 | 8,942.6 / 16,368.4 / 5,635.4 ms | 8,942.6 ms | 796.1 MiB | 452.8 MiB | 3/3 |
 
-All nine final structures contained exactly the requested workspace Document count and row count, and all nine main probes recorded exactly the requested send and watcher counts. At 100 and 150, sampled aggregate Electron CPU peaked around 12–13% and renderer CPU around 7–8% in the median trial; no error or crash occurred. These process percentages do not measure total host utilization, so they are used only to reject an obvious measured-process saturation or memory-ceiling claim, not to claim spare host capacity.
+All nine final structures contained exactly the requested workspace Document count and row count, and all main probes recorded exactly the requested sends and watcher requests. At 100 and 150, sampled Electron-process CPU did not show a measured-process ceiling and there were no renderer errors or crashes. These are per-process metrics, not total host utilization, so they cannot rule out host contention. The large 150-file spread is retained as uncertainty rather than normalized away.
 
-The prior `raw-10-100-partial.json` and `raw-scroll-repeat.json` passed ten spare paths, stopped after reaching only a count floor, and waited one additional second. They remain historical input/profile records but are superseded for exact scaling and capacity conclusions. In particular, their 156–159 settled rows did not prove an exact 150/160 boundary, and their “spare loss” could not distinguish startup delivery loss from the count-floor stopping rule.
+The superseded `raw-10-100-partial.json` and `raw-scroll-repeat.json` remain historical only. They used spare paths and a count floor and do not establish exact capacity.
 
 ## Startup delivery boundary
 
-[`raw-startup-handoff.json`](./07-opened-files-scale-pressure.raw-startup-handoff.json) uses exact sets and waits until exact completion or a three-second no-progress plateau:
+[`raw-startup-handoff.json`](./07-opened-files-scale-pressure.raw-startup-handoff.json) records a passed measurement command (exit 0) and the following product result:
 
 | Requested | Final Documents/rows by trial | Main open-tab sends | Watcher requests | Exact trials |
-| --------: | ----------------------------: | ------------------: | ---------------: | -----------: |
-|        20 |                  19 / 20 / 17 |        20 / 20 / 20 |     20 / 20 / 20 |          1/3 |
-|       100 |                98 / 100 / 100 |     100 / 100 / 100 |  100 / 100 / 100 |          2/3 |
+| ---: | ---: | ---: | ---: | ---: |
+| 20 | 20 / 18 / 19 | 20 / 20 / 20 | 20 / 20 / 20 | 1/3 |
+| 100 | 98 / 99 / 99 | 100 / 100 / 100 | 100 / 100 / 100 | 0/3 |
 
-The main `openTabs` loop reads each file asynchronously and `_doOpenTab` emits a watcher request and then `mt::open-new-tab` without renderer acknowledgement (`main/windows/editor.ts:384-411`, `712-726`). The renderer installs its `mt::open-new-tab` listener in `LISTEN_FOR_NEW_TAB` and asynchronously starts one workspace `open-document` command per message (`renderer/src/store/editor.ts:1122-1133`, `1538-1568`).
+The main `openTabs` loop reads files and `_doOpenTab` emits a watcher request followed by `mt::open-new-tab` without renderer acknowledgement (`main/windows/editor.ts:384-411`, `712-726`). The renderer installs the `mt::open-new-tab` listener and asynchronously starts one workspace `open-document` command per message (`renderer/src/store/editor.ts:1122-1133`, `1538-1568`).
 
-Because the counter wraps `webContents.send`, the startup raw proves the main send call happened, not renderer receipt. Ready-batch exact success makes listener/application readiness the supported boundary-level explanation. A renderer receive/ack counter would be needed to assign the loss more narrowly.
+The probe wraps `webContents.send`; it proves the main send call, not renderer receipt. Exact ready-batch success keeps the supported localization at the main-send → renderer-listener/application readiness boundary. A receive/ack counter is still required to assign the loss more narrowly.
 
-## Falsifiable causal probes
+## Same-milestone causal probes
 
-All ready-batch comparisons used exact 100-file sets, three trials, the same window readiness boundary, and one changed variable. Results are in [`raw-hypotheses.json`](./07-opened-files-scale-pressure.raw-hypotheses.json).
+All comparisons in [`raw-hypotheses.json`](./07-opened-files-scale-pressure.raw-hypotheses.json) use exact 100-file ready batches, three trials, the same readiness boundary, and the same workspace-snapshot **document-ready** milestone.
 
-| Hypothesis shown before testing                                         | One-variable prediction                                                                  |                                                 Median row-ready | Median peak sampled working set | Result                                                                                                                |
-| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------: | ------------------------------: | --------------------------------------------------------------------------------------------------------------------- |
-| H1: per-document commits wake the full Pinia facade/projection consumer | Detaching only that consumer improves latency; merely hiding rows does not               |      baseline 4,748.8 ms; detached 3,690.3 ms; hidden 4,688.8 ms |       575.9 / 560.1 / 586.7 MiB | Supported as a material 22.3% contributor; not a complete cause                                                       |
-| H2: missing entries are a startup readiness race, not capacity          | Exact ready-batch sets complete; startup sometimes plateaus short despite all main sends |     ready-batch 20/100/150: 3/3 exact; startup 20: 1/3, 100: 2/3 |              recorded per trial | Supported at the main-send → renderer-listener/application boundary                                                   |
-| H3: Markdown/history payload size dominates                             | One-H1 files materially reduce row-ready latency                                         |                           tiny 6,118.2 ms vs baseline 4,748.8 ms |              569.9 vs 575.9 MiB | Refuted as dominant at the standard 6,129-byte fixture scale; memory difference was small and latency did not improve |
-| H4: main-process file watcher setup dominates                           | Bypassing only the isolated trial's watcher handler improves latency and main pressure   |                                4,982.8 ms vs baseline 4,748.8 ms |              573.5 vs 575.9 MiB | Refuted as dominant in this Windows run                                                                               |
-| H5: general measured-process CPU/RAM exhaustion dominates               | Local renderer interventions do not help and errors/working-set ceiling appear           | projection detach improved 22.3%; no errors; exact 150 completed |                 see scale table | Not supported as the primary boundary; unmeasured host contention remains a source of timing noise                    |
+| Scenario / falsifiable probe | Trial document-ready times | Median | Change vs baseline | Final rows | Median peak working set |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| baseline | 4,257.2 / 6,332.7 / 6,232.4 ms | 6,232.4 ms | — | 100 / 100 / 100 | 576.3 MiB |
+| list-hidden: row work is material if hiding it improves completion | 4,426.5 / 4,771.2 / 5,094.2 ms | 4,771.2 ms | -23.4% | 0 / 0 / 0 | 584.9 MiB |
+| tiny-content: Markdown/history payload dominates if a one-H1 file improves completion | 2,889.4 / 5,724.1 / 6,077.6 ms | 5,724.1 ms | -8.2% | 100 / 100 / 100 | 562.3 MiB |
+| projection-detached: Pinia consumer is material if detaching it improves completion | 4,260.0 / 5,253.8 / 4,598.1 ms | 4,598.1 ms | -26.2% | 1 / 1 / 1 | 553.9 MiB |
+| watchers-disabled: watcher setup dominates if bypassing it improves completion | 8,417.2 / 5,715.3 / 5,901.8 ms | 5,901.8 ms | -5.3% | 100 / 100 / 100 | 574.8 MiB |
 
-The `watchers-disabled` probe counts all 100 requests and then bypasses their normal listener only inside the disposable test process. No production code or persistent preference is changed.
+`list-hidden` and `projection-detached` intentionally do not materialize the normal row set. Their completion is document-ready only. They must not be relabelled or directly interpreted as row-ready improvements. The table supports two bounded observations:
+
+- The Pinia consumer is material to workspace document completion in this run: detachment improved the common milestone, aggregate profile samples fell from 26,981 to 20,332, and `deepClone$2`/`inertControllerFacadeFile` disappeared from leading entries.
+- Hiding the list improved the same milestone by a similar amount while the Pinia functions remained leading. The three-trial data cannot distinguish row/render work from timing variance strongly enough to rank it against the Pinia path. The prior “Opened Files DOM is not dominant” conclusion is withdrawn.
+
+Tiny content and watcher bypass did not produce a comparable median improvement, so neither is supported as dominant at this fixture scale. Exact 150 completion and lack of renderer errors reject an observed hard capacity or measured-process memory ceiling through 150, but do not prove spare host capacity.
 
 ## Profile and code attribution
 
-During the actual baseline 100-file batch, aggregated leading CPU-profile functions included `structuredClone` (14.5% of all samples), `deepClone$2` (12.1%), `clone` (8.1%), and `inertControllerFacadeFile` (5.9%). Hiding the list left the same functions leading. After detaching only the Pinia projection consumer, `deepClone$2` and `inertControllerFacadeFile` no longer appeared in the top entries and aggregate samples fell from 29,200 to 18,239, while `structuredClone`, `clone`, `snapshotForRecord`, and other work remained.
+During baseline 100-file batches, aggregate leading entries included `structuredClone` (14.0%), `deepClone$2` (12.0%), `clone` (7.4%), and `inertControllerFacadeFile` (5.6%). With the list hidden, the same Pinia-related functions remained leading. With the Pinia projection consumer detached, `deepClone$2` and `inertControllerFacadeFile` were absent from leading entries while `structuredClone`, `clone`, `snapshotForRecord`, and other work remained.
 
-The code shape matches, but does not by itself quantify, the profile:
+The code shape is consistent with, but does not quantify, the profile:
 
-- `WorkspaceController.execute()` serializes commands through `operationTail` (`workspace/controller.ts:182-184`, `529-545`). Each applied open commits and notifies subscribers.
-- `WorkspaceProjectionMirror` obtains a new full facade snapshot on every controller notification (`workspace/projectionMirror.ts:16-21`).
-- `APPLY_WORKSPACE_PROJECTION` deep-clones the facade and projection and rebuilds tab descriptors and TOC compatibility state (`store/editor.ts:316-345`).
-- `editorWithTabs/index.vue` separately subscribes and calls `getFacadeSnapshot()` again (`components/editorWithTabs/index.vue:428-430`). This consumer remains after the Pinia mirror is detached and is one reason the detached probe cannot identify a complete repair.
-- The Opened Files region renders one component per item and owns a native `overflow: auto` container (`sideBar/tree.vue:54-61`, `572-575`). Static inspection finds no region scroll/wheel handler. Each row reads `currentFile` (`treeOpenedTab.vue:28-33`), but hiding every row before the batch did not improve setup latency.
-- Every settled trial materialized one `.editor-component` and zero Source CodeMirror editors, ruling out one hidden editor engine per open Document.
+- `WorkspaceController.execute()` serializes commands through `operationTail` (`workspace/controller.ts:182-184`, `529-545`), with one commit/notification per applied open.
+- `WorkspaceProjectionMirror` obtains a full facade snapshot on each controller notification (`workspace/projectionMirror.ts:16-21`).
+- `APPLY_WORKSPACE_PROJECTION` deep-clones facade/projection data and rebuilds tab/TOC compatibility state (`store/editor.ts:316-345`).
+- `editorWithTabs/index.vue` has a second snapshot consumer (`components/editorWithTabs/index.vue:428-430`) that remains after the Pinia mirror is detached.
+- Opened Files renders one component per item in a native `overflow: auto` container (`sideBar/tree.vue:54-61`, `572-575`). Static inspection finds no region wheel handler. The new list-hidden timing means DOM/render work is no longer ruled out by measurement.
+- Every settled normal trial materialized one `.editor-component` and zero Source CodeMirror editors; there is no evidence of one hidden editor engine per Document.
 
-These observations support repeated full-workspace facade/projection work as one confirmed contributor. They do **not** isolate exact time shares among command serialization, facade creation, the Pinia clone/rebuild, the second component snapshot, Vue rendering, structured clone/IPC, and garbage collection.
+The exact shares among command serialization, facade creation, Pinia clone/rebuild, the second snapshot consumer, Vue row rendering, structured clone/IPC, garbage collection, and host contention remain unknown.
 
 ## Native input and WYSIWYG independence
 
-[`raw-input.json`](./07-opened-files-scale-pressure.raw-input.json) supplies ten spare real files only to reach a 100-row settled input floor after the separately documented startup race. It does not supply capacity evidence.
+[`raw-input.json`](./07-opened-files-scale-pressure.raw-input.json) uses ten spare real files only to reach a settled 100-row floor after the documented startup race. It is input evidence, not capacity evidence.
 
-| Trial | Actual rows | Actual viewport | Container | Native wheel final position | Idle / wheel p95 | `>50 ms` wheel gaps | Workspace revision | Physical thumb |
-| ----: | ----------: | --------------: | --------: | --------------------------: | ---------------: | ------------------: | -----------------: | :------------- |
-|     1 |         108 |        1280×720 |   246×273 |                    2,751 px |   31.6 / 31.7 ms |                  0% |                  0 | Unavailable    |
-|     2 |         110 |        1280×720 |   246×273 |                    2,807 px |   31.6 / 31.7 ms |                  0% |                  0 | Unavailable    |
-|     3 |         110 |        1280×720 |   246×273 |                    2,807 px |   31.7 / 31.8 ms |                  0% |                  0 | Unavailable    |
+| Trial | Actual rows | Actual viewport | Container | Wheel final position | Idle / wheel p95 | Wheel gaps >50 ms | Workspace revision | Physical thumb |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| 1 | 108 | 1280×720 | 246×273 | 2,751 px | 33.3 / 33.2 ms | 0% | 0 | Unavailable |
+| 2 | 109 | 1280×720 | 246×273 | 2,779 px | 33.2 / 33.1 ms | 0% | 0 | Unavailable |
+| 3 | 107 | 1280×720 | 246×273 | 2,723 px | 33.6 / 33.4 ms | 0% | 0 | Unavailable |
 
-`wheel.status` is `Passed` in all trials because real Playwright mouse-wheel input moved the hovered container and workspace revision stayed unchanged. The right-edge pointer drag left `scrollTop = 0` in all trials, so `scrollbarThumb.status` is `Unavailable`. The separately named `programmaticContainerPositioning` reached the same maximum and had revision delta zero, but its status is `NotApplicableToInputAcceptance`.
+`wheel.status` is `Passed` in all trials because real Playwright mouse-wheel input moved the hovered container without changing workspace revision. The right-edge pointer gesture left `scrollTop = 0`, so `scrollbarThumb.status` is `Unavailable`, not passed. Programmatic positioning reached the maximum with revision delta zero, but is explicitly `NotApplicableToInputAcceptance`.
 
-The Opened Files native wheel profile was idle/program/hit-testing work and did not contain the workspace facade/projection functions. Opened Files scrolling never changed workspace revision. Therefore this investigation remains independent from WYSIWYG scroll-report acceptance and provides no evidence for a shared scroll runtime.
+The Opened Files wheel profiles do not contain the workspace facade/projection functions, and list scrolling never changes workspace revision. This remains independent from WYSIWYG scroll-report acceptance; there is no evidence for a shared scroll runtime.
 
 ## Findings by confidence
 
 ### Confirmed
 
-- Exact ready-batch setup latency and working set grow sharply from 20 to 100 to 150 real Documents.
-- No hard ready-batch capacity ceiling was observed through exactly 150 Documents.
-- Startup can lose entries after every main send and watcher request has occurred; ready-batch delivery removes the loss in the measured runs.
-- The Pinia facade/projection consumer is a material contributor to 100-file setup latency, while the Opened Files DOM is not the dominant contributor.
-- Native wheel scrolling is smooth relative to calibrated idle cadence at the 100-row floor and does not enter the workspace revision/WYSIWYG report path.
+- Exact ready-batch document completion and working set rise sharply from 20 to 100 to 150.
+- No hard ready-batch capacity ceiling was observed through exactly 150 Documents and rows.
+- Startup can plateau short after all main sends/watcher requests; ready-batch delivery avoids that loss in these measurements.
+- Detaching the Pinia facade/projection consumer materially improves the common document-ready milestone and removes its leading profile functions, but does not explain the remaining 4.6 seconds.
+- Native wheel input passes at the 100-row floor without workspace revisions; physical thumb automation is unavailable.
 - Only one active editor engine is materialized.
 
 ### Ruled out as dominant in these probes
 
-- Opened Files row DOM scale.
-- Main-process watcher registration.
 - Standard-fixture Markdown payload length.
-- A hard 100- or 150-document capacity boundary on the ready-batch path.
+- Main-process watcher registration.
+- A hard 100- or 150-document ready-batch capacity boundary.
 - A shared native-scroll/WYSIWYG bottleneck.
-- A justification for speculative list virtualization or a shared scrolling runtime.
 
 ### Unknown or limited
 
-- The exact event lost between startup `webContents.send` and renderer application; renderer receipt/ack was not instrumented.
-- The exact share of the remaining 3.7-second detached-projection latency.
-- Physical scrollbar-thumb and touchpad acceptance; the automated thumb was unavailable.
-- Installed-package behavior, Linux/macOS behavior, and a hard capacity ceiling above 150 exact Documents.
-- Total host CPU contention. Raw CPU percentages are Electron process metrics, not a system-wide utilization trace.
+- Whether Opened Files row/render work is independently material; the new list-hidden improvement prevents ruling it out, but three noisy trials do not isolate its share.
+- The exact event lost between startup send and renderer application.
+- The exact share of every remaining bulk-open stage and total host contention.
+- Physical scrollbar-thumb and touchpad acceptance.
+- Installed-package, Linux/macOS, and exact capacity above 150 behavior.
 
-## Severity
+## Severity and separate follow-up seams
 
-**Medium / P2 overall, with startup completeness as a blocking acceptance criterion for any bulk-open repair; non-blocking for the WYSIWYG scroll-performance acceptance.** Explicit startup file arguments sometimes did not materialize even though every main send ran, but this harness did not reproduce saved-content loss or prove the same loss in ordinary sequential UI opening. The performance issue is reproducible at a realistic power-user scale, reaches roughly 4.8–10.7 seconds in the exact scale run, and grows settled working set to roughly 0.72–0.80 GiB, but the workspace remained stable and native list scrolling remained usable after settling.
+**Medium / P2 overall.** Startup completeness is a blocking acceptance criterion for any bulk-open repair but remains non-blocking for WYSIWYG scroll-performance acceptance. Bulk-open latency is reproducible at a realistic power-user scale and reaches a median 8.9 seconds at 150 in this run, with one 16.4-second trial, while the workspace stayed stable and native list wheel scrolling remained usable after settling.
 
-## Narrow follow-up recommendation
+Two separate repair specifications remain warranted:
 
-A repair specification is warranted, with two separately accepted seams:
+1. **Startup delivery reliability:** add a renderer-ready delivery/ack boundary (or equivalent queue). Exact 20/100 sets with no spare files must produce an acknowledgement and exactly the requested Documents/rows.
+2. **Bulk-open projection/render pressure:** instrument the existing controller-commit → projection/render consumers before choosing a repair. Preserve serialization, persistence, watcher coverage, selection, Document/View ownership, dirty Markdown/history, save/crash-draft safety, and native scrolling. The retained feedback command must become GREEN without weakening 1.5, while exact 150 completion remains intact.
 
-1. **Startup delivery reliability:** introduce a renderer-ready delivery/ack boundary (or equivalent queue) so an acknowledged exact file set produces exactly that set of workspace Documents and Opened Files rows. The repair test must use exact 20/100 sets, no spare files, and fail on any missing renderer acknowledgement or row.
-2. **Bulk-open projection pressure:** measure and reduce redundant full-facade/projection delivery at the existing controller-commit → renderer-consumer seam during a bulk open. The first implementation should preserve controller serialization and persistence semantics while coalescing or avoiding unchanged intermediate compatibility projections only if new counters prove that choice. The retained feedback command must become GREEN at its fixed 1.5 normalized boundary, and exact 150 completion must remain intact.
+Non-goals remain speculative virtualization, a shared scroll runtime, content truncation, hidden-editor retention, persistence redesign, Source large-document work, and unrelated cleanup. List virtualization is not justified by this investigation alone; the rerun says only that list work can no longer be ruled out.
 
-Required invariants are Document/View ownership, dirty Markdown and portable history, save/crash-draft safety, watcher coverage, selected-tab semantics, and native scrolling. Non-goals are Opened Files virtualization without new evidence, a shared scroll runtime, content truncation, hidden-editor retention, persistence redesign, Source large-document work, and unrelated cleanup.
+## Raw evidence and execution status
 
-## Raw evidence
+| Raw | Command status | Purpose / limitation |
+| --- | --- | --- |
+| [`raw-feedback.json`](./07-opened-files-scale-pressure.raw-feedback.json) | Failed, exit 1 (intentional RED assertion after 6/6 exact trials) | 20/100 feedback loop |
+| [`raw-ready-batch.json`](./07-opened-files-scale-pressure.raw-ready-batch.json) | Passed, exit 0 | exact 20/100/150 capacity and resource evidence |
+| [`raw-startup-handoff.json`](./07-opened-files-scale-pressure.raw-startup-handoff.json) | Passed, exit 0 | startup delivery plateau; command pass does not mean exact product completion |
+| [`raw-hypotheses.json`](./07-opened-files-scale-pressure.raw-hypotheses.json) | Passed, exit 0 | five one-variable, same document-ready milestone probes |
+| [`raw-input.json`](./07-opened-files-scale-pressure.raw-input.json) | Passed, exit 0 | wheel pass; physical thumb unavailable; programmatic diagnostic only |
+| [`raw-input-initial-failure.json`](./07-opened-files-scale-pressure.raw-input-initial-failure.json) | Failed, exit 1 | runtime-version read raced navigation before trial 1; retained rather than overwritten |
 
-- [`07-opened-files-scale-pressure.raw-feedback.json`](./07-opened-files-scale-pressure.raw-feedback.json) — final red feedback loop, exact 20/100, three trials
-- [`07-opened-files-scale-pressure.raw-ready-batch.json`](./07-opened-files-scale-pressure.raw-ready-batch.json) — exact 20/100/150 scale and capacity, three trials
-- [`07-opened-files-scale-pressure.raw-startup-handoff.json`](./07-opened-files-scale-pressure.raw-startup-handoff.json) — exact startup delivery counters and plateau boundary
-- [`07-opened-files-scale-pressure.raw-hypotheses.json`](./07-opened-files-scale-pressure.raw-hypotheses.json) — five one-variable causal comparisons and load-phase CPU profiles
-- [`07-opened-files-scale-pressure.raw-input.json`](./07-opened-files-scale-pressure.raw-input.json) — native wheel, unavailable physical thumb, programmatic diagnostic, actual viewport/container
-- `raw-10-100-partial.json` and `raw-scroll-repeat.json` — superseded historical captures retained for auditability
+The initial input failure was repaired only by moving the runtime-version read after editor/menu readiness in harness commit `2e354d79cb383ffd56e0be87fcd1e9cc8e96ab69`; the final input run then passed from a clean tree.
 
-## Commands and verification
+## Exact raw reproduction commands
+
+Run from the repository root. Each final raw also embeds its own command verbatim.
+
+Feedback (expected command exit 1 while RED):
 
 ```powershell
-pnpm install --frozen-lockfile
-pnpm --dir packages/desktop build
-pnpm exec eslint .scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts .scratch/wysiwyg-scroll-performance/profile-opened-files-scale.ts
-pnpm --dir packages/desktop typecheck
-
-$env:OPENED_FILES_COUNTS='20,100'
-$env:OPENED_FILES_TRIALS='3'
-$env:OPENED_FILES_SCENARIOS='baseline'
-$env:OPENED_FILES_DELIVERY='ready-batch'
-$env:OPENED_FILES_FEEDBACK_ASSERT='1'
-$env:OPENED_FILES_OUTPUT='.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-feedback.json'
-pnpm exec tsx .scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts
+$env:OPENED_FILES_APPLICATION_SOURCE_SHA='303dfa39b84b5bffedd9271b27cefbf34be66753'; $env:OPENED_FILES_COUNTS='20,100'; $env:OPENED_FILES_TRIALS='3'; $env:OPENED_FILES_SCENARIOS='baseline'; $env:OPENED_FILES_DELIVERY='ready-batch'; $env:OPENED_FILES_FEEDBACK_ASSERT='1'; $env:OPENED_FILES_OUTPUT='.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-feedback.json'; pnpm exec tsx '.scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts'
 ```
 
-The final feedback command intentionally exits nonzero while the reproduced performance issue is RED. No production source, production test, virtualization, persistence path, or shared scroll runtime was changed.
+Exact ready batch:
+
+```powershell
+$env:OPENED_FILES_APPLICATION_SOURCE_SHA='303dfa39b84b5bffedd9271b27cefbf34be66753'; $env:OPENED_FILES_COUNTS='20,100,150'; $env:OPENED_FILES_TRIALS='3'; $env:OPENED_FILES_SCENARIOS='baseline'; $env:OPENED_FILES_DELIVERY='ready-batch'; $env:OPENED_FILES_FEEDBACK_ASSERT='0'; $env:OPENED_FILES_OUTPUT='.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-ready-batch.json'; pnpm exec tsx '.scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts'
+```
+
+Startup handoff:
+
+```powershell
+$env:OPENED_FILES_APPLICATION_SOURCE_SHA='303dfa39b84b5bffedd9271b27cefbf34be66753'; $env:OPENED_FILES_COUNTS='20,100'; $env:OPENED_FILES_TRIALS='3'; $env:OPENED_FILES_SCENARIOS='baseline'; $env:OPENED_FILES_DELIVERY='startup'; $env:OPENED_FILES_FEEDBACK_ASSERT='0'; $env:OPENED_FILES_OUTPUT='.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-startup-handoff.json'; pnpm exec tsx '.scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts'
+```
+
+Hypotheses:
+
+```powershell
+$env:OPENED_FILES_APPLICATION_SOURCE_SHA='303dfa39b84b5bffedd9271b27cefbf34be66753'; $env:OPENED_FILES_COUNTS='100'; $env:OPENED_FILES_TRIALS='3'; $env:OPENED_FILES_SCENARIOS='baseline,list-hidden,tiny-content,projection-detached,watchers-disabled'; $env:OPENED_FILES_DELIVERY='ready-batch'; $env:OPENED_FILES_FEEDBACK_ASSERT='0'; $env:OPENED_FILES_OUTPUT='.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-hypotheses.json'; pnpm exec tsx '.scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts'
+```
+
+Final native input:
+
+```powershell
+$env:OPENED_FILES_APPLICATION_SOURCE_SHA='303dfa39b84b5bffedd9271b27cefbf34be66753'; $env:OPENED_FILES_COUNTS='100'; $env:OPENED_FILES_TRIALS='3'; $env:OPENED_FILES_OUTPUT='.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-input.json'; pnpm exec tsx '.scratch/wysiwyg-scroll-performance/profile-opened-files-scale.ts'
+```
+
+## Install, build, lint, and typecheck status
+
+| Check | Status | Exit | Exact command | Notes |
+| --- | --- | ---: | --- | --- |
+| install | Passed | 0 | `pnpm install --frozen-lockfile` | lockfile current; postinstall completed; pnpm printed an ignored-build-script warning for `uiohook-napi` |
+| build | Passed | 0 | `pnpm --dir packages/desktop build` | production Electron/Vite bundle created; Vite printed non-fatal dynamic/static import chunk warnings |
+| lint | Passed | 0 | `pnpm exec eslint .scratch/wysiwyg-scroll-performance/opened-files-evidence-identity.ts .scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts .scratch/wysiwyg-scroll-performance/profile-opened-files-scale.ts` | only the repository module-type performance warning |
+| typecheck | Passed | 0 | `pnpm --dir packages/desktop typecheck` | `vue-tsc --noEmit -p tsconfig.json` |
+
+One pre-install lint attempt failed with exit 1 because `eslint` was not yet installed (`'eslint' is not recognized`). It was an ordering/setup failure, not omitted; the exact final lint command above passed after the frozen-lockfile install.
+
+One pre-final combined validation attempt reached `git diff --check` after lint and typecheck passed, then failed with exit 2 on three Markdown hard-break trailing spaces in this file. Those spaces were removed; the same diff check then passed as the final acceptance check.
