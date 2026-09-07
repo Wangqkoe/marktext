@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 3,
+  "startedAt": "2026-09-07T09:30:12.250Z",
+  "finishedAt": "2026-09-07T09:30:21.091Z",
+  "measurementIdentity": {
+    "applicationSourceSha": "303dfa39b84b5bffedd9271b27cefbf34be66753",
+    "harnessSha": "433090a587e45428aa6421d57953a79cf57b1148",
+    "workingTree": {
+      "isDirty": false,
+      "porcelainEntries": []
+    },
+    "applicationBundle": {
+      "path": "packages/desktop/out",
+      "algorithm": "sha256",
+      "format": "sorted relative path, byte length, and file contents with NUL separators",
+      "sha256": "107034fcec4bf0529076a26f63dc02335322904c59262623a57d6813a74be211",
+      "fileCount": 878,
+      "totalBytes": 23994819
+    },
+    "electronLauncher": {
+      "path": "node_modules/.bin/electron.cmd",
+      "algorithm": "sha256",
+      "sha256": "4135585486d77c0734ee085114ecc38d0422e0c7b96182d7a592ddaca588cd98",
+      "bytes": 842
+    },
+    "electronExecutable": {
+      "path": "node_modules/electron/dist/electron.exe",
+      "algorithm": "sha256",
+      "sha256": "75217fc3770295a1fbf0a2f3f88e59a4a71bdbccce9c7624dd7dd520b484a5be",
+      "bytes": 226508288
+    },
+    "runtimeVersions": null
+  },
+  "reproduction": {
+    "shell": "PowerShell",
+    "workingDirectory": "C:\\Users\\1407\\.codex\\worktrees\\629b\\Marktext",
+    "environment": {
+      "OPENED_FILES_APPLICATION_SOURCE_SHA": "303dfa39b84b5bffedd9271b27cefbf34be66753",
+      "OPENED_FILES_COUNTS": "100",
+      "OPENED_FILES_TRIALS": "3",
+      "OPENED_FILES_OUTPUT": ".scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-input.json"
+    },
+    "command": "$env:OPENED_FILES_APPLICATION_SOURCE_SHA='303dfa39b84b5bffedd9271b27cefbf34be66753'; $env:OPENED_FILES_COUNTS='100'; $env:OPENED_FILES_TRIALS='3'; $env:OPENED_FILES_OUTPUT='.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-input.json'; pnpm exec tsx '.scratch/wysiwyg-scroll-performance/profile-opened-files-scale.ts'"
+  },
+  "execution": {
+    "status": "Failed",
+    "exitCode": 1,
+    "detail": "electronApplication.evaluate: Execution context was destroyed, most likely because of a navigation."
+  },
+  "limitations": [
+    "Windows-only unpackaged Electron measurement; installed packages and Linux/macOS are untested.",
+    "The startup input passes ten spare real files and establishes only a settled 100-row floor, not an exact capacity boundary.",
+    "The automated overlay/native scrollbar-thumb gesture may be unavailable; programmatic scrollTop is not physical input acceptance."
+  ],
+  "environment": {
+    "buildType": "production electron-vite build, unpackaged Electron test launch",
+    "platform": "win32",
+    "arch": "x64",
+    "osType": "Windows_NT",
+    "osRelease": "10.0.26200",
+    "osVersion": "Windows 11 Pro",
+    "cpuModel": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "logicalProcessorCount": 16,
+    "totalRamBytes": 34060939264,
+    "harnessNode": "v24.18.0",
+    "configuredContentViewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "automation": "Playwright-controlled Electron window",
+    "headless": false
+  },
+  "counts": [
+    100
+  ],
+  "trials": 3,
+  "results": []
+}
