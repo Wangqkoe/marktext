@@ -1,0 +1,67 @@
+# Standalone on purpose: extending the production config merges its
+# fileAssociations array, which changes the caller's Windows associations.
+appId: com.github.marktext.marktext.scroll-acceptance-t05-safe
+productName: MarkText Scroll Acceptance T05 Safe
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!scripts/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!node_modules/dragula/resources'
+  - '!node_modules/**/*.js.map'
+  - '!node_modules/**/*.cjs.map'
+  - '!node_modules/**/*.mjs.map'
+  - '!node_modules/**/*.ts.map'
+  - '!node_modules/@vscode/ripgrep/{jsconfig.json,*.md,LICENSE}'
+  - '!node_modules/@vscode/ripgrep/lib/download.js'
+  - '!node_modules/@vscode/ripgrep/lib/postinstall.js'
+  - '!node_modules/ced/vendor'
+  - '!node_modules/mermaid/dist/mermaid.js'
+  - '!node_modules/mermaid/dist/mermaid.min.js'
+  - '!node_modules/mermaid/dist/mermaid.esm.min.mjs'
+  - '!node_modules/katex/dist/katex.min.js'
+  - '!node_modules/katex/dist/katex.mjs'
+  - '!node_modules/ced/build/Release/compact_enc_det.a'
+  - '!node_modules/**/{*.vcxproj,*.vcxproj.filters}'
+  - '!node_modules/**/build/Release/{*.lib,*.exp,*.ilk,*.pdb,*.iobj,*.ipdb}'
+  - '!node_modules/**/build/Release/obj'
+  - '!eslint.config.js'
+  - '!jsconfig.json'
+  - '!docs/*'
+extraResources:
+  - from: build/icons
+    to: icons
+    filter:
+      - '*.ico'
+  - from: static
+    to: static
+    filter:
+      - '**/*'
+      - '!locales/**/!(*.min).json'
+npmRebuild: false
+electronLanguages:
+  - en-US
+asarUnpack:
+  - resources/**
+  - node_modules/uiohook-napi/**
+win:
+  executableName: marktext-scroll-acceptance-t05-safe
+  artifactName: marktext-scroll-acceptance-t05-safe-win-${arch}-${version}.${ext}
+  target:
+    - target: nsis
+    - target: zip
+  icon: static/icon.ico
+nsis:
+  artifactName: marktext-scroll-acceptance-t05-safe-win-${arch}-${version}-setup.${ext}
+  shortcutName: MarkText Scroll Acceptance T05 Safe
+  uninstallDisplayName: MarkText Scroll Acceptance T05 Safe
+  createDesktopShortcut: false
+  createStartMenuShortcut: false
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  include: windows/installer.nsh
