@@ -164,6 +164,122 @@ test.describe('Split workspace', () => {
     expect((await snapshotOf(page)).documents.find(document => document.viewId === rightId)?.cursor).toEqual(rightBefore.cursor)
   })
 
+  test('Split Right inherits the final live position and then keeps both View positions independent', async() => {
+    const markdown = Array.from(
+      { length: 300 },
+      (_, index) => `Paragraph ${index} keeps both split Views vertically scrollable.`
+    ).join('\n\n')
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, markdown)
+    await expect(page.locator(tabSelector)).toHaveCount(3)
+
+    const sourceBefore = await snapshotOf(page)
+    const leftBefore = sourceBefore.projection.panes[0]!
+    const sourceViewId = leftBefore.activeViewId
+    const sourceDocument = sourceBefore.documents.find(document => document.viewId === sourceViewId)!
+    expect(sourceDocument.scrollTop).toBe(0)
+
+    const sourceLiveScrollTop = await page.locator('.editor-component').evaluate(element => {
+      element.scrollTop = 800
+      element.dispatchEvent(new Event('scroll'))
+      return element.scrollTop
+    })
+    expect(sourceLiveScrollTop).toBe(800)
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === sourceViewId)?.scrollTop).toBe(0)
+
+    await tabMenuAction(app, page.locator('.tabs-container > li.active'), 'Split Right')
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+
+    const split = await snapshotOf(page)
+    const sharedViews = split.documents.filter(document => document.documentId === sourceDocument.documentId)
+    expect(sharedViews).toHaveLength(2)
+    expect(sharedViews.map(document => document.scrollTop)).toEqual([
+      sourceLiveScrollTop,
+      sourceLiveScrollTop
+    ])
+    const leftViewId = split.projection.panes[0]!.activeViewId
+    const rightViewId = split.projection.panes[1]!.activeViewId
+    await expect.poll(() => page.locator('.workspace-pane .editor-component').evaluateAll(
+      elements => elements.map(element => element.scrollTop)
+    )).toEqual([sourceLiveScrollTop, sourceLiveScrollTop])
+
+    const rightLiveScrollTop = await page.locator('.workspace-pane').nth(1).locator('.editor-component').evaluate(element => {
+      element.scrollTop = 1200
+      element.dispatchEvent(new Event('scroll'))
+      return element.scrollTop
+    })
+    expect(rightLiveScrollTop).toBe(1200)
+    expect(await page.locator('.workspace-pane').nth(0).locator('.editor-component').evaluate(element => element.scrollTop)).toBe(sourceLiveScrollTop)
+    const duringRightScroll = await snapshotOf(page)
+    expect(duringRightScroll.documents.find(document => document.viewId === leftViewId)?.scrollTop).toBe(sourceLiveScrollTop)
+    expect(duringRightScroll.documents.find(document => document.viewId === rightViewId)?.scrollTop).toBe(sourceLiveScrollTop)
+
+    await page.waitForTimeout(200)
+    const afterRightCommit = await snapshotOf(page)
+    expect(afterRightCommit.documents.find(document => document.viewId === leftViewId)?.scrollTop).toBe(sourceLiveScrollTop)
+    expect(afterRightCommit.documents.find(document => document.viewId === rightViewId)?.scrollTop).toBe(rightLiveScrollTop)
+
+    const leftLiveScrollTop = await page.locator('.workspace-pane').nth(0).locator('.editor-component').evaluate(element => {
+      element.scrollTop = 400
+      element.dispatchEvent(new Event('scroll'))
+      return element.scrollTop
+    })
+    expect(leftLiveScrollTop).toBe(400)
+    expect(await page.locator('.workspace-pane').nth(1).locator('.editor-component').evaluate(element => element.scrollTop)).toBe(rightLiveScrollTop)
+
+    await page.waitForTimeout(200)
+    const afterLeftCommit = await snapshotOf(page)
+    expect(afterLeftCommit.documents.find(document => document.viewId === leftViewId)?.scrollTop).toBe(leftLiveScrollTop)
+    expect(afterLeftCommit.documents.find(document => document.viewId === rightViewId)?.scrollTop).toBe(rightLiveScrollTop)
+  })
+
+  test('Move to Right and Move to Left preserve each command-boundary live position', async() => {
+    const markdown = Array.from(
+      { length: 300 },
+      (_, index) => `Paragraph ${index} keeps a moved View vertically scrollable.`
+    ).join('\n\n')
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, markdown)
+    await expect(page.locator(tabSelector)).toHaveCount(3)
+    const viewId = (await snapshotOf(page)).projection.panes[0]!.activeViewId
+
+    const rightPosition = await page.locator('.editor-component').evaluate(element => {
+      element.scrollTop = 700
+      element.dispatchEvent(new Event('scroll'))
+      return element.scrollTop
+    })
+    expect(rightPosition).toBe(700)
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === viewId)?.scrollTop).toBe(0)
+
+    await tabMenuAction(app, page.locator('.tabs-container > li.active'), 'Move to Right')
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+    let moved = await snapshotOf(page)
+    expect(moved.projection.panes[1]!.activeViewId).toBe(viewId)
+    expect(moved.documents.find(document => document.viewId === viewId)?.scrollTop).toBe(rightPosition)
+    await expect.poll(() => page.locator('.workspace-pane').nth(1).locator('.editor-component').evaluate(
+      element => element.scrollTop
+    )).toBe(rightPosition)
+
+    const leftPosition = await page.locator('.workspace-pane').nth(1).locator('.editor-component').evaluate(element => {
+      element.scrollTop = 1100
+      element.dispatchEvent(new Event('scroll'))
+      return element.scrollTop
+    })
+    expect(leftPosition).toBe(1100)
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === viewId)?.scrollTop).toBe(rightPosition)
+
+    await tabMenuAction(
+      app,
+      page.locator('.workspace-pane').nth(1).locator('.tabs-container > li.active'),
+      'Move to Left'
+    )
+    await expect(page.locator('.workspace-pane')).toHaveCount(1)
+    moved = await snapshotOf(page)
+    expect(moved.projection.panes[0]!.activeViewId).toBe(viewId)
+    expect(moved.documents.find(document => document.viewId === viewId)?.scrollTop).toBe(leftPosition)
+    await expect.poll(() => page.locator('.editor-component').evaluate(element => element.scrollTop)).toBe(leftPosition)
+    await page.waitForTimeout(200)
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === viewId)?.scrollTop).toBe(leftPosition)
+  })
+
   test('shared views keep a single dirty-close decision and Save As writes the remaining draft', async() => {
     const savePath = path.join(path.dirname(primaryFilePath), 'shared-save-as.md')
     await app.evaluate(({ ipcMain }, target) => {

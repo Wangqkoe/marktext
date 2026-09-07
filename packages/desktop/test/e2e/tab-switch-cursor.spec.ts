@@ -215,14 +215,40 @@ test.describe('Tab switch restores the per-tab scroll position', () => {
     })
 
   test('scrollTop is restored on a returned-to tab while the other tab stays at top', async() => {
-    // Scroll tab A's container down and let the scroll listener persist it.
+    // Establish an older idle-committed position, then leave a newer Live
+    // Scroll Position pending when the user switches away.
     await page.evaluate(() => {
+      const el = document.querySelector('.editor-component') as HTMLElement | null
+      if (el) el.scrollTop = 1200
+      el?.dispatchEvent(new Event('scroll'))
+    })
+    await page.waitForTimeout(200)
+    const original = await page.evaluate(() => {
+      const snapshot = (window as unknown as {
+        __mtWorkspaceSnapshot(): {
+          projection: { panes: Array<{ activeViewId: string }> }
+          documents: Array<{ documentId: string; viewId: string; scrollTop: number }>
+        }
+      }).__mtWorkspaceSnapshot()
+      const viewId = snapshot.projection.panes[0]?.activeViewId
+      return snapshot.documents.find(document => document.viewId === viewId)
+    })
+    expect(original?.scrollTop).toBe(1200)
+    if (!original) throw new Error('original View is unavailable')
+
+    const captured = await page.evaluate(() => {
       const el = document.querySelector('.editor-component') as HTMLElement | null
       if (el) el.scrollTop = 3000
       el?.dispatchEvent(new Event('scroll'))
+      return el?.scrollTop ?? -1
     })
-    await expect.poll(() => scrollTop()).toBeGreaterThan(1000)
-    const captured = await scrollTop()
+    expect(captured).toBeGreaterThan(1000)
+    expect(await page.evaluate((viewId) => {
+      const snapshot = (window as unknown as {
+        __mtWorkspaceSnapshot(): { documents: Array<{ viewId: string; scrollTop: number }> }
+      }).__mtWorkspaceSnapshot()
+      return snapshot.documents.find(document => document.viewId === viewId)?.scrollTop
+    }, original.viewId)).toBe(1200)
 
     // Open tab B (auto-selected, short body) — it starts at the top.
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'short\n')
@@ -232,6 +258,12 @@ test.describe('Tab switch restores the per-tab scroll position', () => {
       { timeout: 5000 }
     )
     await expect.poll(() => scrollTop()).toBe(0)
+    expect((await page.evaluate((viewId) => {
+      const snapshot = (window as unknown as {
+        __mtWorkspaceSnapshot(): { documents: Array<{ viewId: string; scrollTop: number }> }
+      }).__mtWorkspaceSnapshot()
+      return snapshot.documents.find(document => document.viewId === viewId)?.scrollTop
+    }, original.viewId))).toBe(captured)
 
     // Switch back to tab A — its scrollTop must be (approximately) restored.
     // Tolerance is generous: real layout height drives `scrollToCords` clamping.
@@ -239,5 +271,12 @@ test.describe('Tab switch restores the per-tab scroll position', () => {
     await expect.poll(() => scrollTop(), { timeout: 5000 }).toBeGreaterThan(1000)
     const restored = await scrollTop()
     expect(Math.abs(restored - captured)).toBeLessThan(captured)
+    await page.waitForTimeout(200)
+    expect((await page.evaluate((viewId) => {
+      const snapshot = (window as unknown as {
+        __mtWorkspaceSnapshot(): { documents: Array<{ viewId: string; scrollTop: number }> }
+      }).__mtWorkspaceSnapshot()
+      return snapshot.documents.find(document => document.viewId === viewId)?.scrollTop
+    }, original.viewId))).toBe(captured)
   })
 })

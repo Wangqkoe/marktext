@@ -2015,11 +2015,14 @@ onMounted(() => {
           title: item.content ?? '',
           level: item.lvl ?? 0
         }))
+      const scrollContainer = getScrollContainer()
       return {
         markdown,
         ...(controllerCursor() ? { cursor: controllerCursor() } : {}),
         ...(portableEngineHistory() ? { portableHistory: portableEngineHistory() } : {}),
-        scrollTop: getScrollContainer()?.scrollTop ?? 0,
+        scrollTop: scrollContainer?.style.visibility === 'hidden'
+          ? snapshot.view.scrollTop
+          : scrollContainer?.scrollTop ?? 0,
         toc,
         status: { wordCount: muyaWordCount(markdown).word }
       }

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { launchWithMarkdown, clickMenuById, enterSourceMode, exitSourceMode } from './helpers'
+import { launchWithMarkdown, clickMenuById, enterSourceMode, exitSourceMode, waitForEditor } from './helpers'
 
 // Read the live `checked`/`enabled` state of a view-mode menu item straight
 // from the active application menu — the same Menu instance that
@@ -49,6 +49,95 @@ const waitForEnabled = async(
   }
   return last ?? { checked: false, enabled: false }
 }
+
+test.describe('View mode scroll continuity', () => {
+  let app: ElectronApplication
+  let page: Page
+
+  test.beforeAll(async() => {
+    const markdown = Array.from(
+      { length: 300 },
+      (_, index) => `Paragraph ${index} keeps both editor modes vertically scrollable.`
+    ).join('\n\n')
+    const launched = await launchWithMarkdown(markdown)
+    app = launched.app
+    page = launched.page
+    await waitForEditor(page)
+  })
+
+  test.afterAll(async() => {
+    if (app) await app.close()
+  })
+
+  test('Source starts at the final live WYSIWYG position captured by the mode command', async() => {
+    const liveScrollTop = await page.evaluate(() => {
+      const container = document.querySelector('.editor-component') as HTMLElement | null
+      if (!container) throw new Error('WYSIWYG scroll container is unavailable')
+      container.scrollTop = 900
+      container.dispatchEvent(new Event('scroll'))
+      return container.scrollTop
+    })
+    expect(liveScrollTop).toBe(900)
+
+    const beforeSwitch = await page.evaluate(() => {
+      const snapshot = (window as unknown as {
+        __mtWorkspaceSnapshot(): { documents: Array<{ mode: string; scrollTop: number }> }
+      }).__mtWorkspaceSnapshot()
+      return snapshot.documents[0]
+    })
+    expect(beforeSwitch).toMatchObject({ mode: 'wysiwyg', scrollTop: 0 })
+
+    await clickMenuById(app, 'sourceCodeModeMenuItem')
+    await page.waitForSelector('.source-code .CodeMirror', { state: 'attached', timeout: 10000 })
+
+    const afterSwitch = await page.evaluate(() => {
+      const snapshot = (window as unknown as {
+        __mtWorkspaceSnapshot(): { documents: Array<{ mode: string; scrollTop: number }> }
+      }).__mtWorkspaceSnapshot()
+      return snapshot.documents[0]
+    })
+    expect(afterSwitch).toMatchObject({ mode: 'source', scrollTop: liveScrollTop })
+    await expect.poll(() => page.locator('.source-code').evaluate(element => element.scrollTop)).toBe(liveScrollTop)
+  })
+
+  test('WYSIWYG starts at the final live Source position captured by the mode command', async() => {
+    await enterSourceMode(page, app)
+    const committedBefore = await page.evaluate(() => {
+      const snapshot = (window as unknown as {
+        __mtWorkspaceSnapshot(): { documents: Array<{ mode: string; scrollTop: number }> }
+      }).__mtWorkspaceSnapshot()
+      return snapshot.documents[0]?.scrollTop
+    })
+    const liveScrollTop = await page.locator('.source-code').evaluate((element) => {
+      element.scrollTop = 600
+      element.dispatchEvent(new Event('scroll'))
+      return element.scrollTop
+    })
+    expect(liveScrollTop).toBe(600)
+
+    const beforeSwitch = await page.evaluate(() => {
+      const snapshot = (window as unknown as {
+        __mtWorkspaceSnapshot(): { documents: Array<{ mode: string; scrollTop: number }> }
+      }).__mtWorkspaceSnapshot()
+      return snapshot.documents[0]
+    })
+    expect(beforeSwitch).toMatchObject({ mode: 'source', scrollTop: committedBefore })
+
+    await clickMenuById(app, 'sourceCodeModeMenuItem')
+    await page.waitForFunction(() => !document.querySelector('.source-code'), null, {
+      timeout: 10000
+    })
+
+    const afterSwitch = await page.evaluate(() => {
+      const snapshot = (window as unknown as {
+        __mtWorkspaceSnapshot(): { documents: Array<{ mode: string; scrollTop: number }> }
+      }).__mtWorkspaceSnapshot()
+      return snapshot.documents[0]
+    })
+    expect(afterSwitch).toMatchObject({ mode: 'wysiwyg', scrollTop: liveScrollTop })
+    await expect.poll(() => page.locator('.editor-component').evaluate(element => element.scrollTop)).toBe(liveScrollTop)
+  })
+})
 
 test.describe('View modes', () => {
   let app: ElectronApplication

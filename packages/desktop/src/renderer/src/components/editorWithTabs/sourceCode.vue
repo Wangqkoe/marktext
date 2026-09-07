@@ -166,6 +166,13 @@ const activeSourceScope = (): PaneEditorEventScope | undefined => {
   return scope?.mode === 'source' && scope.documentId === sourceDocumentId ? scope : undefined
 }
 
+const observeSourceScroll = (): void => {
+  const scope = activeSourceScope()
+  if (scope && sourceCodeContainer.value) {
+    props.composition.observeSourceScroll(scope, sourceCodeContainer.value.scrollTop)
+  }
+}
+
 /**
  * This is to write the OLD content of the editor before switching to another tab
  * @param id
@@ -452,6 +459,7 @@ onMounted(async () => {
   editor.value = codeMirrorInstance
   tabId.value = id
   listenChange()
+  container?.addEventListener('scroll', observeSourceScroll, { passive: true })
 
   // `markdown-math` wraps the standard Markdown mode and delegates `$...$` and
   // `$$...$$` spans to stex so subscript underscores in math do not flip the
@@ -470,6 +478,12 @@ onMounted(async () => {
     setCursorAtFirstLine(codeMirrorInstance)
   }
 
+  nextTick(() => {
+    if (sourceCodeContainer.value) {
+      sourceCodeContainer.value.scrollTop = props.activeFile?.scrollTop ?? 0
+    }
+  })
+
   reportCaretPosition(codeMirrorInstance, props.caretSession)
 })
 
@@ -477,6 +491,7 @@ onBeforeUnmount(() => {
   viewDestroyed.value = true
   sourceScopeAbort.abort()
   if (commitTimer.value) clearTimeout(commitTimer.value)
+  sourceCodeContainer.value?.removeEventListener('scroll', observeSourceScroll)
 
   offFocused('file-loaded')
   offFocused('invalidate-image-cache')
@@ -489,6 +504,7 @@ onBeforeUnmount(() => {
 
   const scope = activeSourceScope()
   if (scope && editor.value) {
+    observeSourceScroll()
     const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(editor.value)
     props.composition.reportSource(scope, {
       markdown: newMarkdown,

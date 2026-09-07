@@ -216,6 +216,9 @@ export class PaneEditorComposition {
    * the hidden WYSIWYG document and overwrite a source edit.
    */
   reportSource(scope: PaneEditorEventScope, report: EditorReport): WorkspaceResult {
+    const previousReport = this.sourceReport?.scope === scope
+      ? this.sourceReport.report
+      : undefined
     // Validate the generation before touching the hidden engine's shared undo
     // stack. A superseded CodeMirror callback cannot author a new revision.
     const current = scope.report({})
@@ -224,17 +227,28 @@ export class PaneEditorComposition {
     }
     const result = scope.report(report)
     if (result.status === 'applied') {
-      this.sourceReport = { scope, report }
+      this.sourceReport = { scope, report: { ...previousReport, ...report } }
     } else if (
       result.status === 'rejected' &&
       result.reason === 'workspace mutation is in progress' &&
       scope === this.reporter.getActiveScope() &&
       scope.mode === 'source'
     ) {
-      this.sourceReport = { scope, report }
+      this.sourceReport = { scope, report: { ...previousReport, ...report } }
       this.flushSourceReport(scope)
     }
     return result
+  }
+
+  /** Keep Source's live position local until an existing pane command flushes it. */
+  observeSourceScroll(scope: PaneEditorEventScope, scrollTop: number): void {
+    if (
+      !Number.isFinite(scrollTop) ||
+      scope !== this.reporter.getActiveScope() ||
+      scope.mode !== 'source'
+    ) return
+    const report = this.sourceReport?.scope === scope ? this.sourceReport.report : {}
+    this.sourceReport = { scope, report: { ...report, scrollTop } }
   }
 
   setSourceHandoffHandler(handler: ((report: EditorReport) => void) | undefined): void {
