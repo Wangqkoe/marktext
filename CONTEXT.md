@@ -12,6 +12,14 @@ _Avoid_: Tab, view (when referring to the document itself)
 A tab's presentation of a document, with its own scroll position, cursor and editing mode; multiple views can display the same document.
 _Avoid_: Document copy, independent file
 
+**Live Scroll Position**:
+The current scroll offset presented by a View while scrolling, before it becomes the Committed Scroll Position.
+_Avoid_: Saved scroll position, persisted scroll position
+
+**Committed Scroll Position**:
+The latest scroll position recorded for a View to maintain continuity within the current application session; it does not imply restoration across application restarts.
+_Avoid_: Persistent scroll position, restart-restored position
+
 **Move to Left or Right**:
 A relocation of a tab's view to the corresponding pane, not a second view of the document.
 _Avoid_: Split Left, Split Right (for relocation)
