@@ -1,27 +1,28 @@
 # Ticket 06: Source large-document capacity investigation
 
 - Status: **investigating**; automated causal work complete, physical scrollbar-thumb validation pending manual execution
-- Required starting baseline and measured HEAD: `175cf2e5e4a45b8c574a2b097725e5eb6a575976`
-- Branch: `codex/wysiwyg-scroll-06-source-investigation-repair-2`
-- Timing matrix recorded: 2026-09-07 America/Los_Angeles (`2026-09-07T08:05:30.454Z`)
-- Paired CPU profile recorded: 2026-09-07 America/Los_Angeles (`2026-09-07T08:31:57.262Z`)
-- Application/runtime: MarkText `0.20.0-rc.1`, local production Electron build, Electron `42.1.0`, Node `v24.18.0`, pnpm `10.33.4`
+- Required production-source baseline: `f15604cac0d7cc337bdb4d174157a89643854c53`
+- Clean harness/measured HEAD: `3393a3ece1536344d03b156891fd1b6bae30d11c`
+- Branch: `codex/wysiwyg-scroll-06-source-investigation-repair-3`
+- Timing matrix recorded: 2026-09-07 America/Los_Angeles (`2026-09-07T09:48:03.585Z`)
+- Paired CPU profile recorded: 2026-09-07 America/Los_Angeles (`2026-09-07T09:51:46.124Z`)
+- Application/runtime: MarkText `0.20.0-rc.1`; harness Node `24.18.0`; launched Electron `42.1.0` with Chromium `148.0.7778.97` and embedded Node `24.15.0`; pnpm `10.33.4`
 - Machine: Windows 11 Pro `10.0.26200`, Intel Core i7-10700, 16 logical processors, 32 GiB RAM, x64
 - Measured geometry in every completed trial: window outer `1216x808`, layout/visual viewport `1200x800`, device scale factor `1`, Source container client box `1188x746`
 - Durable artifacts: [harness](../source-large-document-capacity.cjs), [timing/intervention raw results](06-source-large-document-capacity.raw.json), and [paired CPU-profile raw results](06-source-large-document-capacity.profile.raw.json)
 
 ## Outcome
 
-The production Source path at a 10,000-line disk fixture is **usable but degraded (P2/moderate)**. Across three isolated baselines, the median populated-WYSIWYG open was 3.84 s and the independently measured Source-trigger-to-first-accepted-and-visible-input readiness was 3.91 s. The first trusted `keydown` to visible mutation median was 119 ms. The median renderer working-set increase was 314 MiB. Real Playwright wheel input moved the Source surface, but eight 600 px pulses took a median 1.40 s.
+The production Source path at a 10,000-line disk fixture is **usable but degraded (P2/moderate)**. Across three isolated baselines, the median populated-WYSIWYG open was 3.81 s and the independently measured Source-trigger-to-first-accepted-and-visible-input readiness was 3.56 s. The first trusted `keydown` to visible mutation median was 169 ms. The median renderer working-set increase was 275 MiB. Real Playwright wheel input moved the Source surface, but eight 600 px pulses took a median 1.21 s.
 
-The production Source path at a 50,000-line disk fixture is **unavailable for ordinary interactive use (P1/high capacity defect)**. The median populated-WYSIWYG open was 23.02 s and the separate Source-trigger-to-first-accepted-and-visible readiness was 24.82 s. The first trusted `keydown` to visible mutation median was 599 ms. The median renderer working-set increase was 1,511 MiB and the median post-input working set was 2,268 MiB. Eight real wheel pulses took a median 7.36 s. Every baseline completed without a renderer crash or observed data loss, so this is not P0.
+The production Source path at a 50,000-line disk fixture is **unavailable for ordinary interactive use (P1/high capacity defect)**. The median populated-WYSIWYG open was 23.35 s and the separate Source-trigger-to-first-accepted-and-visible readiness was 25.82 s. The first trusted `keydown` to visible mutation median was 602 ms. The median renderer working-set increase was 1,779 MiB and the median post-input working set was 2,540 MiB. Eight real wheel pulses took a median 7.03 s. Every baseline completed without a renderer crash or observed data loss, so this is not P0.
 
 The investigation now has a causal account rather than a correlation-only account:
 
 1. Changing only `viewportMargin` from `Infinity` to `10` in a CodeMirror initialization hook did not change full materialization or readiness at either scale.
-2. Holding that finite margin constant and changing only CodeMirror height/viewport ownership reduced 50k rendered Source lines from 51,000 to 27, Source readiness from the 24.82 s baseline median to 12.30 s, Source-entry layout-plus-style time from a 8.13 s baseline median to 1.75 s, renderer working-set growth from a 1,511 MiB median to 386 MiB, and eight-wheel-pulse time from 7.36 s to 0.90 s.
-3. In a separate 50k CPU-profile pair, CodeMirror `updateHeightsInViewport` fell from 5.233 s of Source-entry self samples to 0.031 s under the bounded viewport intervention. The remaining dominant named function was Muya `InlineRenderer._collectReferenceDefinitions`, at 5.071 s in baseline and 4.079 s under the intervention.
-4. Removing the production Source `change` and `cursorActivity` handlers before the first real 50k keydown reduced renderer keydown-to-visible time from a 599 ms baseline median to 288 ms, keydown-to-observed-CodeMirror-change from 113 ms to 24 ms, input task time from 1.405 s to 0.854 s, and input `ScriptDuration` from 0.448 s to 0.303 s. Those handlers are an important input cost, not the Source-entry cause.
+2. Holding that finite margin constant and changing only CodeMirror height/viewport ownership reduced 50k rendered Source lines from 51,000 to 27, Source readiness from the 25.82 s baseline median to 12.37 s, Source-entry layout-plus-style time from an 8.36 s baseline median to 2.14 s, renderer working-set growth from a 1,779 MiB median to 2 MiB, and eight-wheel-pulse time from 7.03 s to 0.85 s.
+3. In a separate 50k CPU-profile pair, CodeMirror `updateHeightsInViewport` fell from 5.058 s of Source-entry self samples to 0.028 s under the bounded viewport intervention. The remaining dominant named function was Muya `InlineRenderer._collectReferenceDefinitions`, at 4.573 s in baseline and 4.313 s under the intervention.
+4. Removing the production Source `change` and `cursorActivity` handlers before the first real 50k keydown reduced renderer keydown-to-visible time from a 602 ms baseline median to 279 ms, keydown-to-observed-CodeMirror-change from 108 ms to 24 ms, input task time from 1.531 s to 0.681 s, and input `ScriptDuration` from 0.469 s to 0.294 s. Those handlers are an important input cost, not the Source-entry cause.
 
 The smallest promising remediation boundary is therefore two explicit seams, not an assumed universal scroll engine: Source layout/viewport ownership in `sourceCode.vue`, and the full-state reference-definition collection called by `InlineRenderer.patch`. A production proposal must preserve Source scroll/TOC/cursor semantics and must prove whether reference definitions can be cached or collected once per document update. The disposable interventions do not themselves constitute a production fix.
 
@@ -34,9 +35,9 @@ The hypotheses were recorded before the interventions and retained in both raw a
 | ID  | Prediction                                                                                                                                                                               | Result                                                                                                                                                                                                                                | Evidence classification                                                                  |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | H1  | If full-height CodeMirror materialization dominates Source entry, a pre-commit finite viewport policy will sharply reduce readiness, rendered nodes, memory, and wheel cost.             | Partly confirmed and narrowed. Finite margin alone was inert; finite margin plus fixed viewport ownership produced the predicted large reductions.                                                                                    | Observed intervention; causal inference is limited to the combined Source layout policy. |
-| H2  | If Source `change`/`cursorActivity` full-text synchronization dominates first input, removing those handlers before the first keydown will sharply reduce input latency and script time. | Confirmed as an important secondary input cost: 50k visible latency fell 52%, change observation 79%, task time 39%, and script time 32%. It did not materially reduce Source-entry time.                                             | Observed intervention.                                                                   |
-| H3  | If style/layout dominates, `LayoutDuration + RecalcStyleDuration` will exceed `ScriptDuration` and scale from 10k to 50k.                                                                | Confirmed for the classified DevTools counters: baseline median layout+style grew from 1.68 s to 8.13 s. CPU profiling additionally identified CodeMirror height updates and DOM primitives. A larger residual task category remains. | Observed profile/counters; residual attribution remains partly unknown.                  |
-| H4  | If disk loading/initial Markdown parsing dominates total time-to-use, pre-Source readiness will account for most scale growth; otherwise Source-local work will remain separately large. | Disk/open work and Source work are both large: medians are 23.02 s and 24.82 s at 50k. Source timing begins only after populated WYSIWYG plus cadence sampling, so its cost is not disk read or initial open parsing.                 | Observed stage boundary; detailed pre-Source parsing partition remains unknown.          |
+| H2  | If Source `change`/`cursorActivity` full-text synchronization dominates first input, removing those handlers before the first keydown will sharply reduce input latency and script time. | Confirmed as an important secondary input cost: 50k visible latency fell 54%, change observation 78%, task time 56%, and script time 37%. It did not materially reduce Source-entry time.                                             | Observed intervention.                                                                   |
+| H3  | If style/layout dominates, `LayoutDuration + RecalcStyleDuration` will exceed `ScriptDuration` and scale from 10k to 50k.                                                                | Confirmed for the classified DevTools counters: baseline median layout+style grew from 1.43 s to 8.36 s. CPU profiling additionally identified CodeMirror height updates and DOM primitives. A larger residual task category remains. | Observed profile/counters; residual attribution remains partly unknown.                  |
+| H4  | If disk loading/initial Markdown parsing dominates total time-to-use, pre-Source readiness will account for most scale growth; otherwise Source-local work will remain separately large. | Disk/open work and Source work are both large: medians are 23.35 s and 25.82 s at 50k. Source timing begins only after populated WYSIWYG plus cadence sampling, so its cost is not disk read or initial open parsing.                 | Observed stage boundary; detailed pre-Source parsing partition remains unknown.          |
 
 ## Fixture, isolation, and measurement method
 
@@ -47,7 +48,15 @@ Each UTF-8/LF fixture contains exactly N nonblank lines. Every line whose one-ba
 | 10,000 lines |   776,900 |      100 |      9,900 | `8d7a4d0903a787926d979af4f2082155134cb631bc7b6827c14cad141dc95dfd` |
 | 50,000 lines | 3,884,500 |      500 |     49,500 | `cb6d15f95facb7396b6fa010ba0cc9c6ab13890e10e8e72a61132be46d2beeeb` |
 
-Every trial created a unique OS-temporary root containing one uniquely named fixture and one uniquely named `--user-data-dir`. No fixture, profile, or trial root was reused. The raw results retain every basename, fixture digest, build and measurement commands, exact baseline SHA, application/runtime, OS build, CPU/RAM, measured viewport, timeout, and cleanup result.
+Every trial created a unique OS-temporary root containing one uniquely named fixture and one uniquely named `--user-data-dir`. No fixture, profile, or trial root was reused. The raw results retain every basename, fixture digest, build and measurement commands, source baseline and harness identities, application/runtime, OS build, CPU/RAM, measured viewport, timeout, and cleanup result.
+
+### Build and artifact identity
+
+Both final raw artifacts independently verified, before writing results, that the full repository and the declared production pathspecs were clean. `git diff --quiet f15604cac0d7cc337bdb4d174157a89643854c53 -- packages scripts package.json pnpm-lock.yaml pnpm-workspace.yaml eslint.config.js` returned status `0`, proving that the production build inputs matched the required source baseline. The clean measured HEAD and the commit that last changed the harness were both `3393a3ece1536344d03b156891fd1b6bae30d11c`; the harness file SHA-256 was `a23c3f2e6f43ecd36545378f220a4acfbda8e82620ad84c40de106f018bd7071`.
+
+The harness actually executed `pnpm --filter marktext build` through non-interactive PowerShell for each artifact. Both executions returned status `0`; the retained stdout records the main, preload, and renderer builds, and the retained stderr contains only Vite chunking warnings. The actual Electron executable returned status `0` and `v42.1.0` for `--version`. After each build, all 878 files under `packages/desktop/out` were sorted by relative path and hashed. Both artifacts record the same manifest SHA-256: `395085853526cda9098ff3132bb596ee1cda2fe6419f895bd815d80f8cd84c77`.
+
+The manifest includes `main/index.js` SHA-256 `ff871b2b0122c6211accb179e51ac99050289cdc20e0be509d604f2fa4fcf229`, `preload/index.js` SHA-256 `7cfa9d8d2ab2a259234390f86c330f489b03bce96186a95f59a4a1ef5534df11`, and every renderer chunk (including the measured primary renderer bundle `renderer/assets/index-DpKqBBjZ.js` SHA-256 `ed9dc734df5038484de13476f7c8bf5abe84d543a232aac4758c1c156614d4ba`). At launch, the main process itself reported Electron `42.1.0`, Chromium `148.0.7778.97`, and embedded Node `24.15.0`; the renderer user agent independently reported the same Electron and Chromium versions.
 
 The production timing matrix ran, per scale, three baseline trials and one trial for each intervention:
 
@@ -61,7 +70,7 @@ No production source, preference, or user data was changed by any intervention.
 
 Before the Source command, the harness installs a renderer `MutationObserver`, an optional CodeMirror init hook, and the readiness state. One **single 150,000 ms total deadline** begins immediately before invoking the real Source menu command. It covers Source component creation, CodeMirror construction, focus/cursor preparation, the first `page.keyboard.press`, CodeMirror change-state observation, and visible first-line DOM mutation. The primary readiness value ends only when both the CodeMirror value and visible line contain the typed marker. Renderer evidence retains the trusted `keydown`, change timestamp, visible timestamp, and accepted state separately.
 
-The pre-Source phase likewise has one **120,000 ms total deadline** from Electron launch through a populated WYSIWYG editor; it is not two serial 45 s waits described as one 45 s limit. Other explicit bounds are 30,000 ms for wheel, 15,000 ms for courtesy close, 15,000 ms for post-kill process exit, and ten deletion attempts separated by 500 ms.
+The pre-Source phase likewise has one **120,000 ms total deadline** from Electron launch through a populated WYSIWYG editor; it is not two serial 45 s waits described as one 45 s limit. Other explicit bounds are 30,000 ms for wheel, 15,000 ms for the controlled Electron exit request, 15,000 ms for post-kill process exit, and ten deletion attempts separated by 500 ms.
 
 ### Main-thread attribution
 
@@ -73,31 +82,33 @@ Chromium DevTools Performance counters were differenced separately around Source
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm --filter marktext build
+node .scratch/wysiwyg-scroll-performance/source-large-document-capacity.cjs --self-test-cleanup
 node .scratch/wysiwyg-scroll-performance/source-large-document-capacity.cjs
 node .scratch/wysiwyg-scroll-performance/source-large-document-capacity.cjs --cpu-profile --profile-pair
 ```
+
+The two measurement commands each run and record their own production build after the clean-source identity gate; no unrecorded build is substituted for the retained `out` manifest.
 
 ## Baseline timing matrix
 
 | Measure                                              | 10k T1 | 10k T2 | 10k T3 |  50k T1 |  50k T2 |  50k T3 |
 | ---------------------------------------------------- | -----: | -----: | -----: | ------: | ------: | ------: |
-| Launch → populated WYSIWYG (ms)                      |  3,837 |  4,103 |  3,793 |  23,016 |  22,465 |  23,963 |
-| Source trigger → input armed (ms)                    |  3,257 |  3,584 |  3,403 |  21,522 |  23,114 |  21,861 |
-| Source trigger → first accepted + visible (ms)       |  3,721 |  4,024 |  3,909 |  24,481 |  25,987 |  24,818 |
-| Renderer `keydown` → CodeMirror change observed (ms) |     37 |     23 |     23 |     138 |     100 |     113 |
-| Renderer `keydown` → visible mutation (ms)           |    154 |    119 |    112 |     636 |     550 |     599 |
+| Launch → populated WYSIWYG (ms)                      |  3,844 |  3,539 |  3,811 |  22,959 |  23,352 |  24,502 |
+| Source trigger → input armed (ms)                    |  3,056 |  3,133 |  3,117 |  21,117 |  22,748 |  22,979 |
+| Source trigger → first accepted + visible (ms)       |  3,528 |  3,636 |  3,556 |  23,892 |  25,816 |  26,034 |
+| Renderer `keydown` → CodeMirror change observed (ms) |     65 |     71 |     23 |     108 |     103 |     151 |
+| Renderer `keydown` → visible mutation (ms)           |    169 |    179 |    125 |     572 |     602 |     700 |
 | Actual CodeMirror lines                              | 10,200 | 10,200 | 10,200 |  51,000 |  51,000 |  51,000 |
 | Rendered `.CodeMirror-line` nodes                    | 10,200 | 10,200 | 10,200 |  51,000 |  51,000 |  51,000 |
 | Total DOM elements                                   | 73,116 | 73,116 | 73,116 | 363,516 | 363,516 | 363,516 |
-| Renderer working set before Source (MiB)             |    447 |    443 |    460 |     748 |     757 |     795 |
-| Renderer working set after first input (MiB)         |    761 |    756 |    784 |   3,058 |   2,268 |   2,208 |
-| Renderer working-set increase (MiB)                  |    314 |    313 |    324 |   2,310 |   1,511 |   1,413 |
-| Source-entry task time (s)                           |  3.453 |  3.785 |  3.683 |  22.774 |  24.107 |  23.027 |
-| Source-entry layout + style time (s)                 |  1.468 |  1.675 |  1.689 |   8.129 |   8.463 |   7.920 |
-| Source-entry unclassified task residual (s)          |  1.984 |  2.109 |  1.993 |  14.643 |  15.642 |  15.105 |
-| First wheel → first moved scroll (ms)                |     75 |     83 |     93 |     422 |     271 |     423 |
-| Eight wheel pulses elapsed (ms)                      |  1,189 |  1,396 |  1,398 |   7,252 |   9,294 |   7,357 |
+| Renderer working set before Source (MiB)             |    467 |    456 |    463 |     761 |     757 |     780 |
+| Renderer working set after first input (MiB)         |    742 |    786 |    695 |   2,540 |   2,293 |   2,678 |
+| Renderer working-set increase (MiB)                  |    275 |    330 |    233 |   1,779 |   1,535 |   1,898 |
+| Source-entry task time (s)                           |  3.255 |  3.325 |  3.308 |  22.202 |  23.888 |  24.288 |
+| Source-entry layout + style time (s)                 |  1.404 |  1.456 |  1.427 |   8.134 |   8.356 |   8.506 |
+| Source-entry unclassified task residual (s)          |  1.850 |  1.868 |  1.879 |  14.065 |  15.530 |  15.779 |
+| First wheel → first moved scroll (ms)                |     84 |     93 |     59 |     373 |     746 |     394 |
+| Eight wheel pulses elapsed (ms)                      |  1,230 |  1,209 |  1,146 |   6,721 |  11,585 |   7,033 |
 
 Opening through the production WYSIWYG path adds two Source lines per heading, hence 10,200 and 51,000 actual CodeMirror lines. Every wheel trial observed 8/8 renderer wheel events with `isTrusted=true`, 8 scroll events, and movement from `scrollTop=0` to `4800`; the defect is response latency rather than inability to reach a new offset.
 
@@ -105,25 +116,27 @@ Opening through the production WYSIWYG path adds two Source lines per heading, h
 
 | Scale / variant                    | Source → accepted + visible | Rendered Source lines | Total DOM | Renderer WS after input |  WS delta | Source task | Layout + style | Wheel first move | 8 pulses |
 | ---------------------------------- | --------------------------: | --------------------: | --------: | ----------------------: | --------: | ----------: | -------------: | ---------------: | -------: |
-| 10k baseline median                |                    3,909 ms |                10,200 |    73,116 |                 761 MiB |   314 MiB |     3.683 s |        1.675 s |            83 ms | 1,396 ms |
-| 10k finite margin only             |                    4,297 ms |                10,200 |    73,116 |                 798 MiB |   350 MiB |     3.977 s |        1.764 s |            88 ms | 1,241 ms |
-| 10k finite margin + fixed viewport |                    1,434 ms |                    27 |    21,954 |                 456 MiB |    -7 MiB |     1.348 s |        0.402 s |            36 ms |   746 ms |
-| 50k baseline median                |                   24,818 ms |                51,000 |   363,516 |               2,268 MiB | 1,511 MiB |    23.027 s |        8.129 s |           422 ms | 7,357 ms |
-| 50k finite margin only             |                   25,028 ms |                51,000 |   363,516 |               2,261 MiB | 1,481 MiB |    23.194 s |        8.324 s |           301 ms | 7,167 ms |
-| 50k finite margin + fixed viewport |                   12,303 ms |                    27 |   107,154 |               1,248 MiB |   386 MiB |    11.768 s |        1.751 s |            90 ms |   895 ms |
+| 10k baseline median                |                    3,556 ms |                10,200 |    73,116 |                 742 MiB |   275 MiB |     3.308 s |        1.427 s |            84 ms | 1,209 ms |
+| 10k finite margin only             |                    3,790 ms |                10,200 |    73,116 |                 823 MiB |   362 MiB |     3.527 s |        1.616 s |            56 ms | 1,188 ms |
+| 10k finite margin + fixed viewport |                    1,355 ms |                    27 |    21,954 |                 443 MiB |   -16 MiB |     1.273 s |        0.362 s |            37 ms |   790 ms |
+| 50k baseline median                |                   25,816 ms |                51,000 |   363,516 |               2,540 MiB | 1,779 MiB |    23.888 s |        8.356 s |           394 ms | 7,033 ms |
+| 50k finite margin only             |                   25,492 ms |                51,000 |   363,516 |               2,471 MiB | 1,717 MiB |    23.684 s |        8.667 s |           227 ms | 7,177 ms |
+| 50k finite margin + fixed viewport |                   12,371 ms |                    27 |   107,154 |                 911 MiB |     2 MiB |    11.694 s |        2.137 s |            45 ms |   846 ms |
 
 The finite-margin-only result rules out a one-option production repair. CodeMirror has `viewportMargin=10`, but production `height:auto` makes its visible height approximately the full document, so all lines remain in its viewport. The fixed-height comparison changes the viewport ownership while holding the finite margin constant; it proves that the current full-height/outer-scroll policy is a major cause. It is not direct approval to replace the production scroll owner because Source TOC, cursor placement, external reload scroll preservation, and saved view state currently use the outer container.
 
 ### CPU profile: dominant named Source-entry work
 
-| 50k Source-entry profile                                        |          Baseline | Finite margin + fixed viewport |
-| --------------------------------------------------------------- | ----------------: | -----------------------------: |
-| Source trigger → accepted + visible                             |         27,302 ms |                      11,527 ms |
-| Source-entry profile window                                     |         25,285 ms |                      11,177 ms |
-| `CodeMirror.updateHeightsInViewport` self samples               |  5,233 ms (20.7%) |                   31 ms (0.3%) |
-| `Muya InlineRenderer._collectReferenceDefinitions` self samples |  5,071 ms (20.1%) |               4,079 ms (36.5%) |
-| Named DOM primitive self samples                                | at least 2,816 ms |                at least 635 ms |
-| Garbage-collector self samples                                  |            690 ms |                         379 ms |
+| 50k Source-entry profile                                        |         Baseline | Finite margin + fixed viewport |
+| --------------------------------------------------------------- | ---------------: | -----------------------------: |
+| Source trigger → accepted + visible                             |        25,597 ms |                      11,930 ms |
+| Source-entry profile window                                     |        23,406 ms |                      11,622 ms |
+| `CodeMirror.updateHeightsInViewport` self samples               | 5,058 ms (21.6%) |                   28 ms (0.2%) |
+| `Muya InlineRenderer._collectReferenceDefinitions` self samples | 4,573 ms (19.5%) |               4,313 ms (37.1%) |
+| Listed DOM primitive self samples                               |         2,223 ms |                         647 ms |
+| Garbage-collector self samples                                  |           506 ms |                         444 ms |
+
+The listed DOM-primitive row sums `getBoundingClientRect`, `elt`, `removeChild`, `insertBefore`, and `appendChild`; it is a lower bound rather than a claim about all browser-native DOM work.
 
 `updateHeightsInViewport` is the largest named baseline function and disappears when full materialization is removed. `_collectReferenceDefinitions` becomes the largest named residual. Code inspection shows every `InlineRenderer.patch` calls `_collectReferenceDefinitions`, which recursively scans the whole Muya JSON state before tokenizing the block. The profile proves that this full-state scan is active during the Source-entry window and costs about 4–5 s at 50k. It does not yet prove whether the safe repair is caching, invalidation, or avoiding WYSIWYG patches during mode handoff.
 
@@ -131,10 +144,10 @@ The finite-margin-only result rules out a one-option production repair. CodeMirr
 
 | Scale | Baseline median `keydown` → change | No-handlers | Baseline median `keydown` → visible | No-handlers | Baseline input task | No-handlers | Baseline input script | No-handlers |
 | ----- | ---------------------------------: | ----------: | ----------------------------------: | ----------: | ------------------: | ----------: | --------------------: | ----------: |
-| 10k   |                              23 ms |       10 ms |                              119 ms |       75 ms |             0.190 s |     0.128 s |               0.067 s |     0.051 s |
-| 50k   |                             113 ms |       24 ms |                              599 ms |      288 ms |             1.405 s |     0.854 s |               0.448 s |     0.303 s |
+| 10k   |                              65 ms |        7 ms |                              169 ms |       58 ms |             0.246 s |     0.113 s |               0.097 s |     0.042 s |
+| 50k   |                             108 ms |       24 ms |                              602 ms |      279 ms |             1.531 s |     0.681 s |               0.469 s |     0.294 s |
 
-The intervention removed exactly one production `change` and one `cursorActivity` handler. Source-entry time remained baseline-like (4.30 s at 10k; 23.82 s at 50k), so these handlers do not explain construction. They do explain a material portion of first-input delay. The production handlers call `getMarkdownAndCursor`, `getValue`, `getWordCount`, and `composition.reportSource`; the profiler retains `wordCount` and CodeMirror display work in the first-input window. A production repair must retain document synchronization and status correctness rather than simply removing the handlers.
+The intervention removed exactly one production `change` and one `cursorActivity` handler. Source-entry time remained baseline-like (3.40 s at 10k; 22.51 s at 50k), so these handlers do not explain construction. They do explain a material portion of first-input delay. The production handlers call `getMarkdownAndCursor`, `getValue`, `getWordCount`, and `composition.reportSource`; the profiler retains `wordCount` and CodeMirror display work in the first-input window. A production repair must retain document synchronization and status correctness rather than simply removing the handlers.
 
 ## Real wheel and pending physical thumb
 
@@ -151,9 +164,11 @@ The harness points at the visible Source surface and dispatches eight `page.mous
 
 ## Cleanup evidence
 
-Ten of twelve timing trials did not close inside the 15 s courtesy bound. For each, the harness discovered the exact seven-PID Electron tree through `Win32_Process`, captured the `taskkill.exe /PID <root> /T /F` result, required exit status `0`, and polled every discovered PID until none existed. All ten forced kills returned `0` and all PID polls passed. Their profile directories encountered immediate EPERM once and were removed on bounded attempt 2. The two handler-intervention trials closed normally and their profiles were removed on attempt 1. Every fixture and trial root was verified absent. The paired CPU-profile trials followed the same verified cleanup path.
+All twelve timing trials and both paired CPU-profile trials discovered and parsed an exact six-PID Electron tree through `Win32_Process`, successfully requested a controlled exit by destroying the isolated test window and scheduling `app.exit(0)`, and then performed two successful PID-verification stages. Every discovered PID was absent before the 15 s bound, no `taskkill` was required, every cleanup error list was empty, and every profile, fixture, and trial root was removed and verified absent on attempt 1.
 
-If process verification or any bounded deletion fails, the raw result records `abort-before-next-trial`, retains the uniquely isolated temporary root, and the harness throws before starting another trial. No failed cleanup occurred in these runs.
+Cleanup is fail-closed. Discovery command or parse failure, PID-query failure, controlled-exit timeout/error while a process remains, any nonzero/timed-out `taskkill`, or any remaining PID after the bounded final poll makes process cleanup unsuccessful. In that state path cleanup is not called, the unique trial root is retained, `abort-before-next-trial` is recorded, and the harness throws before another trial. A process that already exited is accepted only after a successful query proves that all discovered PIDs are absent. `node .scratch/wysiwyg-scroll-performance/source-large-document-capacity.cjs --self-test-cleanup` passed live Windows discovery plus injected discovery-command, parse, query, kill, timeout, natural-exit, and retained-root cases.
+
+A pre-final smoke run against harness commit `015280658722211c8834344b9ea195f3cc6515fb` exercised the real failure path: the prior `app.close()` strategy timed out, `taskkill` returned `0`, and final verification found no PIDs, but the timeout still made cleanup fail. The harness did not start another trial and retained `C:\Users\1407\AppData\Local\Temp\marktext-source-10000-production-baseline-1-wXtpaN` with its fixture and profile. That rejected smoke result is not included in either final raw artifact.
 
 ## Evidence classification
 
@@ -161,7 +176,7 @@ If process verification or any bounded deletion fails, the raw result records `a
 
 - The 50k defect repeats across three isolated production profiles in both pre-Source and Source-only stages.
 - Production Source fully materializes all 10,200/51,000 CodeMirror lines and grows DOM, memory, first-input latency, and wheel latency with scale.
-- Finite `viewportMargin` alone is inert under `height:auto`; finite margin plus a bounded CodeMirror viewport halves 50k Source readiness, removes nearly all Source line nodes, reduces layout/style work by about 78%, and sharply reduces memory and wheel cost.
+- Finite `viewportMargin` alone is inert under `height:auto`; finite margin plus a bounded CodeMirror viewport halves 50k Source readiness, removes nearly all Source line nodes, reduces layout/style work by about 74%, and sharply reduces memory and wheel cost.
 - The largest named baseline Source-entry CPU function is CodeMirror `updateHeightsInViewport`; the largest named residual after bounded materialization is Muya `_collectReferenceDefinitions`.
 - Production Source synchronization handlers materially increase first-input latency but do not cause Source construction latency.
 - Source-only timing begins after populated WYSIWYG readiness and therefore excludes initial disk reading/open parsing. Pre-Source and Source-only medians are independently large at 50k.

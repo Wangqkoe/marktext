@@ -8,8 +8,10 @@
 
 - [x] Deterministic 10,000-line and 50,000-line Source fixtures are defined with document shape, byte size, line characteristics, and heading/content mix recorded.
 - [x] The reproduction records time to open the document, time to enter Source mode, readiness for input, DOM or editor materialization scale, memory pressure, scroll response, and representative input-to-visible-update latency.
-- [x] Each scenario is repeated enough to separate a stable problem from cold-start noise, and raw timing and profiling evidence is retained with application, runtime, machine, and idle-cadence context.
+- [x] Each scenario is repeated enough to separate a stable problem from cold-start noise, and raw timing and profiling evidence is retained with application, actual launched runtime, machine, and idle-cadence context.
+- [x] Both raw artifacts prove a clean production-source baseline and clean harness commit, record the actual build exit/status, hash the harness, and retain a SHA-256 manifest for every file in the launched `packages/desktop/out` tree.
 - [x] Bounded timeouts and failure states are reported as observed capacity limits rather than silently discarded or converted into scroll samples.
+- [x] Windows cleanup is fail-closed: process discovery/parse/query and any required kill must succeed, every discovered PID must exit inside the bounded verification, and any error retains the isolated trial root and aborts before the next trial; verified already-exited processes remain a valid success state.
 - [x] Causal interventions distinguish editor materialization or viewport policy, document parsing/loading, renderer main-thread work, and unrelated WYSIWYG scroll reporting as far as the evidence permits.
 - [x] The investigation states whether 10,000 and 50,000 lines are usable, degraded, or unavailable, with severity tied to reproducibility and user-visible impact.
 - [x] The conclusion identifies confirmed causes, ruled-out causes, remaining uncertainty, and the smallest promising remediation seam.
