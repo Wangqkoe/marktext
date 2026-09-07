@@ -4,15 +4,21 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** complete — automated causal evidence and the physical scrollbar-thumb matrix are recorded. The 50k P1 capacity defect remains open for a separate implementation ticket; this investigation is not a claim that the product defect is fixed.
 
-- [ ] Deterministic 10,000-line and 50,000-line Source fixtures are defined with document shape, byte size, line characteristics, and heading/content mix recorded.
-- [ ] The reproduction records time to open the document, time to enter Source mode, readiness for input, DOM or editor materialization scale, memory pressure, scroll response, and representative input-to-visible-update latency.
-- [ ] Each scenario is repeated enough to separate a stable problem from cold-start noise, and raw timing and profiling evidence is retained with application, runtime, machine, and idle-cadence context.
-- [ ] Bounded timeouts and failure states are reported as observed capacity limits rather than silently discarded or converted into scroll samples.
-- [ ] Causal interventions distinguish editor materialization or viewport policy, document parsing/loading, renderer main-thread work, and unrelated WYSIWYG scroll reporting as far as the evidence permits.
-- [ ] The investigation states whether 10,000 and 50,000 lines are usable, degraded, or unavailable, with severity tied to reproducibility and user-visible impact.
-- [ ] The conclusion identifies confirmed causes, ruled-out causes, remaining uncertainty, and the smallest promising remediation seam.
-- [ ] A follow-up recommendation says whether a repair specification is warranted and proposes its user-visible scope, acceptance measures, and non-goals.
-- [ ] No production fix, speculative runtime framework, or unrelated refactor is implemented as part of this investigation.
-- [ ] Findings remain independent from WYSIWYG acceptance unless direct evidence demonstrates a shared causal bottleneck.
+- [x] Deterministic 10,000-line and 50,000-line Source fixtures are defined with document shape, byte size, line characteristics, and heading/content mix recorded.
+- [x] The reproduction records time to open the document, time to enter Source mode, readiness for input, DOM or editor materialization scale, memory pressure, scroll response, and representative input-to-visible-update latency.
+- [x] Each scenario is repeated enough to separate a stable problem from cold-start noise, and raw timing and profiling evidence is retained with application, actual launched runtime, machine, and idle-cadence context.
+- [x] Both raw artifacts prove a clean production-source baseline and clean harness commit, record the actual build exit/status, hash the harness, and retain a SHA-256 manifest for every file in the launched `packages/desktop/out` tree.
+- [x] Bounded timeouts and failure states are reported as observed capacity limits rather than silently discarded or converted into scroll samples.
+- [x] Windows cleanup is fail-closed: process discovery/parse/query and any required kill must succeed, every discovered PID must exit inside the bounded verification, and any error retains the isolated trial root and aborts before the next trial; verified already-exited processes remain a valid success state.
+- [x] Causal interventions distinguish editor materialization or viewport policy, document parsing/loading, renderer main-thread work, and unrelated WYSIWYG scroll reporting as far as the evidence permits.
+- [x] The investigation states whether 10,000 and 50,000 lines are usable, degraded, or unavailable, with severity tied to reproducibility and user-visible impact.
+- [x] The conclusion identifies confirmed causes, ruled-out causes, remaining uncertainty, and the smallest promising remediation seam.
+- [x] A follow-up recommendation says whether a repair specification is warranted and proposes its user-visible scope, acceptance measures, and non-goals.
+- [x] No production fix, speculative runtime framework, or unrelated refactor is implemented as part of this investigation.
+- [x] Findings remain independent from WYSIWYG acceptance unless direct evidence demonstrates a shared causal bottleneck.
+- [x] Real Source wheel input is exercised with Playwright `page.mouse.wheel`; renderer evidence confirms trusted wheel events and scroll movement at both scales.
+- [x] A human validated the physical OS/Chromium scrollbar thumb for three 10k and three 50k rounds. The evidence records the reported behavior, reachability, crash/data-loss reporting limits, isolated profiles, launch correction, available recordings and hashes, and environmental unknowns without treating the 50k result as a repair pass.
+
+Evidence: [Source large-document capacity investigation](../evidence/06-source-large-document-capacity.md)
