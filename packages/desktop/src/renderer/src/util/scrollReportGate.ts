@@ -22,13 +22,14 @@ const browserFrameScheduler: ScrollReportFrameScheduler = {
 
 const INITIAL_RETRY_DELAY_MS = 16
 const MAX_RETRY_DELAY_MS = 250
+const IDLE_COMMIT_DELAY_MS = 150
 
 const isTemporaryRejection = (result: WorkspaceResult): boolean =>
   result.status === 'rejected' && result.reason === 'workspace mutation is in progress'
 
 /**
- * Keep native scrolling untouched while reducing its state-reporting side
- * effect to the final value observed in each renderer animation frame.
+ * Keep native scrolling untouched while committing only the latest position
+ * after the native surface has been idle for 150 ms.
  */
 export const createScrollReportGate = (
   report: (scrollTop: number) => WorkspaceResult,
@@ -70,6 +71,23 @@ export const createScrollReportGate = (
     frameHandle = handle
   }
 
+  const scheduleIdleCommit = () => {
+    if (
+      disposed ||
+      pendingScrollTop === undefined ||
+      frameHandle !== undefined ||
+      deferredHandle !== undefined
+    ) {
+      return
+    }
+    const handle = scheduler.defer(() => {
+      if (deferredHandle !== handle) return
+      deferredHandle = undefined
+      publish()
+    }, IDLE_COMMIT_DELAY_MS)
+    deferredHandle = handle
+  }
+
   const scheduleRetry = () => {
     if (
       disposed ||
@@ -104,17 +122,17 @@ export const createScrollReportGate = (
       retryDelayMs = INITIAL_RETRY_DELAY_MS
     }
     if (Object.is(pendingScrollTop, scrollTop)) pendingScrollTop = undefined
-    scheduleFrame()
+    scheduleIdleCommit()
   }
 
   return {
     request(scrollTop) {
-      if (disposed) return
+      if (disposed || !Number.isFinite(scrollTop)) return
       pendingScrollTop = scrollTop
       uncommittedScrollTop = scrollTop
       cancelDeferred()
       retryDelayMs = INITIAL_RETRY_DELAY_MS
-      scheduleFrame()
+      scheduleIdleCommit()
     },
     flush() {
       if (disposed || pendingScrollTop === undefined) return

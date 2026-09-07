@@ -178,4 +178,65 @@ describe('WorkspaceProjectionMirror', () => {
     expect(store.currentFile?.searchMatches.value).toBe('ui-only')
     store.DETACH_WORKSPACE_FACADE()
   })
+
+  it('preserves TOC-derived data when a workspace projection changes only scroll position', async() => {
+    const controller = createWorkspaceRuntime([{ documentId: 'note', markdown: '# Heading' }])
+    const binding = await controller.bindPaneEditor('left', {
+      refresh: async() => {},
+      flush: async() => ({})
+    })
+    const lease = binding.getLease()
+    if (!lease) throw new Error('missing lease')
+    const store = useEditorStore()
+    store.ATTACH_WORKSPACE_FACADE(controller)
+    expect(
+      binding.report(lease, {
+        toc: [{ id: 'heading', title: 'Heading', level: 1 }]
+      }).status
+    ).toBe('applied')
+    const listToc = store.listToc
+    const toc = store.toc
+
+    expect(binding.report(lease, { scrollTop: 120 }).status).toBe('applied')
+
+    expect(store.listToc).toBe(listToc)
+    expect(store.toc).toBe(toc)
+    store.DETACH_WORKSPACE_FACADE()
+    binding.dispose()
+    controller.dispose()
+  })
+
+  it('refreshes TOC-derived data only when heading content changes', async() => {
+    const controller = createWorkspaceRuntime([{ documentId: 'note', markdown: '# Heading' }])
+    const binding = await controller.bindPaneEditor('left', {
+      refresh: async() => {},
+      flush: async() => ({})
+    })
+    const lease = binding.getLease()
+    if (!lease) throw new Error('missing lease')
+    const store = useEditorStore()
+    store.ATTACH_WORKSPACE_FACADE(controller)
+    expect(
+      binding.report(lease, {
+        toc: [{ id: 'heading', title: 'Heading', level: 1 }]
+      }).status
+    ).toBe('applied')
+    const headingToc = store.toc
+
+    expect(binding.report(lease, { cursor: { line: 1, column: 3 } }).status).toBe('applied')
+    expect(store.toc).toBe(headingToc)
+
+    expect(
+      binding.report(lease, {
+        toc: [{ id: 'renamed', title: 'Renamed heading', level: 1 }]
+      }).status
+    ).toBe('applied')
+    expect(store.toc).not.toBe(headingToc)
+    expect(store.listToc).toMatchObject([
+      { slug: 'renamed', content: 'Renamed heading', lvl: 1 }
+    ])
+    store.DETACH_WORKSPACE_FACADE()
+    binding.dispose()
+    controller.dispose()
+  })
 })

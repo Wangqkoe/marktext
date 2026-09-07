@@ -1,5 +1,28 @@
 # Desktop renderer scroll profile
 
+## WYSIWYG idle-commit measurement entry (ticket 01)
+
+- Baseline: `27fb95338bffb0d0eb692ec32d1a8c4423809629`
+- Fixture: `packages/desktop/test/e2e/data/wysiwyg-scroll-400-headings.md` (400 level-2 headings, each followed by one paragraph)
+- Automated environment: Windows, Electron 42 headless renderer, 1280x720 viewport
+
+The deterministic renderer entry opens the fixed heading-heavy fixture, shows the real Outline,
+drives the production `.editor-component` passive scroll listener across several renderer frames,
+and observes the production workspace snapshot. It requires the DOM Live Scroll Position to move
+immediately while workspace revision and Committed Scroll Position remain unchanged during the
+burst; after 200 ms it requires exactly one revision with the final position. A retained DOM marker
+also verifies that the scroll-only convergence does not replace Outline nodes.
+
+```powershell
+pnpm --dir packages/desktop run build
+pnpm --dir packages/desktop exec playwright test --config=test/e2e/playwright.config.ts test/e2e/renderer-scroll-performance.spec.ts
+```
+
+The same Markdown file is the reproducible input for later installed-build frame-gap measurement.
+That acceptance still uses three runs and the median proportion of requestAnimationFrame gaps over
+50 ms; passing remains `<= 5%` after first recording idle cadence. This development-build entry does
+not claim the installed-build threshold or physical touchpad/thumb acceptance.
+
 - Ticket: T06, desktop UI and Folder navigation
 - Baseline: `21137f29274c8c855fe4ec797d9d242f9e5c3491`
 - Environment: Windows, Electron 42 headless renderer, 1280x720 viewport, Node 24.18.0, pnpm 10.33.4

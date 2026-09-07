@@ -38,6 +38,7 @@ class ManualFrameScheduler {
   private readonly captured = new Map<number, FrameRequestCallback>()
   private readonly deferred = new Map<number, () => void>()
   private readonly capturedDeferred = new Map<number, () => void>()
+  readonly deferredDelays: number[] = []
 
   readonly request = (callback: FrameRequestCallback): number => {
     const handle = ++this.nextHandle
@@ -50,10 +51,11 @@ class ManualFrameScheduler {
     this.active.delete(handle)
   }
 
-  readonly defer = (callback: () => void, _delayMs: number): number => {
+  readonly defer = (callback: () => void, delayMs: number): number => {
     const handle = ++this.nextHandle
     this.deferred.set(handle, callback)
     this.capturedDeferred.set(handle, callback)
+    this.deferredDelays.push(delayMs)
     return handle
   }
 
@@ -209,7 +211,7 @@ describe('scroll report frequency', () => {
     workspace.dispose()
   })
 
-  it('coalesces a same-frame active-view burst to its final scrollTop', async() => {
+  it('keeps an active native-scroll burst local and commits only its final value after idle', async() => {
     const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
     const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
     const lease = currentLease(binding)
@@ -228,31 +230,65 @@ describe('scroll report frequency', () => {
     expect(report).not.toHaveBeenCalled()
     scheduler.flush()
 
-    expect(report).toHaveBeenCalledOnce()
-    expect(report).toHaveBeenLastCalledWith(40)
-    expect(controllerListener).toHaveBeenCalledOnce()
-    expect(mirrorListener).toHaveBeenCalledOnce()
-    expect(binding.getSnapshot(lease)?.view.scrollTop).toBe(40)
+    expect(report).not.toHaveBeenCalled()
+    expect(controllerListener).not.toHaveBeenCalled()
+    expect(mirrorListener).not.toHaveBeenCalled()
+    expect(binding.getSnapshot(lease)?.view.scrollTop).toBe(0)
+    expect(scheduler.deferredDelays).toEqual([150, 150, 150, 150])
+    expect(scheduler.pendingCallbacks).toBe(1)
 
     gate.request(60)
     scheduler.flush()
 
-    expect(report).toHaveBeenCalledTimes(2)
-    expect(controllerListener).toHaveBeenCalledTimes(2)
-    expect(mirrorListener).toHaveBeenCalledTimes(2)
+    expect(report).not.toHaveBeenCalled()
+    expect(controllerListener).not.toHaveBeenCalled()
+    expect(mirrorListener).not.toHaveBeenCalled()
+    expect(binding.getSnapshot(lease)?.view.scrollTop).toBe(0)
+    expect(scheduler.deferredDelays).toEqual([150, 150, 150, 150, 150])
+    expect(scheduler.pendingCallbacks).toBe(1)
+
+    scheduler.flushDeferred()
+    scheduler.flush()
+
+    expect(report).toHaveBeenCalledOnce()
+    expect(report).toHaveBeenLastCalledWith(60)
+    expect(controllerListener).toHaveBeenCalledOnce()
+    expect(mirrorListener).toHaveBeenCalledOnce()
     expect(binding.getSnapshot(lease)?.view.scrollTop).toBe(60)
 
     gate.request(60)
+    scheduler.flushDeferred()
     scheduler.flush()
 
-    expect(report).toHaveBeenCalledTimes(3)
-    expect(controllerListener).toHaveBeenCalledTimes(2)
-    expect(mirrorListener).toHaveBeenCalledTimes(2)
+    expect(report).toHaveBeenCalledTimes(2)
+    expect(controllerListener).toHaveBeenCalledOnce()
+    expect(mirrorListener).toHaveBeenCalledOnce()
 
     gate.dispose()
     unsubscribeMirror()
     mirror.dispose()
     unsubscribeController()
+    binding.dispose()
+    workspace.dispose()
+  })
+
+  it('does not let a non-finite observation replace the latest finite scroll position', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const binding = await workspace.bindPaneEditor('left', new MemoryEditor())
+    const lease = currentLease(binding)
+    const scheduler = new ManualFrameScheduler()
+    const report = vi.fn((scrollTop: number) => binding.report(lease, { scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
+
+    gate.request(80)
+    gate.request(Number.NaN)
+    gate.request(Number.POSITIVE_INFINITY)
+    scheduler.flushDeferred()
+    scheduler.flush()
+
+    expect(report.mock.calls).toEqual([[80]])
+    expect(binding.getSnapshot(lease)?.view.scrollTop).toBe(80)
+    gate.dispose()
     binding.dispose()
     workspace.dispose()
   })
@@ -267,10 +303,12 @@ describe('scroll report frequency', () => {
     const gate = createScrollReportGate(report, scheduler)
 
     gate.request(100)
+    scheduler.flushDeferred()
     scheduler.flush()
     editor.report = { scrollTop: 200 }
     expect((await binding.flush(lease)).status).toBe('applied')
     gate.request(100)
+    scheduler.flushDeferred()
     scheduler.flush()
     const finalScrollTop = binding.getSnapshot(lease)?.view.scrollTop
 
@@ -616,6 +654,7 @@ describe('scroll report frequency', () => {
     const gate = createScrollReportGate(attempts, scheduler)
 
     gate.request(100)
+    scheduler.flushDeferred()
     scheduler.flush()
     const resizePanes = workspace.execute({ kind: 'set-split-ratio', ratio: 0.4 })
     gate.request(200)
@@ -665,10 +704,9 @@ describe('scroll report frequency', () => {
 
     const resizePanes = workspace.execute({ kind: 'set-split-ratio', ratio: 0.4 })
     gate.request(140)
-    scheduler.flush()
+    gate.flush()
     gate.request(180)
-    scheduler.flush()
-    scheduler.flush()
+    gate.flush()
     const scrollTopWhilePending = left.getSnapshot(lease)?.view.scrollTop
 
     expect((await resizePanes).status).toBe('applied')
@@ -716,7 +754,7 @@ describe('scroll report frequency', () => {
 
     const resizePanes = workspace.execute({ kind: 'set-split-ratio', ratio: 0.4 })
     gate.request(10)
-    scheduler.flush()
+    gate.flush()
     const pendingCallbacks = scheduler.pendingCallbacks
 
     gate.dispose()
@@ -840,7 +878,7 @@ describe('scroll report frequency', () => {
     const report = vi.fn((scrollTop: number) => binding.report(lease, { scrollTop }))
     const gate = createScrollReportGate(report, scheduler)
     gate.request(200)
-    scheduler.flush()
+    gate.flush()
     const pendingCallbacks = scheduler.pendingCallbacks
     gate.dispose()
     const listener = vi.fn()
@@ -904,7 +942,7 @@ describe('scroll report frequency', () => {
     unsubscribe()
     const transition = workspace.execute({ kind: 'new-tab', paneId: 'left' })
     gate.request(100)
-    scheduler.flush()
+    gate.flush()
     expect(report).toHaveBeenCalledTimes(2)
     gate.dispose()
     expect((await transition).status).toBe('applied')

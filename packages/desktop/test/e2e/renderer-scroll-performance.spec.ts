@@ -1,12 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { launchWithMarkdown, waitForEditor } from './helpers'
-
-const buildLongDocument = (): string =>
-  Array.from(
-    { length: 160 },
-    (_, index) => `Paragraph ${index + 1}. Renderer scroll performance fixture.`
-  ).join('\n\n') + '\n'
+import { clickMenuById, launchWithDoc, waitForEditor } from './helpers'
 
 interface ScrollSnapshot {
   readonly revision: number
@@ -48,10 +42,12 @@ test.describe('renderer scroll reporting', () => {
   let page: Page
 
   test.beforeAll(async() => {
-    const launched = await launchWithMarkdown(buildLongDocument())
+    const launched = await launchWithDoc('test/e2e/data/wysiwyg-scroll-400-headings.md')
     app = launched.app
     page = launched.page
     await waitForEditor(page)
+    await clickMenuById(app, 'tocMenuItem')
+    await page.waitForSelector('.side-bar-toc .el-tree-node', { state: 'visible' })
     await settleRendererFrames(page)
   })
 
@@ -59,13 +55,16 @@ test.describe('renderer scroll reporting', () => {
     if (app) await app.close()
   })
 
-  test('keeps native DOM scrolling direct while publishing one final value per frame', async() => {
+  test('keeps native scrolling local during a burst and converges once without replacing Outline', async() => {
     const before = await readScrollSnapshot(page)
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate(async() => {
       const container = document.querySelector('.editor-component') as HTMLElement | null
       if (!container) throw new Error('editor scroll container is unavailable')
       const maximum = container.scrollHeight - container.clientHeight
       if (maximum < 160) throw new Error(`editor fixture does not overflow: ${maximum}`)
+      const outlineNode = document.querySelector('.side-bar-toc .el-tree-node') as HTMLElement | null
+      if (!outlineNode) throw new Error('Outline node is unavailable')
+      outlineNode.dataset.scrollStabilityMarker = 'retained'
       const values = [40, 80, 120, 160]
       for (const scrollTop of values) {
         container.scrollTop = scrollTop
@@ -73,19 +72,33 @@ test.describe('renderer scroll reporting', () => {
         if (container.scrollTop !== scrollTop) {
           throw new Error(`native scrollTop did not update directly to ${scrollTop}`)
         }
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
       }
-      return { finalDomScrollTop: container.scrollTop, expectedScrollTop: values.at(-1) ?? 0 }
+      return {
+        finalDomScrollTop: container.scrollTop,
+        expectedScrollTop: values.at(-1) ?? 0,
+        outlineRetainedDuringBurst: outlineNode.isConnected
+      }
     })
 
-    await settleRendererFrames(page)
-    const after = await readScrollSnapshot(page)
+    const duringBurst = await readScrollSnapshot(page)
 
     expect(result.finalDomScrollTop).toBe(result.expectedScrollTop)
-    expect(after.scrollTop).toBe(result.expectedScrollTop)
-    expect(after.revision - before.revision).toBe(1)
+    expect(result.outlineRetainedDuringBurst).toBe(true)
+    expect(duringBurst).toEqual(before)
+
+    await page.waitForTimeout(200)
+    const afterIdle = await readScrollSnapshot(page)
+    const outlineRetainedAfterIdle = await page.evaluate(
+      () => !!document.querySelector('[data-scroll-stability-marker="retained"]')
+    )
+
+    expect(afterIdle.scrollTop).toBe(result.expectedScrollTop)
+    expect(afterIdle.revision - before.revision).toBe(1)
+    expect(outlineRetainedAfterIdle).toBe(true)
   })
 
-  test('does not publish an unchanged value and publishes one new value next frame', async() => {
+  test('does not publish an unchanged value and publishes one new value after idle', async() => {
     const stable = await readScrollSnapshot(page)
     await page.evaluate((scrollTop) => {
       const container = document.querySelector('.editor-component') as HTMLElement | null
@@ -93,7 +106,7 @@ test.describe('renderer scroll reporting', () => {
       container.scrollTop = scrollTop
       container.dispatchEvent(new Event('scroll'))
     }, stable.scrollTop)
-    await settleRendererFrames(page)
+    await page.waitForTimeout(200)
     const unchanged = await readScrollSnapshot(page)
 
     expect(unchanged.revision).toBe(stable.revision)
@@ -106,7 +119,7 @@ test.describe('renderer scroll reporting', () => {
       container.scrollTop = scrollTop
       container.dispatchEvent(new Event('scroll'))
     }, nextScrollTop)
-    await settleRendererFrames(page)
+    await page.waitForTimeout(200)
     const next = await readScrollSnapshot(page)
 
     expect(next.revision - unchanged.revision).toBe(1)
@@ -120,7 +133,7 @@ test.describe('renderer scroll reporting', () => {
       container.scrollTop = 0
       container.dispatchEvent(new Event('scroll'))
     })
-    await settleRendererFrames(page)
+    await page.waitForTimeout(200)
 
     await page.locator('.editor-component').hover()
     await page.mouse.wheel(0, 240)
@@ -136,7 +149,7 @@ test.describe('renderer scroll reporting', () => {
     const settled = await page.evaluate(
       () => (document.querySelector('.editor-component') as HTMLElement | null)?.scrollTop ?? -1
     )
-    await page.waitForTimeout(120)
+    await page.waitForTimeout(200)
     const afterPause = await page.evaluate(
       () => (document.querySelector('.editor-component') as HTMLElement | null)?.scrollTop ?? -1
     )

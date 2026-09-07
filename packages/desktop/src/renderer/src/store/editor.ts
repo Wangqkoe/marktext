@@ -334,13 +334,16 @@ export const useEditorStore = defineStore('editor', {
       this.currentFile = activeTab && activeDocument
         ? controllerFacadeFile(activeTab, activeDocument, this.currentFile?.id === activeTab.documentId ? this.currentFile : existing.get(activeTab.documentId))
         : null
-      this.listToc = freezeFacadeValue(projection.toc.map((item) => ({
+      const nextListToc = projection.toc.map((item) => ({
         slug: item.id,
         githubSlug: item.id,
         content: item.title,
         lvl: item.level
-      }))) as unknown as TocItem[]
-      this.toc = freezeFacadeValue(listToTree<TocItem>([...this.listToc])) as unknown as TocTreeNode[]
+      }))
+      if (!equal(nextListToc, this.listToc)) {
+        this.listToc = freezeFacadeValue(nextListToc) as unknown as TocItem[]
+        this.toc = freezeFacadeValue(listToTree<TocItem>([...this.listToc])) as unknown as TocTreeNode[]
+      }
     },
     updateTabIdToIndex(): void {
       this.tabIdToIndex = this.tabs.reduce<Record<string, number>>((map, tab, index) => {
