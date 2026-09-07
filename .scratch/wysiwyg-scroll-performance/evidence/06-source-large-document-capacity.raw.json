@@ -1,5 +1,17 @@
 {
-  "recordedAt": "2026-09-07T06:40:37.914Z",
+  "recordedAt": "2026-09-07T08:05:30.454Z",
+  "baseline": {
+    "requiredStartingSha": "175cf2e5e4a45b8c574a2b097725e5eb6a575976",
+    "repositoryHeadAtRun": "175cf2e5e4a45b8c574a2b097725e5eb6a575976",
+    "exactMatch": true,
+    "branchAtRun": "codex/wysiwyg-scroll-06-source-investigation-repair-2"
+  },
+  "build": {
+    "type": "local production Electron build",
+    "applicationSource": "unchanged production source at required baseline SHA",
+    "buildCommand": "pnpm --filter marktext build",
+    "measurementCommand": "node .scratch/wysiwyg-scroll-performance/source-large-document-capacity.cjs"
+  },
   "platform": "win32",
   "arch": "x64",
   "node": "v24.18.0",
@@ -13,100 +25,198 @@
   },
   "machine": {
     "cpuModel": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
-    "logicalProcessors": 16,
-    "totalMemoryBytes": 34060939264
+    "physicalMemoryBytes": 34060939264,
+    "logicalProcessors": 16
   },
-  "fixtureIsolation": {
-    "scope": "harness-run",
-    "temporaryDirectoryName": "marktext-source-capacity-fixtures-vcS2t6",
-    "filesPerScale": 1,
-    "profileScope": "trial"
-  },
-  "measurementProtocol": {
-    "sourceReadiness": "First real Playwright keydown to visible first-line DOM mutation, timed inside the renderer immediately after CodeMirror surface observation; focus/cursor preparation and driver round-trip are recorded separately, before environment, DOM, memory, cadence, or scroll sampling",
-    "viewport": "Measured per trial from the live Electron renderer; no requested or assumed viewport size",
-    "postMaterializationViewportProbe": "Post-materialization structural probe only; it tests whether changing viewportMargin to 10 removes already-rendered nodes and is not a performance or virtualization intervention"
-  },
-  "fixtureDefinition": "UTF-8 LF; exactly N nonblank lines; every line 1 mod 100 is an ATX H1; remaining lines are unique fixed-shape plain text",
-  "repetitions": 3,
-  "timeoutsMs": {
-    "launch": 45000,
-    "editorReady": 45000,
-    "sourceEntry": 120000,
-    "input": 20000,
-    "scroll": 30000
-  },
-  "fixtures": [
+  "hypotheses": [
     {
-      "lineCount": 10000,
-      "bytes": 776900,
-      "headings": 100,
-      "bodyLines": 9900,
-      "sha256": "8d7a4d0903a787926d979af4f2082155134cb631bc7b6827c14cad141dc95dfd"
+      "id": "H1",
+      "prediction": "If Infinity viewport full DOM materialization dominates Source entry, changing viewportMargin to 10 in a CodeMirror init hook before the initial operation is committed will sharply reduce Source readiness, rendered nodes, memory growth, and wheel cost."
     },
     {
-      "lineCount": 50000,
-      "bytes": 3884500,
-      "headings": 500,
-      "bodyLines": 49500,
-      "sha256": "cb6d15f95facb7396b6fa010ba0cc9c6ab13890e10e8e72a61132be46d2beeeb"
+      "id": "H2",
+      "prediction": "If Source change/cursorActivity full-text synchronization dominates first-input latency, removing those production event handlers before the first real keydown will sharply reduce keydown-to-change/visible time and input ScriptDuration."
+    },
+    {
+      "id": "H3",
+      "prediction": "If style/layout work dominates Source entry or input, DevTools LayoutDuration plus RecalcStyleDuration will exceed ScriptDuration in the matching bounded phase and scale materially from 10k to 50k."
+    },
+    {
+      "id": "H4",
+      "prediction": "If disk loading/Markdown parsing dominates total time-to-use, the pre-Source populated-WYSIWYG phase will account for most scale growth; otherwise a separately large Source-trigger phase proves a Source-local remediation boundary exists."
     }
   ],
+  "measurementProtocol": {
+    "readiness": "Armed before Source activation. One total deadline starts immediately before the Source menu command and covers CodeMirror creation, focus/cursor preparation, first Playwright keydown, CodeMirror change-state observation, and visible first-line DOM mutation.",
+    "performanceAttribution": "Chromium DevTools Performance domain counters are differenced separately for Source entry and the first input. ScriptDuration, LayoutDuration, RecalcStyleDuration, TaskDuration, counts, and ThreadTime are retained.",
+    "finiteViewportIntervention": "Disposable trial-only CodeMirror init hook changes viewportMargin from Infinity to 10 before the constructor endOperation commits the initial display. No production source or saved preference is changed.",
+    "finiteViewportFixedHeightIntervention": "A separate trial holds finite viewportMargin constant and adds a trial-only fixed CodeMirror height before Source construction, changing viewport ownership relative to the finite-margin-only trial.",
+    "sourceSyncHandlerIntervention": "Disposable trial-only removal of CodeMirror change and cursorActivity listeners after Source mounts but before focus/cursor preparation and the first keydown. The measurement change listener is attached afterward.",
+    "wheel": "Eight real Playwright page.mouse.wheel inputs are dispatched over the Source container; renderer wheel trust, events, scroll movement, and timing are retained.",
+    "viewport": "Measured from each live renderer; no requested or assumed viewport size is reported."
+  },
+  "interactionCoverage": {
+    "wheel": "Automated with Playwright page.mouse.wheel and renderer isTrusted capture.",
+    "physicalScrollbarThumb": {
+      "status": "Unavailable / Pending manual",
+      "reason": "Protocol-generated pointer input cannot establish the behavior of a physical mouse grabbing the OS/Chromium scrollbar thumb on this host.",
+      "manualSteps": [
+        "Run the production build and open each generated 10k and 50k fixture in a fresh profile.",
+        "Enter Source mode and wait until the first typed character is visibly accepted.",
+        "With a physical mouse, grab the Source vertical scrollbar thumb, drag to approximately 50%, then to the bottom, and back to the top.",
+        "Record whether the thumb tracks continuously, whether content visibly follows, the longest apparent freeze, final reachability, and any crash or lost input.",
+        "Repeat three times per scale and attach OS build, display scale, viewport, input device, and a timestamped screen recording."
+      ]
+    }
+  },
+  "fixtureDefinition": "UTF-8 LF; exactly N nonblank lines; every line 1 mod 100 is an ATX H1; remaining lines are unique fixed-shape plain text",
+  "isolation": "Every trial creates a unique OS-temporary root containing one unique fixture filename and one unique Electron profile; verified cleanup must finish before the next trial starts.",
+  "baselineRepetitions": 3,
+  "interventionRepetitionsPerVariantPerScale": 1,
+  "requestedMaximumTrials": null,
+  "requestedVariant": null,
+  "requestedScale": null,
+  "timeoutsMs": {
+    "openThroughPopulatedEditorTotal": 120000,
+    "sourceTriggerThroughFirstAcceptedVisibleInputTotal": 150000,
+    "cadence": 8000,
+    "wheel": 30000,
+    "electronCloseGrace": 15000,
+    "processTreeExitAfterKill": 15000,
+    "directoryCleanupAttempts": 10,
+    "directoryCleanupRetryDelay": 500
+  },
   "results": [
     {
       "lineCount": 10000,
       "repetition": 1,
-      "fixtureFileName": "source-10000.md",
-      "profileIsolation": "marktext-source-capacity-10000-1-zX9wAU",
-      "openReadyMs": 4331.523999999999,
+      "variant": "production-baseline",
+      "fixture": {
+        "fileName": "fixture-10000-fa036cfd-e296-4366-b57b-c3dd0f3fc37a.md",
+        "bytes": 776900,
+        "headings": 100,
+        "bodyLines": 9900,
+        "sha256": "8d7a4d0903a787926d979af4f2082155134cb631bc7b6827c14cad141dc95dfd"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-10000-production-baseline-1-DfnvUu",
+        "profileDirectoryName": "profile-fa8c3643-2a7e-416f-b2df-6a643b578998",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 3836.8709000000003,
+      "openReadinessTimeoutMs": 120000,
       "preSourceCadence": {
-        "samples": 46,
-        "medianMs": 32.59999999999991,
-        "p95Ms": 33.80000000000018,
-        "maxMs": 91.19999995231638,
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1446.6000001430511,
+        "samples": 47,
+        "medianMs": 31.200000000000273,
+        "p95Ms": 31.699999999999818,
+        "maxMs": 72.30000019073486,
         "over50ms": 1
       },
       "preSourceMetrics": [
         {
-          "pid": 42352,
+          "pid": 48200,
           "type": "Browser",
           "cpuPercent": 0,
-          "workingSetKiB": 151640,
-          "privateBytesKiB": 112188
+          "workingSetKiB": 149004,
+          "privateBytesKiB": 110324
         },
         {
-          "pid": 61788,
+          "pid": 3968,
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKiB": 95504,
-          "privateBytesKiB": 78928
+          "workingSetKiB": 95976,
+          "privateBytesKiB": 81148
         },
         {
-          "pid": 53432,
+          "pid": 23492,
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKiB": 54684,
-          "privateBytesKiB": 14904
+          "workingSetKiB": 54292,
+          "privateBytesKiB": 14868
         },
         {
-          "pid": 4316,
+          "pid": 56380,
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKiB": 500308,
-          "privateBytesKiB": 544696
+          "workingSetKiB": 458140,
+          "privateBytesKiB": 486704
         }
       ],
-      "sourceSurfaceMs": 4231.434300000001,
-      "sourceSurfaceObservedAtMs": 9987.0598,
-      "firstInputProbeStartedAtMs": 9987.062300000001,
-      "firstInputReadiness": {
-        "preparationMs": 4.236300000000483,
-        "driverRoundTripMs": 293.1297000000013,
-        "keydownAtMs": 8868.5,
-        "visibleAtMs": 9027.400000095367,
-        "inputEventToVisibleMs": 158.90000009536743
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 2.252599999999802,
+        "sourceCommandStartToInputArmedMs": 3257.2140999999992,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 3721.4241,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 232.16890000000058,
+        "rendererProbe": {
+          "variant": "production-baseline",
+          "marker": "s",
+          "preTriggerArmAtMs": 4341.699999809265,
+          "codeMirrorObservedAtMs": 7287.399999856949,
+          "cursorPreparationStartedAtMs": 7287.399999856949,
+          "cursorPreparationFinishedAtMs": 7287.599999904633,
+          "inputArmedAtMs": 7287.599999904633,
+          "keydownAtMs": 7839.5,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 7876.199999809265,
+          "visibleMutationObservedAtMs": 7993.299999952316,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": null,
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 2945.7000000476837,
+          "cursorPreparationMs": 0.20000004768371582,
+          "keydownToChangeEventObservedMs": 36.69999980926514,
+          "keydownToVisibleMutationMs": 153.79999995231628
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 3.4534749999999996,
+            "ScriptDuration": 0.0011830000000000005,
+            "LayoutDuration": 0.599324,
+            "RecalcStyleDuration": 0.869283,
+            "ThreadTime": 3.4538439999999997
+          },
+          "counts": {
+            "LayoutCount": 22,
+            "RecalcStyleCount": 26
+          },
+          "derived": {
+            "scriptShareOfTask": 0.0003425535149378526,
+            "layoutAndStyleShareOfTask": 0.4252548519969017,
+            "taskMinusScriptLayoutStyleSeconds": 1.9836849999999997
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 0.2240850000000001,
+            "ScriptDuration": 0.085979,
+            "LayoutDuration": 0.01416800000000007,
+            "RecalcStyleDuration": 0.0015060000000000073,
+            "ThreadTime": 0.2243280000000003
+          },
+          "counts": {
+            "LayoutCount": 5,
+            "RecalcStyleCount": 8
+          },
+          "derived": {
+            "scriptShareOfTask": 0.3836892250708435,
+            "layoutAndStyleShareOfTask": 0.06994667202177776,
+            "taskMinusScriptLayoutStyleSeconds": 0.12243200000000001
+          }
+        }
       },
-      "firstPostInputSampleStartedAtMs": 10289.947600000001,
       "measuredEnvironment": {
         "window": {
           "outerWidth": 1216,
@@ -140,132 +250,384 @@
         },
         "documentVisibility": "visible"
       },
-      "baselineMaterialization": {
+      "materialization": {
         "lineCount": 10200,
         "codeChildren": 10200,
         "renderedLines": 10200,
         "gutterWrappers": 10200,
         "allDomElements": 73116,
         "scrollHeight": 450139,
+        "scrollWidth": 1188,
         "clientHeight": 746,
+        "clientWidth": 1188,
         "viewportMargin": "Infinity"
       },
-      "baselineMetrics": [
+      "postInputMetrics": [
         {
-          "pid": 42352,
+          "pid": 48200,
           "type": "Browser",
-          "cpuPercent": 0.10259088673460476,
-          "workingSetKiB": 154448,
-          "privateBytesKiB": 115080
+          "cpuPercent": 0.08529731961809121,
+          "workingSetKiB": 151816,
+          "privateBytesKiB": 113204
         },
         {
-          "pid": 61788,
+          "pid": 3968,
           "type": "GPU",
-          "cpuPercent": 0.14340145633267443,
-          "workingSetKiB": 97288,
-          "privateBytesKiB": 85308
+          "cpuPercent": 0.140525612159674,
+          "workingSetKiB": 97740,
+          "privateBytesKiB": 85296
         },
         {
-          "pid": 53432,
+          "pid": 23492,
           "type": "Utility",
-          "cpuPercent": 0.00016826769962787394,
-          "workingSetKiB": 54696,
-          "privateBytesKiB": 14908
+          "cpuPercent": 0.00024414523126897855,
+          "workingSetKiB": 54308,
+          "privateBytesKiB": 14872
         },
         {
-          "pid": 4316,
+          "pid": 56380,
           "type": "Tab",
-          "cpuPercent": 7.950987481186978,
-          "workingSetKiB": 691356,
-          "privateBytesKiB": 637664
+          "cpuPercent": 6.989581080054021,
+          "workingSetKiB": 779452,
+          "privateBytesKiB": 750516
         }
       ],
       "sourceIdleCadence": {
-        "samples": 40,
-        "medianMs": 32.70000000000073,
-        "p95Ms": 94.89999990463184,
-        "maxMs": 98.10000000000036,
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1437.4000000953674,
+        "samples": 44,
+        "medianMs": 31.200000000000728,
+        "p95Ms": 62.30000000000109,
+        "maxMs": 63.60000014305115,
         "over50ms": 4
       },
-      "baselineScroll": {
-        "elapsedMs": 2474.899999856949,
-        "samples": 60,
-        "medianGapMs": 32.899999999999636,
-        "p95GapMs": 66.29999999999927,
-        "maxGapMs": 117.89999985694885,
-        "over50ms": 16,
-        "finalScrollTop": 449393,
-        "movedFrames": 60
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 1188.9923999999992,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 10043.299999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10167.699999809265,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10275.599999904633,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10369.5,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10495,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10588,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10756.099999904633,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10838.299999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 75.09999990463257,
+        "wheelEventGapMedianMs": 107.90000009536743,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 449393,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
       },
-      "postMaterializationViewportProbeMs": 2289.243400000001,
-      "postMaterializationViewportProbe": {
-        "lineCount": 10200,
-        "codeChildren": 10200,
-        "renderedLines": 10200,
-        "gutterWrappers": 10200,
-        "allDomElements": 73118,
-        "scrollHeight": 450139,
-        "clientHeight": 746,
-        "viewportMargin": 10
+      "postWheelMetrics": [
+        {
+          "pid": 48200,
+          "type": "Browser",
+          "cpuPercent": 0.09881804773950086,
+          "workingSetKiB": 151988,
+          "privateBytesKiB": 113248
+        },
+        {
+          "pid": 3968,
+          "type": "GPU",
+          "cpuPercent": 0.21807391462976933,
+          "workingSetKiB": 100072,
+          "privateBytesKiB": 87476
+        },
+        {
+          "pid": 23492,
+          "type": "Utility",
+          "cpuPercent": 0.007749333252475502,
+          "workingSetKiB": 54316,
+          "privateBytesKiB": 14876
+        },
+        {
+          "pid": 56380,
+          "type": "Tab",
+          "cpuPercent": 3.5718432021768485,
+          "workingSetKiB": 771504,
+          "privateBytesKiB": 740652
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 14804,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [3968, 14804, 22792, 23492, 36888, 48200, 56380]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [3968, 14804, 22792, 23492, 36888, 48200, 56380],
+          "elapsedMs": 2093.1025999999983,
+          "remainingPids": [3968, 14804, 22792, 23492, 36888, 48200, 56380],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 14804 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 36888 (child process of PID 48200) has been terminated.\r\nSUCCESS: The process with PID 3968 (child process of PID 48200) has been terminated.\r\nSUCCESS: The process with PID 23492 (child process of PID 48200) has been terminated.\r\nSUCCESS: The process with PID 56380 (child process of PID 48200) has been terminated.\r\nSUCCESS: The process with PID 48200 (child process of PID 22792) has been terminated.\r\nSUCCESS: The process with PID 22792 (child process of PID 14804) has been terminated.\r\nSUCCESS: The process with PID 14804 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [3968, 14804, 22792, 23492, 36888, 48200, 56380],
+          "elapsedMs": 0.2055000000000291,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
       },
-      "status": "completed",
-      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
-      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-1-zX9wAU '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-1-zX9wAU'"
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-fa8c3643-2a7e-416f-b2df-6a643b578998",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-production-baseline-1-DfnvUu\\profile-fa8c3643-2a7e-416f-b2df-6a643b578998 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-production-baseline-1-DfnvUu\\profile-fa8c3643-2a7e-416f-b2df-6a643b578998'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-10000-fa036cfd-e296-4366-b57b-c3dd0f3fc37a.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-10000-production-baseline-1-DfnvUu",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
     },
     {
       "lineCount": 10000,
       "repetition": 2,
-      "fixtureFileName": "source-10000.md",
-      "profileIsolation": "marktext-source-capacity-10000-2-M3naMj",
-      "openReadyMs": 4701.825600000004,
+      "variant": "production-baseline",
+      "fixture": {
+        "fileName": "fixture-10000-1b903138-0c27-4e62-b354-c6d0ea328c3c.md",
+        "bytes": 776900,
+        "headings": 100,
+        "bodyLines": 9900,
+        "sha256": "8d7a4d0903a787926d979af4f2082155134cb631bc7b6827c14cad141dc95dfd"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-10000-production-baseline-2-UcyY0R",
+        "profileDirectoryName": "profile-4bbaaa1a-21ec-4911-ae4a-4b23c94bc064",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 4103.220599999997,
+      "openReadinessTimeoutMs": 120000,
       "preSourceCadence": {
-        "samples": 43,
-        "medianMs": 32.70000000000073,
-        "p95Ms": 33.69999999999982,
-        "maxMs": 168.2999999046324,
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1451.4000000953674,
+        "samples": 48,
+        "medianMs": 31.199999999999818,
+        "p95Ms": 31.800000000000182,
+        "maxMs": 51.623999999999796,
         "over50ms": 1
       },
       "preSourceMetrics": [
         {
-          "pid": 29768,
+          "pid": 64204,
           "type": "Browser",
           "cpuPercent": 0,
-          "workingSetKiB": 149940,
-          "privateBytesKiB": 110108
+          "workingSetKiB": 153068,
+          "privateBytesKiB": 114692
         },
         {
-          "pid": 7484,
+          "pid": 53792,
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKiB": 112712,
-          "privateBytesKiB": 82368
+          "workingSetKiB": 96012,
+          "privateBytesKiB": 79772
         },
         {
-          "pid": 26048,
+          "pid": 43608,
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKiB": 67784,
-          "privateBytesKiB": 14848
+          "workingSetKiB": 54228,
+          "privateBytesKiB": 14912
         },
         {
-          "pid": 55600,
+          "pid": 64928,
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKiB": 450032,
-          "privateBytesKiB": 475536
+          "workingSetKiB": 453172,
+          "privateBytesKiB": 480688
         }
       ],
-      "sourceSurfaceMs": 3553.4779000000053,
-      "sourceSurfaceObservedAtMs": 9612.434200000003,
-      "firstInputProbeStartedAtMs": 9612.435000000005,
-      "firstInputReadiness": {
-        "preparationMs": 266.0616000000009,
-        "driverRoundTripMs": 248.61949999999342,
-        "keydownAtMs": 8538.100000143051,
-        "visibleAtMs": 8689.299999952316,
-        "inputEventToVisibleMs": 151.19999980926514
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 1.0176999999966938,
+        "sourceCommandStartToInputArmedMs": 3583.656599999995,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 4024.4112999999998,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 195.68990000000485,
+        "rendererProbe": {
+          "variant": "production-baseline",
+          "marker": "t",
+          "preTriggerArmAtMs": 4606.5,
+          "codeMirrorObservedAtMs": 7872.900000095367,
+          "cursorPreparationStartedAtMs": 7873,
+          "cursorPreparationFinishedAtMs": 7873.100000143051,
+          "inputArmedAtMs": 7873.200000047684,
+          "keydownAtMs": 8438.200000047684,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 8461.600000143051,
+          "visibleMutationObservedAtMs": 8557,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": null,
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 3266.4000000953674,
+          "cursorPreparationMs": 0.10000014305114746,
+          "keydownToChangeEventObservedMs": 23.40000009536743,
+          "keydownToVisibleMutationMs": 118.79999995231628
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 3.784879,
+            "ScriptDuration": 0.0012130000000000005,
+            "LayoutDuration": 0.68257,
+            "RecalcStyleDuration": 0.991619,
+            "ThreadTime": 3.785241
+          },
+          "counts": {
+            "LayoutCount": 22,
+            "RecalcStyleCount": 26
+          },
+          "derived": {
+            "scriptShareOfTask": 0.00032048580681178987,
+            "layoutAndStyleShareOfTask": 0.44233620150076136,
+            "taskMinusScriptLayoutStyleSeconds": 2.109477
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 0.1898430000000002,
+            "ScriptDuration": 0.066564,
+            "LayoutDuration": 0.012434999999999974,
+            "RecalcStyleDuration": 0.0019089999999999385,
+            "ThreadTime": 0.19004599999999972
+          },
+          "counts": {
+            "LayoutCount": 5,
+            "RecalcStyleCount": 8
+          },
+          "derived": {
+            "scriptShareOfTask": 0.3506265703765739,
+            "layoutAndStyleShareOfTask": 0.07555717092544838,
+            "taskMinusScriptLayoutStyleSeconds": 0.1089350000000003
+          }
+        }
       },
-      "firstPostInputSampleStartedAtMs": 10128.736300000004,
       "measuredEnvironment": {
         "window": {
           "outerWidth": 1216,
@@ -299,132 +661,384 @@
         },
         "documentVisibility": "visible"
       },
-      "baselineMaterialization": {
+      "materialization": {
         "lineCount": 10200,
         "codeChildren": 10200,
         "renderedLines": 10200,
         "gutterWrappers": 10200,
         "allDomElements": 73116,
         "scrollHeight": 450139,
+        "scrollWidth": 1188,
         "clientHeight": 746,
+        "clientWidth": 1188,
         "viewportMargin": "Infinity"
       },
-      "baselineMetrics": [
+      "postInputMetrics": [
         {
-          "pid": 29768,
+          "pid": 64204,
           "type": "Browser",
-          "cpuPercent": 0.14937845808351413,
-          "workingSetKiB": 152168,
-          "privateBytesKiB": 112800
+          "cpuPercent": 0.07215532471779429,
+          "workingSetKiB": 155812,
+          "privateBytesKiB": 117400
         },
         {
-          "pid": 7484,
+          "pid": 53792,
           "type": "GPU",
-          "cpuPercent": -0.03809428178994384,
-          "workingSetKiB": 113312,
-          "privateBytesKiB": 84136
+          "cpuPercent": 0.14782159277696752,
+          "workingSetKiB": 97592,
+          "privateBytesKiB": 86156
         },
         {
-          "pid": 26048,
+          "pid": 43608,
           "type": "Utility",
-          "cpuPercent": -0.10014907841104206,
-          "workingSetKiB": 67792,
-          "privateBytesKiB": 14852
+          "cpuPercent": 0.0001744378901079576,
+          "workingSetKiB": 54244,
+          "privateBytesKiB": 14916
         },
         {
-          "pid": 55600,
+          "pid": 64928,
           "type": "Tab",
-          "cpuPercent": 7.373267505611191,
-          "workingSetKiB": 760300,
-          "privateBytesKiB": 730736
+          "cpuPercent": 6.952997393989256,
+          "workingSetKiB": 773936,
+          "privateBytesKiB": 743100
         }
       ],
       "sourceIdleCadence": {
-        "samples": 40,
-        "medianMs": 32.900000000001455,
-        "p95Ms": 99.09999999999854,
-        "maxMs": 166.53600000000006,
-        "over50ms": 5
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1475.1000001430511,
+        "samples": 45,
+        "medianMs": 31.299999999999272,
+        "p95Ms": 48.13800000000083,
+        "maxMs": 124.89999999999964,
+        "over50ms": 2
       },
-      "baselineScroll": {
-        "elapsedMs": 3431.5,
-        "samples": 60,
-        "medianGapMs": 65.5,
-        "p95GapMs": 104.29999999999927,
-        "maxGapMs": 177.365999952317,
-        "over50ms": 38,
-        "finalScrollTop": 449393,
-        "movedFrames": 60
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 1395.6791000000012,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 10738.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10934.400000095367,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11009.600000143051,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11126.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11345.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11470.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11564.200000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11689.600000143051,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 82.59999990463257,
+        "wheelEventGapMedianMs": 125,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 449393,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
       },
-      "postMaterializationViewportProbeMs": 2083.9998999999953,
-      "postMaterializationViewportProbe": {
-        "lineCount": 10200,
-        "codeChildren": 10200,
-        "renderedLines": 10200,
-        "gutterWrappers": 10200,
-        "allDomElements": 73118,
-        "scrollHeight": 450139,
-        "clientHeight": 746,
-        "viewportMargin": 10
+      "postWheelMetrics": [
+        {
+          "pid": 64204,
+          "type": "Browser",
+          "cpuPercent": 0.09398127772328463,
+          "workingSetKiB": 155944,
+          "privateBytesKiB": 117420
+        },
+        {
+          "pid": 53792,
+          "type": "GPU",
+          "cpuPercent": 0.23763748808827118,
+          "workingSetKiB": 99708,
+          "privateBytesKiB": 88400
+        },
+        {
+          "pid": 43608,
+          "type": "Utility",
+          "cpuPercent": 0.008486906280821365,
+          "workingSetKiB": 54260,
+          "privateBytesKiB": 14928
+        },
+        {
+          "pid": 64928,
+          "type": "Tab",
+          "cpuPercent": 3.7581571716717748,
+          "workingSetKiB": 769956,
+          "privateBytesKiB": 737800
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 65472,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [33384, 43608, 50284, 53792, 64204, 64928, 65472]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [33384, 43608, 50284, 53792, 64204, 64928, 65472],
+          "elapsedMs": 2089.4665999999997,
+          "remainingPids": [33384, 43608, 50284, 53792, 64204, 64928, 65472],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 65472 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 50284 (child process of PID 64204) has been terminated.\r\nSUCCESS: The process with PID 53792 (child process of PID 64204) has been terminated.\r\nSUCCESS: The process with PID 43608 (child process of PID 64204) has been terminated.\r\nSUCCESS: The process with PID 64928 (child process of PID 64204) has been terminated.\r\nSUCCESS: The process with PID 64204 (child process of PID 33384) has been terminated.\r\nSUCCESS: The process with PID 33384 (child process of PID 65472) has been terminated.\r\nSUCCESS: The process with PID 65472 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [33384, 43608, 50284, 53792, 64204, 64928, 65472],
+          "elapsedMs": 0.13190000000031432,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
       },
-      "status": "completed",
-      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
-      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-2-M3naMj '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-2-M3naMj'"
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-4bbaaa1a-21ec-4911-ae4a-4b23c94bc064",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-production-baseline-2-UcyY0R\\profile-4bbaaa1a-21ec-4911-ae4a-4b23c94bc064 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-production-baseline-2-UcyY0R\\profile-4bbaaa1a-21ec-4911-ae4a-4b23c94bc064'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-10000-1b903138-0c27-4e62-b354-c6d0ea328c3c.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-10000-production-baseline-2-UcyY0R",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
     },
     {
       "lineCount": 10000,
       "repetition": 3,
-      "fixtureFileName": "source-10000.md",
-      "profileIsolation": "marktext-source-capacity-10000-3-Zeb4d3",
-      "openReadyMs": 4559.256899999993,
+      "variant": "production-baseline",
+      "fixture": {
+        "fileName": "fixture-10000-76f09f79-3539-4160-baf7-13d441770e05.md",
+        "bytes": 776900,
+        "headings": 100,
+        "bodyLines": 9900,
+        "sha256": "8d7a4d0903a787926d979af4f2082155134cb631bc7b6827c14cad141dc95dfd"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-10000-production-baseline-3-uaFCbZ",
+        "profileDirectoryName": "profile-82278b9c-25ba-4ca5-b563-d033b1f88781",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 3793.184699999998,
+      "openReadinessTimeoutMs": 120000,
       "preSourceCadence": {
-        "samples": 46,
-        "medianMs": 32.79999999999927,
-        "p95Ms": 33.30000000000018,
-        "maxMs": 71.46199980926531,
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1470.5999999046326,
+        "samples": 49,
+        "medianMs": 31.299999999999727,
+        "p95Ms": 31.799999999999727,
+        "maxMs": 52.36199990463274,
         "over50ms": 1
       },
       "preSourceMetrics": [
         {
-          "pid": 33404,
+          "pid": 61988,
           "type": "Browser",
           "cpuPercent": 0,
-          "workingSetKiB": 152760,
-          "privateBytesKiB": 114264
+          "workingSetKiB": 150116,
+          "privateBytesKiB": 111892
         },
         {
-          "pid": 12828,
+          "pid": 54676,
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKiB": 112752,
-          "privateBytesKiB": 82224
+          "workingSetKiB": 95952,
+          "privateBytesKiB": 79692
         },
         {
-          "pid": 42856,
+          "pid": 12212,
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKiB": 67892,
-          "privateBytesKiB": 14936
+          "workingSetKiB": 54304,
+          "privateBytesKiB": 14848
         },
         {
-          "pid": 65128,
+          "pid": 41832,
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKiB": 472244,
-          "privateBytesKiB": 508328
+          "workingSetKiB": 471260,
+          "privateBytesKiB": 508220
         }
       ],
-      "sourceSurfaceMs": 3677.7379999999976,
-      "sourceSurfaceObservedAtMs": 9688.064700000003,
-      "firstInputProbeStartedAtMs": 9688.065199999997,
-      "firstInputReadiness": {
-        "preparationMs": 320.775999999998,
-        "driverRoundTripMs": 297.08950000000186,
-        "keydownAtMs": 8759.900000095367,
-        "visibleAtMs": 8957,
-        "inputEventToVisibleMs": 197.09999990463257
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 0.7796999999991385,
+        "sourceCommandStartToInputArmedMs": 3402.845199999996,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 3908.600600000005,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 179.96450000000186,
+        "rendererProbe": {
+          "variant": "production-baseline",
+          "marker": "u",
+          "preTriggerArmAtMs": 4334.5,
+          "codeMirrorObservedAtMs": 7437.600000143051,
+          "cursorPreparationStartedAtMs": 7437.600000143051,
+          "cursorPreparationFinishedAtMs": 7437.900000095367,
+          "inputArmedAtMs": 7437.900000095367,
+          "keydownAtMs": 8065.700000047684,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 8088.400000095367,
+          "visibleMutationObservedAtMs": 8177.200000047684,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": null,
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 3103.100000143051,
+          "cursorPreparationMs": 0.2999999523162842,
+          "keydownToChangeEventObservedMs": 22.700000047683716,
+          "keydownToVisibleMutationMs": 111.5
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 3.683196,
+            "ScriptDuration": 0.001301,
+            "LayoutDuration": 0.665032,
+            "RecalcStyleDuration": 1.0239550000000002,
+            "ThreadTime": 3.683652
+          },
+          "counts": {
+            "LayoutCount": 22,
+            "RecalcStyleCount": 26
+          },
+          "derived": {
+            "scriptShareOfTask": 0.00035322583973266695,
+            "layoutAndStyleShareOfTask": 0.4585656044370161,
+            "taskMinusScriptLayoutStyleSeconds": 1.9929079999999997
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 0.17664100000000005,
+            "ScriptDuration": 0.064704,
+            "LayoutDuration": 0.012709000000000081,
+            "RecalcStyleDuration": 0.0013879999999999448,
+            "ThreadTime": 0.17686599999999997
+          },
+          "counts": {
+            "LayoutCount": 5,
+            "RecalcStyleCount": 8
+          },
+          "derived": {
+            "scriptShareOfTask": 0.3663022741039735,
+            "layoutAndStyleShareOfTask": 0.07980593406966685,
+            "taskMinusScriptLayoutStyleSeconds": 0.09784000000000002
+          }
+        }
       },
-      "firstPostInputSampleStartedAtMs": 10310.9139,
       "measuredEnvironment": {
         "window": {
           "outerWidth": 1216,
@@ -458,291 +1072,1614 @@
         },
         "documentVisibility": "visible"
       },
-      "baselineMaterialization": {
+      "materialization": {
         "lineCount": 10200,
         "codeChildren": 10200,
         "renderedLines": 10200,
         "gutterWrappers": 10200,
         "allDomElements": 73116,
         "scrollHeight": 450139,
+        "scrollWidth": 1188,
         "clientHeight": 746,
+        "clientWidth": 1188,
         "viewportMargin": "Infinity"
       },
-      "baselineMetrics": [
+      "postInputMetrics": [
         {
-          "pid": 33404,
+          "pid": 61988,
           "type": "Browser",
-          "cpuPercent": 0.06392335267757404,
-          "workingSetKiB": 155084,
-          "privateBytesKiB": 117100
+          "cpuPercent": 0.07821079926784624,
+          "workingSetKiB": 152792,
+          "privateBytesKiB": 114592
         },
         {
-          "pid": 12828,
+          "pid": 54676,
           "type": "GPU",
-          "cpuPercent": 0.10818619814205759,
-          "workingSetKiB": 113408,
-          "privateBytesKiB": 87676
+          "cpuPercent": 0.1390315701112011,
+          "workingSetKiB": 97408,
+          "privateBytesKiB": 83500
         },
         {
-          "pid": 42856,
+          "pid": 12212,
           "type": "Utility",
-          "cpuPercent": 0.00020916262708721222,
-          "workingSetKiB": 67900,
-          "privateBytesKiB": 14940
+          "cpuPercent": 0.00022085569219161045,
+          "workingSetKiB": 54320,
+          "privateBytesKiB": 14852
         },
         {
-          "pid": 65128,
+          "pid": 41832,
           "type": "Tab",
-          "cpuPercent": 7.798179589074673,
-          "workingSetKiB": 800816,
-          "privateBytesKiB": 794444
+          "cpuPercent": 6.871484862297741,
+          "workingSetKiB": 802840,
+          "privateBytesKiB": 788816
         }
       ],
       "sourceIdleCadence": {
-        "samples": 40,
-        "medianMs": 33,
-        "p95Ms": 98.10000000000036,
-        "maxMs": 101.39999999999964,
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1469.2000000476837,
+        "samples": 43,
+        "medianMs": 31.299999999999272,
+        "p95Ms": 62.19999999999891,
+        "maxMs": 93.89999999999964,
         "over50ms": 4
       },
-      "baselineScroll": {
-        "elapsedMs": 3014.2999999523163,
-        "samples": 60,
-        "medianGapMs": 35.5,
-        "p95GapMs": 98.5,
-        "maxGapMs": 112.39999990463184,
-        "over50ms": 29,
-        "finalScrollTop": 449393,
-        "movedFrames": 60
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 1398.0446999999986,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 10354.300000190735,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10513.100000143051,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10606.400000095367,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10700.200000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 10865.100000143051,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11012.800000190735,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11169.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11294.100000143051,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 92.79999995231628,
+        "wheelEventGapMedianMs": 147.70000004768372,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 449393,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
       },
-      "postMaterializationViewportProbeMs": 1963.8807000000088,
-      "postMaterializationViewportProbe": {
+      "postWheelMetrics": [
+        {
+          "pid": 61988,
+          "type": "Browser",
+          "cpuPercent": 0.1029283866723145,
+          "workingSetKiB": 152936,
+          "privateBytesKiB": 114624
+        },
+        {
+          "pid": 54676,
+          "type": "GPU",
+          "cpuPercent": 0.26353403877442627,
+          "workingSetKiB": 99852,
+          "privateBytesKiB": 85744
+        },
+        {
+          "pid": 12212,
+          "type": "Utility",
+          "cpuPercent": 0.007673282123546939,
+          "workingSetKiB": 54328,
+          "privateBytesKiB": 14856
+        },
+        {
+          "pid": 41832,
+          "type": "Tab",
+          "cpuPercent": 4.950227992628538,
+          "workingSetKiB": 720704,
+          "privateBytesKiB": 663172
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 38400,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [12212, 38400, 40288, 41832, 42612, 54676, 61988]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [12212, 38400, 40288, 41832, 42612, 54676, 61988],
+          "elapsedMs": 2105.3544999999867,
+          "remainingPids": [12212, 38400, 40288, 41832, 42612, 54676, 61988],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 38400 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 42612 (child process of PID 61988) has been terminated.\r\nSUCCESS: The process with PID 54676 (child process of PID 61988) has been terminated.\r\nSUCCESS: The process with PID 12212 (child process of PID 61988) has been terminated.\r\nSUCCESS: The process with PID 41832 (child process of PID 61988) has been terminated.\r\nSUCCESS: The process with PID 61988 (child process of PID 40288) has been terminated.\r\nSUCCESS: The process with PID 40288 (child process of PID 38400) has been terminated.\r\nSUCCESS: The process with PID 38400 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [12212, 38400, 40288, 41832, 42612, 54676, 61988],
+          "elapsedMs": 0.10629999999946449,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-82278b9c-25ba-4ca5-b563-d033b1f88781",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-production-baseline-3-uaFCbZ\\profile-82278b9c-25ba-4ca5-b563-d033b1f88781 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-production-baseline-3-uaFCbZ\\profile-82278b9c-25ba-4ca5-b563-d033b1f88781'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-10000-76f09f79-3539-4160-baf7-13d441770e05.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-10000-production-baseline-3-uaFCbZ",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
+    },
+    {
+      "lineCount": 10000,
+      "repetition": 1,
+      "variant": "finite-viewport-init-hook",
+      "fixture": {
+        "fileName": "fixture-10000-c960bb3d-4a90-4d6e-b97d-f91e3a943d50.md",
+        "bytes": 776900,
+        "headings": 100,
+        "bodyLines": 9900,
+        "sha256": "8d7a4d0903a787926d979af4f2082155134cb631bc7b6827c14cad141dc95dfd"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-10000-finite-viewport-init-hook-1-hJqDms",
+        "profileDirectoryName": "profile-79a654cc-a74a-4074-85ab-4cd0ca7901be",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 4406.107999999993,
+      "openReadinessTimeoutMs": 120000,
+      "preSourceCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1442.5999999046326,
+        "samples": 48,
+        "medianMs": 31.199999999999818,
+        "p95Ms": 31.700000000000273,
+        "maxMs": 67.39199999999983,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 58176,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 149368,
+          "privateBytesKiB": 110272
+        },
+        {
+          "pid": 39052,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 98008,
+          "privateBytesKiB": 81732
+        },
+        {
+          "pid": 55196,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 54192,
+          "privateBytesKiB": 14816
+        },
+        {
+          "pid": 58136,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 459288,
+          "privateBytesKiB": 487468
+        }
+      ],
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 1.2188000000023749,
+        "sourceCommandStartToInputArmedMs": 3734.4995000000054,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 4296.506299999994,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 272.0899999999965,
+        "rendererProbe": {
+          "variant": "finite-viewport-init-hook",
+          "marker": "s",
+          "preTriggerArmAtMs": 4851.599999904633,
+          "codeMirrorObservedAtMs": 8173.699999809265,
+          "cursorPreparationStartedAtMs": 8173.699999809265,
+          "cursorPreparationFinishedAtMs": 8173.899999856949,
+          "inputArmedAtMs": 8173.899999856949,
+          "keydownAtMs": 8879.5,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 8907,
+          "visibleMutationObservedAtMs": 9034.199999809265,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": {
+            "startedAtMs": 6155.399999856949,
+            "finishedAtMs": 6158.599999904633,
+            "before": "Infinity",
+            "after": 10
+          },
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 3322.0999999046326,
+          "cursorPreparationMs": 0.20000004768371582,
+          "keydownToChangeEventObservedMs": 27.5,
+          "keydownToVisibleMutationMs": 154.69999980926514
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 3.9771339999999995,
+            "ScriptDuration": 0.001193,
+            "LayoutDuration": 0.771167,
+            "RecalcStyleDuration": 0.9931679999999999,
+            "ThreadTime": 3.977535
+          },
+          "counts": {
+            "LayoutCount": 32,
+            "RecalcStyleCount": 36
+          },
+          "derived": {
+            "scriptShareOfTask": 0.0002999647484847129,
+            "layoutAndStyleShareOfTask": 0.4436197020266353,
+            "taskMinusScriptLayoutStyleSeconds": 2.2116059999999993
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 0.270022,
+            "ScriptDuration": 0.087839,
+            "LayoutDuration": 0.014965000000000006,
+            "RecalcStyleDuration": 0.0023199999999999887,
+            "ThreadTime": 0.2702989999999996
+          },
+          "counts": {
+            "LayoutCount": 5,
+            "RecalcStyleCount": 8
+          },
+          "derived": {
+            "scriptShareOfTask": 0.3253031234492005,
+            "layoutAndStyleShareOfTask": 0.06401330261978652,
+            "taskMinusScriptLayoutStyleSeconds": 0.164898
+          }
+        }
+      },
+      "measuredEnvironment": {
+        "window": {
+          "outerWidth": 1216,
+          "outerHeight": 808,
+          "innerWidth": 1200,
+          "innerHeight": 800,
+          "devicePixelRatio": 1
+        },
+        "layoutViewport": {
+          "width": 1200,
+          "height": 800
+        },
+        "visualViewport": {
+          "width": 1200,
+          "height": 800,
+          "scale": 1
+        },
+        "sourceContainer": {
+          "clientWidth": 1188,
+          "clientHeight": 746,
+          "scrollWidth": 1188,
+          "scrollHeight": 450139,
+          "boundingWidth": 1200,
+          "boundingHeight": 746
+        },
+        "codeMirror": {
+          "clientWidth": 736,
+          "clientHeight": 450063,
+          "boundingWidth": 736,
+          "boundingHeight": 450062.5625
+        },
+        "documentVisibility": "visible"
+      },
+      "materialization": {
         "lineCount": 10200,
         "codeChildren": 10200,
         "renderedLines": 10200,
         "gutterWrappers": 10200,
-        "allDomElements": 73118,
+        "allDomElements": 73116,
         "scrollHeight": 450139,
+        "scrollWidth": 1188,
         "clientHeight": 746,
+        "clientWidth": 1188,
         "viewportMargin": 10
       },
-      "status": "completed",
-      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
-      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-3-Zeb4d3 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-10000-3-Zeb4d3'"
+      "postInputMetrics": [
+        {
+          "pid": 58176,
+          "type": "Browser",
+          "cpuPercent": 0.09697341454525384,
+          "workingSetKiB": 151972,
+          "privateBytesKiB": 112972
+        },
+        {
+          "pid": 39052,
+          "type": "GPU",
+          "cpuPercent": 0.1336586016692572,
+          "workingSetKiB": 98824,
+          "privateBytesKiB": 87380
+        },
+        {
+          "pid": 55196,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 54192,
+          "privateBytesKiB": 14816
+        },
+        {
+          "pid": 58136,
+          "type": "Tab",
+          "cpuPercent": 7.678024547701663,
+          "workingSetKiB": 817444,
+          "privateBytesKiB": 787840
+        }
+      ],
+      "sourceIdleCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1461.2000000476837,
+        "samples": 42,
+        "medianMs": 31.30000000000109,
+        "p95Ms": 62.899999999999636,
+        "maxMs": 124.69999999999891,
+        "over50ms": 5
+      },
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 1240.965400000001,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 11147.899999856949,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11294.699999809265,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11375,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11526.399999856949,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11620.199999809265,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11774.099999904633,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11841.899999856949,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11964.199999809265,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 88,
+        "wheelEventGapMedianMs": 122.29999995231628,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 449393,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
+      },
+      "postWheelMetrics": [
+        {
+          "pid": 58176,
+          "type": "Browser",
+          "cpuPercent": 0.09751609540298499,
+          "workingSetKiB": 152120,
+          "privateBytesKiB": 113004
+        },
+        {
+          "pid": 39052,
+          "type": "GPU",
+          "cpuPercent": 0.25417083267916607,
+          "workingSetKiB": 101168,
+          "privateBytesKiB": 90876
+        },
+        {
+          "pid": 55196,
+          "type": "Utility",
+          "cpuPercent": 0.007793973046445717,
+          "workingSetKiB": 54204,
+          "privateBytesKiB": 14824
+        },
+        {
+          "pid": 58136,
+          "type": "Tab",
+          "cpuPercent": 4.247930795038072,
+          "workingSetKiB": 764784,
+          "privateBytesKiB": 708716
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 65300,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [29776, 39052, 55196, 57896, 58136, 58176, 65300]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [29776, 39052, 55196, 57896, 58136, 58176, 65300],
+          "elapsedMs": 2097.503300000011,
+          "remainingPids": [29776, 39052, 55196, 57896, 58136, 58176, 65300],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 65300 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 29776 (child process of PID 58176) has been terminated.\r\nSUCCESS: The process with PID 39052 (child process of PID 58176) has been terminated.\r\nSUCCESS: The process with PID 55196 (child process of PID 58176) has been terminated.\r\nSUCCESS: The process with PID 58136 (child process of PID 58176) has been terminated.\r\nSUCCESS: The process with PID 58176 (child process of PID 57896) has been terminated.\r\nSUCCESS: The process with PID 57896 (child process of PID 65300) has been terminated.\r\nSUCCESS: The process with PID 65300 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [29776, 39052, 55196, 57896, 58136, 58176, 65300],
+          "elapsedMs": 0.14579999999841675,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-79a654cc-a74a-4074-85ab-4cd0ca7901be",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-finite-viewport-init-hook-1-hJqDms\\profile-79a654cc-a74a-4074-85ab-4cd0ca7901be '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-finite-viewport-init-hook-1-hJqDms\\profile-79a654cc-a74a-4074-85ab-4cd0ca7901be'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-10000-c960bb3d-4a90-4d6e-b97d-f91e3a943d50.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-10000-finite-viewport-init-hook-1-hJqDms",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
+    },
+    {
+      "lineCount": 10000,
+      "repetition": 1,
+      "variant": "finite-viewport-plus-fixed-height",
+      "fixture": {
+        "fileName": "fixture-10000-eb13474a-9319-491a-aec3-02d19678597e.md",
+        "bytes": 776900,
+        "headings": 100,
+        "bodyLines": 9900,
+        "sha256": "8d7a4d0903a787926d979af4f2082155134cb631bc7b6827c14cad141dc95dfd"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-10000-finite-viewport-plus-fixed-height-1-amUiZs",
+        "profileDirectoryName": "profile-63cdf452-185b-4857-a3dd-afe328129373",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 3849.9647000000114,
+      "openReadinessTimeoutMs": 120000,
+      "preSourceCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1450.5,
+        "samples": 48,
+        "medianMs": 31.299999999999727,
+        "p95Ms": 31.600000000000364,
+        "maxMs": 43.79599999999982,
+        "over50ms": 0
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 63648,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 149428,
+          "privateBytesKiB": 111812
+        },
+        {
+          "pid": 31596,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 95772,
+          "privateBytesKiB": 79088
+        },
+        {
+          "pid": 60264,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 54256,
+          "privateBytesKiB": 14856
+        },
+        {
+          "pid": 24364,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 474540,
+          "privateBytesKiB": 514260
+        }
+      ],
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 1.1554999999934807,
+        "sourceCommandStartToInputArmedMs": 1364.7336999999825,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 1434.4076999999816,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 68.68080000000191,
+        "rendererProbe": {
+          "variant": "finite-viewport-plus-fixed-height",
+          "marker": "s",
+          "preTriggerArmAtMs": 4385.300000190735,
+          "codeMirrorObservedAtMs": 5631.900000095367,
+          "cursorPreparationStartedAtMs": 5631.900000095367,
+          "cursorPreparationFinishedAtMs": 5632.100000143051,
+          "inputArmedAtMs": 5632.100000143051,
+          "keydownAtMs": 5754.5,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 5771.300000190735,
+          "visibleMutationObservedAtMs": 5810.600000143051,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": {
+            "startedAtMs": 5589.600000143051,
+            "finishedAtMs": 5593,
+            "before": "Infinity",
+            "after": 10
+          },
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 1246.5999999046326,
+          "cursorPreparationMs": 0.20000004768371582,
+          "keydownToChangeEventObservedMs": 16.800000190734863,
+          "keydownToVisibleMutationMs": 56.10000014305115
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 1.348387,
+            "ScriptDuration": 0.000986,
+            "LayoutDuration": 0.119223,
+            "RecalcStyleDuration": 0.282662,
+            "ThreadTime": 1.348732
+          },
+          "counts": {
+            "LayoutCount": 29,
+            "RecalcStyleCount": 33
+          },
+          "derived": {
+            "scriptShareOfTask": 0.0007312440716203878,
+            "layoutAndStyleShareOfTask": 0.29804870560158175,
+            "taskMinusScriptLayoutStyleSeconds": 0.945516
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 0.06543900000000002,
+            "ScriptDuration": 0.02571,
+            "LayoutDuration": 0.001463000000000006,
+            "RecalcStyleDuration": 0.0007909999999999862,
+            "ThreadTime": 0.06564399999999981
+          },
+          "counts": {
+            "LayoutCount": 4,
+            "RecalcStyleCount": 7
+          },
+          "derived": {
+            "scriptShareOfTask": 0.3928849768486681,
+            "layoutAndStyleShareOfTask": 0.03444429163037319,
+            "taskMinusScriptLayoutStyleSeconds": 0.037475000000000036
+          }
+        }
+      },
+      "measuredEnvironment": {
+        "window": {
+          "outerWidth": 1216,
+          "outerHeight": 808,
+          "innerWidth": 1200,
+          "innerHeight": 800,
+          "devicePixelRatio": 1
+        },
+        "layoutViewport": {
+          "width": 1200,
+          "height": 800
+        },
+        "visualViewport": {
+          "width": 1200,
+          "height": 800,
+          "scale": 1
+        },
+        "sourceContainer": {
+          "clientWidth": 1188,
+          "clientHeight": 746,
+          "scrollWidth": 1188,
+          "scrollHeight": 822,
+          "boundingWidth": 1200,
+          "boundingHeight": 746
+        },
+        "codeMirror": {
+          "clientWidth": 736,
+          "clientHeight": 746,
+          "boundingWidth": 736,
+          "boundingHeight": 746
+        },
+        "documentVisibility": "visible"
+      },
+      "materialization": {
+        "lineCount": 10200,
+        "codeChildren": 27,
+        "renderedLines": 27,
+        "gutterWrappers": 27,
+        "allDomElements": 21954,
+        "scrollHeight": 822,
+        "scrollWidth": 1188,
+        "clientHeight": 746,
+        "clientWidth": 1188,
+        "viewportMargin": 10
+      },
+      "postInputMetrics": [
+        {
+          "pid": 63648,
+          "type": "Browser",
+          "cpuPercent": 0.1299985099666674,
+          "workingSetKiB": 151988,
+          "privateBytesKiB": 114492
+        },
+        {
+          "pid": 31596,
+          "type": "GPU",
+          "cpuPercent": 0.1834136777796787,
+          "workingSetKiB": 97112,
+          "privateBytesKiB": 82800
+        },
+        {
+          "pid": 60264,
+          "type": "Utility",
+          "cpuPercent": 0.0006338073349876136,
+          "workingSetKiB": 54272,
+          "privateBytesKiB": 14860
+        },
+        {
+          "pid": 24364,
+          "type": "Tab",
+          "cpuPercent": 7.336083499074539,
+          "workingSetKiB": 467072,
+          "privateBytesKiB": 459204
+        }
+      ],
+      "sourceIdleCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1450.3000001907349,
+        "samples": 47,
+        "medianMs": 31.199999999999818,
+        "p95Ms": 31.800000000000182,
+        "maxMs": 67.80000000000018,
+        "over50ms": 1
+      },
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 746.4383999999845,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 7436.5,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 7498.900000095367,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 7561.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 7624.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 7686.800000190735,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 7749.100000143051,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 7812,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 7874,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "codemirror-scroller",
+        "firstWheelToFirstMovedScrollMs": 35.700000047683716,
+        "wheelEventGapMedianMs": 62.40000009536743,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 230722,
+        "outerFinalScrollTop": 0,
+        "codeMirrorScrollerFinalScrollTop": 4800
+      },
+      "postWheelMetrics": [
+        {
+          "pid": 63648,
+          "type": "Browser",
+          "cpuPercent": 0.1337780170177441,
+          "workingSetKiB": 152108,
+          "privateBytesKiB": 114516
+        },
+        {
+          "pid": 31596,
+          "type": "GPU",
+          "cpuPercent": 0.3357031125699541,
+          "workingSetKiB": 100020,
+          "privateBytesKiB": 85716
+        },
+        {
+          "pid": 60264,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 54272,
+          "privateBytesKiB": 14860
+        },
+        {
+          "pid": 24364,
+          "type": "Tab",
+          "cpuPercent": 1.006985365005884,
+          "workingSetKiB": 469736,
+          "privateBytesKiB": 460912
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 41008,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [6632, 24364, 31596, 41008, 56912, 60264, 63648]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [6632, 24364, 31596, 41008, 56912, 60264, 63648],
+          "elapsedMs": 2084.1901999999827,
+          "remainingPids": [6632, 24364, 31596, 41008, 56912, 60264, 63648],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 41008 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 6632 (child process of PID 63648) has been terminated.\r\nSUCCESS: The process with PID 31596 (child process of PID 63648) has been terminated.\r\nSUCCESS: The process with PID 60264 (child process of PID 63648) has been terminated.\r\nSUCCESS: The process with PID 24364 (child process of PID 63648) has been terminated.\r\nSUCCESS: The process with PID 63648 (child process of PID 56912) has been terminated.\r\nSUCCESS: The process with PID 56912 (child process of PID 41008) has been terminated.\r\nSUCCESS: The process with PID 41008 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [6632, 24364, 31596, 41008, 56912, 60264, 63648],
+          "elapsedMs": 0.10619999998016283,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-63cdf452-185b-4857-a3dd-afe328129373",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-finite-viewport-plus-fixed-height-1-amUiZs\\profile-63cdf452-185b-4857-a3dd-afe328129373 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-10000-finite-viewport-plus-fixed-height-1-amUiZs\\profile-63cdf452-185b-4857-a3dd-afe328129373'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-10000-eb13474a-9319-491a-aec3-02d19678597e.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-10000-finite-viewport-plus-fixed-height-1-amUiZs",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
+    },
+    {
+      "lineCount": 10000,
+      "repetition": 1,
+      "variant": "without-source-sync-handlers",
+      "fixture": {
+        "fileName": "fixture-10000-6eb4fbc0-7a9b-4e64-a427-7e79b974f78b.md",
+        "bytes": 776900,
+        "headings": 100,
+        "bodyLines": 9900,
+        "sha256": "8d7a4d0903a787926d979af4f2082155134cb631bc7b6827c14cad141dc95dfd"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-10000-without-source-sync-handlers-1-HIuIGr",
+        "profileDirectoryName": "profile-870a4c63-b285-476b-9bf4-287679a61cc1",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 4459.208500000008,
+      "openReadinessTimeoutMs": 120000,
+      "preSourceCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1431.0999999046326,
+        "samples": 47,
+        "medianMs": 31.200000000000728,
+        "p95Ms": 31.699999999999818,
+        "maxMs": 81.19999995231638,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 28488,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 148476,
+          "privateBytesKiB": 109512
+        },
+        {
+          "pid": 64800,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 97812,
+          "privateBytesKiB": 81780
+        },
+        {
+          "pid": 9852,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 56528,
+          "privateBytesKiB": 14892
+        },
+        {
+          "pid": 50408,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 462004,
+          "privateBytesKiB": 493504
+        }
+      ],
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 0.915099999983795,
+        "sourceCommandStartToInputArmedMs": 3889.235399999976,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 4302.2347999999765,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 132.50889999998617,
+        "rendererProbe": {
+          "variant": "without-source-sync-handlers",
+          "marker": "s",
+          "preTriggerArmAtMs": 4761.599999904633,
+          "codeMirrorObservedAtMs": 8294.399999856949,
+          "cursorPreparationStartedAtMs": 8294.399999856949,
+          "cursorPreparationFinishedAtMs": 8294.599999904633,
+          "inputArmedAtMs": 8294.700000047684,
+          "keydownAtMs": 8934.299999952316,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 8944.399999856949,
+          "visibleMutationObservedAtMs": 9009,
+          "productionHandlersRemoved": {
+            "change": 1,
+            "cursorActivity": 1
+          },
+          "finiteViewportInitHook": null,
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 3532.7999999523163,
+          "cursorPreparationMs": 0.20000004768371582,
+          "keydownToChangeEventObservedMs": 10.099999904632568,
+          "keydownToVisibleMutationMs": 74.70000004768372
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 4.125834,
+            "ScriptDuration": 0.001448,
+            "LayoutDuration": 0.700684,
+            "RecalcStyleDuration": 1.108312,
+            "ThreadTime": 4.12627
+          },
+          "counts": {
+            "LayoutCount": 22,
+            "RecalcStyleCount": 26
+          },
+          "derived": {
+            "scriptShareOfTask": 0.00035095934543173576,
+            "layoutAndStyleShareOfTask": 0.4384558370501576,
+            "taskMinusScriptLayoutStyleSeconds": 2.3153900000000007
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 0.12755399999999995,
+            "ScriptDuration": 0.051189000000000005,
+            "LayoutDuration": 0.014728999999999992,
+            "RecalcStyleDuration": 0.001482999999999901,
+            "ThreadTime": 0.12779200000000035
+          },
+          "counts": {
+            "LayoutCount": 4,
+            "RecalcStyleCount": 5
+          },
+          "derived": {
+            "scriptShareOfTask": 0.4013123853426786,
+            "layoutAndStyleShareOfTask": 0.1270991109647671,
+            "taskMinusScriptLayoutStyleSeconds": 0.06015300000000004
+          }
+        }
+      },
+      "measuredEnvironment": {
+        "window": {
+          "outerWidth": 1216,
+          "outerHeight": 808,
+          "innerWidth": 1200,
+          "innerHeight": 800,
+          "devicePixelRatio": 1
+        },
+        "layoutViewport": {
+          "width": 1200,
+          "height": 800
+        },
+        "visualViewport": {
+          "width": 1200,
+          "height": 800,
+          "scale": 1
+        },
+        "sourceContainer": {
+          "clientWidth": 1188,
+          "clientHeight": 746,
+          "scrollWidth": 1188,
+          "scrollHeight": 450139,
+          "boundingWidth": 1200,
+          "boundingHeight": 746
+        },
+        "codeMirror": {
+          "clientWidth": 736,
+          "clientHeight": 450063,
+          "boundingWidth": 736,
+          "boundingHeight": 450062.5625
+        },
+        "documentVisibility": "visible"
+      },
+      "materialization": {
+        "lineCount": 10200,
+        "codeChildren": 10200,
+        "renderedLines": 10200,
+        "gutterWrappers": 10200,
+        "allDomElements": 73116,
+        "scrollHeight": 450139,
+        "scrollWidth": 1188,
+        "clientHeight": 746,
+        "clientWidth": 1188,
+        "viewportMargin": "Infinity"
+      },
+      "postInputMetrics": [
+        {
+          "pid": 28488,
+          "type": "Browser",
+          "cpuPercent": 0.0470445967464006,
+          "workingSetKiB": 147504,
+          "privateBytesKiB": 108076
+        },
+        {
+          "pid": 64800,
+          "type": "GPU",
+          "cpuPercent": 0.12403290794226664,
+          "workingSetKiB": 98540,
+          "privateBytesKiB": 87364
+        },
+        {
+          "pid": 9852,
+          "type": "Utility",
+          "cpuPercent": 0.00012568168590742525,
+          "workingSetKiB": 56536,
+          "privateBytesKiB": 14896
+        },
+        {
+          "pid": 50408,
+          "type": "Tab",
+          "cpuPercent": 6.9458721990776695,
+          "workingSetKiB": 786068,
+          "privateBytesKiB": 763228
+        }
+      ],
+      "sourceIdleCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1417.7000000476837,
+        "samples": 43,
+        "medianMs": 31.200000000000728,
+        "p95Ms": 87.760000143051,
+        "maxMs": 93.89999999999964,
+        "over50ms": 3
+      },
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 1351.9386999999988,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 11118.399999856949,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11251.399999856949,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11376.200000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11469.799999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11563.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11718.5,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11845.099999904633,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 11943.799999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 80.40000009536743,
+        "wheelEventGapMedianMs": 124.80000019073486,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 449393,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
+      },
+      "postWheelMetrics": [
+        {
+          "pid": 28488,
+          "type": "Browser",
+          "cpuPercent": 0.09671061590152669,
+          "workingSetKiB": 147640,
+          "privateBytesKiB": 108100
+        },
+        {
+          "pid": 64800,
+          "type": "GPU",
+          "cpuPercent": 0.23647329524996605,
+          "workingSetKiB": 100976,
+          "privateBytesKiB": 89548
+        },
+        {
+          "pid": 9852,
+          "type": "Utility",
+          "cpuPercent": 0.007299406452168621,
+          "workingSetKiB": 56552,
+          "privateBytesKiB": 14908
+        },
+        {
+          "pid": 50408,
+          "type": "Tab",
+          "cpuPercent": 3.7450427692279433,
+          "workingSetKiB": 782360,
+          "privateBytesKiB": 758736
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 37252,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [9852, 28488, 37252, 38940, 50408, 64800, 65300]
+        },
+        "courtesyClose": {
+          "status": "resolved",
+          "timeoutMs": 15000
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [9852, 28488, 37252, 38940, 50408, 64800, 65300],
+          "elapsedMs": 0.0694999999832362,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "forcedKillResults": [],
+        "afterForcedCleanup": {
+          "checkedPids": [9852, 28488, 37252, 38940, 50408, 64800, 65300],
+          "elapsedMs": 0.03699999998207204,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-870a4c63-b285-476b-9bf4-287679a61cc1",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-10000-6eb4fbc0-7a9b-4e64-a427-7e79b974f78b.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-10000-without-source-sync-handlers-1-HIuIGr",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
     },
     {
       "lineCount": 50000,
       "repetition": 1,
-      "fixtureFileName": "source-50000.md",
-      "profileIsolation": "marktext-source-capacity-50000-1-mGA3N2",
-      "openReadyMs": 22220.7898,
+      "variant": "production-baseline",
+      "fixture": {
+        "fileName": "fixture-50000-f2032bec-680c-4ecb-8566-3b05b151bfa9.md",
+        "bytes": 3884500,
+        "headings": 500,
+        "bodyLines": 49500,
+        "sha256": "cb6d15f95facb7396b6fa010ba0cc9c6ab13890e10e8e72a61132be46d2beeeb"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-50000-production-baseline-1-91hXJ8",
+        "profileDirectoryName": "profile-194852ae-38c2-48e4-a950-5f87eca5f4f1",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 23015.63679999998,
+      "openReadinessTimeoutMs": 120000,
       "preSourceCadence": {
-        "samples": 46,
-        "medianMs": 32.79999999999927,
-        "p95Ms": 33.29999999999927,
-        "maxMs": 39.166000047684065,
-        "over50ms": 0
-      },
-      "preSourceMetrics": [
-        {
-          "pid": 9936,
-          "type": "Browser",
-          "cpuPercent": 0,
-          "workingSetKiB": 182032,
-          "privateBytesKiB": 141828
-        },
-        {
-          "pid": 32740,
-          "type": "GPU",
-          "cpuPercent": 0,
-          "workingSetKiB": 111332,
-          "privateBytesKiB": 83976
-        },
-        {
-          "pid": 49904,
-          "type": "Utility",
-          "cpuPercent": 0,
-          "workingSetKiB": 67884,
-          "privateBytesKiB": 14872
-        },
-        {
-          "pid": 59568,
-          "type": "Tab",
-          "cpuPercent": 0,
-          "workingSetKiB": 954140,
-          "privateBytesKiB": 935376
-        }
-      ],
-      "sourceSurfaceMs": 24025.497699999993,
-      "sourceSurfaceObservedAtMs": 47699.955,
-      "firstInputProbeStartedAtMs": 47699.955300000016,
-      "firstInputReadiness": {
-        "preparationMs": 1397.0039000000106,
-        "driverRoundTripMs": 1976.6463999999978,
-        "keydownAtMs": 48343.5,
-        "visibleAtMs": 49222.200000047684,
-        "inputEventToVisibleMs": 878.7000000476837
-      },
-      "firstPostInputSampleStartedAtMs": 51179.9274,
-      "measuredEnvironment": {
-        "window": {
-          "outerWidth": 1216,
-          "outerHeight": 808,
-          "innerWidth": 1200,
-          "innerHeight": 800,
-          "devicePixelRatio": 1
-        },
-        "layoutViewport": {
-          "width": 1200,
-          "height": 800
-        },
-        "visualViewport": {
-          "width": 1200,
-          "height": 800,
-          "scale": 1
-        },
-        "sourceContainer": {
-          "clientWidth": 1188,
-          "clientHeight": 746,
-          "scrollWidth": 1188,
-          "scrollHeight": 2250345,
-          "boundingWidth": 1200,
-          "boundingHeight": 746
-        },
-        "codeMirror": {
-          "clientWidth": 736,
-          "clientHeight": 2250269,
-          "boundingWidth": 736,
-          "boundingHeight": 2250268.75
-        },
-        "documentVisibility": "visible"
-      },
-      "baselineMaterialization": {
-        "lineCount": 51000,
-        "codeChildren": 51000,
-        "renderedLines": 51000,
-        "gutterWrappers": 51000,
-        "allDomElements": 363516,
-        "scrollHeight": 2250345,
-        "clientHeight": 746,
-        "viewportMargin": "Infinity"
-      },
-      "baselineMetrics": [
-        {
-          "pid": 9936,
-          "type": "Browser",
-          "cpuPercent": 0.05367214228232924,
-          "workingSetKiB": 168556,
-          "privateBytesKiB": 128668
-        },
-        {
-          "pid": 32740,
-          "type": "GPU",
-          "cpuPercent": 0.08931275769463208,
-          "workingSetKiB": 112456,
-          "privateBytesKiB": 87628
-        },
-        {
-          "pid": 49904,
-          "type": "Utility",
-          "cpuPercent": 0.00012024278851698355,
-          "workingSetKiB": 67716,
-          "privateBytesKiB": 14656
-        },
-        {
-          "pid": 59568,
-          "type": "Tab",
-          "cpuPercent": 8.29869919118422,
-          "workingSetKiB": 2281808,
-          "privateBytesKiB": 2230892
-        }
-      ],
-      "sourceIdleCadence": {
-        "samples": 13,
-        "medianMs": 64.5,
-        "p95Ms": 358.8000000000029,
-        "maxMs": 358.8000000000029,
-        "over50ms": 7
-      },
-      "baselineScroll": {
-        "elapsedMs": 22584.300000190735,
-        "samples": 60,
-        "medianGapMs": 362.09999999999127,
-        "p95GapMs": 691.8000000000029,
-        "maxGapMs": 886.3999999999942,
-        "over50ms": 59,
-        "finalScrollTop": 2249599,
-        "movedFrames": 60
-      },
-      "postMaterializationViewportProbeMs": 8939.8658,
-      "postMaterializationViewportProbe": {
-        "lineCount": 51000,
-        "codeChildren": 51000,
-        "renderedLines": 51000,
-        "gutterWrappers": 51000,
-        "allDomElements": 363518,
-        "scrollHeight": 2250345,
-        "clientHeight": 746,
-        "viewportMargin": 10
-      },
-      "status": "completed",
-      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
-      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-1-mGA3N2 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-1-mGA3N2'"
-    },
-    {
-      "lineCount": 50000,
-      "repetition": 2,
-      "fixtureFileName": "source-50000.md",
-      "profileIsolation": "marktext-source-capacity-50000-2-u38Ugh",
-      "openReadyMs": 32136.931499999977,
-      "preSourceCadence": {
-        "samples": 42,
-        "medianMs": 32.79999999999927,
-        "p95Ms": 33.5,
-        "maxMs": 173.3119999523151,
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1442.7000000476837,
+        "samples": 47,
+        "medianMs": 31.299999999999272,
+        "p95Ms": 31.600000000002183,
+        "maxMs": 71.59999995231556,
         "over50ms": 1
       },
       "preSourceMetrics": [
         {
-          "pid": 45456,
+          "pid": 51684,
           "type": "Browser",
           "cpuPercent": 0,
-          "workingSetKiB": 165868,
-          "privateBytesKiB": 120120
+          "workingSetKiB": 181764,
+          "privateBytesKiB": 141888
         },
         {
-          "pid": 56276,
+          "pid": 63544,
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKiB": 112120,
-          "privateBytesKiB": 80888
+          "workingSetKiB": 96084,
+          "privateBytesKiB": 78724
         },
         {
-          "pid": 27452,
+          "pid": 30604,
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKiB": 72136,
-          "privateBytesKiB": 14820
+          "workingSetKiB": 54284,
+          "privateBytesKiB": 14924
         },
         {
-          "pid": 35932,
+          "pid": 31548,
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKiB": 799072,
-          "privateBytesKiB": 737160
+          "workingSetKiB": 766364,
+          "privateBytesKiB": 711964
         }
       ],
-      "sourceSurfaceMs": 22138.0735,
-      "sourceSurfaceObservedAtMs": 55625.33659999998,
-      "firstInputProbeStartedAtMs": 55625.337100000004,
-      "firstInputReadiness": {
-        "preparationMs": 1396.0960999999952,
-        "driverRoundTripMs": 1532.3132000000041,
-        "keydownAtMs": 54438.10000014305,
-        "visibleAtMs": 55007,
-        "inputEventToVisibleMs": 568.8999998569489
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 0.9258999999728985,
+        "sourceCommandStartToInputArmedMs": 21522.273999999976,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 24480.969099999988,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 1448.5825999999943,
+        "rendererProbe": {
+          "variant": "production-baseline",
+          "marker": "w",
+          "preTriggerArmAtMs": 23406.400000095367,
+          "codeMirrorObservedAtMs": 43202.200000047684,
+          "cursorPreparationStartedAtMs": 43202.200000047684,
+          "cursorPreparationFinishedAtMs": 43202.40000009537,
+          "inputArmedAtMs": 43202.40000009537,
+          "keydownAtMs": 46445.700000047684,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 46583.40000009537,
+          "visibleMutationObservedAtMs": 47081.90000009537,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": null,
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 19795.799999952316,
+          "cursorPreparationMs": 0.20000004768371582,
+          "keydownToChangeEventObservedMs": 137.70000004768372,
+          "keydownToVisibleMutationMs": 636.2000000476837
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 22.773526,
+            "ScriptDuration": 0.0024939999999999997,
+            "LayoutDuration": 3.337662,
+            "RecalcStyleDuration": 4.79066,
+            "ThreadTime": 22.774722999999998
+          },
+          "counts": {
+            "LayoutCount": 22,
+            "RecalcStyleCount": 26
+          },
+          "derived": {
+            "scriptShareOfTask": 0.00010951312502069287,
+            "layoutAndStyleShareOfTask": 0.35691978484139875,
+            "taskMinusScriptLayoutStyleSeconds": 14.642710000000005
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 1.4047049999999999,
+            "ScriptDuration": 0.447582,
+            "LayoutDuration": 0.07320200000000021,
+            "RecalcStyleDuration": 0.009571000000000218,
+            "ThreadTime": 1.4049310000000013
+          },
+          "counts": {
+            "LayoutCount": 5,
+            "RecalcStyleCount": 9
+          },
+          "derived": {
+            "scriptShareOfTask": 0.31863060215490085,
+            "layoutAndStyleShareOfTask": 0.05892553952609298,
+            "taskMinusScriptLayoutStyleSeconds": 0.8743499999999995
+          }
+        }
       },
-      "firstPostInputSampleStartedAtMs": 58655.32509999999,
       "measuredEnvironment": {
         "window": {
           "outerWidth": 1216,
@@ -776,132 +2713,795 @@
         },
         "documentVisibility": "visible"
       },
-      "baselineMaterialization": {
+      "materialization": {
         "lineCount": 51000,
         "codeChildren": 51000,
         "renderedLines": 51000,
         "gutterWrappers": 51000,
         "allDomElements": 363516,
         "scrollHeight": 2250345,
+        "scrollWidth": 1188,
         "clientHeight": 746,
+        "clientWidth": 1188,
         "viewportMargin": "Infinity"
       },
-      "baselineMetrics": [
+      "postInputMetrics": [
         {
-          "pid": 45456,
+          "pid": 51684,
           "type": "Browser",
-          "cpuPercent": 0.02771001609220745,
-          "workingSetKiB": 177892,
-          "privateBytesKiB": 132744
+          "cpuPercent": 0.05939296368269775,
+          "workingSetKiB": 169216,
+          "privateBytesKiB": 129400
         },
         {
-          "pid": 56276,
+          "pid": 63544,
           "type": "GPU",
-          "cpuPercent": 0.0768035126222853,
-          "workingSetKiB": 113352,
-          "privateBytesKiB": 85008
+          "cpuPercent": 0.10372008172296912,
+          "workingSetKiB": 97492,
+          "privateBytesKiB": 85040
         },
         {
-          "pid": 27452,
+          "pid": 30604,
           "type": "Utility",
-          "cpuPercent": 0,
-          "workingSetKiB": 72136,
-          "privateBytesKiB": 14820
+          "cpuPercent": 0.00006264464371490365,
+          "workingSetKiB": 54276,
+          "privateBytesKiB": 14924
         },
         {
-          "pid": 35932,
+          "pid": 31548,
           "type": "Tab",
-          "cpuPercent": 7.7572819007420435,
-          "workingSetKiB": 2284184,
-          "privateBytesKiB": 2227640
+          "cpuPercent": 8.027049211342879,
+          "workingSetKiB": 3131448,
+          "privateBytesKiB": 3249528
         }
       ],
       "sourceIdleCadence": {
-        "samples": 15,
-        "medianMs": 33,
-        "p95Ms": 291.8000000000029,
-        "maxMs": 291.8000000000029,
-        "over50ms": 7
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1656.6000001430511,
+        "samples": 11,
+        "medianMs": 124.59999999999854,
+        "p95Ms": 281.59999999999854,
+        "maxMs": 281.59999999999854,
+        "over50ms": 10
       },
-      "baselineScroll": {
-        "elapsedMs": 15412.5,
-        "samples": 60,
-        "medianGapMs": 260.6000000000058,
-        "p95GapMs": 423.70000000000437,
-        "maxGapMs": 489,
-        "over50ms": 60,
-        "finalScrollTop": 2249599,
-        "movedFrames": 60
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 7251.733799999987,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 54708.200000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 55780,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 56532.40000009537,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 57431.10000014305,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 58273.90000009537,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 58855.300000190735,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 59537.5,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 60040.90000009537,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 421.90000009536743,
+        "wheelEventGapMedianMs": 752.4000000953674,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 2249599,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
       },
-      "postMaterializationViewportProbeMs": 8700.619400000025,
-      "postMaterializationViewportProbe": {
+      "postWheelMetrics": [
+        {
+          "pid": 51684,
+          "type": "Browser",
+          "cpuPercent": 0.048751213202416224,
+          "workingSetKiB": 145644,
+          "privateBytesKiB": 104412
+        },
+        {
+          "pid": 63544,
+          "type": "GPU",
+          "cpuPercent": 0.13379867772388077,
+          "workingSetKiB": 99924,
+          "privateBytesKiB": 83932
+        },
+        {
+          "pid": 30604,
+          "type": "Utility",
+          "cpuPercent": 0.000533897907057161,
+          "workingSetKiB": 54120,
+          "privateBytesKiB": 14716
+        },
+        {
+          "pid": 31548,
+          "type": "Tab",
+          "cpuPercent": 7.412315606997272,
+          "workingSetKiB": 2605256,
+          "privateBytesKiB": 2555020
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 62668,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [6632, 15308, 30604, 31548, 51684, 62668, 63544]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [6632, 15308, 30604, 31548, 51684, 62668, 63544],
+          "elapsedMs": 2066.7223999999987,
+          "remainingPids": [6632, 15308, 30604, 31548, 51684, 62668, 63544],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 62668 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 6632 (child process of PID 51684) has been terminated.\r\nSUCCESS: The process with PID 63544 (child process of PID 51684) has been terminated.\r\nSUCCESS: The process with PID 30604 (child process of PID 51684) has been terminated.\r\nSUCCESS: The process with PID 31548 (child process of PID 51684) has been terminated.\r\nSUCCESS: The process with PID 51684 (child process of PID 15308) has been terminated.\r\nSUCCESS: The process with PID 15308 (child process of PID 62668) has been terminated.\r\nSUCCESS: The process with PID 62668 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [6632, 15308, 30604, 31548, 51684, 62668, 63544],
+          "elapsedMs": 0.12409999998635612,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-194852ae-38c2-48e4-a950-5f87eca5f4f1",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-production-baseline-1-91hXJ8\\profile-194852ae-38c2-48e4-a950-5f87eca5f4f1 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-production-baseline-1-91hXJ8\\profile-194852ae-38c2-48e4-a950-5f87eca5f4f1'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-50000-f2032bec-680c-4ecb-8566-3b05b151bfa9.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-50000-production-baseline-1-91hXJ8",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
+    },
+    {
+      "lineCount": 50000,
+      "repetition": 2,
+      "variant": "production-baseline",
+      "fixture": {
+        "fileName": "fixture-50000-44a090bb-745a-449e-aeda-a1fb9dcc587b.md",
+        "bytes": 3884500,
+        "headings": 500,
+        "bodyLines": 49500,
+        "sha256": "cb6d15f95facb7396b6fa010ba0cc9c6ab13890e10e8e72a61132be46d2beeeb"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-50000-production-baseline-2-KcXE6K",
+        "profileDirectoryName": "profile-75a56b42-3a8d-4219-bb4d-57a9e936ad70",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 22464.64909999998,
+      "openReadinessTimeoutMs": 120000,
+      "preSourceCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1417.5999999046326,
+        "samples": 46,
+        "medianMs": 31.299999999999272,
+        "p95Ms": 31.600000000002183,
+        "maxMs": 97.50000009536598,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 21808,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 168256,
+          "privateBytesKiB": 127104
+        },
+        {
+          "pid": 61652,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 98112,
+          "privateBytesKiB": 85916
+        },
+        {
+          "pid": 61904,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 54188,
+          "privateBytesKiB": 14788
+        },
+        {
+          "pid": 43836,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 775252,
+          "privateBytesKiB": 721832
+        }
+      ],
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 0.8461000000243075,
+        "sourceCommandStartToInputArmedMs": 23114.164900000033,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 25987.498499999987,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 1515.9165999999968,
+        "rendererProbe": {
+          "variant": "production-baseline",
+          "marker": "x",
+          "preTriggerArmAtMs": 22735.39999985695,
+          "codeMirrorObservedAtMs": 44396,
+          "cursorPreparationStartedAtMs": 44396,
+          "cursorPreparationFinishedAtMs": 44396.199999809265,
+          "inputArmedAtMs": 44396.199999809265,
+          "keydownAtMs": 47372,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 47472,
+          "visibleMutationObservedAtMs": 47921.5,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": null,
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 21660.60000014305,
+          "cursorPreparationMs": 0.19999980926513672,
+          "keydownToChangeEventObservedMs": 100,
+          "keydownToVisibleMutationMs": 549.5
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 24.106604,
+            "ScriptDuration": 0.0021449999999999998,
+            "LayoutDuration": 3.71455,
+            "RecalcStyleDuration": 4.747668,
+            "ThreadTime": 24.107495999999998
+          },
+          "counts": {
+            "LayoutCount": 22,
+            "RecalcStyleCount": 26
+          },
+          "derived": {
+            "scriptShareOfTask": 0.00008897976670625193,
+            "layoutAndStyleShareOfTask": 0.35103318576104703,
+            "taskMinusScriptLayoutStyleSeconds": 15.642241000000002
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 1.4939050000000016,
+            "ScriptDuration": 0.424051,
+            "LayoutDuration": 0.05747200000000019,
+            "RecalcStyleDuration": 0.005374999999999908,
+            "ThreadTime": 1.494124000000003
+          },
+          "counts": {
+            "LayoutCount": 5,
+            "RecalcStyleCount": 9
+          },
+          "derived": {
+            "scriptShareOfTask": 0.28385406033181465,
+            "layoutAndStyleShareOfTask": 0.04206894012671491,
+            "taskMinusScriptLayoutStyleSeconds": 1.0070070000000015
+          }
+        }
+      },
+      "measuredEnvironment": {
+        "window": {
+          "outerWidth": 1216,
+          "outerHeight": 808,
+          "innerWidth": 1200,
+          "innerHeight": 800,
+          "devicePixelRatio": 1
+        },
+        "layoutViewport": {
+          "width": 1200,
+          "height": 800
+        },
+        "visualViewport": {
+          "width": 1200,
+          "height": 800,
+          "scale": 1
+        },
+        "sourceContainer": {
+          "clientWidth": 1188,
+          "clientHeight": 746,
+          "scrollWidth": 1188,
+          "scrollHeight": 2250345,
+          "boundingWidth": 1200,
+          "boundingHeight": 746
+        },
+        "codeMirror": {
+          "clientWidth": 736,
+          "clientHeight": 2250269,
+          "boundingWidth": 736,
+          "boundingHeight": 2250268.75
+        },
+        "documentVisibility": "visible"
+      },
+      "materialization": {
         "lineCount": 51000,
         "codeChildren": 51000,
         "renderedLines": 51000,
         "gutterWrappers": 51000,
-        "allDomElements": 363518,
+        "allDomElements": 363516,
         "scrollHeight": 2250345,
+        "scrollWidth": 1188,
         "clientHeight": 746,
-        "viewportMargin": 10
+        "clientWidth": 1188,
+        "viewportMargin": "Infinity"
       },
-      "status": "completed",
-      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
-      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-2-u38Ugh '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-2-u38Ugh'"
+      "postInputMetrics": [
+        {
+          "pid": 21808,
+          "type": "Browser",
+          "cpuPercent": 0.04486807003811965,
+          "workingSetKiB": 154480,
+          "privateBytesKiB": 113476
+        },
+        {
+          "pid": 61652,
+          "type": "GPU",
+          "cpuPercent": 0.21521152968841353,
+          "workingSetKiB": 98668,
+          "privateBytesKiB": 89320
+        },
+        {
+          "pid": 61904,
+          "type": "Utility",
+          "cpuPercent": 0.01095483408219882,
+          "workingSetKiB": 54176,
+          "privateBytesKiB": 14776
+        },
+        {
+          "pid": 43836,
+          "type": "Tab",
+          "cpuPercent": 7.779515026197863,
+          "workingSetKiB": 2322760,
+          "privateBytesKiB": 2272312
+        }
+      ],
+      "sourceIdleCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1701.6000001430511,
+        "samples": 21,
+        "medianMs": 31.799999999995634,
+        "p95Ms": 249.6999999999971,
+        "maxMs": 250,
+        "over50ms": 8
+      },
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 9294.17339999997,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 54599.799999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 55322.5,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 56482.09999990463,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 57287.09999990463,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 58279.799999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 59114.09999990463,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 59886.59999990463,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 61864.199999809265,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 270.7999999523163,
+        "wheelEventGapMedianMs": 834.2999999523163,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 2249599,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
+      },
+      "postWheelMetrics": [
+        {
+          "pid": 21808,
+          "type": "Browser",
+          "cpuPercent": 0.03658660071523494,
+          "workingSetKiB": 133060,
+          "privateBytesKiB": 91120
+        },
+        {
+          "pid": 61652,
+          "type": "GPU",
+          "cpuPercent": 0.11893164401356045,
+          "workingSetKiB": 100332,
+          "privateBytesKiB": 86016
+        },
+        {
+          "pid": 61904,
+          "type": "Utility",
+          "cpuPercent": 0.000490163682405985,
+          "workingSetKiB": 54012,
+          "privateBytesKiB": 14560
+        },
+        {
+          "pid": 43836,
+          "type": "Tab",
+          "cpuPercent": 6.357977379696682,
+          "workingSetKiB": 2330700,
+          "privateBytesKiB": 2277916
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 58176,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [21808, 43836, 57340, 58176, 61532, 61652, 61904]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [21808, 43836, 57340, 58176, 61532, 61652, 61904],
+          "elapsedMs": 2094.0386999999755,
+          "remainingPids": [21808, 43836, 57340, 58176, 61532, 61652, 61904],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 58176 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 57340 (child process of PID 21808) has been terminated.\r\nSUCCESS: The process with PID 61652 (child process of PID 21808) has been terminated.\r\nSUCCESS: The process with PID 61904 (child process of PID 21808) has been terminated.\r\nSUCCESS: The process with PID 43836 (child process of PID 21808) has been terminated.\r\nSUCCESS: The process with PID 21808 (child process of PID 61532) has been terminated.\r\nSUCCESS: The process with PID 61532 (child process of PID 58176) has been terminated.\r\nSUCCESS: The process with PID 58176 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [21808, 43836, 57340, 58176, 61532, 61652, 61904],
+          "elapsedMs": 0.14439999999012798,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-75a56b42-3a8d-4219-bb4d-57a9e936ad70",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-production-baseline-2-KcXE6K\\profile-75a56b42-3a8d-4219-bb4d-57a9e936ad70 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-production-baseline-2-KcXE6K\\profile-75a56b42-3a8d-4219-bb4d-57a9e936ad70'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-50000-44a090bb-745a-449e-aeda-a1fb9dcc587b.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-50000-production-baseline-2-KcXE6K",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
     },
     {
       "lineCount": 50000,
       "repetition": 3,
-      "fixtureFileName": "source-50000.md",
-      "profileIsolation": "marktext-source-capacity-50000-3-Ib12Jn",
-      "openReadyMs": 35755.97849999997,
+      "variant": "production-baseline",
+      "fixture": {
+        "fileName": "fixture-50000-bf72bb73-0217-4ca8-88a1-0aea1f5bfaa7.md",
+        "bytes": 3884500,
+        "headings": 500,
+        "bodyLines": 49500,
+        "sha256": "cb6d15f95facb7396b6fa010ba0cc9c6ab13890e10e8e72a61132be46d2beeeb"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-50000-production-baseline-3-2iwtqL",
+        "profileDirectoryName": "profile-b7862250-1da6-459f-a59c-6b314beec666",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 23963.078300000052,
+      "openReadinessTimeoutMs": 120000,
       "preSourceCadence": {
-        "samples": 47,
-        "medianMs": 33,
-        "p95Ms": 33.5,
-        "maxMs": 45.004000000000815,
-        "over50ms": 0
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1443.2000000476837,
+        "samples": 48,
+        "medianMs": 31.299999999999272,
+        "p95Ms": 31.799999999999272,
+        "maxMs": 75.00999995231541,
+        "over50ms": 1
       },
       "preSourceMetrics": [
         {
-          "pid": 31644,
+          "pid": 50444,
           "type": "Browser",
           "cpuPercent": 0,
-          "workingSetKiB": 166140,
-          "privateBytesKiB": 120164
+          "workingSetKiB": 167624,
+          "privateBytesKiB": 126324
         },
         {
-          "pid": 34200,
+          "pid": 30400,
           "type": "GPU",
           "cpuPercent": 0,
-          "workingSetKiB": 112360,
-          "privateBytesKiB": 84064
+          "workingSetKiB": 97948,
+          "privateBytesKiB": 84912
         },
         {
-          "pid": 54032,
+          "pid": 55512,
           "type": "Utility",
           "cpuPercent": 0,
-          "workingSetKiB": 72136,
-          "privateBytesKiB": 14828
+          "workingSetKiB": 54184,
+          "privateBytesKiB": 14852
         },
         {
-          "pid": 36008,
+          "pid": 60876,
           "type": "Tab",
           "cpuPercent": 0,
-          "workingSetKiB": 819096,
-          "privateBytesKiB": 758148
+          "workingSetKiB": 814404,
+          "privateBytesKiB": 759808
         }
       ],
-      "sourceSurfaceMs": 23213.109400000016,
-      "sourceSurfaceObservedAtMs": 60448.2855,
-      "firstInputProbeStartedAtMs": 60448.28649999999,
-      "firstInputReadiness": {
-        "preparationMs": 2181.7428000000073,
-        "driverRoundTripMs": 2712.229900000035,
-        "keydownAtMs": 61973.5,
-        "visibleAtMs": 62906.5,
-        "inputEventToVisibleMs": 933
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 0.7564000000129454,
+        "sourceCommandStartToInputArmedMs": 21860.984600000025,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 24817.7267,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 1446.6598999999696,
+        "rendererProbe": {
+          "variant": "production-baseline",
+          "marker": "q",
+          "preTriggerArmAtMs": 24410.799999952316,
+          "codeMirrorObservedAtMs": 44738.90000009537,
+          "cursorPreparationStartedAtMs": 44739,
+          "cursorPreparationFinishedAtMs": 44739.09999990463,
+          "inputArmedAtMs": 44739.09999990463,
+          "keydownAtMs": 47784.200000047684,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 47897.59999990463,
+          "visibleMutationObservedAtMs": 48383.40000009537,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": null,
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 20328.10000014305,
+          "cursorPreparationMs": 0.09999990463256836,
+          "keydownToChangeEventObservedMs": 113.39999985694885,
+          "keydownToVisibleMutationMs": 599.2000000476837
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 23.027177000000002,
+            "ScriptDuration": 0.002568,
+            "LayoutDuration": 3.179522,
+            "RecalcStyleDuration": 4.739622,
+            "ThreadTime": 23.028094
+          },
+          "counts": {
+            "LayoutCount": 22,
+            "RecalcStyleCount": 26
+          },
+          "derived": {
+            "scriptShareOfTask": 0.00011152040043814315,
+            "layoutAndStyleShareOfTask": 0.3439042484452175,
+            "taskMinusScriptLayoutStyleSeconds": 15.105465000000002
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 1.405061,
+            "ScriptDuration": 0.451573,
+            "LayoutDuration": 0.062059000000000086,
+            "RecalcStyleDuration": 0.006315999999999988,
+            "ThreadTime": 1.4052349999999976
+          },
+          "counts": {
+            "LayoutCount": 5,
+            "RecalcStyleCount": 9
+          },
+          "derived": {
+            "scriptShareOfTask": 0.3213903168616879,
+            "layoutAndStyleShareOfTask": 0.04866336764026621,
+            "taskMinusScriptLayoutStyleSeconds": 0.8851129999999998
+          }
+        }
       },
-      "firstPostInputSampleStartedAtMs": 65448.35320000001,
       "measuredEnvironment": {
         "window": {
           "outerWidth": 1216,
@@ -935,77 +3535,1484 @@
         },
         "documentVisibility": "visible"
       },
-      "baselineMaterialization": {
+      "materialization": {
         "lineCount": 51000,
         "codeChildren": 51000,
         "renderedLines": 51000,
         "gutterWrappers": 51000,
         "allDomElements": 363516,
         "scrollHeight": 2250345,
+        "scrollWidth": 1188,
         "clientHeight": 746,
+        "clientWidth": 1188,
         "viewportMargin": "Infinity"
       },
-      "baselineMetrics": [
+      "postInputMetrics": [
         {
-          "pid": 31644,
+          "pid": 50444,
           "type": "Browser",
-          "cpuPercent": 0.039573293319339585,
-          "workingSetKiB": 170348,
-          "privateBytesKiB": 124976
+          "cpuPercent": 0.06332814874443875,
+          "workingSetKiB": 155128,
+          "privateBytesKiB": 113412
         },
         {
-          "pid": 34200,
+          "pid": 30400,
           "type": "GPU",
-          "cpuPercent": 0.08814776348285878,
-          "workingSetKiB": 113340,
-          "privateBytesKiB": 87440
+          "cpuPercent": 0.10595275602952191,
+          "workingSetKiB": 98696,
+          "privateBytesKiB": 88560
         },
         {
-          "pid": 54032,
+          "pid": 55512,
           "type": "Utility",
-          "cpuPercent": 0.00039029424216765454,
-          "workingSetKiB": 71988,
-          "privateBytesKiB": 14628
+          "cpuPercent": 0.00006974401670532431,
+          "workingSetKiB": 54176,
+          "privateBytesKiB": 14852
         },
         {
-          "pid": 36008,
+          "pid": 60876,
           "type": "Tab",
-          "cpuPercent": 7.919347099401273,
-          "workingSetKiB": 2744836,
-          "privateBytesKiB": 2721340
+          "cpuPercent": 8.19554020416923,
+          "workingSetKiB": 2261228,
+          "privateBytesKiB": 2208900
         }
       ],
       "sourceIdleCadence": {
-        "samples": 9,
-        "medianMs": 98.19999999999709,
-        "p95Ms": 393.6000000000058,
-        "maxMs": 393.6000000000058,
-        "over50ms": 7
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1635.2999999523163,
+        "samples": 13,
+        "medianMs": 93.39999999999418,
+        "p95Ms": 375,
+        "maxMs": 375,
+        "over50ms": 8
       },
-      "baselineScroll": {
-        "elapsedMs": 21532.700000047684,
-        "samples": 60,
-        "medianGapMs": 327.8999999999942,
-        "p95GapMs": 659.6000000000058,
-        "maxGapMs": 863,
-        "over50ms": 60,
-        "finalScrollTop": 2249599,
-        "movedFrames": 60
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 7356.91730000003,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 55318.200000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 56179.5,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 56962.200000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 57746.59999990463,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 58508.799999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 59221.40000009537,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 60179,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 60950.09999990463,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 423,
+        "wheelEventGapMedianMs": 782.7000000476837,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 2249599,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
       },
-      "postMaterializationViewportProbeMs": 11129.968099999998,
-      "postMaterializationViewportProbe": {
+      "postWheelMetrics": [
+        {
+          "pid": 50444,
+          "type": "Browser",
+          "cpuPercent": 0.051053020590849645,
+          "workingSetKiB": 132312,
+          "privateBytesKiB": 89212
+        },
+        {
+          "pid": 30400,
+          "type": "GPU",
+          "cpuPercent": 0.13077133231428908,
+          "workingSetKiB": 100248,
+          "privateBytesKiB": 85128
+        },
+        {
+          "pid": 55512,
+          "type": "Utility",
+          "cpuPercent": 0.0005119695095714669,
+          "workingSetKiB": 54024,
+          "privateBytesKiB": 14648
+        },
+        {
+          "pid": 60876,
+          "type": "Tab",
+          "cpuPercent": 7.604896045544952,
+          "workingSetKiB": 2273100,
+          "privateBytesKiB": 2220068
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 54904,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [22580, 30400, 42612, 50444, 54904, 55512, 60876]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [22580, 30400, 42612, 50444, 54904, 55512, 60876],
+          "elapsedMs": 2062.817700000014,
+          "remainingPids": [22580, 30400, 42612, 50444, 54904, 55512, 60876],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 54904 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 22580 (child process of PID 50444) has been terminated.\r\nSUCCESS: The process with PID 30400 (child process of PID 50444) has been terminated.\r\nSUCCESS: The process with PID 55512 (child process of PID 50444) has been terminated.\r\nSUCCESS: The process with PID 60876 (child process of PID 50444) has been terminated.\r\nSUCCESS: The process with PID 50444 (child process of PID 42612) has been terminated.\r\nSUCCESS: The process with PID 42612 (child process of PID 54904) has been terminated.\r\nSUCCESS: The process with PID 54904 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [22580, 30400, 42612, 50444, 54904, 55512, 60876],
+          "elapsedMs": 0.1611999999731779,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-b7862250-1da6-459f-a59c-6b314beec666",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-production-baseline-3-2iwtqL\\profile-b7862250-1da6-459f-a59c-6b314beec666 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-production-baseline-3-2iwtqL\\profile-b7862250-1da6-459f-a59c-6b314beec666'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-50000-bf72bb73-0217-4ca8-88a1-0aea1f5bfaa7.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-50000-production-baseline-3-2iwtqL",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
+    },
+    {
+      "lineCount": 50000,
+      "repetition": 1,
+      "variant": "finite-viewport-init-hook",
+      "fixture": {
+        "fileName": "fixture-50000-c4690e4e-2bc5-4798-8f76-46bda9929ad8.md",
+        "bytes": 3884500,
+        "headings": 500,
+        "bodyLines": 49500,
+        "sha256": "cb6d15f95facb7396b6fa010ba0cc9c6ab13890e10e8e72a61132be46d2beeeb"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-50000-finite-viewport-init-hook-1-Wub9rY",
+        "profileDirectoryName": "profile-c194dfb7-f540-4d7d-bdc7-9bfcae370639",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 21665.31209999998,
+      "openReadinessTimeoutMs": 120000,
+      "preSourceCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1463.0999999046326,
+        "samples": 47,
+        "medianMs": 31.200000000000728,
+        "p95Ms": 31.700000000000728,
+        "maxMs": 83.40000009536743,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 20672,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 167664,
+          "privateBytesKiB": 126600
+        },
+        {
+          "pid": 37212,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 96352,
+          "privateBytesKiB": 83092
+        },
+        {
+          "pid": 51980,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 56744,
+          "privateBytesKiB": 14816
+        },
+        {
+          "pid": 37816,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 798472,
+          "privateBytesKiB": 743000
+        }
+      ],
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 2.0601000000024214,
+        "sourceCommandStartToInputArmedMs": 21952.179799999984,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 25027.99800000002,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 1542.2177000000374,
+        "rendererProbe": {
+          "variant": "finite-viewport-init-hook",
+          "marker": "w",
+          "preTriggerArmAtMs": 22146.699999809265,
+          "codeMirrorObservedAtMs": 42424,
+          "cursorPreparationStartedAtMs": 42424,
+          "cursorPreparationFinishedAtMs": 42424.199999809265,
+          "inputArmedAtMs": 42424.199999809265,
+          "keydownAtMs": 45640,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 45761.799999952316,
+          "visibleMutationObservedAtMs": 46323.39999985695,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": {
+            "startedAtMs": 32759.799999952316,
+            "finishedAtMs": 32784.59999990463,
+            "before": "Infinity",
+            "after": 10
+          },
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 20277.300000190735,
+          "cursorPreparationMs": 0.19999980926513672,
+          "keydownToChangeEventObservedMs": 121.79999995231628,
+          "keydownToVisibleMutationMs": 683.3999998569489
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 23.194009,
+            "ScriptDuration": 0.0026300000000000004,
+            "LayoutDuration": 3.698459,
+            "RecalcStyleDuration": 4.625615,
+            "ThreadTime": 23.195167
+          },
+          "counts": {
+            "LayoutCount": 32,
+            "RecalcStyleCount": 36
+          },
+          "derived": {
+            "scriptShareOfTask": 0.00011339135032671585,
+            "layoutAndStyleShareOfTask": 0.3588889699922079,
+            "taskMinusScriptLayoutStyleSeconds": 14.867305000000002
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 1.517192999999999,
+            "ScriptDuration": 0.4768,
+            "LayoutDuration": 0.11502100000000004,
+            "RecalcStyleDuration": 0.006015999999999799,
+            "ThreadTime": 1.517394999999997
+          },
+          "counts": {
+            "LayoutCount": 5,
+            "RecalcStyleCount": 9
+          },
+          "derived": {
+            "scriptShareOfTask": 0.31426456620878185,
+            "layoutAndStyleShareOfTask": 0.07977693015984118,
+            "taskMinusScriptLayoutStyleSeconds": 0.9193559999999992
+          }
+        }
+      },
+      "measuredEnvironment": {
+        "window": {
+          "outerWidth": 1216,
+          "outerHeight": 808,
+          "innerWidth": 1200,
+          "innerHeight": 800,
+          "devicePixelRatio": 1
+        },
+        "layoutViewport": {
+          "width": 1200,
+          "height": 800
+        },
+        "visualViewport": {
+          "width": 1200,
+          "height": 800,
+          "scale": 1
+        },
+        "sourceContainer": {
+          "clientWidth": 1188,
+          "clientHeight": 746,
+          "scrollWidth": 1188,
+          "scrollHeight": 2250345,
+          "boundingWidth": 1200,
+          "boundingHeight": 746
+        },
+        "codeMirror": {
+          "clientWidth": 736,
+          "clientHeight": 2250269,
+          "boundingWidth": 736,
+          "boundingHeight": 2250268.75
+        },
+        "documentVisibility": "visible"
+      },
+      "materialization": {
         "lineCount": 51000,
         "codeChildren": 51000,
         "renderedLines": 51000,
         "gutterWrappers": 51000,
-        "allDomElements": 363518,
+        "allDomElements": 363516,
         "scrollHeight": 2250345,
+        "scrollWidth": 1188,
         "clientHeight": 746,
+        "clientWidth": 1188,
         "viewportMargin": 10
       },
-      "status": "completed",
-      "forcedProcessTreeCleanup": "Electron close exceeded 15000 ms",
-      "profileCleanupFailure": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-3-Ib12Jn '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-capacity-50000-3-Ib12Jn'"
+      "postInputMetrics": [
+        {
+          "pid": 20672,
+          "type": "Browser",
+          "cpuPercent": 0.054259540006113056,
+          "workingSetKiB": 153344,
+          "privateBytesKiB": 111916
+        },
+        {
+          "pid": 37212,
+          "type": "GPU",
+          "cpuPercent": 0.10404607316592426,
+          "workingSetKiB": 97108,
+          "privateBytesKiB": 86692
+        },
+        {
+          "pid": 51980,
+          "type": "Utility",
+          "cpuPercent": 0.00008991857091822317,
+          "workingSetKiB": 56736,
+          "privateBytesKiB": 14816
+        },
+        {
+          "pid": 37816,
+          "type": "Tab",
+          "cpuPercent": 7.858199769015953,
+          "workingSetKiB": 2315132,
+          "privateBytesKiB": 2263720
+        }
+      ],
+      "sourceIdleCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1654.7000000476837,
+        "samples": 11,
+        "medianMs": 62.60000000000582,
+        "p95Ms": 375.09999999999854,
+        "maxMs": 375.09999999999854,
+        "over50ms": 7
+      },
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 7167.345900000015,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 53759.5,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 54496.39999985695,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 55123.59999990463,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 55845.89999985695,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 56511.59999990463,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 57280.299999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 58048,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 58744.89999985695,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 300.7999999523163,
+        "wheelEventGapMedianMs": 722.2999999523163,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 2249599,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
+      },
+      "postWheelMetrics": [
+        {
+          "pid": 20672,
+          "type": "Browser",
+          "cpuPercent": 0.05495173466285305,
+          "workingSetKiB": 131868,
+          "privateBytesKiB": 88876
+        },
+        {
+          "pid": 37212,
+          "type": "GPU",
+          "cpuPercent": 0.12022046033251457,
+          "workingSetKiB": 99392,
+          "privateBytesKiB": 84968
+        },
+        {
+          "pid": 51980,
+          "type": "Utility",
+          "cpuPercent": 0.00032389225563453437,
+          "workingSetKiB": 56680,
+          "privateBytesKiB": 14712
+        },
+        {
+          "pid": 37816,
+          "type": "Tab",
+          "cpuPercent": 6.245741156429455,
+          "workingSetKiB": 2324240,
+          "privateBytesKiB": 2271008
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 34776,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [16504, 20672, 25500, 34776, 37212, 37816, 51980]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [16504, 20672, 25500, 34776, 37212, 37816, 51980],
+          "elapsedMs": 2095.4807000000146,
+          "remainingPids": [16504, 20672, 25500, 34776, 37212, 37816, 51980],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 34776 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 16504 (child process of PID 20672) has been terminated.\r\nSUCCESS: The process with PID 37212 (child process of PID 20672) has been terminated.\r\nSUCCESS: The process with PID 51980 (child process of PID 20672) has been terminated.\r\nSUCCESS: The process with PID 37816 (child process of PID 20672) has been terminated.\r\nSUCCESS: The process with PID 20672 (child process of PID 25500) has been terminated.\r\nSUCCESS: The process with PID 25500 (child process of PID 34776) has been terminated.\r\nSUCCESS: The process with PID 34776 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [16504, 20672, 25500, 34776, 37212, 37816, 51980],
+          "elapsedMs": 0.20389999996405095,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-c194dfb7-f540-4d7d-bdc7-9bfcae370639",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-finite-viewport-init-hook-1-Wub9rY\\profile-c194dfb7-f540-4d7d-bdc7-9bfcae370639 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-finite-viewport-init-hook-1-Wub9rY\\profile-c194dfb7-f540-4d7d-bdc7-9bfcae370639'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-50000-c4690e4e-2bc5-4798-8f76-46bda9929ad8.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-50000-finite-viewport-init-hook-1-Wub9rY",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
+    },
+    {
+      "lineCount": 50000,
+      "repetition": 1,
+      "variant": "finite-viewport-plus-fixed-height",
+      "fixture": {
+        "fileName": "fixture-50000-55eb325c-49d5-4b13-8187-00aa5277321e.md",
+        "bytes": 3884500,
+        "headings": 500,
+        "bodyLines": 49500,
+        "sha256": "cb6d15f95facb7396b6fa010ba0cc9c6ab13890e10e8e72a61132be46d2beeeb"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-50000-finite-viewport-plus-fixed-height-1-iKHSGk",
+        "profileDirectoryName": "profile-3d4862b3-ccb8-4ca8-adf1-be2fbe5caf95",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 23044.843200000003,
+      "openReadinessTimeoutMs": 120000,
+      "preSourceCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1430.2999999523163,
+        "samples": 45,
+        "medianMs": 32.5,
+        "p95Ms": 33.20000000000073,
+        "maxMs": 95.59999999999854,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 41648,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 168076,
+          "privateBytesKiB": 128360
+        },
+        {
+          "pid": 56380,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 96280,
+          "privateBytesKiB": 78260
+        },
+        {
+          "pid": 41812,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 54432,
+          "privateBytesKiB": 14968
+        },
+        {
+          "pid": 2336,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 883304,
+          "privateBytesKiB": 840508
+        }
+      ],
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 0.863199999963399,
+        "sourceCommandStartToInputArmedMs": 11948.415000000037,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 12303.42339999997,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 354.1141999999527,
+        "rendererProbe": {
+          "variant": "finite-viewport-plus-fixed-height",
+          "marker": "w",
+          "preTriggerArmAtMs": 22976.799999952316,
+          "codeMirrorObservedAtMs": 34420.299999952316,
+          "cursorPreparationStartedAtMs": 34420.299999952316,
+          "cursorPreparationFinishedAtMs": 34420.40000009537,
+          "inputArmedAtMs": 34420.5,
+          "keydownAtMs": 34930.60000014305,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 35042.90000009537,
+          "visibleMutationObservedAtMs": 35235.200000047684,
+          "productionHandlersRemoved": null,
+          "finiteViewportInitHook": {
+            "startedAtMs": 34319,
+            "finishedAtMs": 34337.90000009537,
+            "before": "Infinity",
+            "after": 10
+          },
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 11443.5,
+          "cursorPreparationMs": 0.10000014305114746,
+          "keydownToChangeEventObservedMs": 112.29999995231628,
+          "keydownToVisibleMutationMs": 304.59999990463257
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 11.768042,
+            "ScriptDuration": 0.0022250000000000004,
+            "LayoutDuration": 0.554247,
+            "RecalcStyleDuration": 1.196637,
+            "ThreadTime": 11.769178
+          },
+          "counts": {
+            "LayoutCount": 29,
+            "RecalcStyleCount": 33
+          },
+          "derived": {
+            "scriptShareOfTask": 0.00018907138502734783,
+            "layoutAndStyleShareOfTask": 0.14878294961897656,
+            "taskMinusScriptLayoutStyleSeconds": 10.014933
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 0.32487899999999925,
+            "ScriptDuration": 0.140639,
+            "LayoutDuration": 0.0012919999999999598,
+            "RecalcStyleDuration": 0.0007300000000001194,
+            "ThreadTime": 0.3251109999999997
+          },
+          "counts": {
+            "LayoutCount": 4,
+            "RecalcStyleCount": 7
+          },
+          "derived": {
+            "scriptShareOfTask": 0.4328965553329095,
+            "layoutAndStyleShareOfTask": 0.006223855650873353,
+            "taskMinusScriptLayoutStyleSeconds": 0.1822179999999992
+          }
+        }
+      },
+      "measuredEnvironment": {
+        "window": {
+          "outerWidth": 1216,
+          "outerHeight": 808,
+          "innerWidth": 1200,
+          "innerHeight": 800,
+          "devicePixelRatio": 1
+        },
+        "layoutViewport": {
+          "width": 1200,
+          "height": 800
+        },
+        "visualViewport": {
+          "width": 1200,
+          "height": 800,
+          "scale": 1
+        },
+        "sourceContainer": {
+          "clientWidth": 1188,
+          "clientHeight": 746,
+          "scrollWidth": 1188,
+          "scrollHeight": 822,
+          "boundingWidth": 1200,
+          "boundingHeight": 746
+        },
+        "codeMirror": {
+          "clientWidth": 736,
+          "clientHeight": 746,
+          "boundingWidth": 736,
+          "boundingHeight": 746
+        },
+        "documentVisibility": "visible"
+      },
+      "materialization": {
+        "lineCount": 51000,
+        "codeChildren": 27,
+        "renderedLines": 27,
+        "gutterWrappers": 27,
+        "allDomElements": 107154,
+        "scrollHeight": 822,
+        "scrollWidth": 1188,
+        "clientHeight": 746,
+        "clientWidth": 1188,
+        "viewportMargin": 10
+      },
+      "postInputMetrics": [
+        {
+          "pid": 41648,
+          "type": "Browser",
+          "cpuPercent": 0.08618365361733209,
+          "workingSetKiB": 154916,
+          "privateBytesKiB": 114240
+        },
+        {
+          "pid": 56380,
+          "type": "GPU",
+          "cpuPercent": 0.08985079847497815,
+          "workingSetKiB": 97152,
+          "privateBytesKiB": 83960
+        },
+        {
+          "pid": 41812,
+          "type": "Utility",
+          "cpuPercent": 0.00019422209254699952,
+          "workingSetKiB": 54404,
+          "privateBytesKiB": 14932
+        },
+        {
+          "pid": 2336,
+          "type": "Tab",
+          "cpuPercent": 8.444988732886445,
+          "workingSetKiB": 1278152,
+          "privateBytesKiB": 1320356
+        }
+      ],
+      "sourceIdleCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1428.4000000953674,
+        "samples": 44,
+        "medianMs": 33.099999999998545,
+        "p95Ms": 33.60000000000582,
+        "maxMs": 104.49999995231337,
+        "over50ms": 1
+      },
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 894.6152000000002,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 36921,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 37053.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 37119.299999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 37185.40000009537,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 37250.799999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 37316.799999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 37382.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 37448.799999952316,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "codemirror-scroller",
+        "firstWheelToFirstMovedScrollMs": 89.70000004768372,
+        "wheelEventGapMedianMs": 66,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 1144642,
+        "outerFinalScrollTop": 0,
+        "codeMirrorScrollerFinalScrollTop": 4800
+      },
+      "postWheelMetrics": [
+        {
+          "pid": 41648,
+          "type": "Browser",
+          "cpuPercent": 0.08146213864518913,
+          "workingSetKiB": 153536,
+          "privateBytesKiB": 112684
+        },
+        {
+          "pid": 56380,
+          "type": "GPU",
+          "cpuPercent": 0.2727992101389203,
+          "workingSetKiB": 99820,
+          "privateBytesKiB": 86428
+        },
+        {
+          "pid": 41812,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 54404,
+          "privateBytesKiB": 14932
+        },
+        {
+          "pid": 2336,
+          "type": "Tab",
+          "cpuPercent": 1.7419399121430812,
+          "workingSetKiB": 1287216,
+          "privateBytesKiB": 1328832
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 21592,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [2336, 21592, 35144, 40476, 41648, 41812, 56380]
+        },
+        "courtesyClose": {
+          "status": "failed-or-timed-out",
+          "timeoutMs": 15000,
+          "error": "Error: Electron courtesy close exceeded one total 15000 ms deadline"
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [2336, 21592, 35144, 40476, 41648, 41812, 56380],
+          "elapsedMs": 2100.119100000011,
+          "remainingPids": [2336, 21592, 35144, 40476, 41648, 41812, 56380],
+          "allExited": false
+        },
+        "forcedKillResults": [
+          {
+            "command": "taskkill.exe /PID 21592 /T /F",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "SUCCESS: The process with PID 35144 (child process of PID 41648) has been terminated.\r\nSUCCESS: The process with PID 56380 (child process of PID 41648) has been terminated.\r\nSUCCESS: The process with PID 41812 (child process of PID 41648) has been terminated.\r\nSUCCESS: The process with PID 2336 (child process of PID 41648) has been terminated.\r\nSUCCESS: The process with PID 41648 (child process of PID 40476) has been terminated.\r\nSUCCESS: The process with PID 40476 (child process of PID 21592) has been terminated.\r\nSUCCESS: The process with PID 21592 (child process of PID 64536) has been terminated.",
+            "stderr": ""
+          }
+        ],
+        "afterForcedCleanup": {
+          "checkedPids": [2336, 21592, 35144, 40476, 41648, 41812, 56380],
+          "elapsedMs": 0.25049999996554106,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-3d4862b3-ccb8-4ca8-adf1-be2fbe5caf95",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": "Error: EPERM, Permission denied: \\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-finite-viewport-plus-fixed-height-1-iKHSGk\\profile-3d4862b3-ccb8-4ca8-adf1-be2fbe5caf95 '\\\\?\\C:\\Users\\1407\\AppData\\Local\\Temp\\marktext-source-50000-finite-viewport-plus-fixed-height-1-iKHSGk\\profile-3d4862b3-ccb8-4ca8-adf1-be2fbe5caf95'",
+              "existsAfter": true
+            },
+            {
+              "attempt": 2,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-50000-55eb325c-49d5-4b13-8187-00aa5277321e.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-50000-finite-viewport-plus-fixed-height-1-iKHSGk",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
+    },
+    {
+      "lineCount": 50000,
+      "repetition": 1,
+      "variant": "without-source-sync-handlers",
+      "fixture": {
+        "fileName": "fixture-50000-71d4b863-5811-45e6-9aa6-e3a0731eb3cf.md",
+        "bytes": 3884500,
+        "headings": 500,
+        "bodyLines": 49500,
+        "sha256": "cb6d15f95facb7396b6fa010ba0cc9c6ab13890e10e8e72a61132be46d2beeeb"
+      },
+      "isolation": {
+        "temporaryRootName": "marktext-source-50000-without-source-sync-handlers-1-kAyKmu",
+        "profileDirectoryName": "profile-d506806e-cdda-4138-8d39-a58683d1b7cd",
+        "scope": "unique fixture, profile, and OS-temporary root for this trial only"
+      },
+      "openReadyMs": 20719.23080000002,
+      "openReadinessTimeoutMs": 120000,
+      "preSourceCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1436.9000000953674,
+        "samples": 49,
+        "medianMs": 32.70000000000073,
+        "p95Ms": 33.5,
+        "maxMs": 60.197999904634344,
+        "over50ms": 1
+      },
+      "preSourceMetrics": [
+        {
+          "pid": 21368,
+          "type": "Browser",
+          "cpuPercent": 0,
+          "workingSetKiB": 181592,
+          "privateBytesKiB": 141856
+        },
+        {
+          "pid": 28000,
+          "type": "GPU",
+          "cpuPercent": 0,
+          "workingSetKiB": 96048,
+          "privateBytesKiB": 81996
+        },
+        {
+          "pid": 65732,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKiB": 54272,
+          "privateBytesKiB": 14860
+        },
+        {
+          "pid": 56584,
+          "type": "Tab",
+          "cpuPercent": 0,
+          "workingSetKiB": 867576,
+          "privateBytesKiB": 815364
+        }
+      ],
+      "sourceReadiness": {
+        "timeoutMs": 150000,
+        "timingBoundary": "one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM",
+        "sourceCommandStartToReturnMs": 0.8822999999392778,
+        "sourceCommandStartToInputArmedMs": 21514.743200000026,
+        "sourceCommandStartToFirstAcceptedAndVisibleMs": 23817.400999999954,
+        "keyboardDispatchStartToAcceptedAndVisibleMs": 861.9333999999799,
+        "rendererProbe": {
+          "variant": "without-source-sync-handlers",
+          "marker": "w",
+          "preTriggerArmAtMs": 21216.200000047684,
+          "codeMirrorObservedAtMs": 41260,
+          "cursorPreparationStartedAtMs": 41260,
+          "cursorPreparationFinishedAtMs": 41260.300000190735,
+          "inputArmedAtMs": 41260.300000190735,
+          "keydownAtMs": 44346.300000190735,
+          "keydownTrusted": true,
+          "changeEventObservedAtMs": 44370.5,
+          "visibleMutationObservedAtMs": 44634.700000047684,
+          "productionHandlersRemoved": {
+            "change": 1,
+            "cursorActivity": 1
+          },
+          "finiteViewportInitHook": null,
+          "valueAccepted": true,
+          "visibleTextAccepted": true,
+          "preTriggerArmToCodeMirrorObservedMs": 20043.799999952316,
+          "cursorPreparationMs": 0.3000001907348633,
+          "keydownToChangeEventObservedMs": 24.199999809265137,
+          "keydownToVisibleMutationMs": 288.39999985694885
+        },
+        "sourceEntryPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 22.71894,
+            "ScriptDuration": 0.0027380000000000004,
+            "LayoutDuration": 3.204839,
+            "RecalcStyleDuration": 4.640826,
+            "ThreadTime": 22.720192
+          },
+          "counts": {
+            "LayoutCount": 22,
+            "RecalcStyleCount": 26
+          },
+          "derived": {
+            "scriptShareOfTask": 0.00012051618605445503,
+            "layoutAndStyleShareOfTask": 0.3453358739448231,
+            "taskMinusScriptLayoutStyleSeconds": 14.870536999999999
+          }
+        },
+        "firstInputPerformance": {
+          "units": {
+            "durations": "seconds",
+            "counts": "events"
+          },
+          "durations": {
+            "TaskDuration": 0.8540260000000011,
+            "ScriptDuration": 0.302949,
+            "LayoutDuration": 0.05872599999999961,
+            "RecalcStyleDuration": 0.0058880000000005595,
+            "ThreadTime": 0.8548580000000001
+          },
+          "counts": {
+            "LayoutCount": 4,
+            "RecalcStyleCount": 6
+          },
+          "derived": {
+            "scriptShareOfTask": 0.3547304180434784,
+            "layoutAndStyleShareOfTask": 0.07565811813691865,
+            "taskMinusScriptLayoutStyleSeconds": 0.48646300000000087
+          }
+        }
+      },
+      "measuredEnvironment": {
+        "window": {
+          "outerWidth": 1216,
+          "outerHeight": 808,
+          "innerWidth": 1200,
+          "innerHeight": 800,
+          "devicePixelRatio": 1
+        },
+        "layoutViewport": {
+          "width": 1200,
+          "height": 800
+        },
+        "visualViewport": {
+          "width": 1200,
+          "height": 800,
+          "scale": 1
+        },
+        "sourceContainer": {
+          "clientWidth": 1188,
+          "clientHeight": 746,
+          "scrollWidth": 1188,
+          "scrollHeight": 2250345,
+          "boundingWidth": 1200,
+          "boundingHeight": 746
+        },
+        "codeMirror": {
+          "clientWidth": 736,
+          "clientHeight": 2250269,
+          "boundingWidth": 736,
+          "boundingHeight": 2250268.75
+        },
+        "documentVisibility": "visible"
+      },
+      "materialization": {
+        "lineCount": 51000,
+        "codeChildren": 51000,
+        "renderedLines": 51000,
+        "gutterWrappers": 51000,
+        "allDomElements": 363516,
+        "scrollHeight": 2250345,
+        "scrollWidth": 1188,
+        "clientHeight": 746,
+        "clientWidth": 1188,
+        "viewportMargin": "Infinity"
+      },
+      "postInputMetrics": [
+        {
+          "pid": 21368,
+          "type": "Browser",
+          "cpuPercent": 0.03445034460281247,
+          "workingSetKiB": 149516,
+          "privateBytesKiB": 108748
+        },
+        {
+          "pid": 28000,
+          "type": "GPU",
+          "cpuPercent": 0.07305050577908623,
+          "workingSetKiB": 96728,
+          "privateBytesKiB": 85264
+        },
+        {
+          "pid": 65732,
+          "type": "Utility",
+          "cpuPercent": 0.0000920445440366411,
+          "workingSetKiB": 54264,
+          "privateBytesKiB": 14860
+        },
+        {
+          "pid": 56584,
+          "type": "Tab",
+          "cpuPercent": 8.055702762764536,
+          "workingSetKiB": 2250972,
+          "privateBytesKiB": 2197556
+        }
+      ],
+      "sourceIdleCadence": {
+        "requestedDurationMs": 1500,
+        "elapsedMs": 1516.0999999046326,
+        "samples": 17,
+        "medianMs": 54.143999904634256,
+        "p95Ms": 262.20000000000437,
+        "maxMs": 262.20000000000437,
+        "over50ms": 9
+      },
+      "wheel": {
+        "mechanism": "Playwright page.mouse.wheel through Chromium input dispatch",
+        "requestedPulses": 8,
+        "requestedDeltaY": 600,
+        "driverElapsedMs": 10459.19570000004,
+        "observedWheelEvents": 8,
+        "allObservedWheelEventsTrusted": true,
+        "wheelEvents": [
+          {
+            "atMs": 50341.800000190735,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 51388.5,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 54739.300000190735,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 55450.700000047684,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 56249,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 56864.5,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 58130.800000190735,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          },
+          {
+            "atMs": 58868.40000009537,
+            "deltaX": 0,
+            "deltaY": 600,
+            "deltaMode": 0,
+            "isTrusted": true
+          }
+        ],
+        "observedScrollEvents": 8,
+        "activeScrollTarget": "outer-source-container",
+        "firstWheelToFirstMovedScrollMs": 535.2999999523163,
+        "wheelEventGapMedianMs": 798.2999999523163,
+        "initialScrollTop": 0,
+        "finalScrollTop": 4800,
+        "maximumScrollTop": 2249599,
+        "outerFinalScrollTop": 4800,
+        "codeMirrorScrollerFinalScrollTop": 0
+      },
+      "postWheelMetrics": [
+        {
+          "pid": 21368,
+          "type": "Browser",
+          "cpuPercent": 0.061124029328772346,
+          "workingSetKiB": 147568,
+          "privateBytesKiB": 104384
+        },
+        {
+          "pid": 28000,
+          "type": "GPU",
+          "cpuPercent": 0.11196980422848284,
+          "workingSetKiB": 99732,
+          "privateBytesKiB": 84464
+        },
+        {
+          "pid": 65732,
+          "type": "Utility",
+          "cpuPercent": 0.0002834284479722158,
+          "workingSetKiB": 54112,
+          "privateBytesKiB": 14656
+        },
+        {
+          "pid": 56584,
+          "type": "Tab",
+          "cpuPercent": 6.219150158311137,
+          "workingSetKiB": 2281144,
+          "privateBytesKiB": 2225956
+        }
+      ],
+      "measurementStatus": "completed",
+      "processCleanup": {
+        "rootPid": 55044,
+        "discovery": {
+          "method": "Win32_Process parent traversal",
+          "snapshot": {
+            "command": "powershell.exe -NoProfile -NonInteractive -Command @(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress",
+            "status": 0,
+            "signal": null,
+            "timedOut": false,
+            "error": null,
+            "stdout": "<process inventory parsed; omitted>",
+            "stderr": ""
+          },
+          "pids": [5092, 15008, 21368, 28000, 55044, 56584, 65732]
+        },
+        "courtesyClose": {
+          "status": "resolved",
+          "timeoutMs": 15000
+        },
+        "afterCourtesyClose": {
+          "checkedPids": [5092, 15008, 21368, 28000, 55044, 56584, 65732],
+          "elapsedMs": 0.09169999998994172,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "forcedKillResults": [],
+        "afterForcedCleanup": {
+          "checkedPids": [5092, 15008, 21368, 28000, 55044, 56584, 65732],
+          "elapsedMs": 0.09710000001359731,
+          "remainingPids": [],
+          "allExited": true
+        },
+        "successful": true
+      },
+      "pathCleanup": {
+        "profile": {
+          "pathName": "profile-d506806e-cdda-4138-8d39-a58683d1b7cd",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "fixtureFile": {
+          "pathName": "fixture-50000-71d4b863-5811-45e6-9aa6-e3a0731eb3cf.md",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "trialRoot": {
+          "pathName": "marktext-source-50000-without-source-sync-handlers-1-kAyKmu",
+          "attempts": [
+            {
+              "attempt": 1,
+              "error": null,
+              "existsAfter": false
+            }
+          ],
+          "removed": true,
+          "boundedMaximumMs": 5000
+        },
+        "successful": true
+      },
+      "cleanupSuccessful": true
     }
-  ]
+  ],
+  "runStatus": "completed"
 }

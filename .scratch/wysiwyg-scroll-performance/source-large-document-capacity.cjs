@@ -2,6 +2,7 @@
 /* eslint-disable @stylistic/space-before-function-paren */
 
 const { _electron } = require('playwright')
+const crypto = require('node:crypto')
 const fs = require('node:fs')
 const os = require('node:os')
 const path = require('node:path')
@@ -12,9 +13,45 @@ const electronPath =
   process.platform === 'win32'
     ? path.join(desktopRoot, 'node_modules/.bin/electron.cmd')
     : path.join(desktopRoot, 'node_modules/electron/dist/electron')
-const outputPath = path.resolve(__dirname, 'evidence/06-source-large-document-capacity.raw.json')
+const cpuProfileEnabled = process.argv.includes('--cpu-profile')
+const profilePairRequested = process.argv.includes('--profile-pair')
+const outputPath = path.resolve(
+  __dirname,
+  cpuProfileEnabled
+    ? 'evidence/06-source-large-document-capacity.profile.raw.json'
+    : 'evidence/06-source-large-document-capacity.raw.json'
+)
+const expectedBaselineSha = '175cf2e5e4a45b8c574a2b097725e5eb6a575976'
 const scales = [10_000, 50_000]
-const repetitions = 3
+const baselineRepetitions = 3
+const timeoutsMs = {
+  openThroughPopulatedEditorTotal: 120_000,
+  sourceTriggerThroughFirstAcceptedVisibleInputTotal: 150_000,
+  cadence: 8_000,
+  wheel: 30_000,
+  electronCloseGrace: 15_000,
+  processTreeExitAfterKill: 15_000,
+  directoryCleanupAttempts: 10,
+  directoryCleanupRetryDelay: 500
+}
+const durationMetricNames = [
+  'TaskDuration',
+  'ScriptDuration',
+  'LayoutDuration',
+  'RecalcStyleDuration',
+  'ThreadTime'
+]
+const countMetricNames = ['LayoutCount', 'RecalcStyleCount']
+const maxTrialsArgument = process.argv.find((argument) => argument.startsWith('--max-trials='))
+const maxTrials = maxTrialsArgument
+  ? Number.parseInt(maxTrialsArgument.slice('--max-trials='.length), 10)
+  : null
+const variantArgument = process.argv.find((argument) => argument.startsWith('--variant='))
+const requestedVariant = variantArgument ? variantArgument.slice('--variant='.length) : null
+const scaleArgument = process.argv.find((argument) => argument.startsWith('--scale='))
+const requestedScale = scaleArgument
+  ? Number.parseInt(scaleArgument.slice('--scale='.length), 10)
+  : null
 
 function fixture(lineCount) {
   const lines = []
@@ -30,14 +67,51 @@ function fixture(lineCount) {
   return `${lines.join('\n')}\n`
 }
 
-async function bounded(label, milliseconds, action) {
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+function errorText(error) {
+  return error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+}
+
+function command(commandName, args, options = {}) {
+  const child = spawnSync(commandName, args, {
+    cwd: options.cwd,
+    encoding: 'utf8',
+    timeout: options.timeout || 30_000,
+    windowsHide: true
+  })
+  return {
+    command: [commandName, ...args].join(' '),
+    status: child.status,
+    signal: child.signal,
+    timedOut: child.error?.code === 'ETIMEDOUT',
+    error: child.error ? errorText(child.error) : null,
+    stdout: (child.stdout || '').trim(),
+    stderr: (child.stderr || '').trim()
+  }
+}
+
+function gitText(args) {
+  const result = command('git', args, { cwd: path.resolve(desktopRoot, '../..') })
+  if (result.status !== 0) throw new Error(`${result.command} failed: ${result.stderr}`)
+  return result.stdout
+}
+
+async function boundedTotal(label, milliseconds, action) {
+  const deadline = Date.now() + milliseconds
   let timer
   try {
     return await Promise.race([
-      action(),
+      action({
+        remaining() {
+          return Math.max(1, deadline - Date.now())
+        }
+      }),
       new Promise((_resolve, reject) => {
         timer = setTimeout(
-          () => reject(new Error(`${label} exceeded ${milliseconds} ms`)),
+          () => reject(new Error(`${label} exceeded one total ${milliseconds} ms deadline`)),
           milliseconds
         )
       })
@@ -71,7 +145,9 @@ async function materialization(page) {
       gutterWrappers: document.querySelectorAll('.source-code .CodeMirror-gutter-wrapper').length,
       allDomElements: document.getElementsByTagName('*').length,
       scrollHeight: container ? container.scrollHeight : null,
+      scrollWidth: container ? container.scrollWidth : null,
       clientHeight: container ? container.clientHeight : null,
+      clientWidth: container ? container.clientWidth : null,
       viewportMargin: cm
         ? Number.isFinite(cm.getOption('viewportMargin'))
           ? cm.getOption('viewportMargin')
@@ -87,7 +163,6 @@ async function measuredEnvironment(page) {
     const containerRect = container?.getBoundingClientRect()
     const codeMirror = document.querySelector('.source-code .CodeMirror')
     const codeMirrorRect = codeMirror?.getBoundingClientRect()
-
     return {
       window: {
         outerWidth: window.outerWidth,
@@ -147,6 +222,8 @@ async function cadence(page, durationMs = 1500) {
     const sorted = gaps.slice().sort((a, b) => a - b)
     const percentile = (p) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))]
     return {
+      requestedDurationMs: duration,
+      elapsedMs: performance.now() - start,
       samples: gaps.length,
       medianMs: percentile(0.5),
       p95Ms: percentile(0.95),
@@ -156,236 +233,716 @@ async function cadence(page, durationMs = 1500) {
   }, durationMs)
 }
 
-async function scrollProbe(page) {
-  return await page.evaluate(async () => {
-    const container = document.querySelector('.source-code')
-    if (!container) throw new Error('Source scroll container unavailable')
-    container.scrollTop = 0
-    const gaps = []
-    const positions = []
-    let prior = performance.now()
-    const start = prior
-    await new Promise((resolve) => {
-      let frameNumber = 0
-      const frame = (now) => {
-        gaps.push(now - prior)
-        prior = now
-        frameNumber += 1
-        container.scrollTop = (container.scrollHeight - container.clientHeight) * (frameNumber / 60)
-        positions.push(container.scrollTop)
-        if (frameNumber >= 60) resolve()
-        else requestAnimationFrame(frame)
-      }
-      requestAnimationFrame(frame)
-    })
-    const sorted = gaps.slice().sort((a, b) => a - b)
-    return {
-      elapsedMs: performance.now() - start,
-      samples: gaps.length,
-      medianGapMs: sorted[Math.floor(sorted.length / 2)],
-      p95GapMs: sorted[Math.floor(sorted.length * 0.95)],
-      maxGapMs: Math.max(...gaps),
-      over50ms: gaps.filter((gap) => gap > 50).length,
-      finalScrollTop: positions.at(-1),
-      movedFrames: positions.filter((value, index) => index === 0 || value !== positions[index - 1])
-        .length
-    }
-  })
+function metricMap(result) {
+  return Object.fromEntries(result.metrics.map(({ name, value }) => [name, value]))
 }
 
-async function inputProbe(page, key, expectedText) {
-  const preparationStarted = performance.now()
-  await page.evaluate((visiblePrefix) => {
+async function performanceSnapshot(cdp) {
+  return metricMap(await cdp.send('Performance.getMetrics'))
+}
+
+function performanceDelta(before, after) {
+  const seconds = Object.fromEntries(
+    durationMetricNames.map((name) => [name, (after[name] || 0) - (before[name] || 0)])
+  )
+  const counts = Object.fromEntries(
+    countMetricNames.map((name) => [name, (after[name] || 0) - (before[name] || 0)])
+  )
+  return {
+    units: { durations: 'seconds', counts: 'events' },
+    durations: seconds,
+    counts,
+    derived: {
+      scriptShareOfTask:
+        seconds.TaskDuration > 0 ? seconds.ScriptDuration / seconds.TaskDuration : null,
+      layoutAndStyleShareOfTask:
+        seconds.TaskDuration > 0
+          ? (seconds.LayoutDuration + seconds.RecalcStyleDuration) / seconds.TaskDuration
+          : null,
+      taskMinusScriptLayoutStyleSeconds:
+        seconds.TaskDuration -
+        seconds.ScriptDuration -
+        seconds.LayoutDuration -
+        seconds.RecalcStyleDuration
+    }
+  }
+}
+
+function summarizeCpuProfile(profile) {
+  const nodesById = new Map(profile.nodes.map((node) => [node.id, node]))
+  const aggregate = new Map()
+  for (let index = 0; index < (profile.samples || []).length; index++) {
+    const node = nodesById.get(profile.samples[index])
+    if (!node) continue
+    const frame = node.callFrame
+    const key = [
+      frame.functionName || '(anonymous)',
+      frame.url || '',
+      frame.lineNumber,
+      frame.columnNumber
+    ].join('|')
+    const entry = aggregate.get(key) || {
+      functionName: frame.functionName || '(anonymous)',
+      url: frame.url || '',
+      lineNumberZeroBased: frame.lineNumber,
+      columnNumberZeroBased: frame.columnNumber,
+      samples: 0,
+      sampledTimeMicroseconds: 0
+    }
+    entry.samples += 1
+    entry.sampledTimeMicroseconds += profile.timeDeltas?.[index] || 0
+    aggregate.set(key, entry)
+  }
+  const aggregatedNodes = [...aggregate.values()].sort(
+    (a, b) => b.sampledTimeMicroseconds - a.sampledTimeMicroseconds
+  )
+  return {
+    method: 'Chromium DevTools V8 CPU profiler at a 1000 microsecond sampling interval',
+    profileStartTimeMicroseconds: profile.startTime,
+    profileEndTimeMicroseconds: profile.endTime,
+    totalSamples: (profile.samples || []).length,
+    totalSampledTimeMicroseconds: (profile.timeDeltas || []).reduce(
+      (total, value) => total + value,
+      0
+    ),
+    aggregatedNodes
+  }
+}
+
+async function armSourceProbe(page, variant, marker) {
+  await page.waitForFunction(() => typeof window.CodeMirror?.defineInitHook === 'function', null, {
+    timeout: 10_000
+  })
+  await page.evaluate(
+    ({ trialVariant, inputMarker }) => {
+      const probe = {
+        variant: trialVariant,
+        marker: inputMarker,
+        preTriggerArmAtMs: performance.now(),
+        codeMirrorObservedAtMs: null,
+        cursorPreparationStartedAtMs: null,
+        cursorPreparationFinishedAtMs: null,
+        inputArmedAtMs: null,
+        keydownAtMs: null,
+        keydownTrusted: null,
+        changeEventObservedAtMs: null,
+        visibleMutationObservedAtMs: null,
+        productionHandlersRemoved: null,
+        finiteViewportInitHook: null
+      }
+      window.__sourceCapacityProbe = probe
+
+      if (trialVariant === 'finite-viewport-plus-fixed-height') {
+        const style = document.createElement('style')
+        style.dataset.sourceCapacityIntervention = trialVariant
+        style.textContent = '.source-code .CodeMirror { height: 100% !important; }'
+        document.head.appendChild(style)
+      }
+
+      if (
+        trialVariant === 'finite-viewport-init-hook' ||
+        trialVariant === 'finite-viewport-plus-fixed-height'
+      ) {
+        window.CodeMirror.defineInitHook((cm) => {
+          if (!cm.getWrapperElement()?.closest('.source-code')) return
+          const startedAtMs = performance.now()
+          const before = cm.getOption('viewportMargin')
+          cm.setOption('viewportMargin', 10)
+          probe.finiteViewportInitHook = {
+            startedAtMs,
+            finishedAtMs: performance.now(),
+            before: Number.isFinite(before) ? before : String(before),
+            after: cm.getOption('viewportMargin')
+          }
+        })
+      }
+
+      let visibleObserver
+      const documentObserver = new MutationObserver(() => installInputProbe())
+      const installInputProbe = () => {
+        if (probe.inputArmedAtMs !== null) return
+        const cmNode = document.querySelector('.source-code .CodeMirror')
+        const cm = cmNode && cmNode.CodeMirror
+        const input = cm?.getInputField()
+        const code = document.querySelector('.source-code .CodeMirror-code')
+        if (!cm || !input || !code) return
+
+        probe.codeMirrorObservedAtMs = performance.now()
+        if (trialVariant === 'without-source-sync-handlers') {
+          const removed = {}
+          for (const eventName of ['change', 'cursorActivity']) {
+            const handlers = Array.isArray(cm._handlers?.[eventName])
+              ? cm._handlers[eventName].slice()
+              : []
+            removed[eventName] = handlers.length
+            for (const handler of handlers) cm.off(eventName, handler)
+          }
+          probe.productionHandlersRemoved = removed
+        }
+
+        probe.cursorPreparationStartedAtMs = performance.now()
+        cm.focus()
+        cm.setCursor({ line: 0, ch: 0 })
+        probe.cursorPreparationFinishedAtMs = performance.now()
+
+        input.addEventListener(
+          'keydown',
+          (event) => {
+            if (event.key.toLowerCase() !== inputMarker) return
+            probe.keydownAtMs = performance.now()
+            probe.keydownTrusted = event.isTrusted
+          },
+          { capture: true, once: true }
+        )
+        cm.on('change', (instance) => {
+          if (
+            probe.changeEventObservedAtMs === null &&
+            instance.getLine(0).startsWith(inputMarker)
+          ) {
+            probe.changeEventObservedAtMs = performance.now()
+          }
+        })
+        visibleObserver = new MutationObserver(() => {
+          const firstLine = document.querySelector('.source-code .CodeMirror-line')
+          if ((firstLine?.textContent || '').startsWith(inputMarker)) {
+            probe.visibleMutationObservedAtMs = performance.now()
+            visibleObserver.disconnect()
+          }
+        })
+        visibleObserver.observe(code, { childList: true, characterData: true, subtree: true })
+        probe.inputArmedAtMs = performance.now()
+        documentObserver.disconnect()
+      }
+      documentObserver.observe(document.documentElement, { childList: true, subtree: true })
+      installInputProbe()
+    },
+    { trialVariant: variant, inputMarker: marker }
+  )
+}
+
+async function triggerSourceAndFirstInput(app, page, cdp, variant, marker) {
+  await armSourceProbe(page, variant, marker)
+  if (cpuProfileEnabled) {
+    await cdp.send('Profiler.enable')
+    await cdp.send('Profiler.setSamplingInterval', { interval: 1_000 })
+    await cdp.send('Profiler.start')
+  }
+  const performanceBeforeSource = await performanceSnapshot(cdp)
+  const sourceTriggerStartedAtNodeMs = performance.now()
+
+  return await boundedTotal(
+    'Source trigger through first accepted and visible input',
+    timeoutsMs.sourceTriggerThroughFirstAcceptedVisibleInputTotal,
+    async (deadline) => {
+      await app.evaluate(({ Menu, BrowserWindow }) => {
+        const item = Menu.getApplicationMenu()?.getMenuItemById('sourceCodeModeMenuItem')
+        if (!item) throw new Error('Source menu item unavailable')
+        item.checked = !item.checked
+        const win = BrowserWindow.getAllWindows()[0]
+        item.click(undefined, win, win.webContents)
+      })
+      const sourceCommandReturnedAtNodeMs = performance.now()
+
+      await page.waitForFunction(
+        () => Number.isFinite(window.__sourceCapacityProbe?.inputArmedAtMs),
+        null,
+        { timeout: deadline.remaining() }
+      )
+      const inputArmedAtNodeMs = performance.now()
+      const sourceEntryCpuProfile = cpuProfileEnabled
+        ? summarizeCpuProfile((await cdp.send('Profiler.stop')).profile)
+        : null
+      const performanceAfterSourceEntry = await performanceSnapshot(cdp)
+      if (cpuProfileEnabled) await cdp.send('Profiler.start')
+      const keyboardDispatchStartedAtNodeMs = performance.now()
+      await page.keyboard.press(marker)
+      await page.waitForFunction(
+        () => {
+          const probe = window.__sourceCapacityProbe
+          return (
+            Number.isFinite(probe?.keydownAtMs) &&
+            Number.isFinite(probe?.changeEventObservedAtMs) &&
+            Number.isFinite(probe?.visibleMutationObservedAtMs)
+          )
+        },
+        null,
+        { timeout: deadline.remaining() }
+      )
+      const acceptedAndVisibleAtNodeMs = performance.now()
+      const firstInputCpuProfile = cpuProfileEnabled
+        ? summarizeCpuProfile((await cdp.send('Profiler.stop')).profile)
+        : null
+      const performanceAfterInput = await performanceSnapshot(cdp)
+      const rendererProbe = await page.evaluate(() => {
+        const probe = window.__sourceCapacityProbe
+        const cmNode = document.querySelector('.source-code .CodeMirror')
+        const cm = cmNode && cmNode.CodeMirror
+        return {
+          ...probe,
+          valueAccepted: !!cm && cm.getLine(0).startsWith(probe.marker),
+          visibleTextAccepted: (
+            document.querySelector('.source-code .CodeMirror-line')?.textContent || ''
+          ).startsWith(probe.marker)
+        }
+      })
+
+      return {
+        timeoutMs: timeoutsMs.sourceTriggerThroughFirstAcceptedVisibleInputTotal,
+        timingBoundary:
+          'one total deadline begins immediately before invoking the Source menu command and ends only after the first Playwright keydown is observed in CodeMirror change state and visible line DOM',
+        sourceCommandStartToReturnMs: sourceCommandReturnedAtNodeMs - sourceTriggerStartedAtNodeMs,
+        sourceCommandStartToInputArmedMs: inputArmedAtNodeMs - sourceTriggerStartedAtNodeMs,
+        sourceCommandStartToFirstAcceptedAndVisibleMs:
+          acceptedAndVisibleAtNodeMs - sourceTriggerStartedAtNodeMs,
+        keyboardDispatchStartToAcceptedAndVisibleMs:
+          acceptedAndVisibleAtNodeMs - keyboardDispatchStartedAtNodeMs,
+        rendererProbe: {
+          ...rendererProbe,
+          preTriggerArmToCodeMirrorObservedMs:
+            rendererProbe.codeMirrorObservedAtMs - rendererProbe.preTriggerArmAtMs,
+          cursorPreparationMs:
+            rendererProbe.cursorPreparationFinishedAtMs -
+            rendererProbe.cursorPreparationStartedAtMs,
+          keydownToChangeEventObservedMs:
+            rendererProbe.changeEventObservedAtMs - rendererProbe.keydownAtMs,
+          keydownToVisibleMutationMs:
+            rendererProbe.visibleMutationObservedAtMs - rendererProbe.keydownAtMs
+        },
+        sourceEntryPerformance: performanceDelta(
+          performanceBeforeSource,
+          performanceAfterSourceEntry
+        ),
+        firstInputPerformance: performanceDelta(performanceAfterSourceEntry, performanceAfterInput),
+        cpuProfile: cpuProfileEnabled
+          ? { sourceEntry: sourceEntryCpuProfile, firstInput: firstInputCpuProfile }
+          : null
+      }
+    }
+  )
+}
+
+async function wheelProbe(page) {
+  const container = page.locator('.source-code')
+  const box = await container.boundingBox()
+  if (!box) throw new Error('Source scroll container has no bounding box')
+  const requestedPulses = 8
+  const deltaY = 600
+  await page.evaluate(() => {
+    const outer = document.querySelector('.source-code')
     const cmNode = document.querySelector('.source-code .CodeMirror')
     const cm = cmNode && cmNode.CodeMirror
-    if (!cm) throw new Error('CodeMirror unavailable')
-    cm.focus()
-    cm.setCursor({ line: 0, ch: 0 })
-    const input = cm.getInputField()
-    const code = document.querySelector('.source-code .CodeMirror-code')
-    if (!input || !code) throw new Error('CodeMirror input or visible code unavailable')
-
+    const codeMirrorScroller = cm?.getScrollerElement()
+    if (!outer || !codeMirrorScroller) throw new Error('Source scroll candidates unavailable')
+    const candidates = [
+      { name: 'outer-source-container', element: outer },
+      { name: 'codemirror-scroller', element: codeMirrorScroller }
+    ]
+    for (const candidate of candidates) candidate.element.scrollTop = 0
+    const active = candidates
+      .slice()
+      .sort(
+        (a, b) =>
+          b.element.scrollHeight -
+          b.element.clientHeight -
+          (a.element.scrollHeight - a.element.clientHeight)
+      )[0]
     const probe = {
-      keydownAtMs: null,
-      visibleAtMs: null
+      armedAtMs: performance.now(),
+      activeTarget: active.name,
+      initialScrollTop: active.element.scrollTop,
+      wheelEvents: [],
+      scrollEvents: []
     }
-    window.__sourceFirstInputReadiness = probe
-    input.addEventListener(
-      'keydown',
-      () => {
-        probe.keydownAtMs = performance.now()
+    window.__sourceWheelProbe = probe
+    outer.addEventListener(
+      'wheel',
+      (event) => {
+        probe.wheelEvents.push({
+          atMs: performance.now(),
+          deltaX: event.deltaX,
+          deltaY: event.deltaY,
+          deltaMode: event.deltaMode,
+          isTrusted: event.isTrusted
+        })
       },
-      { capture: true, once: true }
+      { capture: true }
     )
-    const observer = new MutationObserver(() => {
-      const firstLine = document.querySelector('.source-code .CodeMirror-line')
-      if ((firstLine?.textContent || '').startsWith(visiblePrefix)) {
-        probe.visibleAtMs = performance.now()
-        observer.disconnect()
-      }
-    })
-    observer.observe(code, { childList: true, characterData: true, subtree: true })
-  }, expectedText)
-  const preparationMs = performance.now() - preparationStarted
-  const driverStarted = performance.now()
-  await page.keyboard.press(key)
-  await page.waitForFunction(
-    () => {
-      const probe = window.__sourceFirstInputReadiness
-      return Number.isFinite(probe?.keydownAtMs) && Number.isFinite(probe?.visibleAtMs)
-    },
-    null,
-    { timeout: 15_000 }
-  )
-  const driverRoundTripMs = performance.now() - driverStarted
-  const rendererTiming = await page.evaluate(() => {
-    const probe = window.__sourceFirstInputReadiness
-    return {
-      keydownAtMs: probe.keydownAtMs,
-      visibleAtMs: probe.visibleAtMs,
-      inputEventToVisibleMs: probe.visibleAtMs - probe.keydownAtMs
+    for (const candidate of candidates) {
+      candidate.element.addEventListener('scroll', () => {
+        probe.scrollEvents.push({
+          atMs: performance.now(),
+          target: candidate.name,
+          scrollTop: candidate.element.scrollTop
+        })
+      })
     }
   })
-  return { preparationMs, driverRoundTripMs, ...rendererTiming }
-}
 
-async function runTrial(lineCount, repetition, fixturePath) {
-  const profile = fs.mkdtempSync(
-    path.join(os.tmpdir(), `marktext-source-capacity-${lineCount}-${repetition}-`)
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  const driverStartedAt = performance.now()
+  for (let i = 0; i < requestedPulses; i++) await page.mouse.wheel(0, deltaY)
+  await page.waitForFunction(
+    () => {
+      const probe = window.__sourceWheelProbe
+      return (
+        probe?.wheelEvents.length > 0 && probe?.scrollEvents.some((event) => event.scrollTop > 0)
+      )
+    },
+    null,
+    { timeout: timeoutsMs.wheel }
   )
-  let app
-  const result = {
-    lineCount,
-    repetition,
-    fixtureFileName: path.basename(fixturePath),
-    profileIsolation: path.basename(profile)
-  }
-  const launchStarted = performance.now()
-  try {
-    app = await bounded('Electron launch', 45_000, () =>
-      _electron.launch({
-        executablePath: electronPath,
-        args: [desktopRoot, '--user-data-dir', profile, fixturePath],
-        cwd: desktopRoot,
-        env: { ...process.env, PERF_TESTING: 'true', MARKTEXT_ERROR_INTERACTION: '1' },
-        timeout: 40_000
-      })
-    )
-    const page = await bounded('first window', 20_000, () => app.firstWindow())
-    await page.waitForLoadState('domcontentloaded')
-    await page.waitForSelector('.editor-component', { state: 'attached', timeout: 45_000 })
-    await page.waitForFunction(
-      () => {
-        const editor = document.querySelector('.editor-component')
-        return !!editor && editor.children.length > 0
-      },
-      null,
-      { timeout: 45_000 }
-    )
-    result.openReadyMs = performance.now() - launchStarted
-    result.preSourceCadence = await bounded('pre-source cadence', 5_000, () => cadence(page))
-    result.preSourceMetrics = await appMetrics(app)
-
-    const sourceStarted = performance.now()
-    await app.evaluate(({ Menu, BrowserWindow }) => {
-      const item = Menu.getApplicationMenu()?.getMenuItemById('sourceCodeModeMenuItem')
-      if (!item) throw new Error('Source menu item unavailable')
-      item.checked = !item.checked
-      const win = BrowserWindow.getAllWindows()[0]
-      item.click(undefined, win, win.webContents)
-    })
-    await page.waitForFunction(
-      () => {
-        const cmNode = document.querySelector('.source-code .CodeMirror')
-        return !!cmNode && !!cmNode.CodeMirror
-      },
-      null,
-      { timeout: 120_000 }
-    )
-    result.sourceSurfaceMs = performance.now() - sourceStarted
-    result.sourceSurfaceObservedAtMs = performance.now() - launchStarted
-    result.firstInputProbeStartedAtMs = performance.now() - launchStarted
-    result.firstInputReadiness = await bounded('first input readiness', 20_000, () =>
-      inputProbe(page, 'z', 'z')
-    )
-    result.firstPostInputSampleStartedAtMs = performance.now() - launchStarted
-    result.measuredEnvironment = await measuredEnvironment(page)
-    result.baselineMaterialization = await materialization(page)
-    result.baselineMetrics = await appMetrics(app)
-    result.sourceIdleCadence = await bounded('source cadence', 8_000, () => cadence(page))
-    result.baselineScroll = await bounded('baseline scroll probe', 30_000, () => scrollProbe(page))
-
-    const interventionStarted = performance.now()
-    await page.evaluate(() => {
+  await page.waitForTimeout(250)
+  const driverElapsedMs = performance.now() - driverStartedAt
+  return await page.evaluate(
+    ({ pulses, requestedDeltaY, elapsed }) => {
+      const probe = window.__sourceWheelProbe
+      const outer = document.querySelector('.source-code')
       const cmNode = document.querySelector('.source-code .CodeMirror')
       const cm = cmNode && cmNode.CodeMirror
-      if (!cm) throw new Error('CodeMirror unavailable for intervention')
-      cm.setOption('viewportMargin', 10)
-      cm.refresh()
-    })
-    await page.waitForTimeout(500)
-    result.postMaterializationViewportProbeMs = performance.now() - interventionStarted
-    result.postMaterializationViewportProbe = await materialization(page)
-    result.status = 'completed'
-  } catch (error) {
-    result.status = 'capacity-limit'
-    result.failure = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
-    result.elapsedAtFailureMs = performance.now() - launchStarted
-  } finally {
-    if (app) {
-      try {
-        await bounded('Electron close', 15_000, () => app.close())
-      } catch (error) {
-        result.forcedProcessTreeCleanup = error instanceof Error ? error.message : String(error)
-        if (process.platform === 'win32') {
-          spawnSync('taskkill.exe', ['/PID', String(app.process().pid), '/T', '/F'], {
-            windowsHide: true,
-            timeout: 15_000
-          })
-        } else {
-          try {
-            app.process().kill('SIGKILL')
-          } catch {}
+      const codeMirrorScroller = cm?.getScrollerElement()
+      const active = probe.activeTarget === 'codemirror-scroller' ? codeMirrorScroller : outer
+      const firstWheel = probe.wheelEvents[0]
+      const firstMovedScroll = probe.scrollEvents.find((event) => event.scrollTop > 0)
+      const wheelTimes = probe.wheelEvents.map((event) => event.atMs)
+      const wheelEventGaps = wheelTimes.slice(1).map((time, index) => time - wheelTimes[index])
+      return {
+        mechanism: 'Playwright page.mouse.wheel through Chromium input dispatch',
+        requestedPulses: pulses,
+        requestedDeltaY,
+        driverElapsedMs: elapsed,
+        observedWheelEvents: probe.wheelEvents.length,
+        allObservedWheelEventsTrusted: probe.wheelEvents.every((event) => event.isTrusted),
+        wheelEvents: probe.wheelEvents,
+        observedScrollEvents: probe.scrollEvents.length,
+        activeScrollTarget: probe.activeTarget,
+        firstWheelToFirstMovedScrollMs:
+          firstWheel && firstMovedScroll ? firstMovedScroll.atMs - firstWheel.atMs : null,
+        wheelEventGapMedianMs: wheelEventGaps.length
+          ? wheelEventGaps.slice().sort((a, b) => a - b)[Math.floor(wheelEventGaps.length / 2)]
+          : null,
+        initialScrollTop: probe.initialScrollTop,
+        finalScrollTop: active?.scrollTop ?? null,
+        maximumScrollTop: active ? active.scrollHeight - active.clientHeight : null,
+        outerFinalScrollTop: outer?.scrollTop ?? null,
+        codeMirrorScrollerFinalScrollTop: codeMirrorScroller?.scrollTop ?? null
+      }
+    },
+    { pulses: requestedPulses, requestedDeltaY: deltaY, elapsed: driverElapsedMs }
+  )
+}
+
+function windowsProcessTree(rootPid) {
+  const snapshot = command('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    '@(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress'
+  ])
+  if (snapshot.status !== 0) {
+    return { method: 'Win32_Process parent traversal', snapshot, pids: [rootPid] }
+  }
+  try {
+    const parsed = JSON.parse(snapshot.stdout)
+    const processes = Array.isArray(parsed) ? parsed : [parsed]
+    const pids = new Set([rootPid])
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const processInfo of processes) {
+        if (pids.has(processInfo.ParentProcessId) && !pids.has(processInfo.ProcessId)) {
+          pids.add(processInfo.ProcessId)
+          changed = true
         }
       }
     }
-    try {
-      fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 })
-    } catch (error) {
-      result.profileCleanupFailure =
-        error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+    return {
+      method: 'Win32_Process parent traversal',
+      snapshot: { ...snapshot, stdout: '<process inventory parsed; omitted>' },
+      pids: [...pids].sort((a, b) => a - b)
     }
+  } catch (error) {
+    return {
+      method: 'Win32_Process parent traversal',
+      snapshot: { ...snapshot, stdout: '<unparseable process inventory omitted>' },
+      parseError: errorText(error),
+      pids: [rootPid]
+    }
+  }
+}
+
+function processExists(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return error?.code === 'EPERM'
+  }
+}
+
+async function pollPidsGone(pids, timeoutMs) {
+  const startedAt = performance.now()
+  let remaining = pids.filter(processExists)
+  while (remaining.length && performance.now() - startedAt < timeoutMs) {
+    await delay(250)
+    remaining = pids.filter(processExists)
+  }
+  return {
+    checkedPids: pids,
+    elapsedMs: performance.now() - startedAt,
+    remainingPids: remaining,
+    allExited: remaining.length === 0
+  }
+}
+
+async function closeAndVerifyProcessTree(app, rootPid) {
+  const discovery =
+    process.platform === 'win32'
+      ? windowsProcessTree(rootPid)
+      : { method: 'Electron application root process only', pids: [rootPid] }
+  let courtesyClose
+  try {
+    await boundedTotal('Electron courtesy close', timeoutsMs.electronCloseGrace, () => app.close())
+    courtesyClose = { status: 'resolved', timeoutMs: timeoutsMs.electronCloseGrace }
+  } catch (error) {
+    courtesyClose = {
+      status: 'failed-or-timed-out',
+      timeoutMs: timeoutsMs.electronCloseGrace,
+      error: errorText(error)
+    }
+  }
+
+  const afterCourtesyClose = await pollPidsGone(discovery.pids, 2_000)
+  const kills = []
+  if (!afterCourtesyClose.allExited) {
+    if (process.platform === 'win32') {
+      const targets = afterCourtesyClose.remainingPids.includes(rootPid)
+        ? [rootPid]
+        : afterCourtesyClose.remainingPids
+      for (const pid of targets) {
+        kills.push(
+          command('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+            timeout: timeoutsMs.processTreeExitAfterKill
+          })
+        )
+      }
+    } else {
+      for (const pid of afterCourtesyClose.remainingPids) {
+        try {
+          process.kill(pid, 'SIGKILL')
+          kills.push({ pid, status: 0, signal: 'SIGKILL', error: null })
+        } catch (error) {
+          kills.push({ pid, status: null, signal: 'SIGKILL', error: errorText(error) })
+        }
+      }
+    }
+  }
+  const afterForcedCleanup = await pollPidsGone(discovery.pids, timeoutsMs.processTreeExitAfterKill)
+  return {
+    rootPid,
+    discovery,
+    courtesyClose,
+    afterCourtesyClose,
+    forcedKillResults: kills,
+    afterForcedCleanup,
+    successful: afterForcedCleanup.allExited
+  }
+}
+
+async function removePathWithRetries(targetPath, expectedParent) {
+  const resolvedTarget = path.resolve(targetPath)
+  const resolvedParent = path.resolve(expectedParent)
+  if (
+    resolvedTarget === resolvedParent ||
+    !resolvedTarget.startsWith(`${resolvedParent}${path.sep}`)
+  ) {
+    throw new Error(`Refused cleanup outside expected parent: ${resolvedTarget}`)
+  }
+  const attempts = []
+  for (let attempt = 1; attempt <= timeoutsMs.directoryCleanupAttempts; attempt++) {
+    try {
+      fs.rmSync(resolvedTarget, { recursive: true, force: true, maxRetries: 0 })
+      attempts.push({ attempt, error: null, existsAfter: fs.existsSync(resolvedTarget) })
+    } catch (error) {
+      attempts.push({
+        attempt,
+        error: errorText(error),
+        existsAfter: fs.existsSync(resolvedTarget)
+      })
+    }
+    if (!fs.existsSync(resolvedTarget)) {
+      return {
+        pathName: path.basename(resolvedTarget),
+        attempts,
+        removed: true,
+        boundedMaximumMs:
+          timeoutsMs.directoryCleanupAttempts * timeoutsMs.directoryCleanupRetryDelay
+      }
+    }
+    if (attempt < timeoutsMs.directoryCleanupAttempts) {
+      await delay(timeoutsMs.directoryCleanupRetryDelay)
+    }
+  }
+  return {
+    pathName: path.basename(resolvedTarget),
+    attempts,
+    removed: false,
+    isolation:
+      'retained under the unique OS-temporary trial root; harness aborts before next trial',
+    boundedMaximumMs: timeoutsMs.directoryCleanupAttempts * timeoutsMs.directoryCleanupRetryDelay
+  }
+}
+
+async function cleanupTrialPaths(trialRoot, profilePath, fixturePath) {
+  const temporaryRoot = os.tmpdir()
+  const profile = await removePathWithRetries(profilePath, trialRoot)
+  const fixtureFile = await removePathWithRetries(fixturePath, trialRoot)
+  const root = await removePathWithRetries(trialRoot, temporaryRoot)
+  return {
+    profile,
+    fixtureFile,
+    trialRoot: root,
+    successful: profile.removed && fixtureFile.removed && root.removed
+  }
+}
+
+async function runTrial(lineCount, repetition, variant) {
+  const trialRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), `marktext-source-${lineCount}-${variant}-${repetition}-`)
+  )
+  const fixturePath = path.join(trialRoot, `fixture-${lineCount}-${crypto.randomUUID()}.md`)
+  const profilePath = path.join(trialRoot, `profile-${crypto.randomUUID()}`)
+  const contents = fixture(lineCount)
+  fs.writeFileSync(fixturePath, contents, 'utf8')
+  fs.mkdirSync(profilePath)
+  let app
+  let rootPid
+  const trialStartedAtNodeMs = performance.now()
+  const result = {
+    lineCount,
+    repetition,
+    variant,
+    fixture: {
+      fileName: path.basename(fixturePath),
+      bytes: Buffer.byteLength(contents),
+      headings: Math.ceil(lineCount / 100),
+      bodyLines: lineCount - Math.ceil(lineCount / 100),
+      sha256: crypto.createHash('sha256').update(contents).digest('hex')
+    },
+    isolation: {
+      temporaryRootName: path.basename(trialRoot),
+      profileDirectoryName: path.basename(profilePath),
+      scope: 'unique fixture, profile, and OS-temporary root for this trial only'
+    }
+  }
+
+  try {
+    const launched = await boundedTotal(
+      'process launch through populated WYSIWYG editor readiness',
+      timeoutsMs.openThroughPopulatedEditorTotal,
+      async (deadline) => {
+        app = await _electron.launch({
+          executablePath: electronPath,
+          args: [desktopRoot, '--user-data-dir', profilePath, fixturePath],
+          cwd: desktopRoot,
+          env: { ...process.env, PERF_TESTING: 'true', MARKTEXT_ERROR_INTERACTION: '1' },
+          timeout: Math.min(40_000, deadline.remaining())
+        })
+        rootPid = app.process().pid
+        const firstPage = await app.firstWindow({ timeout: deadline.remaining() })
+        await firstPage.waitForLoadState('domcontentloaded', { timeout: deadline.remaining() })
+        await firstPage.waitForSelector('.editor-component', {
+          state: 'attached',
+          timeout: deadline.remaining()
+        })
+        await firstPage.waitForFunction(
+          () => {
+            const editor = document.querySelector('.editor-component')
+            return !!editor && editor.children.length > 0
+          },
+          null,
+          { timeout: deadline.remaining() }
+        )
+        return firstPage
+      }
+    )
+    const page = launched
+    result.openReadyMs = performance.now() - trialStartedAtNodeMs
+    result.openReadinessTimeoutMs = timeoutsMs.openThroughPopulatedEditorTotal
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('Performance.enable', { timeDomain: 'threadTicks' })
+    result.preSourceCadence = await boundedTotal('pre-source cadence', timeoutsMs.cadence, () =>
+      cadence(page)
+    )
+    result.preSourceMetrics = await appMetrics(app)
+    const marker = String.fromCharCode(113 + ((lineCount / 10_000 + repetition) % 8))
+    result.sourceReadiness = await triggerSourceAndFirstInput(app, page, cdp, variant, marker)
+    result.measuredEnvironment = await measuredEnvironment(page)
+    result.materialization = await materialization(page)
+    result.postInputMetrics = await appMetrics(app)
+    result.sourceIdleCadence = await boundedTotal('source idle cadence', timeoutsMs.cadence, () =>
+      cadence(page)
+    )
+    result.wheel = await boundedTotal('real Playwright wheel probe', timeoutsMs.wheel, () =>
+      wheelProbe(page)
+    )
+    result.postWheelMetrics = await appMetrics(app)
+    await cdp.detach()
+    result.measurementStatus = 'completed'
+  } catch (error) {
+    result.measurementStatus = 'capacity-limit-or-infrastructure-failure'
+    result.failure = errorText(error)
+    result.elapsedAtFailureMs = performance.now() - trialStartedAtNodeMs
+  } finally {
+    if (app && rootPid) {
+      result.processCleanup = await closeAndVerifyProcessTree(app, rootPid)
+    } else {
+      result.processCleanup = {
+        successful: true,
+        status: 'no Electron process handle was returned',
+        rootPid: rootPid || null
+      }
+    }
+    result.pathCleanup = await cleanupTrialPaths(trialRoot, profilePath, fixturePath)
+    result.cleanupSuccessful = result.processCleanup.successful && result.pathCleanup.successful
+    if (!result.cleanupSuccessful) result.harnessDisposition = 'abort-before-next-trial'
   }
   process.stdout.write(`${JSON.stringify(result)}\n`)
   return result
 }
 
-async function main() {
-  const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-source-capacity-fixtures-'))
-  const fixtureDirectoryName = path.basename(fixtureDir)
-  const fixtures = []
-  const results = []
-  try {
-    for (const lineCount of scales) {
-      const contents = fixture(lineCount)
-      const fixturePath = path.join(fixtureDir, `source-${lineCount}.md`)
-      fs.writeFileSync(fixturePath, contents, 'utf8')
-      fixtures.push({
-        lineCount,
-        bytes: Buffer.byteLength(contents),
-        headings: Math.ceil(lineCount / 100),
-        bodyLines: lineCount - Math.ceil(lineCount / 100),
-        sha256: require('node:crypto').createHash('sha256').update(contents).digest('hex')
-      })
-      for (let repetition = 1; repetition <= repetitions; repetition++) {
-        results.push(await runTrial(lineCount, repetition, fixturePath))
-      }
+function trialPlans() {
+  const plans = []
+  for (const lineCount of scales) {
+    for (let repetition = 1; repetition <= baselineRepetitions; repetition++) {
+      plans.push({ lineCount, repetition, variant: 'production-baseline' })
     }
-  } finally {
-    fs.rmSync(fixtureDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 })
+    plans.push({ lineCount, repetition: 1, variant: 'finite-viewport-init-hook' })
+    plans.push({ lineCount, repetition: 1, variant: 'finite-viewport-plus-fixed-height' })
+    plans.push({ lineCount, repetition: 1, variant: 'without-source-sync-handlers' })
   }
-  const artifact = {
+  return plans
+}
+
+function baseArtifact() {
+  const gitHead = gitText(['rev-parse', 'HEAD'])
+  return {
     recordedAt: new Date().toISOString(),
+    baseline: {
+      requiredStartingSha: expectedBaselineSha,
+      repositoryHeadAtRun: gitHead,
+      exactMatch: gitHead === expectedBaselineSha,
+      branchAtRun: gitText(['branch', '--show-current'])
+    },
+    build: {
+      type: 'local production Electron build',
+      applicationSource: 'unchanged production source at required baseline SHA',
+      buildCommand: 'pnpm --filter marktext build',
+      measurementCommand: [
+        'node',
+        '.scratch/wysiwyg-scroll-performance/source-large-document-capacity.cjs',
+        ...process.argv.slice(2)
+      ].join(' ')
+    },
     platform: process.platform,
     arch: process.arch,
     node: process.version,
@@ -399,39 +956,128 @@ async function main() {
     },
     machine: {
       cpuModel: os.cpus()[0]?.model || null,
-      logicalProcessors: os.cpus().length,
-      totalMemoryBytes: os.totalmem()
+      physicalMemoryBytes: os.totalmem(),
+      logicalProcessors: os.cpus().length
     },
-    fixtureIsolation: {
-      scope: 'harness-run',
-      temporaryDirectoryName: fixtureDirectoryName,
-      filesPerScale: 1,
-      profileScope: 'trial'
-    },
+    hypotheses: [
+      {
+        id: 'H1',
+        prediction:
+          'If Infinity viewport full DOM materialization dominates Source entry, changing viewportMargin to 10 in a CodeMirror init hook before the initial operation is committed will sharply reduce Source readiness, rendered nodes, memory growth, and wheel cost.'
+      },
+      {
+        id: 'H2',
+        prediction:
+          'If Source change/cursorActivity full-text synchronization dominates first-input latency, removing those production event handlers before the first real keydown will sharply reduce keydown-to-change/visible time and input ScriptDuration.'
+      },
+      {
+        id: 'H3',
+        prediction:
+          'If style/layout work dominates Source entry or input, DevTools LayoutDuration plus RecalcStyleDuration will exceed ScriptDuration in the matching bounded phase and scale materially from 10k to 50k.'
+      },
+      {
+        id: 'H4',
+        prediction:
+          'If disk loading/Markdown parsing dominates total time-to-use, the pre-Source populated-WYSIWYG phase will account for most scale growth; otherwise a separately large Source-trigger phase proves a Source-local remediation boundary exists.'
+      }
+    ],
     measurementProtocol: {
-      sourceReadiness:
-        'First real Playwright keydown to visible first-line DOM mutation, timed inside the renderer immediately after CodeMirror surface observation; focus/cursor preparation and driver round-trip are recorded separately, before environment, DOM, memory, cadence, or scroll sampling',
+      readiness:
+        'Armed before Source activation. One total deadline starts immediately before the Source menu command and covers CodeMirror creation, focus/cursor preparation, first Playwright keydown, CodeMirror change-state observation, and visible first-line DOM mutation.',
+      performanceAttribution:
+        'Chromium DevTools Performance domain counters are differenced separately for Source entry and the first input. ScriptDuration, LayoutDuration, RecalcStyleDuration, TaskDuration, counts, and ThreadTime are retained.',
+      optionalCpuProfile: cpuProfileEnabled
+        ? 'Enabled: V8 CPU samples are aggregated by call frame in separate Source-entry and first-input windows.'
+        : 'Disabled in the timing matrix to avoid profiler overhead; see the paired CPU-profile artifact.',
+      finiteViewportIntervention:
+        'Disposable trial-only CodeMirror init hook changes viewportMargin from Infinity to 10 before the constructor endOperation commits the initial display. No production source or saved preference is changed.',
+      finiteViewportFixedHeightIntervention:
+        'A separate trial holds finite viewportMargin constant and adds a trial-only fixed CodeMirror height before Source construction, changing viewport ownership relative to the finite-margin-only trial.',
+      sourceSyncHandlerIntervention:
+        'Disposable trial-only removal of CodeMirror change and cursorActivity listeners after Source mounts but before focus/cursor preparation and the first keydown. The measurement change listener is attached afterward.',
+      wheel:
+        'Eight real Playwright page.mouse.wheel inputs are dispatched over the Source container; renderer wheel trust, events, scroll movement, and timing are retained.',
       viewport:
-        'Measured per trial from the live Electron renderer; no requested or assumed viewport size',
-      postMaterializationViewportProbe:
-        'Post-materialization structural probe only; it tests whether changing viewportMargin to 10 removes already-rendered nodes and is not a performance or virtualization intervention'
+        'Measured from each live renderer; no requested or assumed viewport size is reported.'
+    },
+    interactionCoverage: {
+      wheel: 'Automated with Playwright page.mouse.wheel and renderer isTrusted capture.',
+      physicalScrollbarThumb: {
+        status: 'Unavailable / Pending manual',
+        reason:
+          'Protocol-generated pointer input cannot establish the behavior of a physical mouse grabbing the OS/Chromium scrollbar thumb on this host.',
+        manualSteps: [
+          'Run the production build and open each generated 10k and 50k fixture in a fresh profile.',
+          'Enter Source mode and wait until the first typed character is visibly accepted.',
+          'With a physical mouse, grab the Source vertical scrollbar thumb, drag to approximately 50%, then to the bottom, and back to the top.',
+          'Record whether the thumb tracks continuously, whether content visibly follows, the longest apparent freeze, final reachability, and any crash or lost input.',
+          'Repeat three times per scale and attach OS build, display scale, viewport, input device, and a timestamped screen recording.'
+        ]
+      }
     },
     fixtureDefinition:
       'UTF-8 LF; exactly N nonblank lines; every line 1 mod 100 is an ATX H1; remaining lines are unique fixed-shape plain text',
-    repetitions,
-    timeoutsMs: {
-      launch: 45000,
-      editorReady: 45000,
-      sourceEntry: 120000,
-      input: 20000,
-      scroll: 30000
-    },
-    fixtures,
-    results
+    isolation:
+      'Every trial creates a unique OS-temporary root containing one unique fixture filename and one unique Electron profile; verified cleanup must finish before the next trial starts.',
+    baselineRepetitions,
+    interventionRepetitionsPerVariantPerScale: 1,
+    requestedMaximumTrials: maxTrials,
+    requestedVariant,
+    requestedScale,
+    profilePairRequested,
+    cpuProfileEnabled,
+    timeoutsMs,
+    results: []
   }
+}
+
+function writeArtifact(artifact) {
   fs.mkdirSync(path.dirname(outputPath), { recursive: true })
   fs.writeFileSync(outputPath, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8')
-  process.stdout.write(`Wrote ${outputPath}\n`)
+}
+
+async function main() {
+  const artifact = baseArtifact()
+  if (!artifact.baseline.exactMatch) {
+    throw new Error(
+      `Refused measurement: HEAD ${artifact.baseline.repositoryHeadAtRun} != ${expectedBaselineSha}`
+    )
+  }
+  try {
+    let plans = trialPlans()
+    if (profilePairRequested) {
+      plans = plans.filter(
+        (plan) =>
+          plan.lineCount === 50_000 &&
+          ((plan.variant === 'production-baseline' && plan.repetition === 1) ||
+            plan.variant === 'finite-viewport-plus-fixed-height')
+      )
+    }
+    if (requestedVariant !== null) {
+      plans = plans.filter((plan) => plan.variant === requestedVariant)
+    }
+    if (requestedScale !== null) plans = plans.filter((plan) => plan.lineCount === requestedScale)
+    if (maxTrials !== null) plans = plans.slice(0, maxTrials)
+    for (const plan of plans) {
+      const result = await runTrial(plan.lineCount, plan.repetition, plan.variant)
+      artifact.results.push(result)
+      artifact.recordedAt = new Date().toISOString()
+      writeArtifact(artifact)
+      if (!result.cleanupSuccessful) {
+        throw new Error(
+          `Trial ${plan.lineCount}/${plan.variant}/${plan.repetition} cleanup failed; no next trial started`
+        )
+      }
+    }
+    artifact.runStatus = 'completed'
+  } catch (error) {
+    artifact.runStatus = 'aborted'
+    artifact.runFailure = errorText(error)
+    throw error
+  } finally {
+    artifact.recordedAt = new Date().toISOString()
+    writeArtifact(artifact)
+  }
 }
 
 main().catch((error) => {
