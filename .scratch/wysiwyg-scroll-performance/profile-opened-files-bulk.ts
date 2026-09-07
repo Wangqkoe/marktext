@@ -779,11 +779,18 @@ const runFreshBuild = () => {
     }
   }
   const startedAt = new Date().toISOString()
-  const result = spawnSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['run', 'build'], {
-    cwd: projectRoot,
-    encoding: 'utf8',
-    shell: false
-  })
+  const packageManagerScript = process.env.npm_execpath
+  const result = packageManagerScript
+    ? spawnSync(process.execPath, [packageManagerScript, 'run', 'build'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      shell: false
+    })
+    : spawnSync('pnpm', ['run', 'build'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      shell: process.platform === 'win32'
+    })
   const finishedAt = new Date().toISOString()
   const exitCode = result.status ?? 1
   return {
@@ -793,8 +800,8 @@ const runFreshBuild = () => {
     workingDirectory: projectRoot,
     startedAt,
     finishedAt,
-    stdoutTail: result.stdout.slice(-4000),
-    stderrTail: result.stderr.slice(-4000),
+    stdoutTail: (result.stdout ?? '').slice(-4000),
+    stderrTail: (result.stderr ?? '').slice(-4000),
     detail: result.error?.message ?? 'Build process completed.'
   }
 }
