@@ -1,7 +1,9 @@
 /* global MutationObserver, requestAnimationFrame */
 /* eslint-disable @stylistic/space-before-function-paren */
 
-const { _electron } = require('playwright')
+const cleanupSelfTestRequested = process.argv.includes('--self-test-cleanup')
+const { _electron } = cleanupSelfTestRequested ? { _electron: null } : require('playwright')
+const assert = require('node:assert/strict')
 const crypto = require('node:crypto')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -21,7 +23,18 @@ const outputPath = path.resolve(
     ? 'evidence/06-source-large-document-capacity.profile.raw.json'
     : 'evidence/06-source-large-document-capacity.raw.json'
 )
-const expectedBaselineSha = '175cf2e5e4a45b8c574a2b097725e5eb6a575976'
+const expectedBaselineSha = 'f15604cac0d7cc337bdb4d174157a89643854c53'
+const repositoryRoot = path.resolve(desktopRoot, '../..')
+const harnessRelativePath = '.scratch/wysiwyg-scroll-performance/source-large-document-capacity.cjs'
+const harnessPath = path.resolve(repositoryRoot, harnessRelativePath)
+const productionPathspecs = [
+  'packages',
+  'scripts',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'eslint.config.js'
+]
 const scales = [10_000, 50_000]
 const baselineRepetitions = 3
 const timeoutsMs = {
@@ -94,9 +107,58 @@ function command(commandName, args, options = {}) {
 }
 
 function gitText(args) {
-  const result = command('git', args, { cwd: path.resolve(desktopRoot, '../..') })
+  const result = command('git', args, { cwd: repositoryRoot })
   if (result.status !== 0) throw new Error(`${result.command} failed: ${result.stderr}`)
   return result.stdout
+}
+
+function commandSucceeded(result) {
+  return result.status === 0 && !result.signal && !result.timedOut && !result.error
+}
+
+function sha256Buffer(contents) {
+  return crypto.createHash('sha256').update(contents).digest('hex')
+}
+
+function sha256File(filePath) {
+  return sha256Buffer(fs.readFileSync(filePath))
+}
+
+function filesUnder(directory) {
+  const files = []
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name)
+    if (entry.isDirectory()) files.push(...filesUnder(entryPath))
+    else if (entry.isFile()) files.push(entryPath)
+  }
+  return files
+}
+
+function outManifest() {
+  const outRoot = path.join(desktopRoot, 'out')
+  if (!fs.existsSync(outRoot)) throw new Error(`Build output directory missing: ${outRoot}`)
+  const entries = filesUnder(outRoot)
+    .map((filePath) => ({
+      path: path.relative(outRoot, filePath).split(path.sep).join('/'),
+      bytes: fs.statSync(filePath).size,
+      sha256: sha256File(filePath)
+    }))
+    .sort((left, right) => left.path.localeCompare(right.path))
+  for (const requiredPrefix of ['main/', 'preload/', 'renderer/']) {
+    if (!entries.some((entry) => entry.path.startsWith(requiredPrefix))) {
+      throw new Error(`Build output manifest has no ${requiredPrefix} entry`)
+    }
+  }
+  const serialized = entries
+    .map((entry) => `${entry.sha256} ${entry.bytes} ${entry.path}`)
+    .join('\n')
+  return {
+    root: 'packages/desktop/out',
+    entryCount: entries.length,
+    algorithm: 'SHA-256 over sorted "file-sha256 bytes relative-path" lines',
+    bundleManifestSha256: sha256Buffer(`${serialized}\n`),
+    entries
+  }
 }
 
 async function boundedTotal(label, milliseconds, action) {
@@ -631,19 +693,35 @@ async function wheelProbe(page) {
   )
 }
 
-function windowsProcessTree(rootPid) {
-  const snapshot = command('powershell.exe', [
+function windowsProcessTree(rootPid, runCommand = command) {
+  const snapshot = runCommand('powershell.exe', [
     '-NoProfile',
     '-NonInteractive',
     '-Command',
     '@(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId) | ConvertTo-Json -Compress'
   ])
-  if (snapshot.status !== 0) {
-    return { method: 'Win32_Process parent traversal', snapshot, pids: [rootPid] }
+  if (!commandSucceeded(snapshot)) {
+    return {
+      method: 'Win32_Process parent traversal',
+      successful: false,
+      failure: 'Win32_Process inventory command failed',
+      snapshot,
+      pids: []
+    }
   }
   try {
     const parsed = JSON.parse(snapshot.stdout)
     const processes = Array.isArray(parsed) ? parsed : [parsed]
+    if (
+      !processes.length ||
+      processes.some(
+        (processInfo) =>
+          !Number.isSafeInteger(processInfo?.ProcessId) ||
+          !Number.isSafeInteger(processInfo?.ParentProcessId)
+      )
+    ) {
+      throw new Error('process inventory did not contain valid integer PID relationships')
+    }
     const pids = new Set([rootPid])
     let changed = true
     while (changed) {
@@ -657,94 +735,233 @@ function windowsProcessTree(rootPid) {
     }
     return {
       method: 'Win32_Process parent traversal',
+      successful: true,
       snapshot: { ...snapshot, stdout: '<process inventory parsed; omitted>' },
       pids: [...pids].sort((a, b) => a - b)
     }
   } catch (error) {
     return {
       method: 'Win32_Process parent traversal',
+      successful: false,
+      failure: 'Win32_Process inventory JSON could not be validated',
       snapshot: { ...snapshot, stdout: '<unparseable process inventory omitted>' },
       parseError: errorText(error),
-      pids: [rootPid]
+      pids: []
     }
   }
 }
 
-function processExists(pid) {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return error?.code === 'EPERM'
+function queryExistingPids(pids, runCommand = command, platform = process.platform) {
+  if (platform === 'win32') {
+    const snapshot = runCommand('powershell.exe', [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      '@(Get-CimInstance Win32_Process | Select-Object -ExpandProperty ProcessId) | ConvertTo-Json -Compress'
+    ])
+    if (!commandSucceeded(snapshot)) {
+      return {
+        successful: false,
+        failure: 'Win32_Process PID verification command failed',
+        snapshot,
+        existingPids: []
+      }
+    }
+    try {
+      const parsed = JSON.parse(snapshot.stdout)
+      const allPids = (Array.isArray(parsed) ? parsed : [parsed]).map(Number)
+      if (allPids.some((pid) => !Number.isSafeInteger(pid))) {
+        throw new Error('PID inventory contained a non-integer value')
+      }
+      const allPidSet = new Set(allPids)
+      return {
+        successful: true,
+        snapshot: { ...snapshot, stdout: '<PID inventory parsed; omitted>' },
+        existingPids: pids.filter((pid) => allPidSet.has(pid))
+      }
+    } catch (error) {
+      return {
+        successful: false,
+        failure: 'Win32_Process PID verification JSON could not be validated',
+        snapshot: { ...snapshot, stdout: '<unparseable PID inventory omitted>' },
+        parseError: errorText(error),
+        existingPids: []
+      }
+    }
   }
+
+  const existingPids = []
+  for (const pid of pids) {
+    try {
+      process.kill(pid, 0)
+      existingPids.push(pid)
+    } catch (error) {
+      if (error?.code === 'EPERM') existingPids.push(pid)
+      else if (error?.code !== 'ESRCH') {
+        return {
+          successful: false,
+          failure: `PID ${pid} verification failed`,
+          queryError: errorText(error),
+          existingPids
+        }
+      }
+    }
+  }
+  return { successful: true, existingPids }
 }
 
-async function pollPidsGone(pids, timeoutMs) {
+async function pollPidsGone(
+  pids,
+  timeoutMs,
+  queryPids = queryExistingPids,
+  wait = delay
+) {
   const startedAt = performance.now()
-  let remaining = pids.filter(processExists)
-  while (remaining.length && performance.now() - startedAt < timeoutMs) {
-    await delay(250)
-    remaining = pids.filter(processExists)
+  const queries = []
+  let query = queryPids(pids)
+  queries.push(query)
+  while (
+    query.successful &&
+    query.existingPids.length &&
+    performance.now() - startedAt < timeoutMs
+  ) {
+    await wait(Math.min(250, Math.max(1, timeoutMs - (performance.now() - startedAt))))
+    query = queryPids(pids)
+    queries.push(query)
   }
   return {
     checkedPids: pids,
     elapsedMs: performance.now() - startedAt,
-    remainingPids: remaining,
-    allExited: remaining.length === 0
+    queryCount: queries.length,
+    querySuccessful: query.successful,
+    queryFailure: query.successful ? null : query,
+    remainingPids: query.existingPids,
+    allExited: query.successful && query.existingPids.length === 0,
+    timedOut: query.successful && query.existingPids.length > 0
   }
 }
 
-async function closeAndVerifyProcessTree(app, rootPid) {
+function deadlineError(error) {
+  return errorText(error).includes('exceeded one total')
+}
+
+async function closeAndVerifyProcessTree(app, rootPid, operations = {}) {
+  const platform = operations.platform || process.platform
+  const runCommand = operations.command || command
+  const discover = operations.windowsProcessTree || windowsProcessTree
+  const poll = operations.pollPidsGone || pollPidsGone
   const discovery =
-    process.platform === 'win32'
-      ? windowsProcessTree(rootPid)
-      : { method: 'Electron application root process only', pids: [rootPid] }
+    platform === 'win32'
+      ? discover(rootPid, runCommand)
+      : { method: 'Electron application root process only', successful: true, pids: [rootPid] }
+  const cleanupErrors = []
+  if (!discovery.successful) cleanupErrors.push(discovery.failure)
+
   let courtesyClose
   try {
     await boundedTotal('Electron courtesy close', timeoutsMs.electronCloseGrace, () => app.close())
     courtesyClose = { status: 'resolved', timeoutMs: timeoutsMs.electronCloseGrace }
   } catch (error) {
     courtesyClose = {
-      status: 'failed-or-timed-out',
+      status: deadlineError(error) ? 'timed-out' : 'failed',
       timeoutMs: timeoutsMs.electronCloseGrace,
       error: errorText(error)
     }
   }
 
-  const afterCourtesyClose = await pollPidsGone(discovery.pids, 2_000)
-  const kills = []
-  if (!afterCourtesyClose.allExited) {
-    if (process.platform === 'win32') {
-      const targets = afterCourtesyClose.remainingPids.includes(rootPid)
-        ? [rootPid]
-        : afterCourtesyClose.remainingPids
-      for (const pid of targets) {
-        kills.push(
-          command('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
-            timeout: timeoutsMs.processTreeExitAfterKill
-          })
-        )
-      }
+  if (!discovery.successful) {
+    if (courtesyClose.status === 'timed-out') {
+      cleanupErrors.push('Electron courtesy close timed out after discovery failed')
+    } else if (courtesyClose.status === 'failed') {
+      cleanupErrors.push('Electron courtesy close failed after discovery failed')
+    }
+    return {
+      rootPid,
+      discovery,
+      courtesyClose,
+      afterCourtesyClose: { status: 'skipped-because-discovery-failed' },
+      beforeForcedKill: { status: 'skipped-because-discovery-failed' },
+      forcedKillResults: [],
+      afterForcedCleanup: { status: 'skipped-because-discovery-failed' },
+      cleanupErrors,
+      successful: false
+    }
+  }
+
+  const afterCourtesyClose = await poll(discovery.pids, 2_000)
+  if (!afterCourtesyClose.querySuccessful) {
+    cleanupErrors.push('PID verification after courtesy close failed')
+  }
+  if (courtesyClose.status === 'timed-out') {
+    cleanupErrors.push('Electron courtesy close timed out')
+  } else if (courtesyClose.status === 'failed') {
+    if (afterCourtesyClose.allExited) {
+      courtesyClose.status = 'already-exited-during-close'
+      courtesyClose.disposition =
+        'non-timeout close error accepted only because successful PID verification proved every discovered process already exited'
     } else {
-      for (const pid of afterCourtesyClose.remainingPids) {
+      cleanupErrors.push('Electron courtesy close failed while discovered processes remained')
+    }
+  }
+
+  const kills = []
+  let beforeForcedKill = {
+    status: afterCourtesyClose.allExited ? 'not-required-all-processes-exited' : 'pending'
+  }
+  if (afterCourtesyClose.querySuccessful && !afterCourtesyClose.allExited) {
+    beforeForcedKill = await poll(afterCourtesyClose.remainingPids, 0)
+    if (!beforeForcedKill.querySuccessful) {
+      cleanupErrors.push('PID verification immediately before forced kill failed')
+    } else if (!beforeForcedKill.allExited && platform === 'win32') {
+      const targets = beforeForcedKill.remainingPids.includes(rootPid)
+        ? [rootPid]
+        : beforeForcedKill.remainingPids
+      for (const pid of targets) {
+        const kill = runCommand('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
+          timeout: timeoutsMs.processTreeExitAfterKill
+        })
+        kills.push({ pid, ...kill, successful: commandSucceeded(kill) })
+      }
+    } else if (!beforeForcedKill.allExited) {
+      for (const pid of beforeForcedKill.remainingPids) {
         try {
           process.kill(pid, 'SIGKILL')
-          kills.push({ pid, status: 0, signal: 'SIGKILL', error: null })
+          kills.push({ pid, status: 0, signal: 'SIGKILL', error: null, successful: true })
         } catch (error) {
-          kills.push({ pid, status: null, signal: 'SIGKILL', error: errorText(error) })
+          kills.push({
+            pid,
+            status: null,
+            signal: 'SIGKILL',
+            error: errorText(error),
+            successful: false
+          })
         }
       }
     }
   }
-  const afterForcedCleanup = await pollPidsGone(discovery.pids, timeoutsMs.processTreeExitAfterKill)
+  if (kills.some((kill) => !kill.successful)) {
+    cleanupErrors.push('one or more forced-kill commands failed')
+  }
+
+  const afterForcedCleanup =
+    afterCourtesyClose.querySuccessful && beforeForcedKill.querySuccessful !== false
+      ? await poll(discovery.pids, timeoutsMs.processTreeExitAfterKill)
+      : { status: 'skipped-because-an-earlier-PID-query-failed', allExited: false }
+  if (afterForcedCleanup.querySuccessful === false) {
+    cleanupErrors.push('final PID verification failed')
+  } else if (afterForcedCleanup.timedOut) {
+    cleanupErrors.push('not all discovered PIDs exited within the bounded wait')
+  }
   return {
     rootPid,
     discovery,
     courtesyClose,
     afterCourtesyClose,
+    beforeForcedKill,
     forcedKillResults: kills,
     afterForcedCleanup,
-    successful: afterForcedCleanup.allExited
+    cleanupErrors,
+    successful: cleanupErrors.length === 0 && afterForcedCleanup.allExited === true
   }
 }
 
@@ -795,13 +1012,89 @@ async function removePathWithRetries(targetPath, expectedParent) {
 async function cleanupTrialPaths(trialRoot, profilePath, fixturePath) {
   const temporaryRoot = os.tmpdir()
   const profile = await removePathWithRetries(profilePath, trialRoot)
+  if (!profile.removed) {
+    return {
+      profile,
+      fixtureFile: { status: 'retained-after-earlier-path-cleanup-failure' },
+      trialRoot: { status: 'retained-after-earlier-path-cleanup-failure' },
+      successful: false
+    }
+  }
   const fixtureFile = await removePathWithRetries(fixturePath, trialRoot)
+  if (!fixtureFile.removed) {
+    return {
+      profile,
+      fixtureFile,
+      trialRoot: { status: 'retained-after-earlier-path-cleanup-failure' },
+      successful: false
+    }
+  }
   const root = await removePathWithRetries(trialRoot, temporaryRoot)
   return {
     profile,
     fixtureFile,
     trialRoot: root,
     successful: profile.removed && fixtureFile.removed && root.removed
+  }
+}
+
+async function finalizeTrialCleanup(resources, operations = {}) {
+  const closeProcesses = operations.closeAndVerifyProcessTree || closeAndVerifyProcessTree
+  const cleanupPaths = operations.cleanupTrialPaths || cleanupTrialPaths
+  let processCleanup
+  if (resources.app && resources.rootPid) {
+    processCleanup = await closeProcesses(resources.app, resources.rootPid)
+  } else if (!resources.app && !resources.rootPid) {
+    processCleanup = {
+      successful: true,
+      status: 'no Electron process handle was returned',
+      rootPid: null
+    }
+  } else {
+    processCleanup = {
+      successful: false,
+      status: 'incomplete Electron process identity',
+      rootPid: resources.rootPid || null
+    }
+  }
+
+  if (!processCleanup.successful) {
+    return {
+      processCleanup,
+      pathCleanup: {
+        status: 'skipped-and-retained-because-process-cleanup-was-not-verified',
+        successful: false,
+        retainedTrialRootName: path.basename(resources.trialRoot)
+      },
+      cleanupSuccessful: false,
+      harnessDisposition: 'abort-before-next-trial'
+    }
+  }
+
+  try {
+    const pathCleanup = await cleanupPaths(
+      resources.trialRoot,
+      resources.profilePath,
+      resources.fixturePath
+    )
+    return {
+      processCleanup,
+      pathCleanup,
+      cleanupSuccessful: pathCleanup.successful,
+      harnessDisposition: pathCleanup.successful ? 'continue' : 'abort-before-next-trial'
+    }
+  } catch (error) {
+    return {
+      processCleanup,
+      pathCleanup: {
+        status: 'failed-and-trial-root-retained',
+        successful: false,
+        retainedTrialRootName: path.basename(resources.trialRoot),
+        error: errorText(error)
+      },
+      cleanupSuccessful: false,
+      harnessDisposition: 'abort-before-next-trial'
+    }
   }
 }
 
@@ -866,6 +1159,14 @@ async function runTrial(lineCount, repetition, variant) {
       }
     )
     const page = launched
+    result.launchedRuntime = await app.evaluate(({ process }) => ({
+      execPath: process.execPath,
+      versions: process.versions
+    }))
+    result.rendererRuntime = await page.evaluate(() => ({
+      userAgent: navigator.userAgent,
+      platform: navigator.platform
+    }))
     result.openReadyMs = performance.now() - trialStartedAtNodeMs
     result.openReadinessTimeoutMs = timeoutsMs.openThroughPopulatedEditorTotal
     const cdp = await page.context().newCDPSession(page)
@@ -893,18 +1194,14 @@ async function runTrial(lineCount, repetition, variant) {
     result.failure = errorText(error)
     result.elapsedAtFailureMs = performance.now() - trialStartedAtNodeMs
   } finally {
-    if (app && rootPid) {
-      result.processCleanup = await closeAndVerifyProcessTree(app, rootPid)
-    } else {
-      result.processCleanup = {
-        successful: true,
-        status: 'no Electron process handle was returned',
-        rootPid: rootPid || null
-      }
-    }
-    result.pathCleanup = await cleanupTrialPaths(trialRoot, profilePath, fixturePath)
-    result.cleanupSuccessful = result.processCleanup.successful && result.pathCleanup.successful
-    if (!result.cleanupSuccessful) result.harnessDisposition = 'abort-before-next-trial'
+    const cleanup = await finalizeTrialCleanup({
+      app,
+      rootPid,
+      trialRoot,
+      profilePath,
+      fixturePath
+    })
+    Object.assign(result, cleanup)
   }
   process.stdout.write(`${JSON.stringify(result)}\n`)
   return result
@@ -923,30 +1220,134 @@ function trialPlans() {
   return plans
 }
 
+function repositoryIdentity() {
+  const repositoryHeadAtRun = gitText(['rev-parse', 'HEAD'])
+  const branchAtRun = gitText(['branch', '--show-current'])
+  const repositoryStatus = command(
+    'git',
+    ['status', '--porcelain=v1', '--untracked-files=all'],
+    { cwd: repositoryRoot }
+  )
+  const productionStatus = command(
+    'git',
+    ['status', '--porcelain=v1', '--untracked-files=all', '--', ...productionPathspecs],
+    { cwd: repositoryRoot }
+  )
+  const productionBaselineDiff = command(
+    'git',
+    ['diff', '--quiet', expectedBaselineSha, '--', ...productionPathspecs],
+    { cwd: repositoryRoot }
+  )
+  const harnessStatus = command(
+    'git',
+    ['status', '--porcelain=v1', '--untracked-files=all', '--', harnessRelativePath],
+    { cwd: repositoryRoot }
+  )
+  const harnessCommitSha = gitText(['log', '-1', '--format=%H', '--', harnessRelativePath])
+  return {
+    requiredStartingSha: expectedBaselineSha,
+    repositoryHeadAtRun,
+    branchAtRun,
+    repositoryCleanAtStart: commandSucceeded(repositoryStatus) && repositoryStatus.stdout === '',
+    repositoryStatus,
+    productionPathspecs,
+    productionPathsClean:
+      commandSucceeded(productionStatus) && productionStatus.stdout === '',
+    productionStatus,
+    productionPathsMatchRequiredStartingSha: productionBaselineDiff.status === 0,
+    productionBaselineDiff,
+    harnessPath: harnessRelativePath,
+    harnessClean: commandSucceeded(harnessStatus) && harnessStatus.stdout === '',
+    harnessStatus,
+    harnessCommitSha,
+    harnessCommitIsHead: harnessCommitSha === repositoryHeadAtRun,
+    harnessSha256: sha256File(harnessPath)
+  }
+}
+
+function verifyRepositoryIdentity(identity) {
+  const requirements = [
+    ['repository was clean before build and measurement', identity.repositoryCleanAtStart],
+    ['production paths were clean', identity.productionPathsClean],
+    ['production paths matched the required starting SHA', identity.productionPathsMatchRequiredStartingSha],
+    ['harness file was clean', identity.harnessClean],
+    ['HEAD was the commit that last changed the harness', identity.harnessCommitIsHead]
+  ]
+  const failures = requirements.filter(([, satisfied]) => !satisfied).map(([label]) => label)
+  if (failures.length) throw new Error(`Refused measurement: ${failures.join('; ')}`)
+}
+
+function executeAndIdentifyBuild() {
+  const buildCommandName = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+  const execution = command(buildCommandName, ['--filter', 'marktext', 'build'], {
+    cwd: repositoryRoot,
+    timeout: 300_000
+  })
+  if (!commandSucceeded(execution)) {
+    return {
+      type: 'local production Electron build',
+      applicationSource: 'verified clean production paths matching the required starting SHA',
+      execution,
+      status: 'failed',
+      successful: false
+    }
+  }
+
+  const electronVersionExecution = command(electronPath, ['--version'], {
+    cwd: desktopRoot,
+    timeout: 30_000
+  })
+  let manifest
+  try {
+    manifest = outManifest()
+  } catch (error) {
+    return {
+      type: 'local production Electron build',
+      applicationSource: 'verified clean production paths matching the required starting SHA',
+      execution,
+      status: 'failed-output-validation',
+      successful: false,
+      outputValidationError: errorText(error),
+      electronVersionExecution,
+      electronVersionCommandSuccessful: commandSucceeded(electronVersionExecution)
+    }
+  }
+  return {
+    type: 'local production Electron build',
+    applicationSource: 'verified clean production paths matching the required starting SHA',
+    execution,
+    status: 'completed',
+    successful: true,
+    electronVersionExecution,
+    electronVersionCommandSuccessful: commandSucceeded(electronVersionExecution),
+    outManifest: manifest
+  }
+}
+
 function baseArtifact() {
-  const gitHead = gitText(['rev-parse', 'HEAD'])
+  const identity = repositoryIdentity()
   return {
     recordedAt: new Date().toISOString(),
-    baseline: {
-      requiredStartingSha: expectedBaselineSha,
-      repositoryHeadAtRun: gitHead,
-      exactMatch: gitHead === expectedBaselineSha,
-      branchAtRun: gitText(['branch', '--show-current'])
-    },
+    baseline: identity,
     build: {
       type: 'local production Electron build',
-      applicationSource: 'unchanged production source at required baseline SHA',
-      buildCommand: 'pnpm --filter marktext build',
+      status: 'not-started',
       measurementCommand: [
         'node',
-        '.scratch/wysiwyg-scroll-performance/source-large-document-capacity.cjs',
+        harnessRelativePath,
         ...process.argv.slice(2)
       ].join(' ')
     },
-    platform: process.platform,
-    arch: process.arch,
-    node: process.version,
-    electron: require(path.join(desktopRoot, 'node_modules/electron/package.json')).version,
+    runtime: {
+      harnessNode: {
+        execPath: process.execPath,
+        versions: process.versions,
+        platform: process.platform,
+        arch: process.arch
+      },
+      launchedMainProcess: null,
+      launchedRenderer: null
+    },
     application: require(path.join(desktopRoot, 'package.json')).version,
     packageManager: require(path.resolve(desktopRoot, '../../package.json')).packageManager,
     operatingSystem: {
@@ -1036,14 +1437,195 @@ function writeArtifact(artifact) {
   fs.writeFileSync(outputPath, `${JSON.stringify(artifact, null, 2)}\n`, 'utf8')
 }
 
-async function main() {
-  const artifact = baseArtifact()
-  if (!artifact.baseline.exactMatch) {
-    throw new Error(
-      `Refused measurement: HEAD ${artifact.baseline.repositoryHeadAtRun} != ${expectedBaselineSha}`
-    )
+function verifiedPoll(remainingPids = []) {
+  return {
+    checkedPids: [100, 101],
+    elapsedMs: 0,
+    queryCount: 1,
+    querySuccessful: true,
+    queryFailure: null,
+    remainingPids,
+    allExited: remainingPids.length === 0,
+    timedOut: remainingPids.length > 0
   }
+}
+
+async function runCleanupSelfTests() {
+  const successfulDiscovery = {
+    method: 'self-test',
+    successful: true,
+    pids: [100, 101]
+  }
+  const commandFailure = {
+    command: 'self-test-command',
+    status: 1,
+    signal: null,
+    timedOut: false,
+    error: null,
+    stdout: '',
+    stderr: 'injected failure'
+  }
+  const commandSuccess = { ...commandFailure, status: 0, stderr: '' }
+  const cases = []
+
+  if (process.platform === 'win32') {
+    const liveDiscovery = windowsProcessTree(process.pid)
+    assert.equal(liveDiscovery.successful, true)
+    assert.equal(liveDiscovery.pids.includes(process.pid), true)
+    const liveQuery = queryExistingPids([process.pid, 2_147_483_647])
+    assert.equal(liveQuery.successful, true)
+    assert.deepEqual(liveQuery.existingPids, [process.pid])
+    cases.push('live Windows discovery and PID query distinguish present from absent processes')
+  }
+
+  const discoveryCommandFailure = windowsProcessTree(100, () => commandFailure)
+  assert.equal(discoveryCommandFailure.successful, false)
+  cases.push('process discovery command failure is fatal')
+
+  const discoveryParseFailure = windowsProcessTree(100, () => ({
+    ...commandSuccess,
+    stdout: '{not-json'
+  }))
+  assert.equal(discoveryParseFailure.successful, false)
+  cases.push('process discovery parse failure is fatal')
+
+  const discoveryFailure = await closeAndVerifyProcessTree(
+    { close: async () => {} },
+    100,
+    {
+      platform: 'win32',
+      windowsProcessTree: () => ({
+        method: 'self-test',
+        successful: false,
+        failure: 'injected discovery failure',
+        pids: []
+      })
+    }
+  )
+  assert.equal(discoveryFailure.successful, false)
+  cases.push('failed discovery cannot become successful cleanup')
+
+  const queryFailure = await closeAndVerifyProcessTree(
+    { close: async () => {} },
+    100,
+    {
+      platform: 'win32',
+      windowsProcessTree: () => successfulDiscovery,
+      pollPidsGone: async () => ({
+        ...verifiedPoll([]),
+        querySuccessful: false,
+        allExited: false,
+        queryFailure: 'injected query failure'
+      })
+    }
+  )
+  assert.equal(queryFailure.successful, false)
+  cases.push('PID query failure is fatal')
+
+  const killPolls = [verifiedPoll([100, 101]), verifiedPoll([100, 101]), verifiedPoll([])]
+  const killFailure = await closeAndVerifyProcessTree(
+    { close: async () => {} },
+    100,
+    {
+      platform: 'win32',
+      windowsProcessTree: () => successfulDiscovery,
+      pollPidsGone: async () => killPolls.shift(),
+      command: () => commandFailure
+    }
+  )
+  assert.equal(killFailure.afterForcedCleanup.allExited, true)
+  assert.equal(killFailure.successful, false)
+  cases.push('failed taskkill is fatal even when later verification finds no PIDs')
+
+  const timeoutPolls = [
+    verifiedPoll([100, 101]),
+    verifiedPoll([100, 101]),
+    verifiedPoll([101])
+  ]
+  const exitTimeout = await closeAndVerifyProcessTree(
+    { close: async () => {} },
+    100,
+    {
+      platform: 'win32',
+      windowsProcessTree: () => successfulDiscovery,
+      pollPidsGone: async () => timeoutPolls.shift(),
+      command: () => commandSuccess
+    }
+  )
+  assert.equal(exitTimeout.successful, false)
+  cases.push('bounded exit verification timeout is fatal')
+
+  const naturallyExited = await closeAndVerifyProcessTree(
+    {
+      close: async () => {
+        throw new Error('application was already closed')
+      }
+    },
+    100,
+    {
+      platform: 'win32',
+      windowsProcessTree: () => successfulDiscovery,
+      pollPidsGone: async () => verifiedPoll([]),
+      command: () => {
+        throw new Error('taskkill must not run for already-exited processes')
+      }
+    }
+  )
+  assert.equal(naturallyExited.successful, true)
+  assert.equal(naturallyExited.courtesyClose.status, 'already-exited-during-close')
+  cases.push('verified natural exit is accepted without taskkill')
+
+  let pathCleanupCalls = 0
+  const retained = await finalizeTrialCleanup(
+    {
+      app: { close: async () => {} },
+      rootPid: 100,
+      trialRoot: path.join(os.tmpdir(), 'self-test-retained-root'),
+      profilePath: 'unused',
+      fixturePath: 'unused'
+    },
+    {
+      closeAndVerifyProcessTree: async () => ({ successful: false }),
+      cleanupTrialPaths: async () => {
+        pathCleanupCalls++
+        return { successful: true }
+      }
+    }
+  )
+  assert.equal(pathCleanupCalls, 0)
+  assert.equal(retained.cleanupSuccessful, false)
+  assert.equal(
+    retained.pathCleanup.status,
+    'skipped-and-retained-because-process-cleanup-was-not-verified'
+  )
+  cases.push('failed process cleanup retains the trial root and aborts before the next trial')
+
+  process.stdout.write(`${JSON.stringify({ status: 'passed', cases }, null, 2)}\n`)
+}
+
+async function main() {
+  if (cleanupSelfTestRequested) {
+    await runCleanupSelfTests()
+    return
+  }
+  const artifact = baseArtifact()
   try {
+    verifyRepositoryIdentity(artifact.baseline)
+    artifact.build = {
+      ...artifact.build,
+      ...executeAndIdentifyBuild()
+    }
+    artifact.recordedAt = new Date().toISOString()
+    writeArtifact(artifact)
+    if (!artifact.build.successful) {
+      throw new Error(
+        `Build failed with status ${artifact.build.execution.status}: ${artifact.build.execution.stderr}`
+      )
+    }
+    if (!artifact.build.electronVersionCommandSuccessful) {
+      throw new Error('Built Electron runtime version command did not complete successfully')
+    }
+
     let plans = trialPlans()
     if (profilePairRequested) {
       plans = plans.filter(
@@ -1061,6 +1643,10 @@ async function main() {
     for (const plan of plans) {
       const result = await runTrial(plan.lineCount, plan.repetition, plan.variant)
       artifact.results.push(result)
+      if (!artifact.runtime.launchedMainProcess && result.launchedRuntime) {
+        artifact.runtime.launchedMainProcess = result.launchedRuntime
+        artifact.runtime.launchedRenderer = result.rendererRuntime
+      }
       artifact.recordedAt = new Date().toISOString()
       writeArtifact(artifact)
       if (!result.cleanupSuccessful) {
