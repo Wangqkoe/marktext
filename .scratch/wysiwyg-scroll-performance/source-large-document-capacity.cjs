@@ -1,3 +1,6 @@
+/* global MutationObserver, requestAnimationFrame */
+/* eslint-disable @stylistic/space-before-function-paren */
+
 const { _electron } = require('playwright')
 const fs = require('node:fs')
 const os = require('node:os')
@@ -32,7 +35,7 @@ async function bounded(label, milliseconds, action) {
   try {
     return await Promise.race([
       action(),
-      new Promise((_, reject) => {
+      new Promise((_resolve, reject) => {
         timer = setTimeout(
           () => reject(new Error(`${label} exceeded ${milliseconds} ms`)),
           milliseconds
@@ -74,6 +77,55 @@ async function materialization(page) {
           ? cm.getOption('viewportMargin')
           : String(cm.getOption('viewportMargin'))
         : null
+    }
+  })
+}
+
+async function measuredEnvironment(page) {
+  return await page.evaluate(() => {
+    const container = document.querySelector('.source-code')
+    const containerRect = container?.getBoundingClientRect()
+    const codeMirror = document.querySelector('.source-code .CodeMirror')
+    const codeMirrorRect = codeMirror?.getBoundingClientRect()
+
+    return {
+      window: {
+        outerWidth: window.outerWidth,
+        outerHeight: window.outerHeight,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio
+      },
+      layoutViewport: {
+        width: document.documentElement.clientWidth,
+        height: document.documentElement.clientHeight
+      },
+      visualViewport: window.visualViewport
+        ? {
+            width: window.visualViewport.width,
+            height: window.visualViewport.height,
+            scale: window.visualViewport.scale
+          }
+        : null,
+      sourceContainer: container
+        ? {
+            clientWidth: container.clientWidth,
+            clientHeight: container.clientHeight,
+            scrollWidth: container.scrollWidth,
+            scrollHeight: container.scrollHeight,
+            boundingWidth: containerRect.width,
+            boundingHeight: containerRect.height
+          }
+        : null,
+      codeMirror: codeMirror
+        ? {
+            clientWidth: codeMirror.clientWidth,
+            clientHeight: codeMirror.clientHeight,
+            boundingWidth: codeMirrorRect.width,
+            boundingHeight: codeMirrorRect.height
+          }
+        : null,
+      documentVisibility: document.visibilityState
     }
   })
 }
@@ -141,37 +193,73 @@ async function scrollProbe(page) {
   })
 }
 
-async function inputProbe(page, marker) {
-  await page.evaluate(() => {
+async function inputProbe(page, key, expectedText) {
+  const preparationStarted = performance.now()
+  await page.evaluate((visiblePrefix) => {
     const cmNode = document.querySelector('.source-code .CodeMirror')
     const cm = cmNode && cmNode.CodeMirror
     if (!cm) throw new Error('CodeMirror unavailable')
     cm.focus()
     cm.setCursor({ line: 0, ch: 0 })
-  })
-  const start = performance.now()
-  await page.keyboard.insertText(marker)
-  await page.waitForFunction(
-    (value) => {
-      const cmNode = document.querySelector('.source-code .CodeMirror')
-      const cm = cmNode && cmNode.CodeMirror
+    const input = cm.getInputField()
+    const code = document.querySelector('.source-code .CodeMirror-code')
+    if (!input || !code) throw new Error('CodeMirror input or visible code unavailable')
+
+    const probe = {
+      keydownAtMs: null,
+      visibleAtMs: null
+    }
+    window.__sourceFirstInputReadiness = probe
+    input.addEventListener(
+      'keydown',
+      () => {
+        probe.keydownAtMs = performance.now()
+      },
+      { capture: true, once: true }
+    )
+    const observer = new MutationObserver(() => {
       const firstLine = document.querySelector('.source-code .CodeMirror-line')
-      return (
-        !!cm && cm.getValue().startsWith(value) && (firstLine?.textContent || '').startsWith(value)
-      )
+      if ((firstLine?.textContent || '').startsWith(visiblePrefix)) {
+        probe.visibleAtMs = performance.now()
+        observer.disconnect()
+      }
+    })
+    observer.observe(code, { childList: true, characterData: true, subtree: true })
+  }, expectedText)
+  const preparationMs = performance.now() - preparationStarted
+  const driverStarted = performance.now()
+  await page.keyboard.press(key)
+  await page.waitForFunction(
+    () => {
+      const probe = window.__sourceFirstInputReadiness
+      return Number.isFinite(probe?.keydownAtMs) && Number.isFinite(probe?.visibleAtMs)
     },
-    marker,
+    null,
     { timeout: 15_000 }
   )
-  return performance.now() - start
+  const driverRoundTripMs = performance.now() - driverStarted
+  const rendererTiming = await page.evaluate(() => {
+    const probe = window.__sourceFirstInputReadiness
+    return {
+      keydownAtMs: probe.keydownAtMs,
+      visibleAtMs: probe.visibleAtMs,
+      inputEventToVisibleMs: probe.visibleAtMs - probe.keydownAtMs
+    }
+  })
+  return { preparationMs, driverRoundTripMs, ...rendererTiming }
 }
 
-async function runOne(lineCount, repetition, fixturePath) {
+async function runTrial(lineCount, repetition, fixturePath) {
   const profile = fs.mkdtempSync(
     path.join(os.tmpdir(), `marktext-source-capacity-${lineCount}-${repetition}-`)
   )
   let app
-  const result = { lineCount, repetition, profileIsolation: path.basename(profile) }
+  const result = {
+    lineCount,
+    repetition,
+    fixtureFileName: path.basename(fixturePath),
+    profileIsolation: path.basename(profile)
+  }
   const launchStarted = performance.now()
   try {
     app = await bounded('Electron launch', 45_000, () =>
@@ -214,13 +302,17 @@ async function runOne(lineCount, repetition, fixturePath) {
       null,
       { timeout: 120_000 }
     )
-    result.sourceEntryMs = performance.now() - sourceStarted
+    result.sourceSurfaceMs = performance.now() - sourceStarted
+    result.sourceSurfaceObservedAtMs = performance.now() - launchStarted
+    result.firstInputProbeStartedAtMs = performance.now() - launchStarted
+    result.firstInputReadiness = await bounded('first input readiness', 20_000, () =>
+      inputProbe(page, 'z', 'z')
+    )
+    result.firstPostInputSampleStartedAtMs = performance.now() - launchStarted
+    result.measuredEnvironment = await measuredEnvironment(page)
     result.baselineMaterialization = await materialization(page)
     result.baselineMetrics = await appMetrics(app)
     result.sourceIdleCadence = await bounded('source cadence', 8_000, () => cadence(page))
-    result.baselineInputVisibleMs = await bounded('baseline input', 20_000, () =>
-      inputProbe(page, `Z${repetition}`)
-    )
     result.baselineScroll = await bounded('baseline scroll probe', 30_000, () => scrollProbe(page))
 
     const interventionStarted = performance.now()
@@ -232,15 +324,8 @@ async function runOne(lineCount, repetition, fixturePath) {
       cm.refresh()
     })
     await page.waitForTimeout(500)
-    result.viewportInterventionMs = performance.now() - interventionStarted
-    result.finiteViewportMaterialization = await materialization(page)
-    result.finiteViewportMetrics = await appMetrics(app)
-    result.finiteViewportInputVisibleMs = await bounded('finite viewport input', 20_000, () =>
-      inputProbe(page, `Y${repetition}`)
-    )
-    result.finiteViewportScroll = await bounded('finite viewport scroll probe', 30_000, () =>
-      scrollProbe(page)
-    )
+    result.postMaterializationViewportProbeMs = performance.now() - interventionStarted
+    result.postMaterializationViewportProbe = await materialization(page)
     result.status = 'completed'
   } catch (error) {
     result.status = 'capacity-limit'
@@ -277,6 +362,7 @@ async function runOne(lineCount, repetition, fixturePath) {
 
 async function main() {
   const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-source-capacity-fixtures-'))
+  const fixtureDirectoryName = path.basename(fixtureDir)
   const fixtures = []
   const results = []
   try {
@@ -292,7 +378,7 @@ async function main() {
         sha256: require('node:crypto').createHash('sha256').update(contents).digest('hex')
       })
       for (let repetition = 1; repetition <= repetitions; repetition++) {
-        results.push(await runOne(lineCount, repetition, fixturePath))
+        results.push(await runTrial(lineCount, repetition, fixturePath))
       }
     }
   } finally {
@@ -304,7 +390,32 @@ async function main() {
     arch: process.arch,
     node: process.version,
     electron: require(path.join(desktopRoot, 'node_modules/electron/package.json')).version,
-    viewport: { width: 1280, height: 720 },
+    application: require(path.join(desktopRoot, 'package.json')).version,
+    packageManager: require(path.resolve(desktopRoot, '../../package.json')).packageManager,
+    operatingSystem: {
+      type: os.type(),
+      release: os.release(),
+      version: os.version()
+    },
+    machine: {
+      cpuModel: os.cpus()[0]?.model || null,
+      logicalProcessors: os.cpus().length,
+      totalMemoryBytes: os.totalmem()
+    },
+    fixtureIsolation: {
+      scope: 'harness-run',
+      temporaryDirectoryName: fixtureDirectoryName,
+      filesPerScale: 1,
+      profileScope: 'trial'
+    },
+    measurementProtocol: {
+      sourceReadiness:
+        'First real Playwright keydown to visible first-line DOM mutation, timed inside the renderer immediately after CodeMirror surface observation; focus/cursor preparation and driver round-trip are recorded separately, before environment, DOM, memory, cadence, or scroll sampling',
+      viewport:
+        'Measured per trial from the live Electron renderer; no requested or assumed viewport size',
+      postMaterializationViewportProbe:
+        'Post-materialization structural probe only; it tests whether changing viewportMargin to 10 removes already-rendered nodes and is not a performance or virtualization intervention'
+    },
     fixtureDefinition:
       'UTF-8 LF; exactly N nonblank lines; every line 1 mod 100 is an ATX H1; remaining lines are unique fixed-shape plain text',
     repetitions,

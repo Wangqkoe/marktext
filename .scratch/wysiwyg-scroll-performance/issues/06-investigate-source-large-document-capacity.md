@@ -4,16 +4,16 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** completed
+**Status:** completed (independent-review repair: corrected method, raw data, and bounded causal conclusions)
 
 - [x] Deterministic 10,000-line and 50,000-line Source fixtures are defined with document shape, byte size, line characteristics, and heading/content mix recorded.
-- [x] The reproduction records time to open the document, time to enter Source mode, readiness for input, DOM or editor materialization scale, memory pressure, scroll response, and representative input-to-visible-update latency.
-- [x] Each scenario is repeated enough to separate a stable problem from cold-start noise, and raw timing and profiling evidence is retained with application, runtime, machine, and idle-cadence context.
+- [x] The reproduction records time to open the document, time to create the Source surface, the first real keyboard `keydown` to visible DOM update before later sampling, DOM or editor materialization scale, memory pressure, and scroll response; focus/cursor preparation and driver round-trip remain separate readiness fields.
+- [x] Each scenario is repeated three times with an isolated profile to separate a stable scale problem from cold-start noise, and raw evidence retains application, runtime, machine, measured window/viewport/container geometry, fixture/profile isolation, ordering timestamps, and idle-cadence context.
 - [x] Bounded timeouts and failure states are reported as observed capacity limits rather than silently discarded or converted into scroll samples.
-- [x] Causal interventions distinguish editor materialization or viewport policy, document parsing/loading, renderer main-thread work, and unrelated WYSIWYG scroll reporting as far as the evidence permits.
+- [x] The causal account excludes the unrelated WYSIWYG scroll-report path and narrows the post-materialization viewport-option result, while explicitly leaving materialization, whole-document processing, parsing/loading, layout/paint, and GC attribution unknown where no discriminating intervention or profile exists.
 - [x] The investigation states whether 10,000 and 50,000 lines are usable, degraded, or unavailable, with severity tied to reproducibility and user-visible impact.
-- [x] The conclusion identifies confirmed causes, ruled-out causes, remaining uncertainty, and the smallest promising remediation seam.
-- [x] A follow-up recommendation says whether a repair specification is warranted and proposes its user-visible scope, acceptance measures, and non-goals.
+- [x] The conclusion identifies confirmed observations, ruled-out or narrowed explanations, remaining uncertainty, severity, and the smallest next diagnostic step without preselecting a virtualization seam.
+- [x] A follow-up recommendation says a user-visible repair specification is warranted, proposes acceptance measures and non-goals, and gates implementation-seam selection on causal profiling plus a pre-construction one-variable intervention.
 - [x] No production fix, speculative runtime framework, or unrelated refactor is implemented as part of this investigation.
 - [x] Findings remain independent from WYSIWYG acceptance unless direct evidence demonstrates a shared causal bottleneck.
 
