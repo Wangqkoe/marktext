@@ -865,9 +865,18 @@ const main = async () => {
       limitations: [
         'Windows-only unpackaged Electron measurement; installed packages and Linux/macOS are untested.',
         'CPU values are Electron process metrics, not total host CPU utilization.',
-        'projection-detached reaches document-ready through the same workspace snapshot milestone as every other scenario; its rows intentionally remain stale and are not compared as row-ready.'
+        'projection-detached reaches document-ready through the same workspace snapshot milestone as every other scenario; its rows intentionally remain stale and are not compared as row-ready.',
+        'Settled-input mode opens fixture 1 before the timed ready-batch so the real folder-backed Files UI is visible; the timed dispatch covers fixtures 2..N and final readiness requires exactly N Documents and rows.',
+        'Physical scrollbar-thumb and touchpad input are unavailable; automated pointer gestures are not classified as physical thumb acceptance.'
       ],
       environment: {
+        application: {
+          name: 'MarkText',
+          packageVersion: JSON.parse(
+            fs.readFileSync(path.join(desktopRoot, 'package.json'), 'utf8')
+          ).version,
+          launchMode: 'unpackaged Electron production bundle'
+        },
         buildType: 'production electron-vite build, unpackaged Electron test launch',
         platform: process.platform,
         arch: process.arch,
