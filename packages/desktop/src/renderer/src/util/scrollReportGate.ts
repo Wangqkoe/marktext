@@ -9,6 +9,7 @@ export interface ScrollReportFrameScheduler {
 
 export interface ScrollReportGate {
   request(scrollTop: number): void
+  cancelPending(): void
   flush(): void
   dispose(): number | undefined
 }
@@ -133,6 +134,14 @@ export const createScrollReportGate = (
       cancelDeferred()
       retryDelayMs = INITIAL_RETRY_DELAY_MS
       scheduleIdleCommit()
+    },
+    cancelPending() {
+      if (disposed) return
+      pendingScrollTop = undefined
+      uncommittedScrollTop = undefined
+      retryDelayMs = INITIAL_RETRY_DELAY_MS
+      cancelFrame()
+      cancelDeferred()
     },
     flush() {
       if (disposed || pendingScrollTop === undefined) return

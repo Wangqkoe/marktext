@@ -319,6 +319,10 @@ let imageViewer: SimpleImageViewer | null = null
 // The engine has no `scroll` event; we listen on the scroll container directly.
 let scrollHandler: ((e: Event) => void) | null = null
 let scrollReportGate: ScrollReportGate | undefined
+let cancelProgrammaticScroll: (() => void) | undefined
+let programmaticScrollGeneration = 0
+let programmaticScrollActive = false
+let completedProgrammaticScrollTop: number | undefined
 let paneScope: PaneEditorEventScope | undefined
 let paneSurface: PaneEditorSurface | undefined
 let rebindPaneGeneration: ((scope: PaneEditorEventScope | undefined) => void) | undefined
@@ -1233,6 +1237,37 @@ const handleUploadedImage = (url: unknown, deletionUrl?: unknown) => {
 const getScrollContainer = (): HTMLElement | null =>
   (editor.value?.domNode as HTMLElement | undefined) ?? null
 
+const stopProgrammaticScroll = () => {
+  programmaticScrollGeneration += 1
+  cancelProgrammaticScroll?.()
+  cancelProgrammaticScroll = undefined
+  programmaticScrollActive = false
+  completedProgrammaticScrollTop = undefined
+}
+
+const handleNativeScrollIntent = () => {
+  if (!programmaticScrollActive) return
+  stopProgrammaticScroll()
+  const scrollTop = getScrollContainer()?.scrollTop
+  if (scrollTop !== undefined && Number.isFinite(scrollTop)) scrollReportGate?.request(scrollTop)
+}
+
+const programmaticScrollTo = (container: HTMLElement, to: number, duration: number) => {
+  stopProgrammaticScroll()
+  scrollReportGate?.cancelPending()
+  const generation = programmaticScrollGeneration
+  programmaticScrollActive = true
+  cancelProgrammaticScroll = animatedScrollTo(container, to, duration, () => {
+    if (generation !== programmaticScrollGeneration) return
+    programmaticScrollActive = false
+    completedProgrammaticScrollTop = container.scrollTop
+    const gate = scrollReportGate
+    if (!gate || !Number.isFinite(container.scrollTop)) return
+    gate.request(container.scrollTop)
+    gate.flush()
+  })
+}
+
 // Viewport-relative caret rect (mirrors the engine's `Selection.getCursorCoords`
 // / legacy `cursorCoords`). Used for typewriter + keep-cursor-visible scrolling
 // when we are not inside a `selection-change` event (which already supplies it).
@@ -1257,7 +1292,7 @@ const scrollToCursor = (duration = 300) => {
     if (!container) return
     const y = getCursorY()
     if (y == null) return
-    animatedScrollTo(container, container.scrollTop + y - STANDAR_Y, duration)
+    programmaticScrollTo(container, container.scrollTop + y - STANDAR_Y, duration)
   })
 }
 
@@ -1293,7 +1328,7 @@ const scrollElementIntoView = (anchor: Element | null | undefined, duration = 30
   const container = getScrollContainer()
   if (!container || !anchor) return
   const { y } = anchor.getBoundingClientRect()
-  animatedScrollTo(container, container.scrollTop + y - STANDAR_Y, duration)
+  programmaticScrollTo(container, container.scrollTop + y - STANDAR_Y, duration)
 }
 
 const scrollToHighlight = () => {
@@ -2031,6 +2066,10 @@ onMounted(() => {
   }
 
   const container = getScrollContainer()!
+  container.addEventListener('wheel', handleNativeScrollIntent, { passive: true })
+  container.addEventListener('touchstart', handleNativeScrollIntent, { passive: true })
+  container.addEventListener('pointerdown', handleNativeScrollIntent, { passive: true })
+  container.addEventListener('keydown', handleNativeScrollIntent)
 
   // Listen for language changes and update the engine locale.
   onFocused('language-changed', handleLanguageChanged)
@@ -2082,6 +2121,7 @@ onMounted(() => {
 
   const installGenerationCallbacks = (scope: PaneEditorEventScope | undefined) => {
     if (!editor.value) return
+    stopProgrammaticScroll()
     if (jsonChangeListener) editor.value.off('json-change', jsonChangeListener)
     if (selectionChangeListener) editor.value.off('selection-change', selectionChangeListener)
     if (scrollHandler) container.removeEventListener('scroll', scrollHandler)
@@ -2128,7 +2168,15 @@ onMounted(() => {
       (scrollTop) => scope.report({ scrollTop })
     )
     scrollReportGate = generationScrollReportGate
-    scrollHandler = () => generationScrollReportGate.request(container.scrollTop)
+    scrollHandler = () => {
+      if (programmaticScrollActive) return
+      if (Object.is(completedProgrammaticScrollTop, container.scrollTop)) {
+        completedProgrammaticScrollTop = undefined
+        return
+      }
+      completedProgrammaticScrollTop = undefined
+      generationScrollReportGate.request(container.scrollTop)
+    }
     selectionChangeListener = (changes: MuyaChange) => {
       if (!editor.value || applyingSourceHistory) return
       const cursor = controllerCursor()
@@ -2200,7 +2248,7 @@ onMounted(() => {
 
         // Prevent micro shakes and unnecessary scrolling.
         if (Math.abs(startPosition - toPosition) > 2) {
-          animatedScrollTo(container, toPosition, 100)
+          programmaticScrollTo(container, toPosition, 100)
         }
       }
 
@@ -2208,11 +2256,11 @@ onMounted(() => {
       if (container.clientHeight - y < 100) {
         // editableHeight is the lowest cursor position(till to top) that editor allowed.
         const editableHeight = container.clientHeight - 100
-        animatedScrollTo(container, container.scrollTop + (y - editableHeight), 0)
+        programmaticScrollTo(container, container.scrollTop + (y - editableHeight), 0)
       } else if (y < 100) {
         // Symmetric to #628: scroll up when the cursor rises above the top edge
         // (e.g. Arrow-Up), otherwise the caret leaves the viewport (#3329).
-        animatedScrollTo(container, container.scrollTop + (y - 100), 0)
+        programmaticScrollTo(container, container.scrollTop + (y - 100), 0)
       }
     }
 
@@ -2233,6 +2281,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  stopProgrammaticScroll()
   caretReporter.cancel()
   offFocused('file-loaded')
   offFocused('invalidate-image-cache')
@@ -2276,6 +2325,11 @@ onBeforeUnmount(() => {
     const container = getScrollContainer()
     container?.removeEventListener('scroll', scrollHandler)
   }
+  const container = getScrollContainer()
+  container?.removeEventListener('wheel', handleNativeScrollIntent)
+  container?.removeEventListener('touchstart', handleNativeScrollIntent)
+  container?.removeEventListener('pointerdown', handleNativeScrollIntent)
+  container?.removeEventListener('keydown', handleNativeScrollIntent)
   scrollHandler = null
   scrollReportGate?.flush()
   const finalScrollTop = scrollReportGate?.dispose()

@@ -272,6 +272,39 @@ describe('scroll report frequency', () => {
     workspace.dispose()
   })
 
+  it('lets a programmatic destination supersede an older idle candidate', async() => {
+    const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
+    const composition = createPaneEditorComposition({ paneId: 'left', controller: workspace })
+    const surface = new LifecyclePaneSurface()
+    await composition.mount(surface, { id: 'note', markdown: 'body', title: 'note' })
+    const scope = composition.getScope()
+    if (!scope) throw new Error('expected a mounted pane scope')
+    const listener = vi.fn()
+    const unsubscribe = workspace.subscribe(listener)
+    const scheduler = new ManualFrameScheduler()
+    const report = vi.fn((scrollTop: number) => scope.report({ scrollTop }))
+    const gate = createScrollReportGate(report, scheduler)
+
+    gate.request(40)
+    gate.cancelPending()
+    gate.request(90)
+    gate.flush()
+    scheduler.fireCapturedDeferred()
+    scheduler.fireCaptured()
+
+    expect(report.mock.calls).toEqual([[90]])
+    expect(listener).toHaveBeenCalledOnce()
+    expect(
+      workspace.getFacadeSnapshot().documents.find((document) => document.viewId === scope.viewId)
+        ?.scrollTop
+    ).toBe(90)
+
+    gate.dispose()
+    unsubscribe()
+    composition.unmount(surface)
+    workspace.dispose()
+  })
+
   it('does not let a non-finite observation replace the latest finite scroll position', async() => {
     const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
     const binding = await workspace.bindPaneEditor('left', new MemoryEditor())

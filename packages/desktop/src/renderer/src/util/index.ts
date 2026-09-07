@@ -140,15 +140,18 @@ export const animatedScrollTo = function(
   to: number,
   duration: number,
   callback?: () => void
-): void {
+): () => void {
   const start = element.scrollTop
   const change = to - start
   const animationStart = +new Date()
+  let frameHandle: number | undefined
+  let cancelled = false
 
   // Prevent animation on small steps or duration is 0
   if (Math.abs(change) <= 6 || duration === 0) {
     element.scrollTop = to
-    return
+    callback?.()
+    return () => undefined
   }
 
   const easeInOutQuad = function(t: number, b: number, c: number, d: number): number {
@@ -159,6 +162,7 @@ export const animatedScrollTo = function(
   }
 
   const animateScroll = function(): void {
+    if (cancelled) return
     const now = +new Date()
     const val = Math.floor(easeInOutQuad(now - animationStart, start, change, duration))
 
@@ -170,11 +174,15 @@ export const animatedScrollTo = function(
         callback()
       }
     } else {
-      requestAnimationFrame(animateScroll)
+      frameHandle = requestAnimationFrame(animateScroll)
     }
   }
 
-  requestAnimationFrame(animateScroll)
+  frameHandle = requestAnimationFrame(animateScroll)
+  return () => {
+    cancelled = true
+    if (frameHandle !== undefined) cancelAnimationFrame(frameHandle)
+  }
 }
 
 export const getUniqueId = (): string => {
