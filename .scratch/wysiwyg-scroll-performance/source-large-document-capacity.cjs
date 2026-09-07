@@ -1153,7 +1153,7 @@ async function runTrial(lineCount, repetition, variant) {
       }
     )
     const page = launched
-    result.launchedRuntime = await app.evaluate(({ process }) => ({
+    result.launchedRuntime = await app.evaluate(() => ({
       execPath: process.execPath,
       versions: process.versions
     }))
