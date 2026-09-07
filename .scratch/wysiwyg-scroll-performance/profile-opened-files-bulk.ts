@@ -1,5 +1,4 @@
 /* eslint-disable @stylistic/space-before-function-paren */
-import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -10,6 +9,11 @@ import {
   waitForEditor,
   waitForMenuReady
 } from '../../packages/desktop/test/e2e/helpers'
+import {
+  buildPowerShellReproduction,
+  captureMeasurementIdentity,
+  type RuntimeVersions
+} from './opened-files-evidence-identity'
 
 type Scenario =
   | 'baseline'
@@ -35,27 +39,33 @@ interface BulkSample {
   readonly totalWorkingSetKb: number
 }
 
-const counts = (process.env.OPENED_FILES_COUNTS ?? '20,100')
+const countsSetting = process.env.OPENED_FILES_COUNTS ?? '20,100'
+const trialsSetting = process.env.OPENED_FILES_TRIALS ?? '1'
+const scenariosSetting = process.env.OPENED_FILES_SCENARIOS ?? 'baseline'
+const deliverySetting =
+  process.env.OPENED_FILES_DELIVERY === 'ready-batch' ? 'ready-batch' : 'startup'
+const feedbackAssertSetting = process.env.OPENED_FILES_FEEDBACK_ASSERT === '1' ? '1' : '0'
+const outputSetting =
+  process.env.OPENED_FILES_OUTPUT ??
+  '.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-bulk.json'
+const applicationSourceRevision =
+  process.env.OPENED_FILES_APPLICATION_SOURCE_SHA ??
+  '303dfa39b84b5bffedd9271b27cefbf34be66753'
+const counts = countsSetting
   .split(',')
   .map((value) => Number(value))
   .filter((value) => Number.isInteger(value) && value > 0)
-const trials = Number(process.env.OPENED_FILES_TRIALS ?? '1')
-const scenarios = (process.env.OPENED_FILES_SCENARIOS ?? 'baseline')
+const trials = Number(trialsSetting)
+const scenarios = scenariosSetting
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean) as Scenario[]
-const feedbackAssert = process.env.OPENED_FILES_FEEDBACK_ASSERT === '1'
-const delivery = process.env.OPENED_FILES_DELIVERY === 'ready-batch' ? 'ready-batch' : 'startup'
-const outputPath = path.resolve(
-  process.env.OPENED_FILES_OUTPUT ??
-    '.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw-bulk.json'
-)
+const feedbackAssert = feedbackAssertSetting === '1'
+const delivery = deliverySetting
+const outputPath = path.resolve(outputSetting)
 const projectRoot = path.resolve(__dirname, '../..')
 const desktopRoot = path.join(projectRoot, 'packages', 'desktop')
-const baselineSha = execFileSync('git', ['rev-parse', 'HEAD'], {
-  cwd: projectRoot,
-  encoding: 'utf8'
-}).trim()
+const scriptPath = '.scratch/wysiwyg-scroll-performance/profile-opened-files-bulk.ts'
 
 const median = (values: readonly number[]): number | null => {
   if (!values.length) return null
@@ -154,32 +164,17 @@ const readStructure = (page: Page) =>
     }
   })
 
-const readLightCounts = (page: Page, scenario: Scenario) =>
-  page.evaluate((activeScenario) => {
-    const app = document.querySelector('#app') as
-      | (Element & { __vue_app__?: { config?: { globalProperties?: Record<string, unknown> } } })
-      | null
-    const pinia = app?.__vue_app__?.config?.globalProperties?.$pinia as
-      | { _s?: Map<string, Record<string, unknown>> }
-      | undefined
-    const editor = pinia?._s?.get('editor') as { tabs?: unknown[] } | undefined
-    if (activeScenario !== 'projection-detached') {
-      return {
-        observedDocuments: editor?.tabs?.length ?? -1,
-        openedRows: document.querySelectorAll('.opened-files-list .opened-file').length,
-        observationMethod: 'Pinia editor tabs length'
-      }
-    }
+const readLightCounts = (page: Page) =>
+  page.evaluate(() => {
     const driver = window as typeof window & {
       __mtWorkspaceSnapshot?: () => { documents: unknown[] }
     }
     return {
       observedDocuments: driver.__mtWorkspaceSnapshot?.().documents.length ?? -1,
       openedRows: document.querySelectorAll('.opened-files-list .opened-file').length,
-      observationMethod:
-        'workspace facade snapshot because the Pinia projection consumer is detached'
+      observationMethod: 'workspace facade snapshot document count'
     }
-  }, scenario)
+  })
 
 const readMainProbe = (app: ElectronApplication) =>
   app.evaluate(() => {
@@ -394,6 +389,12 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
       env,
       timeout: 30000
     })
+    const runtimeVersions = (await app.evaluate(() => ({
+      electron: process.versions.electron,
+      node: process.versions.node,
+      chromium: process.versions.chrome,
+      executablePath: process.execPath
+    }))) as RuntimeVersions
     await installMainProbe(app, scenario === 'watchers-disabled')
     const page = await app.firstWindow()
     await installWindowSendProbe(app)
@@ -424,7 +425,7 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
     let lastObservedDocuments = -1
     let reachedExactCount = false
     while (Date.now() < deadline) {
-      const observed = await readLightCounts(page, scenario)
+      const observed = await readLightCounts(page)
       observedDocuments = observed.observedDocuments
       openedRows = observed.openedRows
       observationMethod = observed.observationMethod
@@ -450,7 +451,9 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
       })
       await page.waitForTimeout(250)
     }
-    const exactReadyMs = reachedExactCount ? nodePerformance.now() - measurementStarted : null
+    const exactDocumentReadyMs = reachedExactCount
+      ? nodePerformance.now() - measurementStarted
+      : null
     const bulkProfile = await stopProfile(session)
     await page.waitForTimeout(1000)
     const settledAtMs = nodePerformance.now() - measurementStarted
@@ -489,8 +492,8 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
       },
       delivery,
       observationMethod,
-      reachedExactCount,
-      exactReadyMs,
+      reachedExactDocumentCount: reachedExactCount,
+      exactDocumentReadyMs,
       settledAtMs,
       finalStructure: structure,
       observedWindows,
@@ -499,7 +502,8 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
       settledMetrics,
       bulkProfile,
       consoleErrors,
-      rendererErrors
+      rendererErrors,
+      runtimeVersions
     }
   } finally {
     if (app) await app.close().catch(() => undefined)
@@ -517,9 +521,34 @@ const runTrial = async (count: number, trial: number, scenario: Scenario) => {
   }
 }
 
+let persistFailure: ((error: unknown) => void) | null = null
+
 const main = async () => {
   const startedAt = new Date().toISOString()
   const results: Awaited<ReturnType<typeof runTrial>>[] = []
+  const measurementIdentity = captureMeasurementIdentity(
+    projectRoot,
+    applicationSourceRevision,
+    getElectronPath()
+  )
+  const reproduction = buildPowerShellReproduction(projectRoot, scriptPath, {
+    OPENED_FILES_APPLICATION_SOURCE_SHA: measurementIdentity.applicationSourceSha,
+    OPENED_FILES_COUNTS: countsSetting,
+    OPENED_FILES_TRIALS: trialsSetting,
+    OPENED_FILES_SCENARIOS: scenariosSetting,
+    OPENED_FILES_DELIVERY: deliverySetting,
+    OPENED_FILES_FEEDBACK_ASSERT: feedbackAssertSetting,
+    OPENED_FILES_OUTPUT: outputSetting
+  })
+  let execution: {
+    status: 'Running' | 'Passed' | 'Failed'
+    exitCode: number | null
+    detail: string
+  } = {
+    status: 'Running',
+    exitCode: null,
+    detail: 'Measurement is in progress; partial results are retained after each completed trial.'
+  }
   let feedbackAssessment:
     | {
       lowerCount: number
@@ -534,11 +563,21 @@ const main = async () => {
   const persist = (finishedAt: string | null) => {
     const cpu = os.cpus()
     const output = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       startedAt,
       finishedAt,
+      measurementIdentity: {
+        ...measurementIdentity,
+        runtimeVersions: results[0]?.runtimeVersions ?? null
+      },
+      reproduction,
+      execution,
+      limitations: [
+        'Windows-only unpackaged Electron measurement; installed packages and Linux/macOS are untested.',
+        'CPU values are Electron process metrics, not total host CPU utilization.',
+        'projection-detached reaches document-ready through the same workspace snapshot milestone as every other scenario; its rows intentionally remain stale and are not compared as row-ready.'
+      ],
       environment: {
-        baselineSha,
         buildType: 'production electron-vite build, unpackaged Electron test launch',
         platform: process.platform,
         arch: process.arch,
@@ -548,8 +587,7 @@ const main = async () => {
         cpuModel: cpu[0]?.model ?? 'unknown',
         logicalProcessorCount: cpu.length,
         totalRamBytes: os.totalmem(),
-        node: process.version,
-        electron: '42.1.0',
+        harnessNode: process.version,
         configuredContentViewport: { width: 1280, height: 720 },
         automation: 'Playwright-controlled Electron window',
         headless: false
@@ -560,7 +598,7 @@ const main = async () => {
       delivery,
       feedbackPolicy: {
         description:
-          'RED when the 100-file median latency per requested file is more than 1.5 times the lower-count median latency per requested file; INCOMPLETE when an exact set is unavailable.',
+          'RED when the 100-file median document-ready latency per requested file is more than 1.5 times the lower-count median document-ready latency per requested file; INCOMPLETE when an exact workspace document set is unavailable.',
         maximumNormalizedSlowdown: 1.5
       },
       feedbackAssessment,
@@ -568,6 +606,14 @@ const main = async () => {
     }
     fs.mkdirSync(path.dirname(outputPath), { recursive: true })
     fs.writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8')
+  }
+  persistFailure = (error) => {
+    execution = {
+      status: 'Failed',
+      exitCode: 1,
+      detail: error instanceof Error ? error.message : String(error)
+    }
+    persist(new Date().toISOString())
   }
   for (const scenario of scenarios) {
     for (const count of counts) {
@@ -578,8 +624,8 @@ const main = async () => {
         const result = await runTrial(count, trial, scenario)
         results.push(result)
         process.stdout.write(
-          `result ${scenario}/${count}: exact=${result.reachedExactCount} ` +
-            `ready=${result.exactReadyMs?.toFixed(1) ?? 'timeout'}ms ` +
+          `result ${scenario}/${count}: exact=${result.reachedExactDocumentCount} ` +
+            `documentReady=${result.exactDocumentReadyMs?.toFixed(1) ?? 'timeout'}ms ` +
             `documents=${result.finalStructure.workspaceDocuments} rows=${result.finalStructure.openedRows}\n`
         )
         persist(null)
@@ -590,11 +636,11 @@ const main = async () => {
     const baseline = results.filter((result) => result.scenario === 'baseline')
     const lowerCount = Math.min(...counts)
     const lowerValues = baseline
-      .filter((result) => result.count === lowerCount && result.exactReadyMs !== null)
-      .map((result) => result.exactReadyMs as number)
+      .filter((result) => result.count === lowerCount && result.exactDocumentReadyMs !== null)
+      .map((result) => result.exactDocumentReadyMs as number)
     const hundredValues = baseline
-      .filter((result) => result.count === 100 && result.exactReadyMs !== null)
-      .map((result) => result.exactReadyMs as number)
+      .filter((result) => result.count === 100 && result.exactDocumentReadyMs !== null)
+      .map((result) => result.exactDocumentReadyMs as number)
     const lowerMedianMs = median(lowerValues)
     const hundredMedianMs = median(hundredValues)
     const scaleRatio = 100 / lowerCount
@@ -613,7 +659,7 @@ const main = async () => {
         normalizedSlowdown: null,
         verdict: 'INCOMPLETE'
       }
-      process.stderr.write('FEEDBACK RED: an exact requested set did not become ready\n')
+      process.stderr.write('FEEDBACK RED: an exact workspace document set did not become ready\n')
       process.exitCode = 1
     } else {
       const latencyRatio = hundredMedianMs / lowerMedianMs
@@ -637,11 +683,27 @@ const main = async () => {
       if (red) process.exitCode = 1
     }
   }
+  execution =
+    process.exitCode === 1
+      ? {
+        status: 'Failed',
+        exitCode: 1,
+        detail:
+            feedbackAssessment?.verdict === 'RED'
+              ? 'The command completed all trials and exited 1 because the retained feedback assertion is RED.'
+              : 'The command completed with a failed or incomplete feedback assertion.'
+      }
+      : {
+        status: 'Passed',
+        exitCode: 0,
+        detail: 'The command completed every configured measurement trial.'
+      }
   persist(new Date().toISOString())
   process.stdout.write(`wrote ${outputPath}\n`)
 }
 
 main().catch((error) => {
+  persistFailure?.(error)
   console.error(error)
   process.exitCode = 1
 })

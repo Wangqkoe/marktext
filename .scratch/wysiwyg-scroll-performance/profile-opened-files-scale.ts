@@ -1,30 +1,37 @@
 /* eslint-disable @stylistic/space-before-function-paren */
-import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { performance as nodePerformance } from 'node:perf_hooks'
 import type { CDPSession, ElectronApplication, Page } from 'playwright'
 import {
+  getElectronPath,
   launchElectron,
   waitForEditor,
   waitForMenuReady
 } from '../../packages/desktop/test/e2e/helpers'
+import {
+  buildPowerShellReproduction,
+  captureMeasurementIdentity,
+  type RuntimeVersions
+} from './opened-files-evidence-identity'
 
-const counts = (process.env.OPENED_FILES_COUNTS ?? '10,50,100,150')
+const countsSetting = process.env.OPENED_FILES_COUNTS ?? '10,50,100,150'
+const trialsSetting = process.env.OPENED_FILES_TRIALS ?? '3'
+const outputSetting =
+  process.env.OPENED_FILES_OUTPUT ??
+  '.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw.json'
+const applicationSourceRevision =
+  process.env.OPENED_FILES_APPLICATION_SOURCE_SHA ??
+  '303dfa39b84b5bffedd9271b27cefbf34be66753'
+const counts = countsSetting
   .split(',')
   .map((value) => Number(value))
   .filter((value) => Number.isInteger(value) && value > 0)
-const trials = Number(process.env.OPENED_FILES_TRIALS ?? '3')
-const outputPath = path.resolve(
-  process.env.OPENED_FILES_OUTPUT ??
-    '.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw.json'
-)
+const trials = Number(trialsSetting)
+const outputPath = path.resolve(outputSetting)
 const projectRoot = path.resolve(__dirname, '../..')
-const baselineSha = execFileSync('git', ['rev-parse', 'HEAD'], {
-  cwd: projectRoot,
-  encoding: 'utf8'
-}).trim()
+const scriptPath = '.scratch/wysiwyg-scroll-performance/profile-opened-files-scale.ts'
 
 const fixtureBody = (index: number): string =>
   `# Opened file ${String(index).padStart(3, '0')}\n\n` +
@@ -176,6 +183,12 @@ const runTrial = async (count: number, trial: number) => {
       suppressErrorDialog: true
     })
     app = launched.app
+    const runtimeVersions = (await app.evaluate(() => ({
+      electron: process.versions.electron,
+      node: process.versions.node,
+      chromium: process.versions.chrome,
+      executablePath: process.execPath
+    }))) as RuntimeVersions
     let page = launched.page
     await page.setViewportSize({ width: 1280, height: 720 })
     await waitForEditor(page, 30000)
@@ -407,6 +420,7 @@ const runTrial = async (count: number, trial: number) => {
       projectionWithRows,
       projectionWithoutRows,
       documentsWhileRowsUnmounted,
+      runtimeVersions,
       rendererErrors: await app.evaluate(() => {
         const globalWithErrors = global as unknown as { __mt_renderer_errors__?: unknown[] }
         return globalWithErrors.__mt_renderer_errors__?.length ?? 0
@@ -428,16 +442,48 @@ const runTrial = async (count: number, trial: number) => {
   }
 }
 
+let persistFailure: ((error: unknown) => void) | null = null
+
 const main = async () => {
   const startedAt = new Date().toISOString()
   const results = []
+  const measurementIdentity = captureMeasurementIdentity(
+    projectRoot,
+    applicationSourceRevision,
+    getElectronPath()
+  )
+  const reproduction = buildPowerShellReproduction(projectRoot, scriptPath, {
+    OPENED_FILES_APPLICATION_SOURCE_SHA: measurementIdentity.applicationSourceSha,
+    OPENED_FILES_COUNTS: countsSetting,
+    OPENED_FILES_TRIALS: trialsSetting,
+    OPENED_FILES_OUTPUT: outputSetting
+  })
+  let execution: {
+    status: 'Running' | 'Passed' | 'Failed'
+    exitCode: number | null
+    detail: string
+  } = {
+    status: 'Running',
+    exitCode: null,
+    detail: 'Measurement is in progress; partial results are retained after each completed trial.'
+  }
   const persist = (finishedAt: string | null) => {
     const output = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       startedAt,
       finishedAt,
+      measurementIdentity: {
+        ...measurementIdentity,
+        runtimeVersions: results[0]?.runtimeVersions ?? null
+      },
+      reproduction,
+      execution,
+      limitations: [
+        'Windows-only unpackaged Electron measurement; installed packages and Linux/macOS are untested.',
+        'The startup input passes ten spare real files and establishes only a settled 100-row floor, not an exact capacity boundary.',
+        'The automated overlay/native scrollbar-thumb gesture may be unavailable; programmatic scrollTop is not physical input acceptance.'
+      ],
       environment: {
-        baselineSha,
         buildType: 'production electron-vite build, unpackaged Electron test launch',
         platform: process.platform,
         arch: process.arch,
@@ -447,8 +493,7 @@ const main = async () => {
         cpuModel: os.cpus()[0]?.model ?? 'unknown',
         logicalProcessorCount: os.cpus().length,
         totalRamBytes: os.totalmem(),
-        node: process.version,
-        electron: '42.1.0',
+        harnessNode: process.version,
         configuredContentViewport: { width: 1280, height: 720 },
         automation: 'Playwright-controlled Electron window',
         headless: false
@@ -460,6 +505,14 @@ const main = async () => {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true })
     fs.writeFileSync(outputPath, `${JSON.stringify(output, null, 2)}\n`, 'utf8')
   }
+  persistFailure = (error) => {
+    execution = {
+      status: 'Failed',
+      exitCode: 1,
+      detail: error instanceof Error ? error.message : String(error)
+    }
+    persist(new Date().toISOString())
+  }
   for (const count of counts) {
     for (let trial = 1; trial <= trials; trial++) {
       process.stdout.write(`profiling ${count} opened files, trial ${trial}/${trials}\n`)
@@ -467,11 +520,17 @@ const main = async () => {
       persist(null)
     }
   }
+  execution = {
+    status: 'Passed',
+    exitCode: 0,
+    detail: 'The command completed every configured measurement trial.'
+  }
   persist(new Date().toISOString())
   process.stdout.write(`wrote ${outputPath}\n`)
 }
 
 main().catch((error) => {
+  persistFailure?.(error)
   console.error(error)
   process.exitCode = 1
 })
