@@ -1,0 +1,2560 @@
+{
+  "schemaVersion": 2,
+  "startedAt": "2026-09-07T07:05:03.168Z",
+  "finishedAt": "2026-09-07T07:07:22.929Z",
+  "environment": {
+    "baselineSha": "d9c97636b6830dc1d57b8e7af56695f377e698fe",
+    "buildType": "production electron-vite build, unpackaged Electron test launch",
+    "platform": "win32",
+    "arch": "x64",
+    "osType": "Windows_NT",
+    "osRelease": "10.0.26200",
+    "osVersion": "Windows 11 Pro",
+    "cpuModel": "Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz",
+    "logicalProcessorCount": 16,
+    "totalRamBytes": 34060939264,
+    "node": "v24.18.0",
+    "electron": "42.1.0",
+    "configuredContentViewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "automation": "Playwright-controlled Electron window",
+    "headless": false
+  },
+  "counts": [
+    20,
+    100,
+    150
+  ],
+  "trials": 3,
+  "scenarios": [
+    "baseline"
+  ],
+  "delivery": "ready-batch",
+  "results": [
+    {
+      "scenario": "baseline",
+      "count": 20,
+      "trial": 1,
+      "fixture": {
+        "exactFilesRequested": 20,
+        "bytesPerFile": 6129,
+        "contentShape": "one H1 plus 40 plain paragraphs; no images, diagrams, math, or remote resources",
+        "openingMethod": "isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank"
+      },
+      "delivery": "ready-batch",
+      "observationMethod": "Pinia editor tabs length",
+      "reachedExactCount": true,
+      "exactReadyMs": 315.0077000000001,
+      "settledAtMs": 1504.464,
+      "finalStructure": {
+        "workspaceDocuments": 20,
+        "openedRows": 20,
+        "editorComponents": 1,
+        "sourceEditors": 0,
+        "viewport": {
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "devicePixelRatio": 1
+        },
+        "openedFilesContainer": {
+          "clientWidth": 0,
+          "clientHeight": 0,
+          "scrollWidth": 0,
+          "scrollHeight": 0,
+          "boundingWidth": 0,
+          "boundingHeight": 0,
+          "overflowY": "auto"
+        }
+      },
+      "observedWindows": [
+        {
+          "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/index.html?udp=C%3A%5Cm7b-6fCPCc%5Cp&debug=1&wid=1&type=editor&cff=DejaVu+Sans+Mono&cfs=14&hsb=0&theme=light&tbs=custom#/editor",
+          "openedRows": 20
+        }
+      ],
+      "mainProbe": {
+        "openTabMessages": 20,
+        "watcherRequests": 20,
+        "firstOpenTabAt": 1788764704844,
+        "lastOpenTabAt": 1788764705087
+      },
+      "samples": [
+        {
+          "elapsedMs": 4.7228000000000065,
+          "observedDocuments": 1,
+          "openedRows": 1,
+          "rendererCpuPercent": 0,
+          "applicationCpuPercent": 0,
+          "totalWorkingSetKb": 434992
+        }
+      ],
+      "settledMetrics": [
+        {
+          "pid": 65080,
+          "type": "Browser",
+          "cpuPercent": 1.518447443789403,
+          "workingSetKb": 155112,
+          "peakWorkingSetKb": 155196
+        },
+        {
+          "pid": 7800,
+          "type": "GPU",
+          "cpuPercent": 0.19366663766288886,
+          "workingSetKb": 97108,
+          "peakWorkingSetKb": 98736
+        },
+        {
+          "pid": 55856,
+          "type": "Utility",
+          "cpuPercent": 0,
+          "workingSetKb": 54216,
+          "peakWorkingSetKb": 54216
+        },
+        {
+          "pid": 41212,
+          "type": "Tab",
+          "cpuPercent": 3.1042202057894985,
+          "workingSetKb": 171620,
+          "peakWorkingSetKb": 175320
+        }
+      ],
+      "bulkProfile": {
+        "sampleCount": 754,
+        "top": [
+          {
+            "samples": 49,
+            "functionName": "(idle)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 38,
+            "functionName": "scrollToCords",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 162423
+          },
+          {
+            "samples": 34,
+            "functionName": "(program)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 30,
+            "functionName": "getBoundingClientRect",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 20,
+            "functionName": "(garbage collector)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 12,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 11,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 9,
+            "functionName": "flush",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 162915
+          },
+          {
+            "samples": 9,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 9,
+            "functionName": "getStyleProperties",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 7180
+          },
+          {
+            "samples": 9,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 9,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 8,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 8,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 8,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 8,
+            "functionName": "tokenizerFac",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 98970
+          },
+          {
+            "samples": 7,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 6,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 6,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 5,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 5,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 5,
+            "functionName": "paragraph",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 131951
+          },
+          {
+            "samples": 5,
+            "functionName": "tryChunks",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 98482
+          },
+          {
+            "samples": 4,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 4,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 4,
+            "functionName": "(anonymous)",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 93885
+          },
+          {
+            "samples": 4,
+            "functionName": "mergeProps",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 6531
+          },
+          {
+            "samples": 4,
+            "functionName": "html",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 131915
+          },
+          {
+            "samples": 4,
+            "functionName": "bindTitle",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 62767
+          },
+          {
+            "samples": 4,
+            "functionName": "freeze",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87617
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "rendererErrors": 0
+    },
+    {
+      "scenario": "baseline",
+      "count": 20,
+      "trial": 2,
+      "fixture": {
+        "exactFilesRequested": 20,
+        "bytesPerFile": 6129,
+        "contentShape": "one H1 plus 40 plain paragraphs; no images, diagrams, math, or remote resources",
+        "openingMethod": "isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank"
+      },
+      "delivery": "ready-batch",
+      "observationMethod": "Pinia editor tabs length",
+      "reachedExactCount": true,
+      "exactReadyMs": 321.91100000000006,
+      "settledAtMs": 1539.9723999999997,
+      "finalStructure": {
+        "workspaceDocuments": 20,
+        "openedRows": 20,
+        "editorComponents": 1,
+        "sourceEditors": 0,
+        "viewport": {
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "devicePixelRatio": 1
+        },
+        "openedFilesContainer": {
+          "clientWidth": 0,
+          "clientHeight": 0,
+          "scrollWidth": 0,
+          "scrollHeight": 0,
+          "boundingWidth": 0,
+          "boundingHeight": 0,
+          "overflowY": "auto"
+        }
+      },
+      "observedWindows": [
+        {
+          "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/index.html?udp=C%3A%5Cm7b-LK00pw%5Cp&debug=1&wid=1&type=editor&cff=DejaVu+Sans+Mono&cfs=14&hsb=0&theme=light&tbs=custom#/editor",
+          "openedRows": 20
+        }
+      ],
+      "mainProbe": {
+        "openTabMessages": 20,
+        "watcherRequests": 20,
+        "firstOpenTabAt": 1788764709500,
+        "lastOpenTabAt": 1788764709764
+      },
+      "samples": [
+        {
+          "elapsedMs": 3.6859000000004016,
+          "observedDocuments": 1,
+          "openedRows": 1,
+          "rendererCpuPercent": 0,
+          "applicationCpuPercent": 0,
+          "totalWorkingSetKb": 429480
+        }
+      ],
+      "settledMetrics": [
+        {
+          "pid": 64916,
+          "type": "Browser",
+          "cpuPercent": 1.6758858058980441,
+          "workingSetKb": 153348,
+          "peakWorkingSetKb": 153388
+        },
+        {
+          "pid": 42856,
+          "type": "GPU",
+          "cpuPercent": 0.10390717571589507,
+          "workingSetKb": 97168,
+          "peakWorkingSetKb": 98540
+        },
+        {
+          "pid": 54160,
+          "type": "Utility",
+          "cpuPercent": 0.08274357978243542,
+          "workingSetKb": 54304,
+          "peakWorkingSetKb": 54304
+        },
+        {
+          "pid": 34128,
+          "type": "Tab",
+          "cpuPercent": 3.1755304521976897,
+          "workingSetKb": 171144,
+          "peakWorkingSetKb": 175796
+        }
+      ],
+      "bulkProfile": {
+        "sampleCount": 783,
+        "top": [
+          {
+            "samples": 42,
+            "functionName": "(idle)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 32,
+            "functionName": "(program)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 32,
+            "functionName": "getBoundingClientRect",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 29,
+            "functionName": "scrollToCords",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 162423
+          },
+          {
+            "samples": 18,
+            "functionName": "(garbage collector)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 17,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 17,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 13,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 12,
+            "functionName": "getStyleProperties",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 7180
+          },
+          {
+            "samples": 12,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 9,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 8,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 8,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 7,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 7,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 6,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 6,
+            "functionName": "paragraph",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 131951
+          },
+          {
+            "samples": 5,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 5,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 5,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 5,
+            "functionName": "mergeProps",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 6531
+          },
+          {
+            "samples": 5,
+            "functionName": "flush",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 162915
+          },
+          {
+            "samples": 5,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 5,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 5,
+            "functionName": "(anonymous)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 5,
+            "functionName": "tokenizerFac",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 98970
+          },
+          {
+            "samples": 5,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 5,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 4,
+            "functionName": "subscription",
+            "url": "",
+            "lineNumber": 426
+          },
+          {
+            "samples": 4,
+            "functionName": "(anonymous)",
+            "url": "",
+            "lineNumber": 0
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "rendererErrors": 0
+    },
+    {
+      "scenario": "baseline",
+      "count": 20,
+      "trial": 3,
+      "fixture": {
+        "exactFilesRequested": 20,
+        "bytesPerFile": 6129,
+        "contentShape": "one H1 plus 40 plain paragraphs; no images, diagrams, math, or remote resources",
+        "openingMethod": "isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank"
+      },
+      "delivery": "ready-batch",
+      "observationMethod": "Pinia editor tabs length",
+      "reachedExactCount": true,
+      "exactReadyMs": 316.7405999999992,
+      "settledAtMs": 1522.8588999999993,
+      "finalStructure": {
+        "workspaceDocuments": 20,
+        "openedRows": 20,
+        "editorComponents": 1,
+        "sourceEditors": 0,
+        "viewport": {
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "devicePixelRatio": 1
+        },
+        "openedFilesContainer": {
+          "clientWidth": 0,
+          "clientHeight": 0,
+          "scrollWidth": 0,
+          "scrollHeight": 0,
+          "boundingWidth": 0,
+          "boundingHeight": 0,
+          "overflowY": "auto"
+        }
+      },
+      "observedWindows": [
+        {
+          "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/index.html?udp=C%3A%5Cm7b-4l89Vc%5Cp&debug=1&wid=1&type=editor&cff=DejaVu+Sans+Mono&cfs=14&hsb=0&theme=light&tbs=custom#/editor",
+          "openedRows": 20
+        }
+      ],
+      "mainProbe": {
+        "openTabMessages": 20,
+        "watcherRequests": 20,
+        "firstOpenTabAt": 1788764714299,
+        "lastOpenTabAt": 1788764714530
+      },
+      "samples": [
+        {
+          "elapsedMs": 3.3153000000002066,
+          "observedDocuments": 1,
+          "openedRows": 1,
+          "rendererCpuPercent": 0,
+          "applicationCpuPercent": 0,
+          "totalWorkingSetKb": 432064
+        }
+      ],
+      "settledMetrics": [
+        {
+          "pid": 63544,
+          "type": "Browser",
+          "cpuPercent": 1.5625378253305566,
+          "workingSetKb": 152016,
+          "peakWorkingSetKb": 153508
+        },
+        {
+          "pid": 40780,
+          "type": "GPU",
+          "cpuPercent": -0.151451236275869,
+          "workingSetKb": 97024,
+          "peakWorkingSetKb": 99228
+        },
+        {
+          "pid": 9076,
+          "type": "Utility",
+          "cpuPercent": -0.4551965967759136,
+          "workingSetKb": 54232,
+          "peakWorkingSetKb": 54232
+        },
+        {
+          "pid": 15124,
+          "type": "Tab",
+          "cpuPercent": 3.1411786585154418,
+          "workingSetKb": 174120,
+          "peakWorkingSetKb": 178200
+        }
+      ],
+      "bulkProfile": {
+        "sampleCount": 771,
+        "top": [
+          {
+            "samples": 41,
+            "functionName": "(idle)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 32,
+            "functionName": "(program)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 29,
+            "functionName": "getBoundingClientRect",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 27,
+            "functionName": "scrollToCords",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 162423
+          },
+          {
+            "samples": 24,
+            "functionName": "(garbage collector)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 15,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 11,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 11,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 10,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 9,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 9,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 9,
+            "functionName": "getStyleProperties",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 7180
+          },
+          {
+            "samples": 8,
+            "functionName": "subscription",
+            "url": "",
+            "lineNumber": 426
+          },
+          {
+            "samples": 7,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 7,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 7,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 6,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 6,
+            "functionName": "tokenizerFac",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 98970
+          },
+          {
+            "samples": 6,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 6,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 5,
+            "functionName": "flush",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 162915
+          },
+          {
+            "samples": 5,
+            "functionName": "controllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 90002
+          },
+          {
+            "samples": 5,
+            "functionName": "request",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89261
+          },
+          {
+            "samples": 5,
+            "functionName": "paragraph",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 131951
+          },
+          {
+            "samples": 5,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 5,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 5,
+            "functionName": "snapshotForRecord",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 88651
+          },
+          {
+            "samples": 5,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 4,
+            "functionName": "deepClone$1",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 96569
+          },
+          {
+            "samples": 4,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "rendererErrors": 0
+    },
+    {
+      "scenario": "baseline",
+      "count": 100,
+      "trial": 1,
+      "fixture": {
+        "exactFilesRequested": 100,
+        "bytesPerFile": 6129,
+        "contentShape": "one H1 plus 40 plain paragraphs; no images, diagrams, math, or remote resources",
+        "openingMethod": "isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank"
+      },
+      "delivery": "ready-batch",
+      "observationMethod": "Pinia editor tabs length",
+      "reachedExactCount": true,
+      "exactReadyMs": 4792.305700000001,
+      "settledAtMs": 6665.590499999998,
+      "finalStructure": {
+        "workspaceDocuments": 100,
+        "openedRows": 100,
+        "editorComponents": 1,
+        "sourceEditors": 0,
+        "viewport": {
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "devicePixelRatio": 1
+        },
+        "openedFilesContainer": {
+          "clientWidth": 0,
+          "clientHeight": 0,
+          "scrollWidth": 0,
+          "scrollHeight": 0,
+          "boundingWidth": 0,
+          "boundingHeight": 0,
+          "overflowY": "auto"
+        }
+      },
+      "observedWindows": [
+        {
+          "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/index.html?udp=C%3A%5Cm7b-XeZNnE%5Cp&debug=1&wid=1&type=editor&cff=DejaVu+Sans+Mono&cfs=14&hsb=0&theme=light&tbs=custom#/editor",
+          "openedRows": 100
+        }
+      ],
+      "mainProbe": {
+        "openTabMessages": 100,
+        "watcherRequests": 100,
+        "firstOpenTabAt": 1788764719154,
+        "lastOpenTabAt": 1788764720608
+      },
+      "samples": [
+        {
+          "elapsedMs": 3.6388000000006286,
+          "observedDocuments": 1,
+          "openedRows": 1,
+          "rendererCpuPercent": 0,
+          "applicationCpuPercent": 0,
+          "totalWorkingSetKb": 428932
+        },
+        {
+          "elapsedMs": 1403.4906999999985,
+          "observedDocuments": 38,
+          "openedRows": 38,
+          "rendererCpuPercent": 8.073504308010227,
+          "applicationCpuPercent": 13.553544807742954,
+          "totalWorkingSetKb": 580036
+        }
+      ],
+      "settledMetrics": [
+        {
+          "pid": 32820,
+          "type": "Browser",
+          "cpuPercent": 2.4125772335306985,
+          "workingSetKb": 188392,
+          "peakWorkingSetKb": 196468
+        },
+        {
+          "pid": 49584,
+          "type": "GPU",
+          "cpuPercent": 0.09401914895632976,
+          "workingSetKb": 96712,
+          "peakWorkingSetKb": 98136
+        },
+        {
+          "pid": 2576,
+          "type": "Utility",
+          "cpuPercent": 0.00011251519547324127,
+          "workingSetKb": 54256,
+          "peakWorkingSetKb": 54256
+        },
+        {
+          "pid": 35556,
+          "type": "Tab",
+          "cpuPercent": 6.443124305249462,
+          "workingSetKb": 400720,
+          "peakWorkingSetKb": 433820
+        }
+      ],
+      "bulkProfile": {
+        "sampleCount": 8756,
+        "top": [
+          {
+            "samples": 424,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 322,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 275,
+            "functionName": "(program)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 275,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 263,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 213,
+            "functionName": "getBoundingClientRect",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 210,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 200,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 196,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 176,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 176,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 174,
+            "functionName": "(garbage collector)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 163,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 163,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 141,
+            "functionName": "(idle)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 140,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 120,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 115,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 105,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 99,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 96,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 94,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 85,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 85,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 83,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 78,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 72,
+            "functionName": "snapshotForRecord",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 88651
+          },
+          {
+            "samples": 70,
+            "functionName": "(anonymous)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 67,
+            "functionName": "(anonymous)",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 178209
+          },
+          {
+            "samples": 66,
+            "functionName": "request",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89261
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "rendererErrors": 0
+    },
+    {
+      "scenario": "baseline",
+      "count": 100,
+      "trial": 2,
+      "fixture": {
+        "exactFilesRequested": 100,
+        "bytesPerFile": 6129,
+        "contentShape": "one H1 plus 40 plain paragraphs; no images, diagrams, math, or remote resources",
+        "openingMethod": "isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank"
+      },
+      "delivery": "ready-batch",
+      "observationMethod": "Pinia editor tabs length",
+      "reachedExactCount": true,
+      "exactReadyMs": 4276.060399999995,
+      "settledAtMs": 6292.049999999996,
+      "finalStructure": {
+        "workspaceDocuments": 100,
+        "openedRows": 100,
+        "editorComponents": 1,
+        "sourceEditors": 0,
+        "viewport": {
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "devicePixelRatio": 1
+        },
+        "openedFilesContainer": {
+          "clientWidth": 0,
+          "clientHeight": 0,
+          "scrollWidth": 0,
+          "scrollHeight": 0,
+          "boundingWidth": 0,
+          "boundingHeight": 0,
+          "overflowY": "auto"
+        }
+      },
+      "observedWindows": [
+        {
+          "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/index.html?udp=C%3A%5Cm7b-DC20z1%5Cp&debug=1&wid=1&type=editor&cff=DejaVu+Sans+Mono&cfs=14&hsb=0&theme=light&tbs=custom#/editor",
+          "openedRows": 100
+        }
+      ],
+      "mainProbe": {
+        "openTabMessages": 100,
+        "watcherRequests": 100,
+        "firstOpenTabAt": 1788764733517,
+        "lastOpenTabAt": 1788764734976
+      },
+      "samples": [
+        {
+          "elapsedMs": 3.980599999998958,
+          "observedDocuments": 1,
+          "openedRows": 1,
+          "rendererCpuPercent": 0,
+          "applicationCpuPercent": 0,
+          "totalWorkingSetKb": 430168
+        },
+        {
+          "elapsedMs": 1375.5759999999973,
+          "observedDocuments": 24,
+          "openedRows": 25,
+          "rendererCpuPercent": 8.081944084955287,
+          "applicationCpuPercent": 13.173666797455084,
+          "totalWorkingSetKb": 581816
+        }
+      ],
+      "settledMetrics": [
+        {
+          "pid": 48616,
+          "type": "Browser",
+          "cpuPercent": 2.3143725930238586,
+          "workingSetKb": 188604,
+          "peakWorkingSetKb": 196756
+        },
+        {
+          "pid": 10036,
+          "type": "GPU",
+          "cpuPercent": 0.08190854786258898,
+          "workingSetKb": 96884,
+          "peakWorkingSetKb": 98892
+        },
+        {
+          "pid": 27672,
+          "type": "Utility",
+          "cpuPercent": 0.00009868802619696429,
+          "workingSetKb": 54160,
+          "peakWorkingSetKb": 54160
+        },
+        {
+          "pid": 49844,
+          "type": "Tab",
+          "cpuPercent": 6.281861062588073,
+          "workingSetKb": 400616,
+          "peakWorkingSetKb": 435052
+        }
+      ],
+      "bulkProfile": {
+        "sampleCount": 8273,
+        "top": [
+          {
+            "samples": 371,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 312,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 273,
+            "functionName": "(program)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 257,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 233,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 211,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 189,
+            "functionName": "getBoundingClientRect",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 188,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 188,
+            "functionName": "(garbage collector)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 176,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 171,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 158,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 148,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 140,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 139,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 126,
+            "functionName": "(idle)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 110,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 92,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 91,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 88,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 88,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 85,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 84,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 81,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 76,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 68,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 66,
+            "functionName": "(anonymous)",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 88256
+          },
+          {
+            "samples": 65,
+            "functionName": "snapshotForRecord",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 88651
+          },
+          {
+            "samples": 64,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 63,
+            "functionName": "mergeProps",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 6531
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "rendererErrors": 0
+    },
+    {
+      "scenario": "baseline",
+      "count": 100,
+      "trial": 3,
+      "fixture": {
+        "exactFilesRequested": 100,
+        "bytesPerFile": 6129,
+        "contentShape": "one H1 plus 40 plain paragraphs; no images, diagrams, math, or remote resources",
+        "openingMethod": "isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank"
+      },
+      "delivery": "ready-batch",
+      "observationMethod": "Pinia editor tabs length",
+      "reachedExactCount": true,
+      "exactReadyMs": 5468.620199999998,
+      "settledAtMs": 7066.2045,
+      "finalStructure": {
+        "workspaceDocuments": 100,
+        "openedRows": 100,
+        "editorComponents": 1,
+        "sourceEditors": 0,
+        "viewport": {
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "devicePixelRatio": 1
+        },
+        "openedFilesContainer": {
+          "clientWidth": 0,
+          "clientHeight": 0,
+          "scrollWidth": 0,
+          "scrollHeight": 0,
+          "boundingWidth": 0,
+          "boundingHeight": 0,
+          "overflowY": "auto"
+        }
+      },
+      "observedWindows": [
+        {
+          "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/index.html?udp=C%3A%5Cm7b-iqhNp7%5Cp&debug=1&wid=1&type=editor&cff=DejaVu+Sans+Mono&cfs=14&hsb=0&theme=light&tbs=custom#/editor",
+          "openedRows": 100
+        }
+      ],
+      "mainProbe": {
+        "openTabMessages": 100,
+        "watcherRequests": 100,
+        "firstOpenTabAt": 1788764747319,
+        "lastOpenTabAt": 1788764748919
+      },
+      "samples": [
+        {
+          "elapsedMs": 3.6986000000033528,
+          "observedDocuments": 1,
+          "openedRows": 1,
+          "rendererCpuPercent": 0,
+          "applicationCpuPercent": 0,
+          "totalWorkingSetKb": 428724
+        },
+        {
+          "elapsedMs": 1971.8081999999995,
+          "observedDocuments": 86,
+          "openedRows": 86,
+          "rendererCpuPercent": 7.43956256990309,
+          "applicationCpuPercent": 12.713818074699404,
+          "totalWorkingSetKb": 607168
+        }
+      ],
+      "settledMetrics": [
+        {
+          "pid": 66144,
+          "type": "Browser",
+          "cpuPercent": 1.9645121613041472,
+          "workingSetKb": 190144,
+          "peakWorkingSetKb": 194208
+        },
+        {
+          "pid": 19332,
+          "type": "GPU",
+          "cpuPercent": 0.08451329993156272,
+          "workingSetKb": 96788,
+          "peakWorkingSetKb": 98324
+        },
+        {
+          "pid": 41568,
+          "type": "Utility",
+          "cpuPercent": 0.00013557510225538344,
+          "workingSetKb": 54340,
+          "peakWorkingSetKb": 54340
+        },
+        {
+          "pid": 31104,
+          "type": "Tab",
+          "cpuPercent": 6.420466892680717,
+          "workingSetKb": 400940,
+          "peakWorkingSetKb": 437284
+        }
+      ],
+      "bulkProfile": {
+        "sampleCount": 9370,
+        "top": [
+          {
+            "samples": 421,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 378,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 357,
+            "functionName": "(program)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 305,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 229,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 228,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 214,
+            "functionName": "getBoundingClientRect",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 199,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 198,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 191,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 190,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 188,
+            "functionName": "(garbage collector)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 180,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 170,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 168,
+            "functionName": "(idle)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 158,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 111,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 109,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 107,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 106,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 106,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 100,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 99,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 99,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 97,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 77,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 72,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 72,
+            "functionName": "mergeProps",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 6531
+          },
+          {
+            "samples": 70,
+            "functionName": "(anonymous)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 67,
+            "functionName": "(anonymous)",
+            "url": "",
+            "lineNumber": 0
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "rendererErrors": 0
+    },
+    {
+      "scenario": "baseline",
+      "count": 150,
+      "trial": 1,
+      "fixture": {
+        "exactFilesRequested": 150,
+        "bytesPerFile": 6129,
+        "contentShape": "one H1 plus 40 plain paragraphs; no images, diagrams, math, or remote resources",
+        "openingMethod": "isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank"
+      },
+      "delivery": "ready-batch",
+      "observationMethod": "Pinia editor tabs length",
+      "reachedExactCount": true,
+      "exactReadyMs": 9024.835999999996,
+      "settledAtMs": 13105.239499999996,
+      "finalStructure": {
+        "workspaceDocuments": 150,
+        "openedRows": 150,
+        "editorComponents": 1,
+        "sourceEditors": 0,
+        "viewport": {
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "devicePixelRatio": 1
+        },
+        "openedFilesContainer": {
+          "clientWidth": 0,
+          "clientHeight": 0,
+          "scrollWidth": 0,
+          "scrollHeight": 0,
+          "boundingWidth": 0,
+          "boundingHeight": 0,
+          "overflowY": "auto"
+        }
+      },
+      "observedWindows": [
+        {
+          "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/index.html?udp=C%3A%5Cm7b-riL43x%5Cp&debug=1&wid=1&type=editor&cff=DejaVu+Sans+Mono&cfs=14&hsb=0&theme=light&tbs=custom#/editor",
+          "openedRows": 150
+        }
+      ],
+      "mainProbe": {
+        "openTabMessages": 150,
+        "watcherRequests": 150,
+        "firstOpenTabAt": 1788764764912,
+        "lastOpenTabAt": 1788764767537
+      },
+      "samples": [
+        {
+          "elapsedMs": 4.629400000005262,
+          "observedDocuments": 1,
+          "openedRows": 1,
+          "rendererCpuPercent": 0,
+          "applicationCpuPercent": 0,
+          "totalWorkingSetKb": 438076
+        },
+        {
+          "elapsedMs": 2597.820200000002,
+          "observedDocuments": 31,
+          "openedRows": 31,
+          "rendererCpuPercent": 7.245266855400009,
+          "applicationCpuPercent": 11.784959162314404,
+          "totalWorkingSetKb": 658036
+        }
+      ],
+      "settledMetrics": [
+        {
+          "pid": 7108,
+          "type": "Browser",
+          "cpuPercent": 2.5278464696347442,
+          "workingSetKb": 200064,
+          "peakWorkingSetKb": 208708
+        },
+        {
+          "pid": 20208,
+          "type": "GPU",
+          "cpuPercent": 0.0972548471839608,
+          "workingSetKb": 96944,
+          "peakWorkingSetKb": 98808
+        },
+        {
+          "pid": 54112,
+          "type": "Utility",
+          "cpuPercent": 0.0019284499773982097,
+          "workingSetKb": 54464,
+          "peakWorkingSetKb": 54464
+        },
+        {
+          "pid": 66520,
+          "type": "Tab",
+          "cpuPercent": 7.129259986659573,
+          "workingSetKb": 452584,
+          "peakWorkingSetKb": 693380
+        }
+      ],
+      "bulkProfile": {
+        "sampleCount": 18315,
+        "top": [
+          {
+            "samples": 863,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 755,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 581,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 525,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 505,
+            "functionName": "(program)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 500,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 468,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 427,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 407,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 406,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 393,
+            "functionName": "getBoundingClientRect",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 364,
+            "functionName": "(garbage collector)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 347,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 341,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 335,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 276,
+            "functionName": "(idle)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 269,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 266,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 248,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 242,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 219,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 204,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 200,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 198,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 195,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 186,
+            "functionName": "(anonymous)",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 178209
+          },
+          {
+            "samples": 151,
+            "functionName": "snapshotForRecord",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 88651
+          },
+          {
+            "samples": 150,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 147,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 146,
+            "functionName": "request",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89261
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "rendererErrors": 0
+    },
+    {
+      "scenario": "baseline",
+      "count": 150,
+      "trial": 2,
+      "fixture": {
+        "exactFilesRequested": 150,
+        "bytesPerFile": 6129,
+        "contentShape": "one H1 plus 40 plain paragraphs; no images, diagrams, math, or remote resources",
+        "openingMethod": "isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank"
+      },
+      "delivery": "ready-batch",
+      "observationMethod": "Pinia editor tabs length",
+      "reachedExactCount": true,
+      "exactReadyMs": 11904.705400000006,
+      "settledAtMs": 16643.1881,
+      "finalStructure": {
+        "workspaceDocuments": 150,
+        "openedRows": 150,
+        "editorComponents": 1,
+        "sourceEditors": 0,
+        "viewport": {
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "devicePixelRatio": 1
+        },
+        "openedFilesContainer": {
+          "clientWidth": 0,
+          "clientHeight": 0,
+          "scrollWidth": 0,
+          "scrollHeight": 0,
+          "boundingWidth": 0,
+          "boundingHeight": 0,
+          "overflowY": "auto"
+        }
+      },
+      "observedWindows": [
+        {
+          "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/index.html?udp=C%3A%5Cm7b-YBn3oi%5Cp&debug=1&wid=1&type=editor&cff=DejaVu+Sans+Mono&cfs=14&hsb=0&theme=light&tbs=custom#/editor",
+          "openedRows": 150
+        }
+      ],
+      "mainProbe": {
+        "openTabMessages": 150,
+        "watcherRequests": 150,
+        "firstOpenTabAt": 1788764788924,
+        "lastOpenTabAt": 1788764791413
+      },
+      "samples": [
+        {
+          "elapsedMs": 3.7158000000054017,
+          "observedDocuments": 1,
+          "openedRows": 1,
+          "rendererCpuPercent": 0,
+          "applicationCpuPercent": 0,
+          "totalWorkingSetKb": 435168
+        },
+        {
+          "elapsedMs": 2422.3267999999953,
+          "observedDocuments": 24,
+          "openedRows": 25,
+          "rendererCpuPercent": 7.239008518204561,
+          "applicationCpuPercent": 12.09270020847842,
+          "totalWorkingSetKb": 664400
+        }
+      ],
+      "settledMetrics": [
+        {
+          "pid": 42560,
+          "type": "Browser",
+          "cpuPercent": 2.1768656588532402,
+          "workingSetKb": 204560,
+          "peakWorkingSetKb": 209096
+        },
+        {
+          "pid": 65292,
+          "type": "GPU",
+          "cpuPercent": 0.11163931954286997,
+          "workingSetKb": 97536,
+          "peakWorkingSetKb": 99468
+        },
+        {
+          "pid": 5664,
+          "type": "Utility",
+          "cpuPercent": 0.0015806625856630452,
+          "workingSetKb": 54212,
+          "peakWorkingSetKb": 54212
+        },
+        {
+          "pid": 27124,
+          "type": "Tab",
+          "cpuPercent": 6.749595357600219,
+          "workingSetKb": 462252,
+          "peakWorkingSetKb": 682648
+        }
+      ],
+      "bulkProfile": {
+        "sampleCount": 20485,
+        "top": [
+          {
+            "samples": 1087,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 876,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 673,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 645,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 592,
+            "functionName": "(program)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 527,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 513,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 494,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 491,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 465,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 445,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 419,
+            "functionName": "(garbage collector)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 403,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 383,
+            "functionName": "getBoundingClientRect",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 338,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 293,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 289,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 244,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 237,
+            "functionName": "(anonymous)",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 178209
+          },
+          {
+            "samples": 236,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 229,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 228,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 220,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 217,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 216,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 189,
+            "functionName": "(idle)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 188,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 187,
+            "functionName": "(anonymous)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 180,
+            "functionName": "controllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 90002
+          },
+          {
+            "samples": 173,
+            "functionName": "request",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89261
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "rendererErrors": 0
+    },
+    {
+      "scenario": "baseline",
+      "count": 150,
+      "trial": 3,
+      "fixture": {
+        "exactFilesRequested": 150,
+        "bytesPerFile": 6129,
+        "contentShape": "one H1 plus 40 plain paragraphs; no images, diagrams, math, or remote resources",
+        "openingMethod": "isolated Electron profile reaches renderer/menu ready with one pristine blank, then main app-open-files-by-id delivers the exact child path set and replaces the blank"
+      },
+      "delivery": "ready-batch",
+      "observationMethod": "Pinia editor tabs length",
+      "reachedExactCount": true,
+      "exactReadyMs": 10738.242299999998,
+      "settledAtMs": 15255.123600000006,
+      "finalStructure": {
+        "workspaceDocuments": 150,
+        "openedRows": 150,
+        "editorComponents": 1,
+        "sourceEditors": 0,
+        "viewport": {
+          "innerWidth": 1280,
+          "innerHeight": 720,
+          "devicePixelRatio": 1
+        },
+        "openedFilesContainer": {
+          "clientWidth": 0,
+          "clientHeight": 0,
+          "scrollWidth": 0,
+          "scrollHeight": 0,
+          "boundingWidth": 0,
+          "boundingHeight": 0,
+          "overflowY": "auto"
+        }
+      },
+      "observedWindows": [
+        {
+          "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/index.html?udp=C%3A%5Cm7b-f10vkY%5Cp&debug=1&wid=1&type=editor&cff=DejaVu+Sans+Mono&cfs=14&hsb=0&theme=light&tbs=custom#/editor",
+          "openedRows": 150
+        }
+      ],
+      "mainProbe": {
+        "openTabMessages": 150,
+        "watcherRequests": 150,
+        "firstOpenTabAt": 1788764817737,
+        "lastOpenTabAt": 1788764820610
+      },
+      "samples": [
+        {
+          "elapsedMs": 4.682499999995343,
+          "observedDocuments": 1,
+          "openedRows": 1,
+          "rendererCpuPercent": 0,
+          "applicationCpuPercent": 0,
+          "totalWorkingSetKb": 431848
+        },
+        {
+          "elapsedMs": 2809.0599000000075,
+          "observedDocuments": 42,
+          "openedRows": 42,
+          "rendererCpuPercent": 7.4381693729872005,
+          "applicationCpuPercent": 11.868291074668262,
+          "totalWorkingSetKb": 677156
+        }
+      ],
+      "settledMetrics": [
+        {
+          "pid": 26612,
+          "type": "Browser",
+          "cpuPercent": 2.4294571543948265,
+          "workingSetKb": 202744,
+          "peakWorkingSetKb": 207308
+        },
+        {
+          "pid": 66136,
+          "type": "GPU",
+          "cpuPercent": 0.1610995524607917,
+          "workingSetKb": 98252,
+          "peakWorkingSetKb": 100684
+        },
+        {
+          "pid": 20072,
+          "type": "Utility",
+          "cpuPercent": 0.0020700475196257354,
+          "workingSetKb": 54420,
+          "peakWorkingSetKb": 54420
+        },
+        {
+          "pid": 64812,
+          "type": "Tab",
+          "cpuPercent": 7.066972671282979,
+          "workingSetKb": 469992,
+          "peakWorkingSetKb": 668340
+        }
+      ],
+      "bulkProfile": {
+        "sampleCount": 20558,
+        "top": [
+          {
+            "samples": 1022,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 853,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 697,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 641,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 623,
+            "functionName": "(program)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 540,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 510,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 499,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 442,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 439,
+            "functionName": "getBoundingClientRect",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 429,
+            "functionName": "inertControllerFacadeFile",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89992
+          },
+          {
+            "samples": 427,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 414,
+            "functionName": "(garbage collector)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 403,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 359,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 284,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 281,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 263,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 237,
+            "functionName": "(anonymous)",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 178209
+          },
+          {
+            "samples": 228,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 227,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 215,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 212,
+            "functionName": "clone",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 87614
+          },
+          {
+            "samples": 212,
+            "functionName": "invoke",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 203,
+            "functionName": "(idle)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 195,
+            "functionName": "structuredClone",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 186,
+            "functionName": "deepClone$2",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 76928
+          },
+          {
+            "samples": 180,
+            "functionName": "(anonymous)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 171,
+            "functionName": "(anonymous)",
+            "url": "",
+            "lineNumber": 0
+          },
+          {
+            "samples": 165,
+            "functionName": "request",
+            "url": "file:///C:/Users/1407/.codex/worktrees/d1b3/Marktext/packages/desktop/out/renderer/assets/index-DpKqBBjZ.js",
+            "lineNumber": 89261
+          }
+        ]
+      },
+      "consoleErrors": [],
+      "rendererErrors": 0
+    }
+  ]
+}

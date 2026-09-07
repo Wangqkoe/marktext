@@ -1,4 +1,5 @@
 /* eslint-disable @stylistic/space-before-function-paren */
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -19,6 +20,11 @@ const outputPath = path.resolve(
   process.env.OPENED_FILES_OUTPUT ??
     '.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.raw.json'
 )
+const projectRoot = path.resolve(__dirname, '../..')
+const baselineSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+  cwd: projectRoot,
+  encoding: 'utf8'
+}).trim()
 
 const fixtureBody = (index: number): string =>
   `# Opened file ${String(index).padStart(3, '0')}\n\n` +
@@ -171,6 +177,7 @@ const runTrial = async (count: number, trial: number) => {
     })
     app = launched.app
     let page = launched.page
+    await page.setViewportSize({ width: 1280, height: 720 })
     await waitForEditor(page, 30000)
     await waitForMenuReady(app, 30000)
     const rowsDeadline = Date.now() + 60000
@@ -207,13 +214,29 @@ const runTrial = async (count: number, trial: number) => {
         __mtWorkspaceSnapshot?: () => { documents: unknown[] }
       }
       const list = document.querySelector('.opened-files-list') as HTMLElement | null
+      const rect = list?.getBoundingClientRect()
       return {
         openedRows: document.querySelectorAll('.opened-files-list .opened-file').length,
         editorComponents: document.querySelectorAll('.editor-component').length,
         sourceEditors: document.querySelectorAll('.source-code .CodeMirror').length,
         workspaceDocuments: driver.__mtWorkspaceSnapshot?.().documents.length ?? -1,
-        listClientHeight: list?.clientHeight ?? -1,
-        listScrollHeight: list?.scrollHeight ?? -1
+        viewport: {
+          innerWidth,
+          innerHeight,
+          devicePixelRatio
+        },
+        openedFilesContainer:
+          list && rect
+            ? {
+              clientWidth: list.clientWidth,
+              clientHeight: list.clientHeight,
+              scrollWidth: list.scrollWidth,
+              scrollHeight: list.scrollHeight,
+              boundingWidth: rect.width,
+              boundingHeight: rect.height,
+              overflowY: getComputedStyle(list).overflowY
+            }
+            : null
       }
     })
     const settledMetrics = await readProcessMetrics(app)
@@ -235,6 +258,7 @@ const runTrial = async (count: number, trial: number) => {
       }
     })
     const revisionAfterWheel = await readRevision(page)
+    const wheelFrameGaps = summarizeGaps(wheelProfile.result.gaps)
 
     await page.locator('.opened-files-list').evaluate((el) => {
       el.scrollTop = 0
@@ -259,6 +283,7 @@ const runTrial = async (count: number, trial: number) => {
       }
     })
     const revisionAfterThumb = await readRevision(page)
+    const thumbFrameGaps = summarizeGaps(thumbProfile.result.gaps)
 
     const revisionBeforeDirectPosition = await readRevision(page)
     const directPositionKey = `direct-position-${count}-${trial}`
@@ -340,19 +365,40 @@ const runTrial = async (count: number, trial: number) => {
       settledMetrics,
       idleFrames: summarizeGaps(idleGaps),
       wheel: {
-        frameGaps: summarizeGaps(wheelProfile.result.gaps),
+        status:
+          wheelProfile.result.scrollTop > 0 &&
+          wheelFrameGaps.over50Rate <= 0.05 &&
+          revisionAfterWheel === revisionBeforeWheel
+            ? 'Passed'
+            : 'Failed',
+        method: 'Playwright mouse wheel input over the Opened Files container',
+        frameGaps: wheelFrameGaps,
         finalScrollTop: wheelProfile.result.scrollTop,
         revisionDelta: revisionAfterWheel - revisionBeforeWheel,
         profile: { sampleCount: wheelProfile.sampleCount, top: wheelProfile.top }
       },
       scrollbarThumb: {
-        frameGaps: summarizeGaps(thumbProfile.result.gaps),
+        status:
+          thumbProfile.result.scrollTop === 0
+            ? 'Unavailable'
+            : thumbFrameGaps.over50Rate <= 0.05 && revisionAfterThumb === revisionBeforeThumb
+              ? 'Passed'
+              : 'Failed',
+        method: 'Playwright pointer drag along the right edge of the Opened Files container',
+        limitation:
+          thumbProfile.result.scrollTop > 0
+            ? null
+            : 'The automated pointer gesture did not move the overlay/native scrollbar, so this is not an input-acceptance result.',
+        frameGaps: thumbFrameGaps,
         finalScrollTop: thumbProfile.result.scrollTop,
         revisionDelta: revisionAfterThumb - revisionBeforeThumb,
         profile: { sampleCount: thumbProfile.sampleCount, top: thumbProfile.top }
       },
-      directScrollbarEquivalent: {
-        method: 'set native container scrollTop to its maximum and dispatch scroll',
+      programmaticContainerPositioning: {
+        status: 'NotApplicableToInputAcceptance',
+        method: 'set the container scrollTop to its maximum and dispatch a DOM scroll event',
+        limitation:
+          'This verifies container scrollability and revision isolation only; it is not equivalent to physical scrollbar input.',
         frameGaps: summarizeGaps(directPositionGaps),
         finalScrollTop: directPosition.scrollTop,
         maximumScrollTop: directPosition.maximum,
@@ -387,15 +433,26 @@ const main = async () => {
   const results = []
   const persist = (finishedAt: string | null) => {
     const output = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       startedAt,
       finishedAt,
-      platform: process.platform,
-      arch: process.arch,
-      node: process.version,
-      electron: '42.1.0',
-      viewport: { width: 1280, height: 720 },
-      headless: true,
+      environment: {
+        baselineSha,
+        buildType: 'production electron-vite build, unpackaged Electron test launch',
+        platform: process.platform,
+        arch: process.arch,
+        osType: os.type(),
+        osRelease: os.release(),
+        osVersion: os.version(),
+        cpuModel: os.cpus()[0]?.model ?? 'unknown',
+        logicalProcessorCount: os.cpus().length,
+        totalRamBytes: os.totalmem(),
+        node: process.version,
+        electron: '42.1.0',
+        configuredContentViewport: { width: 1280, height: 720 },
+        automation: 'Playwright-controlled Electron window',
+        headless: false
+      },
       counts,
       trials,
       results
