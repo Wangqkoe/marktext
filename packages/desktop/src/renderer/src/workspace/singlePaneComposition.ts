@@ -538,7 +538,9 @@ export class PaneEditorComposition {
     if (decision === 'cancel') return { status: 'rejected', reason: 'close cancelled' }
     if (decision === 'discard') {
       await this.syncCrashDraft()
-      await this.resolveCrashDraft(documentId, 'discard')
+      if (!(await this.resolveCrashDraft(documentId, 'discard'))) {
+        return { status: 'failed', reason: 'crash-draft disposition was not durable' }
+      }
       return finishClose(await runtime.execute({ kind: 'commit-authorized', capability: close.capability }))
     }
     const save = await saveView()
@@ -596,7 +598,10 @@ export class PaneEditorComposition {
       if (result.status !== 'applied') return false
     }
     await this.persistence.crashDraftTail
-    return (await this.crashDraft.request({ kind: 'mark-clean' })).durable
+    const clean = await this.crashDraft.request({ kind: 'mark-clean' })
+    // Another window's unresolved draft must keep the process dirty without
+    // preventing this window from closing after its own documents are closed.
+    return clean.durable || clean.reason === 'unresolved crash drafts remain'
   }
 
   async cycleTabs(direction: boolean): Promise<WorkspaceResult> {

@@ -306,6 +306,149 @@ describe('WorkspaceRuntime', () => {
     }
   })
 
+  it('allows window exit when another document still owns a crash draft', async() => {
+    const testWindow = window as unknown as {
+      electron?: {
+        ipcRenderer?: {
+          invoke?: (...args: unknown[]) => Promise<unknown>
+          send?: (...args: unknown[]) => void
+        }
+      }
+    }
+    const originalElectron = testWindow.electron
+    const send = vi.fn()
+    const invoke = vi.fn(async(_channel: unknown, request: unknown) => {
+      if ((request as { kind?: string }).kind === 'mark-clean') {
+        return { durable: false, reason: 'unresolved crash drafts remain' }
+      }
+      throw new Error(`unexpected crash-draft request: ${JSON.stringify(request)}`)
+    })
+    testWindow.electron = {
+      ...originalElectron,
+      ipcRenderer: { ...originalElectron?.ipcRenderer, invoke, send }
+    }
+
+    try {
+      const workspace = createWorkspaceRuntime([{ documentId: 'saved', fileKey: '/saved.md' }])
+      const composition = createPaneEditorComposition({
+        paneId: 'left',
+        controller: workspace,
+        documentIoPort: new RecordingDocumentIoPort()
+      })
+      const surface = new MemoryPaneSurface()
+      await composition.mount(surface, { id: 'saved', fileKey: '/saved.md', markdown: '', title: 'saved.md' })
+
+      await expect(composition.closeForWindowExit()).resolves.toBe(true)
+    } finally {
+      testWindow.electron = originalElectron
+    }
+  })
+
+  it('blocks window exit when the clean-shutdown marker is not durable', async() => {
+    const testWindow = window as unknown as {
+      electron?: {
+        ipcRenderer?: {
+          invoke?: (...args: unknown[]) => Promise<unknown>
+          send?: (...args: unknown[]) => void
+        }
+      }
+    }
+    const originalElectron = testWindow.electron
+    const invoke = vi.fn(async(_channel: unknown, request: unknown) => {
+      if ((request as { kind?: string }).kind === 'mark-clean') {
+        return { durable: false, reason: 'clean-marker' }
+      }
+      throw new Error(`unexpected crash-draft request: ${JSON.stringify(request)}`)
+    })
+    testWindow.electron = {
+      ...originalElectron,
+      ipcRenderer: { ...originalElectron?.ipcRenderer, invoke, send: vi.fn() }
+    }
+
+    try {
+      const workspace = createWorkspaceRuntime([{ documentId: 'saved', fileKey: '/saved.md' }])
+      const composition = createPaneEditorComposition({
+        paneId: 'left',
+        controller: workspace,
+        documentIoPort: new RecordingDocumentIoPort()
+      })
+      const surface = new MemoryPaneSurface()
+      await composition.mount(surface, { id: 'saved', fileKey: '/saved.md', markdown: '', title: 'saved.md' })
+
+      await expect(composition.closeForWindowExit()).resolves.toBe(false)
+    } finally {
+      testWindow.electron = originalElectron
+    }
+  })
+
+  it('keeps a local Document and View usable when its crash-draft discard is not durable', async() => {
+    const testWindow = window as unknown as {
+      electron?: {
+        ipcRenderer?: {
+          invoke?: (...args: unknown[]) => Promise<unknown>
+          send?: (...args: unknown[]) => void
+        }
+      }
+    }
+    const originalElectron = testWindow.electron
+    const invoke = vi.fn(async(_channel: unknown, request: unknown) => {
+      switch ((request as { kind?: string }).kind) {
+        case 'checkpoint': return { durable: true, receipt: 'local-dirty-receipt' }
+        case 'discard': return { durable: false, reason: 'tombstone' }
+        case 'mark-clean': return { durable: false, reason: 'unresolved crash drafts remain' }
+        default: throw new Error(`unexpected crash-draft request: ${JSON.stringify(request)}`)
+      }
+    })
+    testWindow.electron = {
+      ...originalElectron,
+      ipcRenderer: { ...originalElectron?.ipcRenderer, invoke, send: vi.fn() }
+    }
+
+    try {
+      const workspace = createWorkspaceRuntime([{
+        documentId: 'dirty-local',
+        markdown: 'saved',
+        title: 'dirty-local'
+      }])
+      const documentIoPort = new RecordingDocumentIoPort()
+      documentIoPort.confirmClose = async() => 'discard'
+      const composition = createPaneEditorComposition({
+        paneId: 'left',
+        controller: workspace,
+        documentIoPort
+      })
+      const surface = new MemoryPaneSurface()
+      await composition.mount(surface, {
+        id: 'dirty-local',
+        markdown: 'saved',
+        title: 'dirty-local'
+      })
+      const dirtyScope = expectDefined(composition.getScope())
+      expect(dirtyScope.report({ markdown: 'dirty local edits' }).status).toBe('applied')
+
+      await expect(composition.closeForWindowExit()).resolves.toBe(false)
+      expect(workspace.getFacadeSnapshot().documents).toContainEqual(expect.objectContaining({
+        documentId: 'dirty-local',
+        viewId: dirtyScope.viewId,
+        markdown: 'dirty local edits',
+        dirty: true
+      }))
+      expect(paneById(workspace.getProjection(), 'left').tabs).toContainEqual(expect.objectContaining({
+        documentId: 'dirty-local',
+        viewId: dirtyScope.viewId
+      }))
+      const usableScope = expectDefined(composition.getScope())
+      expect(usableScope.report({ markdown: 'still editable' }).status).toBe('applied')
+      expect(workspace.getFacadeSnapshot().documents).toContainEqual(expect.objectContaining({
+        documentId: 'dirty-local',
+        markdown: 'still editable',
+        dirty: true
+      }))
+    } finally {
+      testWindow.electron = originalElectron
+    }
+  })
+
   it('reports an applied file-backed legacy tab close once but not a cancelled close', async() => {
     const testWindow = window as unknown as {
       electron?: { ipcRenderer?: { send?: (...args: unknown[]) => void } }
