@@ -172,9 +172,18 @@ clean-marker durability failure. It allows the current window to close but does 
 process clean and does not delete, tombstone, save, discard or otherwise resolve the unrelated
 recovery draft.
 
+Independent Spec review then found a second blocking boundary: the ordinary dirty-Document
+Discard path did not check whether its own crash-draft disposition was durable before committing
+the local close. Combined with the first repair, a failed local tombstone could therefore be
+mistaken for an unrelated recovery draft. The review repair checks that disposition result and
+returns a failed close before `commit-authorized`; a focused public-workspace regression verifies
+that the original Document and View remain present and accept a subsequent edit.
+
 Focused results after the repair:
 
 - the public `closeForWindowExit()` unit contract passes when another recovery draft remains;
+- a local discard/tombstone durability failure blocks window exit and leaves its Document and
+  View usable;
 - a negative unit case still returns false for a `clean-marker` durability failure;
 - the real development-build Electron sequence now destroys the transfer target, retains the
   recovery window, and confirms the committed crash draft is still recoverable; and

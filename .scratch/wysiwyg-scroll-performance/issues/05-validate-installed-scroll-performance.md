@@ -29,3 +29,11 @@ process-dirty state and retaining the unrelated recovery draft. Other clean-mark
 failures still block exit. The existing installed executable remains the known-red artifact; no
 installed or physical pass is claimed for the repair until a new isolated package is built and
 the window-close path is manually rechecked. Linux and macOS remain untested.
+
+Independent Spec review found and blocked an unsafe interaction in the first repair: the ordinary
+dirty-Document Discard path ignored a failed crash-draft disposition, so the later allowance for
+an unrelated recovery draft could also close the current window after its own tombstone failed.
+The review repair now stops before `commit-authorized` when the current Document's disposition is
+not durable. Its public workspace regression proves that the close request returns false while
+the original Document and View remain present and accept another edit. The fresh-package manual
+re-verification remains pending.

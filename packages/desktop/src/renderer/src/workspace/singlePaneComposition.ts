@@ -538,7 +538,9 @@ export class PaneEditorComposition {
     if (decision === 'cancel') return { status: 'rejected', reason: 'close cancelled' }
     if (decision === 'discard') {
       await this.syncCrashDraft()
-      await this.resolveCrashDraft(documentId, 'discard')
+      if (!(await this.resolveCrashDraft(documentId, 'discard'))) {
+        return { status: 'failed', reason: 'crash-draft disposition was not durable' }
+      }
       return finishClose(await runtime.execute({ kind: 'commit-authorized', capability: close.capability }))
     }
     const save = await saveView()
