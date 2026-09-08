@@ -2,7 +2,7 @@
 
 Date: 2026-09-08 (America/Los_Angeles)
 
-Status: **Git registrations and merged phase refs are cleaned. After the automated deletion was blocked, the user manually removed the old installs, old package trees and 13 of 14 worktree residuals; only the unregistered `4303` directory remains. The user intentionally skipped removal of the two old uninstall keys. Protected application state is unchanged.** No uninstaller was run.
+Status: **Git registrations and merged phase refs are cleaned. After the automated deletion was blocked, the user manually removed the old installs, old package trees and all 14 worktree residuals. The user intentionally skipped removal of the two old uninstall keys. Protected application state is unchanged.** No uninstaller was run.
 
 ## Recovery archive
 
@@ -107,7 +107,7 @@ The tool exposed no reason more specific than `blocked by policy`; the elided po
 
 The user subsequently reported completing cleanup steps 1–3 and intentionally skipping step 4. A coordinator read-only verification established the current state:
 
-- 13 of the 14 unregistered worktree residual directories are absent; only `C:\Users\1407\.codex\worktrees\4303\Marktext` remains, containing `node_modules`, `packages`, `scripts`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `README.md`;
+- all 14 unregistered worktree residual directories are absent, including the final `C:\Users\1407\.codex\worktrees\4303\Marktext` directory;
 - old install directories `C:\Users\1407\.codex\installed\marktext-t05-ef5a10d` and `C:\Users\1407\.codex\installed\marktext-t05-ef5a10d-safe` are absent;
 - the `package` subdirectories in old artifact roots `marktext-t05-ef5a10d-20260907-01`, `-02` and `-03` are absent, while the surrounding evidence roots and their logs/raw evidence remain;
 - old uninstall keys `5db268dd-accd-5303-98ab-479c4b2bad30` and `41bf11fe-a9a0-5b02-8a88-95cceca372d9` remain by the user's explicit choice;
@@ -115,7 +115,9 @@ The user subsequently reported completing cleanup steps 1–3 and intentionally 
 - the repaired installer still hashes to `f63370247302b3350b3c729695bb33a542484e9bb03ed432e78d5360a83dc8a3`, the recovery bundle still hashes to `4fa228619b35d5921b8ca35828fb2d3becd67a86b621422947025250d393d925`, and the repaired installed executable remains present; and
 - no further directory or registry deletion was attempted by the agent after this feedback.
 
-Thus the current intentional residual set is the single unregistered `4303` directory plus the two old uninstall keys. No reclaimed-byte total is inferred from filesystem absence.
+Before the final manual deletion, a screenshot identified the lock holder as `codex-windows-sandbox-setup.exe` PID `62544`, with parent Codex CLI PID `39628`. The user was advised to exit the CLI normally and later confirmed that `4303` was deleted. This record does not infer which process ended or how it ended.
+
+Thus all 14 worktree residual directories, both old install directories and all three old `package` directories are now absent. The current intentional residual set is only the two old uninstall keys. No reclaimed-byte total is inferred from filesystem absence.
 
 ## Retained evidence and pending work
 
