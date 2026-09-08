@@ -96,6 +96,44 @@
         >{{
           projectTree.name
         }}</span>
+        <el-dropdown
+          trigger="click"
+          placement="bottom-end"
+          popper-class="folder-sort-menu"
+          @command="setFileSort"
+        >
+          <button
+            class="sort-button"
+            type="button"
+            :aria-label="t('preferences.general.sidebar.fileSortBy.title')"
+            :title="t('preferences.general.sidebar.fileSortBy.title')"
+            @click.stop
+          >
+            <el-icon :size="16">
+              <Sort />
+            </el-icon>
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                v-for="option of fileSortOptions"
+                :key="option.command"
+                :command="option.command"
+                :divided="option.divided"
+              >
+                <span
+                  class="sort-check"
+                  aria-hidden="true"
+                >
+                  <el-icon v-if="option.command === activeFileSort">
+                    <Check />
+                  </el-icon>
+                </span>
+                {{ option.label }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
       <div
         v-show="effectiveShowDirectories"
@@ -185,7 +223,8 @@ import bus from '../../bus'
 import { showContextMenu } from '../../contextMenu/sideBar'
 import { resolveWorkspaceTabMenu } from '../../contextMenu/tabs'
 import { useI18n } from 'vue-i18n'
-import { ArrowRight } from '@element-plus/icons-vue'
+import { ArrowRight, Check, Sort } from '@element-plus/icons-vue'
+import type { FileSortBy, FileSortOrder } from '@/store/preferences'
 import type { TreeNode, TabDescriptor } from './types'
 import { filterFilesTree, filterOpenedFiles } from '@/util/sidebarFilter'
 
@@ -236,7 +275,43 @@ const preferencesStore = usePreferencesStore()
 
 // Computed properties
 const { createCache, clipboard, folderRootIdentity } = storeToRefs(projectStore)
-const { openedFilesInSidebar } = storeToRefs(preferencesStore)
+const { fileSortBy, fileSortOrder, openedFilesInSidebar } = storeToRefs(preferencesStore)
+type FileSortCommand = `${FileSortBy}:${FileSortOrder}`
+const fileSortOptions = computed<Array<{
+  command: FileSortCommand
+  label: string
+  divided?: boolean
+}>>(() => [
+  {
+    command: 'title:asc',
+    label: `${t('preferences.general.sidebar.fileSortBy.filename')} · ${t('preferences.general.sidebar.fileSortOrder.aToZ')}`
+  },
+  {
+    command: 'title:desc',
+    label: `${t('preferences.general.sidebar.fileSortBy.filename')} · ${t('preferences.general.sidebar.fileSortOrder.zToA')}`
+  },
+  {
+    command: 'modified:desc',
+    divided: true,
+    label: `${t('preferences.general.sidebar.fileSortBy.modificationTime')} · ${t('preferences.general.sidebar.fileSortOrder.newestFirst')}`
+  },
+  {
+    command: 'modified:asc',
+    label: `${t('preferences.general.sidebar.fileSortBy.modificationTime')} · ${t('preferences.general.sidebar.fileSortOrder.oldestFirst')}`
+  },
+  {
+    command: 'created:desc',
+    divided: true,
+    label: `${t('preferences.general.sidebar.fileSortBy.creationTime')} · ${t('preferences.general.sidebar.fileSortOrder.newestFirst')}`
+  },
+  {
+    command: 'created:asc',
+    label: `${t('preferences.general.sidebar.fileSortBy.creationTime')} · ${t('preferences.general.sidebar.fileSortOrder.oldestFirst')}`
+  }
+])
+const activeFileSort = computed<FileSortCommand>(
+  () => `${fileSortBy.value}:${fileSortOrder.value}` as FileSortCommand
+)
 const clampDividerPosition = (position: number, height: number): number => {
   const maximum = Math.max(0, height - DIVIDER_SIZE - FOLDER_TREE_MIN_HEIGHT)
   const minimum = Math.min(OPENED_FILES_MIN_HEIGHT, maximum)
@@ -379,6 +454,12 @@ const toggleDirectories = (): void => {
   }
   showDirectories.value = !showDirectories.value
   localStorage.setItem(SHOW_DIRECTORIES_KEY, String(showDirectories.value))
+}
+
+const setFileSort = (command: FileSortCommand): void => {
+  const [sortBy, sortOrder] = command.split(':') as [FileSortBy, FileSortOrder]
+  preferencesStore.SET_SINGLE_PREFERENCE({ type: 'fileSortBy', value: sortBy })
+  preferencesStore.SET_SINGLE_PREFERENCE({ type: 'fileSortOrder', value: sortOrder })
 }
 
 let dividerObserver: ResizeObserver | undefined
@@ -616,7 +697,60 @@ onBeforeUnmount(() => {
 
 .project-tree > .title > span {
   flex: 1;
+  min-width: 0;
   user-select: none;
+}
+
+.sort-button {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 3px;
+  color: var(--sideBarIconColor);
+  background: transparent;
+  cursor: pointer;
+}
+
+.sort-button:hover,
+.sort-button:focus-visible {
+  color: var(--highlightThemeColor);
+  background: var(--sideBarItemHoverBgColor);
+  outline: none;
+}
+
+.sort-check {
+  width: 16px;
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+
+:global(.folder-sort-menu.el-popper) {
+  border-color: var(--floatBorderColor);
+  background: var(--floatBgColor);
+}
+
+:global(.folder-sort-menu .el-dropdown-menu) {
+  background: var(--floatBgColor);
+}
+
+:global(.folder-sort-menu .el-dropdown-menu__item) {
+  color: var(--sideBarColor);
+}
+
+:global(.folder-sort-menu .el-dropdown-menu__item:hover),
+:global(.folder-sort-menu .el-dropdown-menu__item:focus) {
+  color: var(--highlightThemeColor);
+  background: var(--sideBarItemHoverBgColor);
+}
+
+:global(.folder-sort-menu .el-dropdown-menu__item--divided) {
+  border-top-color: var(--floatBorderColor);
 }
 
 .project-tree > .title > a {
