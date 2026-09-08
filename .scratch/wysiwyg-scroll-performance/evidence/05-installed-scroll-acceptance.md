@@ -285,7 +285,7 @@ afterward. The known-red log is `known-red-old-installed-window-close.log` (SHA-
 `e4de4e3c604e1137145b2dc82b7c781361bc67a4378e71a0d038359ac4bf1300`).
 Both exact installed-executable PID inventories were empty after their controlled tests.
 
-## Pending fresh-package manual re-verification
+## Fresh-package manual re-verification
 
 Do not use the old installed identity to approve the repaired behavior. In the repaired package,
 repeat Move to New Window and click the target window's top-right window close button. Verify that
@@ -326,7 +326,22 @@ disappears rather than remaining as `New Tab`; the recovery and source windows r
 the fixture can be reopened from the source window. Only after recording that result may the
 recovery window be closed or its draft discarded. The broader smoke may then use the clean manual
 profile. Record the physical touchpad as unavailable unless a device is actually present.
-Windows final acceptance remains **Pending**; Linux and macOS remain **Untested**.
+
+On 2026-09-07, the user completed this exact path in the repaired installed executable and
+reported all lifecycle checks normal. The recovery draft remained open and unresolved; the
+ordinary source window retained its empty tab; the fixture was moved with **Move to new window**;
+and a physical click on the moved target's top-right window close button removed the entire
+target BrowserWindow without leaving `New Tab`. The source empty-tab window and recovery window
+both remained usable, and reopening the fixture from the source succeeded. This is a **Passed**
+Windows repaired-installed physical title-bar/lifecycle result under the defect's load-bearing
+recovery condition.
+
+This result does not newly validate physical scrolling in the repaired package. The physical
+mouse wheel and scrollbar thumb passed in the older installed package, but the repaired-package
+risk-proportional wheel/thumb smoke is still awaiting an explicit user report, as is confirmation
+that the acceptance instances have been closed. A physical touchpad remains **Unavailable**, not
+Passed. Windows final acceptance therefore remains **Pending**; Linux and macOS remain
+**Untested**.
 
 ## Exact cleanup boundary
 

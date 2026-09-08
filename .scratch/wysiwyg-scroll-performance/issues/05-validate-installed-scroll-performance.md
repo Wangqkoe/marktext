@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Harden scroll ownership across transfer and destruction; 04: Commit programmatic scroll destinations once
 
-**Status:** the first installed build passed its automated performance phase and most Windows manual checks, but manual acceptance found a blocking Move to New Window close defect. The repaired source now has a fresh, isolated Windows package whose installed executable passes the focused Electron regression; final Windows physical re-verification remains pending.
+**Status:** the first installed build passed its automated performance phase and most Windows manual checks, but manual acceptance found a blocking Move to New Window close defect. The repaired source now has a fresh, isolated Windows package whose installed executable passes the focused Electron regression, and the exact Windows physical recovery/Move/title-bar-close lifecycle now passes. Final risk-proportional wheel/thumb smoke in the repaired package and process shutdown confirmation remain pending.
 
 - [x] A fresh Windows installation package is built from the completed implementation and installed into an isolated acceptance environment rather than validated only as a development build.
 - [x] The 400-heading WYSIWYG fixture is run three times in the installed application, and the median of the three per-run proportions of frame gaps greater than 50 ms is no more than 5%.
@@ -29,8 +29,12 @@ process-dirty state and retaining the unrelated recovery draft. Other clean-mark
 failures still block exit. The original installed executable remains the known-red artifact. A
 new repaired executable built from production source commit `6a3dc45a` passes the exact installed
 regression from a fresh temporary profile, while the retained old executable still produces the
-two-window/`New Tab` failure. Physical acceptance is not claimed until the window-close path and
-risk-proportional interaction smoke are manually rechecked. Linux and macOS remain untested.
+two-window/`New Tab` failure. On 2026-09-07, the repaired installed package passed the physical
+title-bar click path while a separate recovery draft remained unresolved: the target window
+disappeared without leaving `New Tab`, the source and recovery windows remained usable, and the
+fixture reopened from the source. Final acceptance is not claimed until the repaired-package
+risk-proportional wheel/thumb smoke is reported and the instances are closed. The physical
+touchpad remains unavailable; Linux and macOS remain untested.
 
 Independent Spec review found and blocked an unsafe interaction in the first repair: the ordinary
 dirty-Document Discard path ignored a failed crash-draft disposition, so the later allowance for
@@ -49,4 +53,4 @@ future physical run may produce the same Windows MRU entry and must not be descr
 installer association change. An independent synthetic recovery profile now contains the same
 valid committed crash-draft pair as the automated regression, so the physical check can retain
 the load-bearing unresolved-recovery state while moving and closing the ordinary fixture window.
-The fresh-package manual re-verification remains pending.
+That exact physical lifecycle now passes; the repaired-package wheel/thumb smoke remains pending.
