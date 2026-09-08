@@ -534,6 +534,11 @@
         "defaultHighlightColor": "기본 강조 색상",
         "highlightPreview": "강조 미리보기",
         "restoreDefaultColor": "기본 노란색 복원",
+        "randomColor": "무작위 색상 선택",
+        "pickScreenColor": "화면에서 색상 선택",
+        "screenColorUnavailable": "화면 색상 선택을 사용할 수 없음",
+        "currentColor": "현재",
+        "recentColors": "최근 · 최신순",
         "maxWidth": "최대 너비",
         "maxWidthNotes": "편집기 콘텐츠의 최대 너비"
       },

@@ -534,6 +534,11 @@
         "defaultHighlightColor": "デフォルトのハイライト色",
         "highlightPreview": "ハイライトのプレビュー",
         "restoreDefaultColor": "デフォルトの黄色に戻す",
+        "randomColor": "ランダムな色を選択",
+        "pickScreenColor": "画面から色を選択",
+        "screenColorUnavailable": "画面からの色選択は利用できません",
+        "currentColor": "現在",
+        "recentColors": "最近 · 新しい順",
         "maxWidth": "最大幅",
         "maxWidthNotes": "エディターコンテンツの最大幅"
       },

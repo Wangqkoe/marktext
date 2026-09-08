@@ -534,6 +534,11 @@
         "defaultHighlightColor": "預設醒目提示顏色",
         "highlightPreview": "醒目提示預覽",
         "restoreDefaultColor": "恢復預設黃色",
+        "randomColor": "隨機選擇顏色",
+        "pickScreenColor": "從螢幕取色",
+        "screenColorUnavailable": "目前環境不支援螢幕取色",
+        "currentColor": "目前",
+        "recentColors": "最近 · 最新在前",
         "maxWidth": "最大寬度",
         "maxWidthNotes": "編輯器內容的最大寬度"
       },

@@ -534,6 +534,11 @@
         "defaultHighlightColor": "Couleur de surbrillance par défaut",
         "highlightPreview": "Aperçu de la surbrillance",
         "restoreDefaultColor": "Restaurer le jaune par défaut",
+        "randomColor": "Choisir une couleur aléatoire",
+        "pickScreenColor": "Choisir une couleur à l’écran",
+        "screenColorUnavailable": "La sélection de couleur à l’écran n’est pas disponible",
+        "currentColor": "Actuelle",
+        "recentColors": "Récentes · plus nouvelles d’abord",
         "maxWidth": "Largeur maximale",
         "maxWidthNotes": "Largeur maximale du contenu de l'éditeur"
       },

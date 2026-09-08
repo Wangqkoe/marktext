@@ -534,6 +534,11 @@
         "defaultHighlightColor": "默认高亮颜色",
         "highlightPreview": "高亮预览",
         "restoreDefaultColor": "恢复默认黄色",
+        "randomColor": "随机选择颜色",
+        "pickScreenColor": "从屏幕取色",
+        "screenColorUnavailable": "当前环境不支持屏幕取色",
+        "currentColor": "当前",
+        "recentColors": "最近 · 最新在前",
         "maxWidth": "最大宽度",
         "maxWidthNotes": "编辑器内容的最大宽度"
       },

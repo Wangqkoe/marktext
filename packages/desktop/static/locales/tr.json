@@ -534,6 +534,11 @@
         "defaultHighlightColor": "Varsayılan vurgu rengi",
         "highlightPreview": "Vurgu önizlemesi",
         "restoreDefaultColor": "Varsayılan sarıyı geri yükle",
+        "randomColor": "Rastgele renk seç",
+        "pickScreenColor": "Ekrandan renk seç",
+        "screenColorUnavailable": "Ekrandan renk seçme kullanılamıyor",
+        "currentColor": "Geçerli",
+        "recentColors": "Son kullanılanlar · en yeni önce",
         "maxWidth": "Maksimum genişlik",
         "maxWidthNotes": "Düzenleyici içeriğinin maksimum genişliği"
       },

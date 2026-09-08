@@ -36,6 +36,11 @@
           default-value="#ffff00"
           :preview-label="t('preferences.editor.textEditor.highlightPreview')"
           :reset-label="t('preferences.editor.textEditor.restoreDefaultColor')"
+          :random-label="t('preferences.editor.textEditor.randomColor')"
+          :eye-dropper-label="t('preferences.editor.textEditor.pickScreenColor')"
+          :eye-dropper-unavailable-label="t('preferences.editor.textEditor.screenColorUnavailable')"
+          :current-label="t('preferences.editor.textEditor.currentColor')"
+          :recent-label="t('preferences.editor.textEditor.recentColors')"
           :on-change="(value) => onSelectChange('highlightColor', value)"
         />
         <text-box

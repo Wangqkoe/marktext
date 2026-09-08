@@ -534,6 +534,11 @@
         "defaultHighlightColor": "Default highlight color",
         "highlightPreview": "Highlight preview",
         "restoreDefaultColor": "Restore default yellow",
+        "randomColor": "Choose random color",
+        "pickScreenColor": "Pick color from screen",
+        "screenColorUnavailable": "Screen color picking is unavailable",
+        "currentColor": "Current",
+        "recentColors": "Recent · newest first",
         "maxWidth": "Max width",
         "maxWidthNotes": "Maximum width of editor content"
       },

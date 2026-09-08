@@ -534,6 +534,11 @@
         "defaultHighlightColor": "Cor de destaque padrão",
         "highlightPreview": "Pré-visualização do destaque",
         "restoreDefaultColor": "Restaurar amarelo padrão",
+        "randomColor": "Escolher cor aleatória",
+        "pickScreenColor": "Escolher cor da tela",
+        "screenColorUnavailable": "A seleção de cor da tela não está disponível",
+        "currentColor": "Atual",
+        "recentColors": "Recentes · mais novas primeiro",
         "maxWidth": "Largura máxima",
         "maxWidthNotes": "Largura máxima do conteúdo do editor"
       },
