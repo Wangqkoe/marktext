@@ -132,6 +132,14 @@ describe('loadImage — undetermined content-type still attempts the load (#3837
 });
 
 describe('getImageSrc — relative local image paths anchored to window.DIRNAME', () => {
+    it('uses an editor-specific base path instead of the global document directory', () => {
+        withDirname('/wrong/document', () => {
+            expect(getImageSrc('assets/foo.png', 'C:/right/document').src).toBe(
+                'file://C:/right/document/assets/foo.png',
+            );
+        });
+    });
+
     it('resolves a relative path against the document directory', () => {
         withDirname(DIRNAME, () => {
             expect(getImageSrc('assets/foo.png')).toEqual({

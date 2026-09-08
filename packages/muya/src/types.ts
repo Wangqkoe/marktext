@@ -44,6 +44,8 @@ export interface IMuyaOptions {
     };
     json?: TState[];
     markdown?: string;
+    /** Directory used by this editor instance to resolve relative image paths. */
+    imageBasePath?: string;
     /**
      * Resolve the OS clipboard to a local file path on paste.
      *

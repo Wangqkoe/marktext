@@ -334,6 +334,9 @@ export const useEditorStore = defineStore('editor', {
       this.currentFile = activeTab && activeDocument
         ? controllerFacadeFile(activeTab, activeDocument, this.currentFile?.id === activeTab.documentId ? this.currentFile : existing.get(activeTab.documentId))
         : null
+      window.DIRNAME = this.currentFile?.pathname
+        ? window.path.dirname(this.currentFile.pathname)
+        : ''
       const nextListToc = projection.toc.map((item) => ({
         slug: item.id,
         githubSlug: item.id,

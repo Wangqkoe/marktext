@@ -943,6 +943,8 @@ const imagePathAutoComplete = async (src: string) => {
   })
 }
 
+const imageBasePathFor = (pathname?: string): string => pathname ? window.path.dirname(pathname) : ''
+
 const imageAction = async (
   image: string | File,
   id: string | null,
@@ -1652,6 +1654,7 @@ const handleFileChange = (payload: unknown) => {
   if (!container) return
 
   if (typeof newMarkdown === 'string') {
+    editor.value.setOptions({ imageBasePath: imageBasePathFor(currentFile.value?.pathname) })
     // Returning from source-code mode: the WYSIWYG engine is never unmounted
     // while source mode is up (index.vue overlays it via `v-if`), so it still
     // holds the PRE-source-mode document and undo history. Record the bulk
@@ -1871,6 +1874,7 @@ onMounted(() => {
   const options: Record<string, unknown> = {
     focusMode: focus.value,
     markdown: props.markdown,
+    imageBasePath: imageBasePathFor(currentFile.value?.pathname),
     locale: getMuyaLocale(language.value),
     preferLooseListItem: preferLooseListItem.value,
     autoPairBracket: autoPairBracket.value,
@@ -1934,6 +1938,11 @@ onMounted(() => {
   // the document tree and instantiates the registered UI plugins).
   muya.init()
   editor.value = muya
+
+  watch(
+    () => currentFile.value?.pathname,
+    (pathname) => editor.value?.setOptions({ imageBasePath: imageBasePathFor(pathname) }, true)
+  )
 
   let applyingSourceHistory = false
   function preserveOutsideSelection (work: () => void): void {

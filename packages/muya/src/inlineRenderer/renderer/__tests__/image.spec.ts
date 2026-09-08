@@ -26,6 +26,7 @@ interface IFakeRenderer {
     muya: {
         editor: { selection: { image: null | unknown } };
         i18n: { t: (s: string) => string };
+        options: { imageBasePath?: string };
     };
 }
 
@@ -42,6 +43,7 @@ function makeRenderer(loadResult: {
         muya: {
             editor: { selection: { image: null } },
             i18n: { t: (s: string) => s },
+            options: {},
         },
     };
 }
@@ -190,6 +192,27 @@ describe('image renderer — small image class (marktext cb7be189)', () => {
 // path, otherwise innerHTML re-requests the un-busted URL and Chromium serves
 // the stale, previously cached bitmap. Remote URLs have no resolved override.
 describe('image renderer — uses the cache-busted url for local files', () => {
+    it('resolves a relative image from this editor instance base path', () => {
+        const renderer = makeRenderer({
+            id: 'mu-image-instance-base',
+            isSuccess: true,
+            width: 400,
+            height: 300,
+        });
+        renderer.muya.options.imageBasePath = 'C:/documents/second';
+        const token = makeImageToken({ src: 'assets/image.png' });
+
+        image.call(
+            asRenderer(renderer),
+            { h, block: fakeBlock, token, cursor: fakeCursor },
+        );
+
+        expect(renderer.loadImageAsync).toHaveBeenCalledWith(
+            { src: 'file://C:/documents/second/assets/image.png', isUnknownType: false },
+            token.attrs,
+        );
+    });
+
     it('renders the resolved (cache-busted) url returned by loadImageAsync', () => {
         const renderer = makeRenderer({
             id: 'mu-image-6',

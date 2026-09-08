@@ -3,6 +3,7 @@ import type { ElectronApplication, Page } from 'playwright'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { launchElectron, waitForEditor, waitForMenuReady } from './helpers'
 
 // Checklist 122 — integration coverage for the Phase G "G1" blocker: a
@@ -22,6 +23,15 @@ const ONE_BY_ONE_PNG_BASE64 =
 
 const createdDirs: string[] = []
 
+const removeTemporaryRoot = (rootDir: string, prefix: string): void => {
+  const resolvedRoot = path.resolve(rootDir)
+  const resolvedTemp = path.resolve(os.tmpdir())
+  if (path.dirname(resolvedRoot) !== resolvedTemp || !path.basename(resolvedRoot).startsWith(prefix)) {
+    throw new Error(`Refusing to remove unexpected temporary directory: ${rootDir}`)
+  }
+  fs.rmSync(resolvedRoot, { recursive: true, force: true })
+}
+
 const writeDocWithRelativeImage = (): { docPath: string; docDir: string } => {
   const docDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-e2e-relimg-'))
   createdDirs.push(docDir)
@@ -31,6 +41,86 @@ const writeDocWithRelativeImage = (): { docPath: string; docDir: string } => {
   const docPath = path.join(docDir, 'note.md')
   fs.writeFileSync(docPath, '![a cat](assets/cat.png)\n', 'utf-8')
   return { docPath, docDir }
+}
+
+const writeDocsWithRelativeImagesInDifferentDirectories = (): {
+  rootDir: string
+  firstPath: string
+  firstDir: string
+  secondPath: string
+  secondDir: string
+} => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-e2e-relimg-switch-'))
+  createdDirs.push(rootDir)
+  const writeDocument = (directory: string, imageName: string): string => {
+    const assetsDir = path.join(directory, 'assets')
+    fs.mkdirSync(assetsDir, { recursive: true })
+    fs.writeFileSync(path.join(assetsDir, imageName), Buffer.from(ONE_BY_ONE_PNG_BASE64, 'base64'))
+    const documentPath = path.join(directory, 'note.md')
+    fs.writeFileSync(documentPath, `![](${path.posix.join('assets', imageName)})\n`, 'utf-8')
+    return documentPath
+  }
+  const firstDir = path.join(rootDir, 'first')
+  const secondDir = path.join(rootDir, 'second')
+  return {
+    rootDir,
+    firstPath: writeDocument(firstDir, 'first.png'),
+    firstDir,
+    secondPath: writeDocument(secondDir, 'second.png'),
+    secondDir
+  }
+}
+
+const writeDocsWithMatchingRelativeImagePaths = (): {
+  rootDir: string
+  firstPath: string
+  firstDir: string
+  secondPath: string
+  secondDir: string
+} => {
+  const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-e2e-relimg-split-'))
+  createdDirs.push(rootDir)
+  const writeDocument = (directory: string, width: number): string => {
+    const assetsDir = path.join(directory, 'assets')
+    fs.mkdirSync(assetsDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(assetsDir, 'image.svg'),
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="1"><rect width="100%" height="100%"/></svg>`,
+      'utf-8'
+    )
+    const documentPath = path.join(directory, 'note.md')
+    fs.writeFileSync(documentPath, '![](assets/image.svg)\n\n<div><img src="assets/image.svg"></div>\n', 'utf-8')
+    return documentPath
+  }
+  const firstDir = path.join(rootDir, 'first')
+  const secondDir = path.join(rootDir, 'second')
+  return {
+    rootDir,
+    firstPath: writeDocument(firstDir, 101),
+    firstDir,
+    secondPath: writeDocument(secondDir, 202),
+    secondDir
+  }
+}
+
+const tabMenuAction = async(app: ElectronApplication, tab: ReturnType<Page['locator']>, label: string): Promise<void> => {
+  await app.evaluate(({ Menu }) => {
+    Menu.prototype.popup = function() {
+      ;(global as unknown as { __relativeImageMenu: unknown }).__relativeImageMenu = this
+    }
+  })
+  await tab.dispatchEvent('contextmenu', { clientX: 20, clientY: 20 })
+  await expect.poll(() => app.evaluate(() => !!(global as unknown as { __relativeImageMenu?: unknown }).__relativeImageMenu)).toBe(true)
+  await app.evaluate(({ BrowserWindow }, itemLabel) => {
+    const state = global as unknown as {
+      __relativeImageMenu?: { items: Array<{ label: string; enabled: boolean; click(...args: unknown[]): void }> }
+    }
+    const item = state.__relativeImageMenu?.items.find(item => item.label === itemLabel)
+    if (!item?.enabled) throw new Error(`Menu action unavailable: ${itemLabel}`)
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    item.click(undefined, win, win?.webContents)
+    delete state.__relativeImageMenu
+  }, label)
 }
 
 test.describe('Relative-path image resolves to a DIRNAME-anchored file:// URL', () => {
@@ -115,4 +205,106 @@ test.describe('Relative-path image resolves to a DIRNAME-anchored file:// URL', 
     expect(fs.existsSync(onDiskPath)).toBe(true)
     expect(onDiskPath).toBe(path.join(docDir, 'assets', 'cat.png').replace(/\\/g, '/'))
   })
+})
+
+test('switching documents updates relative image resolution to the active document directory', async() => {
+  const docs = writeDocsWithRelativeImagesInDifferentDirectories()
+  const launched = await launchElectron([docs.firstPath])
+  try {
+    await waitForEditor(launched.page)
+    await expect
+      .poll(async() => launched.page.locator('.editor-component .mu-inline-image.mu-image-success').count(), {
+        timeout: 10000
+      })
+      .toBeGreaterThanOrEqual(1)
+
+    await launched.page.evaluate((documentPath) => {
+      window.electron.ipcRenderer.send('mt::open-file', documentPath, {})
+    }, docs.secondPath)
+
+    await expect
+      .poll(
+        async() =>
+          launched.page.evaluate(() => document.querySelector('.editor-component .mu-inline-image')?.getAttribute('data-raw')),
+        { timeout: 10000 }
+      )
+      .toBe('![](assets/second.png)')
+    await expect
+      .poll(
+        async() => launched.page.evaluate(() => window.DIRNAME.replace(/\\/g, '/')),
+        { timeout: 10000 }
+      )
+      .toBe(docs.secondDir.replace(/\\/g, '/'))
+    await expect
+      .poll(async() => launched.page.locator('.editor-component .mu-inline-image.mu-image-success').count(), {
+        timeout: 10000
+      })
+      .toBeGreaterThanOrEqual(1)
+
+    const image = launched.page.locator('.editor-component .mu-image-container img').first()
+    await expect.poll(async() => image.evaluate(element => (element as HTMLImageElement).naturalWidth), { timeout: 10000 }).toBe(1)
+    const src = await image.getAttribute('src')
+    expect(src?.split('?')[0]).toBe(
+      `file://${path.join(docs.secondDir, 'assets', 'second.png').replace(/\\/g, '/')}`
+    )
+  } finally {
+    await launched.app.close()
+    removeTemporaryRoot(docs.rootDir, 'marktext-e2e-relimg-switch-')
+  }
+})
+
+test('split panes resolve identical relative image paths from their own documents', async() => {
+  const docs = writeDocsWithMatchingRelativeImagePaths()
+  const launched = await launchElectron([docs.firstPath])
+  try {
+    await waitForEditor(launched.page)
+    await expect.poll(async() => launched.page.locator('.mu-inline-image.mu-image-success').count(), {
+      timeout: 10000
+    }).toBeGreaterThanOrEqual(1)
+
+    await tabMenuAction(launched.app, launched.page.locator('.tabs-container > li.active'), 'Split Right')
+    await expect(launched.page.locator('.workspace-pane')).toHaveCount(2)
+    await launched.page.locator('.workspace-pane').first().click()
+    await launched.page.evaluate((documentPath) => {
+      window.electron.ipcRenderer.send('mt::open-file', documentPath, {})
+    }, docs.secondPath)
+
+    await expect.poll(async() => launched.page.locator('.workspace-pane').first().locator('.tabs-container > li.active').getAttribute('title'), {
+      timeout: 10000
+    }).toBe(docs.secondPath)
+    await expect.poll(async() => launched.page.locator('.workspace-pane').first().locator('.mu-inline-image').count(), {
+      timeout: 10000
+    }).toBeGreaterThanOrEqual(1)
+    await expect.poll(async() => launched.page.locator('.workspace-pane').nth(1).locator('.mu-inline-image').count(), {
+      timeout: 10000
+    }).toBeGreaterThanOrEqual(1)
+    for (const pane of await launched.page.locator('.workspace-pane').all()) {
+      await expect(pane.locator('.mu-html-preview-action')).toHaveCount(1)
+      await pane.locator('.mu-html-preview-action').dispatchEvent('click')
+    }
+
+    await expect.poll(async() => launched.page.locator('.workspace-pane').evaluateAll((panes) =>
+      panes.map(pane => pane.querySelector<HTMLImageElement>('.mu-image-container img')?.naturalWidth)
+    ), { timeout: 10000 }).toEqual([202, 101])
+    const srcs = await launched.page.locator('.workspace-pane').evaluateAll((panes) =>
+      panes.map(pane => pane.querySelector<HTMLImageElement>('.mu-image-container img')?.src.split('?')[0])
+    )
+    expect(srcs).toEqual([
+      pathToFileURL(path.join(docs.secondDir, 'assets', 'image.svg')).href,
+      pathToFileURL(path.join(docs.firstDir, 'assets', 'image.svg')).href
+    ])
+    await expect.poll(async() => launched.page.locator('.workspace-pane').evaluateAll((panes) =>
+      panes.map(pane => pane.querySelector<HTMLImageElement>('.mu-html-preview img')?.naturalWidth)
+    ), { timeout: 10000 }).toEqual([202, 101])
+    const htmlSrcs = await launched.page.locator('.workspace-pane').evaluateAll((panes) =>
+      panes.map(pane => pane.querySelector<HTMLImageElement>('.mu-html-preview img')?.src.split('?')[0])
+    )
+    expect(htmlSrcs).toEqual([
+      pathToFileURL(path.join(docs.secondDir, 'assets', 'image.svg')).href,
+      pathToFileURL(path.join(docs.firstDir, 'assets', 'image.svg')).href
+    ])
+  } finally {
+    await launched.app.close()
+    removeTemporaryRoot(docs.rootDir, 'marktext-e2e-relimg-split-')
+  }
 })

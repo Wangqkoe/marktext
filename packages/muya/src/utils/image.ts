@@ -67,7 +67,7 @@ function resolveRelativePath(base: string, relative: string): string {
     return tail ? `${root}/${tail}` : root;
 }
 
-export function getImageSrc(src: string) {
+export function getImageSrc(src: string, imageBasePath?: string) {
     const EXT_REG = /\.(?:jpeg|jpg|png|gif|svg|webp)(?=\?|$)/i;
     // http[s] (domain or IPv4 or localhost or IPv6) [port] /not-white-space
     const URL_REG
@@ -80,12 +80,12 @@ export function getImageSrc(src: string) {
     const isUrl = URL_REG.test(src) || (imageExtension && isFileUrl);
     if (imageExtension) {
         const isAbsoluteLocal = ABSOLUTE_LOCAL_REG.test(src);
-        // Anchor a relative local path to the document directory. The
-        // engine runs in the host renderer where `window.DIRNAME` tracks the
-        // current document's directory; when it is absent (headless / no open
-        // file) we fall back to the `file://${src}` form.
-        const baseUrl
-            = typeof window !== 'undefined' ? window.DIRNAME : undefined;
+        // Anchor a relative local path to this editor's document directory.
+        // The host supplies imageBasePath for every editor instance; the
+        // legacy window-level directory remains a fallback for embedders that
+        // do not provide one.
+        const baseUrl = imageBasePath
+            ?? (typeof window !== 'undefined' ? window.DIRNAME : undefined);
         if (isUrl) {
             return {
                 isUnknownType: false,
