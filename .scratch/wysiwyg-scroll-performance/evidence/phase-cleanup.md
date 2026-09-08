@@ -2,7 +2,7 @@
 
 Date: 2026-09-08 (America/Los_Angeles)
 
-Status: **Git registrations and merged phase refs were cleaned; protected application state is unchanged. Filesystem package/install cleanup is retained as an explicit residual because the authorized PowerShell mutation was rejected before execution.** No uninstaller was run.
+Status: **Git registrations and merged phase refs are cleaned. After the automated deletion was blocked, the user manually removed the old installs, old package trees and 13 of 14 worktree residuals; only the unregistered `4303` directory remains. The user intentionally skipped removal of the two old uninstall keys. Protected application state is unchanged.** No uninstaller was run.
 
 ## Recovery archive
 
@@ -20,6 +20,8 @@ The before and after machine-readable inventories are also retained there:
 
 - `cleanup-before.json`: 23,874 bytes; SHA-256 `2eee93ba2d89323c64386e3bea0b01c7602bc83685ff0e3329c0b7d00648593e`.
 - `cleanup-after.json`: 18,066 bytes; SHA-256 `ab430454679e003535c430c7d02335b6aed2e74b866666f0c95e8eb86f68333a`.
+
+These inventories describe the automated pass before the later manual follow-up; they were not rewritten after the user's filesystem cleanup.
 
 The before inventory's `Files` field is `1` for six multi-file protected trees because the `Measure-Object` result was inadvertently counted as a one-element array. Its byte totals and sorted path/length/mtime metadata SHA-256 values are valid. The after inventory contains the correct file counts, and all seven byte totals and metadata hashes match the before inventory.
 
@@ -48,7 +50,7 @@ The daily installation at `E:\Users\1407\AppData\Local\Programs\marktext`, daily
 
 The before inventory contained these 14 registered phase worktrees. Each had a clean normal status and no ordinary untracked files; each contained ignored `node_modules`. The detached `1f4a` T06 task directory had already disappeared as an application-archive side effect before this before snapshot, and commit `35f93b48` was included in the bundle before stale metadata was pruned.
 
-| Worktree | HEAD | Final-coordinate ancestor | Git registration after cleanup | Filesystem result |
+| Worktree | HEAD | Final-coordinate ancestor | Git registration after cleanup | Filesystem result after automated pass |
 | --- | --- | --- | --- | --- |
 | `3d9b` | `d9c97636` | yes | absent | residual directory |
 | `4303` | `16ae5c96` | no; patch-equivalent commit is upstream | absent | residual directory; first removal reported `Filename too long` |
@@ -73,7 +75,7 @@ The initial `4303` removal removed Git administration and then returned:
 error: failed to delete 'C:/Users/1407/.codex/worktrees/4303/Marktext': Filename too long
 ```
 
-The remaining removals used `git -c core.longpaths=true worktree remove`. They returned 0 and removed all Git registrations, but final `Test-Path` checks corrected the earlier progress reporting: **zero of the 14 filesystem directories was completely deleted**. Every directory remains without `.git`; `3d9b` and `4303` retain `node_modules`, `packages`, `scripts` and four top-level package/readme files, while the other twelve retain `node_modules` and `packages`. No reclaimed-byte total is claimed.
+The remaining removals used `git -c core.longpaths=true worktree remove`. They returned 0 and removed all Git registrations, but the automated pass's final `Test-Path` checks corrected the earlier progress reporting: **zero of the 14 filesystem directories was completely deleted at that point**. Every directory then remained without `.git`; `3d9b` and `4303` retained `node_modules`, `packages`, `scripts` and four top-level package/readme files, while the other twelve retained `node_modules` and `packages`. No reclaimed-byte total was claimed for the automated pass.
 
 Thirteen branch tips that are ancestors of `1fa46c7277b42b1ef53035a5eb928b652e9fe309` were deleted with `git branch -d`: both T03 refs, all three T05 refs, all four T06 refs and all four T07 refs. Four non-ancestor phase refs remain because cleanup did not force-delete them:
 
@@ -99,7 +101,21 @@ Script error:
 exec_command failed: CreateProcess { message: "Rejected(\"...3230 chars truncated...\" rejected: blocked by policy)" }
 ```
 
-The tool exposed no reason more specific than `blocked by policy`; the elided portion was the already-validated PowerShell command that would have called `Remove-Item -LiteralPath -Recurse -Force` on the five exact paths, then `Remove-Item` on the two exact registry keys. Cleanup did not retry through another deletion mechanism. Therefore the actual result is **0/5 authorized filesystem targets deleted, 0/2 old uninstall keys deleted, and 0 of their 3,282,768,437 candidate bytes claimed reclaimed**. All old root-level logs, raw JSON, profiles and manifests also remain.
+The tool exposed no reason more specific than `blocked by policy`; the elided portion was the already-validated PowerShell command that would have called `Remove-Item -LiteralPath -Recurse -Force` on the five exact paths, then `Remove-Item` on the two exact registry keys. Cleanup did not retry through another deletion mechanism. Therefore the automated result was **0/5 authorized filesystem targets deleted, 0/2 old uninstall keys deleted, and 0 of their 3,282,768,437 candidate bytes claimed reclaimed**. All old root-level logs, raw JSON, profiles and manifests also remained.
+
+## Manual follow-up and current state
+
+The user subsequently reported completing cleanup steps 1–3 and intentionally skipping step 4. A coordinator read-only verification established the current state:
+
+- 13 of the 14 unregistered worktree residual directories are absent; only `C:\Users\1407\.codex\worktrees\4303\Marktext` remains, containing `node_modules`, `packages`, `scripts`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml` and `README.md`;
+- old install directories `C:\Users\1407\.codex\installed\marktext-t05-ef5a10d` and `C:\Users\1407\.codex\installed\marktext-t05-ef5a10d-safe` are absent;
+- the `package` subdirectories in old artifact roots `marktext-t05-ef5a10d-20260907-01`, `-02` and `-03` are absent, while the surrounding evidence roots and their logs/raw evidence remain;
+- old uninstall keys `5db268dd-accd-5303-98ab-479c4b2bad30` and `41bf11fe-a9a0-5b02-8a88-95cceca372d9` remain by the user's explicit choice;
+- all 23 association targets still have zero differences from the baseline;
+- the repaired installer still hashes to `f63370247302b3350b3c729695bb33a542484e9bb03ed432e78d5360a83dc8a3`, the recovery bundle still hashes to `4fa228619b35d5921b8ca35828fb2d3becd67a86b621422947025250d393d925`, and the repaired installed executable remains present; and
+- no further directory or registry deletion was attempted by the agent after this feedback.
+
+Thus the current intentional residual set is the single unregistered `4303` directory plus the two old uninstall keys. No reclaimed-byte total is inferred from filesystem absence.
 
 ## Retained evidence and pending work
 
