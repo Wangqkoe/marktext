@@ -531,6 +531,9 @@
         "fontSize": "Tamanho da fonte",
         "lineHeight": "Altura da linha",
         "fontFamily": "Família da fonte",
+        "defaultHighlightColor": "Cor de destaque padrão",
+        "highlightPreview": "Pré-visualização do destaque",
+        "restoreDefaultColor": "Restaurar amarelo padrão",
         "maxWidth": "Largura máxima",
         "maxWidthNotes": "Largura máxima do conteúdo do editor"
       },

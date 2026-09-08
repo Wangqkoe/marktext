@@ -531,6 +531,9 @@
         "fontSize": "Tamaño de fuente",
         "lineHeight": "Altura de línea",
         "fontFamily": "Familia de fuente",
+        "defaultHighlightColor": "Color de resaltado predeterminado",
+        "highlightPreview": "Vista previa del resaltado",
+        "restoreDefaultColor": "Restaurar amarillo predeterminado",
         "maxWidth": "Ancho máximo",
         "maxWidthNotes": "Ancho máximo del contenido del editor"
       },

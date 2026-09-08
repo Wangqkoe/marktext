@@ -30,6 +30,14 @@
           :value="editorFontFamily"
           :on-change="(value) => onSelectChange('editorFontFamily', value)"
         />
+        <color-picker
+          :description="t('preferences.editor.textEditor.defaultHighlightColor')"
+          :value="highlightColor"
+          default-value="#ffff00"
+          :preview-label="t('preferences.editor.textEditor.highlightPreview')"
+          :reset-label="t('preferences.editor.textEditor.restoreDefaultColor')"
+          :on-change="(value) => onSelectChange('highlightColor', value)"
+        />
         <text-box
           :description="t('preferences.editor.textEditor.maxWidth')"
           :notes="t('preferences.editor.textEditor.maxWidthNotes')"
@@ -189,6 +197,7 @@ import { usePreferencesStore } from '@/store/preferences'
 import type { PreferencesState } from '@/store/preferences'
 import Compound from '../common/compound/index.vue'
 import FontTextBox from '../common/fontTextBox/index.vue'
+import ColorPicker from '../common/colorPicker/index.vue'
 import Range from '../common/range/index.vue'
 import CurSelect from '../common/select/index.vue'
 import Bool from '../common/bool/index.vue'
@@ -210,6 +219,7 @@ const {
   fontSize,
   editorFontFamily,
   lineHeight,
+  highlightColor,
   autoPairBracket,
   autoPairMarkdownSyntax,
   autoPairQuote,

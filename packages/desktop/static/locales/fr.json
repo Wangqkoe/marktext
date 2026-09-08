@@ -531,6 +531,9 @@
         "fontSize": "Taille de police",
         "lineHeight": "Hauteur de ligne",
         "fontFamily": "Famille de police",
+        "defaultHighlightColor": "Couleur de surbrillance par défaut",
+        "highlightPreview": "Aperçu de la surbrillance",
+        "restoreDefaultColor": "Restaurer le jaune par défaut",
         "maxWidth": "Largeur maximale",
         "maxWidthNotes": "Largeur maximale du contenu de l'éditeur"
       },

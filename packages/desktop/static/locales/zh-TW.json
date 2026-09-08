@@ -531,6 +531,9 @@
         "fontSize": "字型大小",
         "lineHeight": "行高",
         "fontFamily": "字型系列",
+        "defaultHighlightColor": "預設醒目提示顏色",
+        "highlightPreview": "醒目提示預覽",
+        "restoreDefaultColor": "恢復預設黃色",
         "maxWidth": "最大寬度",
         "maxWidthNotes": "編輯器內容的最大寬度"
       },

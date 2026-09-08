@@ -249,6 +249,7 @@ const {
   isGitlabCompatibilityEnabled,
   lineHeight,
   fontSize,
+  highlightColor,
   codeFontSize,
   codeFontFamily,
   codeBlockLineNumbers,
@@ -637,6 +638,12 @@ watch(fontSize, (value, oldValue) => {
 watch(lineHeight, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
     editor.value.setOptions({ lineHeight: value })
+  }
+})
+
+watch(highlightColor, (value, oldValue) => {
+  if (value !== oldValue && editor.value) {
+    editor.value.domNode.style.setProperty('--mark-highlight-color', value)
   }
 })
 
@@ -1840,6 +1847,7 @@ onMounted(() => {
   printer = new Printer()
   const ele = editorRef.value
   if (!ele) return
+  ele.style.setProperty('--mark-highlight-color', highlightColor.value)
 
   // Register the engine UI plugins once per renderer process (see
   // `muyaPluginsRegistered`). The image-edit tool receives the desktop's image

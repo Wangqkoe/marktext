@@ -531,6 +531,9 @@
         "fontSize": "Schriftgröße",
         "lineHeight": "Zeilenhöhe",
         "fontFamily": "Schriftfamilie",
+        "defaultHighlightColor": "Standardfarbe für Hervorhebungen",
+        "highlightPreview": "Hervorhebungsvorschau",
+        "restoreDefaultColor": "Standardgelb wiederherstellen",
         "maxWidth": "Maximale Breite",
         "maxWidthNotes": "Maximale Breite des Editor-Inhalts"
       },

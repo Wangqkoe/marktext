@@ -22,6 +22,7 @@ export interface IUserPreferences {
   editorFontFamily?: string
   fontSize?: number
   lineHeight?: number
+  highlightColor?: string
   codeFontSize?: number
   codeFontFamily?: string
   hideQuickInsertHint?: boolean

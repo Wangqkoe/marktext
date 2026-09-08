@@ -531,6 +531,9 @@
         "fontSize": "フォントサイズ",
         "lineHeight": "行の高さ",
         "fontFamily": "フォントファミリー",
+        "defaultHighlightColor": "デフォルトのハイライト色",
+        "highlightPreview": "ハイライトのプレビュー",
+        "restoreDefaultColor": "デフォルトの黄色に戻す",
         "maxWidth": "最大幅",
         "maxWidthNotes": "エディターコンテンツの最大幅"
       },

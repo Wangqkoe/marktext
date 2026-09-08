@@ -531,6 +531,9 @@
         "fontSize": "Yazı tipi boyutu",
         "lineHeight": "Satır yüksekliği",
         "fontFamily": "Yazı tipi ailesi",
+        "defaultHighlightColor": "Varsayılan vurgu rengi",
+        "highlightPreview": "Vurgu önizlemesi",
+        "restoreDefaultColor": "Varsayılan sarıyı geri yükle",
         "maxWidth": "Maksimum genişlik",
         "maxWidthNotes": "Düzenleyici içeriğinin maksimum genişliği"
       },

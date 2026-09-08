@@ -91,6 +91,12 @@
     "minimum": 1.2,
     "default": 1.6
   },
+  "highlightColor": {
+    "description": "Editor--Default text highlight color",
+    "type": "string",
+    "pattern": "^#[0-9a-fA-F]{6}$",
+    "default": "#ffff00"
+  },
   "wrapCodeBlocks": {
     "description": "Editor--Wrap text inside code blocks",
     "type": "boolean",

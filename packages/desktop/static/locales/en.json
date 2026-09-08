@@ -531,6 +531,9 @@
         "fontSize": "Font size",
         "lineHeight": "Line height",
         "fontFamily": "Font family",
+        "defaultHighlightColor": "Default highlight color",
+        "highlightPreview": "Highlight preview",
+        "restoreDefaultColor": "Restore default yellow",
         "maxWidth": "Max width",
         "maxWidthNotes": "Maximum width of editor content"
       },
