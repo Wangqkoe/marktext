@@ -3,8 +3,9 @@
 Date: 2026-09-07 (America/Los_Angeles)
 
 Status: **initial installed performance phase Passed; Windows manual acceptance exposed one
-blocking window-close defect; the repair passes development-build automation; fresh-package
-manual re-verification is Pending.** This is not final ticket acceptance.
+blocking window-close defect; the repaired source now passes the exact installed regression in a
+fresh isolated package; final fresh-package physical re-verification is Pending.** This is not
+final ticket acceptance.
 
 ## Identity and build
 
@@ -193,15 +194,90 @@ Focused results after the repair:
 These automated results do not update the identity of the installed artifact above. That retained
 executable is intentionally still the known-red build and is useful only as pre-fix evidence.
 
+## Repaired package and installed regression
+
+The repaired production source is exactly
+`6a3dc45a95c2b13fcf591f0b3f3f4ff7664416fe`. The packaging branch adds only a standalone
+acceptance builder configuration in commit `152f03da8cb9dfbadb9fb9586dd36d6e0fa69d6d`;
+`git diff --quiet 6a3dc45a... -- packages scripts package.json pnpm-lock.yaml
+pnpm-workspace.yaml eslint.config.js` returned 0 before the build. The config SHA-256 is
+`c2bb9d388cbdd99eacf837c470273707742cdde5c87377e4891a0dcae464ac76`.
+
+The builder identity is deliberately distinct from both the production application and the old
+acceptance package:
+
+- app id: `com.github.marktext.marktext.scroll-acceptance-t05-repaired-6a3dc45`;
+- product: `MarkText Scroll Acceptance T05 Repaired 6a3dc45`;
+- executable: `marktext-scroll-acceptance-t05-repaired-6a3dc45.exe`; and
+- isolated installation:
+  `C:\Users\1407\.codex\installed\marktext-t05-6a3dc45-repaired`.
+
+The standalone config has no `fileAssociations` and does not include
+`build/windows/installer.nsh`. That omission is material: the production include writes global
+Markdown associations during opt-in install and deletes the global `MarkText.Document` and
+extension keys during uninstall. No generated uninstaller was run.
+
+The fresh build ran, in order, locale minification, `electron-rebuild`, `electron-vite build`, and
+`electron-builder --win nsis zip --x64 --publish never` with the standalone configuration and a
+new output directory. All commands returned 0. The retained command transcript is
+`fresh-build.log`. Fresh `packages/desktop/out` contains 878 files and 24,000,456 bytes; its
+sorted manifest SHA-256 is
+`05342a39dd4a8e613506a0b83faa852136b6d052abca468d88e5d998541c4c97`. The package tree contains
+136 files and 776,231,695 bytes; its sorted manifest SHA-256 is
+`e729517a1ea2421d63299da77ee33ac9c45c8e0ed28cef64badf4886d0160cd0`.
+
+Artifacts are retained below
+`C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\package`:
+
+| Artifact | Bytes | SHA-256 | Authenticode |
+| --- | ---: | --- | --- |
+| repaired x64 NSIS installer | 125,834,467 | `f63370247302b3350b3c729695bb33a542484e9bb03ed432e78d5360a83dc8a3` | NotSigned |
+| repaired x64 ZIP | 173,422,947 | `c9559a934301d03fd0fb9cf1fa38ca2834eb5747f03bddb5711c595d0a8cc9a0` | not applicable |
+| repaired unpacked/installed executable | 226,508,288 | `8f0d5921c1c129cf5150fdca69689ab5a1488397747f1e293a2427438ff9aac3` | NotSigned |
+| repaired unpacked/installed `app.asar` | 150,323,889 | `145cbf430c55f8799775fa27f44cea4fce90272501613bd5db749380d1e4abfc` | not applicable |
+
+The installed and `win-unpacked` executable hashes match, as do their `app.asar` hashes. File
+version is `0.20.0-rc.1`; product name is the repaired acceptance identity above.
+
+Before installation, the gate queried and retained the complete state of 23 registry targets:
+the seven Markdown extensions under HKCU/HKLM Classes, each extension's HKCU Explorer `FileExts`
+state, and HKCU/HKLM `MarkText.Document`. Fourteen existing HKCU keys were separately exported as
+emergency backups. It also retained all three existing MarkText uninstall entries and both
+existing MarkText shortcuts. After a single `/S /D=<new-directory>` installation:
+
+- all 23 association snapshots were byte-for-byte identical (the before and after JSON files
+  share SHA-256 `7b76c4aa3c524fa99d0f08460fbdd4a6b04d7c1098875d428ba218424c8a23d3`);
+- all three pre-existing uninstall entries were unchanged;
+- both pre-existing shortcuts were unchanged; and
+- exactly one distinct repaired-package uninstall entry was added at
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\6046d1a6-e89d-5a5a-b212-28bbc5652f25`.
+
+The exact installed test command set `MARKTEXT_INSTALLED_EXE` to the repaired executable and ran
+`pnpm exec playwright test --config=test/e2e/playwright.config.ts
+test/e2e/workspace-transfer-target-window-close.spec.ts --workers=1`. Its fresh `mkdtemp` profile
+started the packaged application and the test passed 1/1 in 4.7 seconds: after the production
+title-bar close action, one BrowserWindow remained, the transfer target was destroyed, and the
+unrelated recovery draft remained. No repaired executable PID remained afterward. The log is
+`installed-window-close-regression.log` (SHA-256
+`cf3752cbd8d4aa60a4dc9972fcde98e905208161dda3c6323fe10536185efa1d`).
+
+As a control, the same current test was run read-only against the retained old installed
+executable (`1367e59f4cbed064dd7bda096879c70cd02d9093cfcd2eb7b5ced6ff439e353e`). It failed as expected:
+`windowCount=2`, `targetClosed=false`, and `targetTabs=["New Tab"]`. No old executable PID remained
+afterward. The known-red log is `known-red-old-installed-window-close.log` (SHA-256
+`e4de4e3c604e1137145b2dc82b7c781361bc67a4378e71a0d038359ac4bf1300`).
+
 ## Pending fresh-package manual re-verification
 
-A fresh isolated Windows package must be built from the repaired source before final acceptance.
-Do not use the old installed identity to approve the repaired behavior. In the new package, repeat
-the Move to New Window sequence above and verify that the target BrowserWindow closes, the source
-window remains usable, and the moved file can be opened again. Also perform a risk-proportional
-smoke of the previously passed wheel, scrollbar-thumb, switching, Split Right and Move to
-Left/Right paths. Record the physical touchpad as unavailable unless a device is actually present.
-Windows final acceptance remains **Pending**; Linux and macOS remain **Untested**.
+Do not use the old installed identity to approve the repaired behavior. In the repaired package,
+repeat Move to New Window and click the target window's top-right window close button. Verify that
+the target BrowserWindow closes, the source window remains usable, and the moved file can be
+opened again. Also perform a risk-proportional smoke of the previously passed wheel,
+scrollbar-thumb, switching, Split Right and Move to Left/Right paths. The retained empty manual
+profile is `profiles/manual-installed-repaired`; the 400-heading fixture is copied under
+`fixtures/wysiwyg-scroll-400-headings.md` in the repaired artifact root. Record the physical
+touchpad as unavailable unless a device is actually present. Windows final acceptance remains
+**Pending**; Linux and macOS remain **Untested**.
 
 Cleanup boundary: the safe install directory and the `-03` profiles/artifacts are T05-owned.
 Do not run either generated uninstaller because the repository's current `customUnInstall`
