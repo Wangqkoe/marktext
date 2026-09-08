@@ -1,7 +1,10 @@
 # Standalone on purpose: extending the production config merges its
 # fileAssociations array, which changes the caller's Windows associations.
-appId: com.github.marktext.marktext.scroll-acceptance-t05-safe
-productName: MarkText Scroll Acceptance T05 Safe
+# This repaired-package identity is unique and deliberately omits the
+# production NSIS include because its install/uninstall macros mutate the
+# global MarkText.Document and Markdown extension keys.
+appId: com.github.marktext.marktext.scroll-acceptance-t05-repaired-6a3dc45
+productName: MarkText Scroll Acceptance T05 Repaired 6a3dc45
 directories:
   buildResources: build
 files:
@@ -49,19 +52,18 @@ asarUnpack:
   - resources/**
   - node_modules/uiohook-napi/**
 win:
-  executableName: marktext-scroll-acceptance-t05-safe
-  artifactName: marktext-scroll-acceptance-t05-safe-win-${arch}-${version}.${ext}
+  executableName: marktext-scroll-acceptance-t05-repaired-6a3dc45
+  artifactName: marktext-scroll-acceptance-t05-repaired-6a3dc45-win-${arch}-${version}.${ext}
   target:
     - target: nsis
     - target: zip
   icon: static/icon.ico
 nsis:
-  artifactName: marktext-scroll-acceptance-t05-safe-win-${arch}-${version}-setup.${ext}
-  shortcutName: MarkText Scroll Acceptance T05 Safe
-  uninstallDisplayName: MarkText Scroll Acceptance T05 Safe
+  artifactName: marktext-scroll-acceptance-t05-repaired-6a3dc45-win-${arch}-${version}-setup.${ext}
+  shortcutName: MarkText Scroll Acceptance T05 Repaired 6a3dc45
+  uninstallDisplayName: MarkText Scroll Acceptance T05 Repaired 6a3dc45
   createDesktopShortcut: false
   createStartMenuShortcut: false
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
-  include: windows/installer.nsh

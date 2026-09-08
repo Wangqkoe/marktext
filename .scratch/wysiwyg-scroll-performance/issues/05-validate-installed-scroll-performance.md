@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Harden scroll ownership across transfer and destruction; 04: Commit programmatic scroll destinations once
 
-**Status:** the first installed build passed its automated performance phase and most Windows manual checks, but manual acceptance found a blocking Move to New Window close defect. The repair now passes focused unit and development-build Electron coverage; a fresh package and Windows manual re-verification remain pending.
+**Status:** the first installed build passed its automated performance phase and most Windows manual checks, but manual acceptance found a blocking Move to New Window close defect. The repaired source now has a fresh, isolated Windows package whose installed executable passes the focused Electron regression; final Windows physical re-verification remains pending.
 
 - [x] A fresh Windows installation package is built from the completed implementation and installed into an isolated acceptance environment rather than validated only as a development build.
 - [x] The 400-heading WYSIWYG fixture is run three times in the installed application, and the median of the three per-run proportions of frame gaps greater than 50 ms is no more than 5%.
@@ -26,14 +26,24 @@ its tab but left the BrowserWindow open as `New Tab`. A deterministic regression
 that state from a valid committed crash-draft pair. The minimal repair permits the current window
 to exit when `mark-clean` reports only `unresolved crash drafts remain`, while preserving the
 process-dirty state and retaining the unrelated recovery draft. Other clean-marker durability
-failures still block exit. The existing installed executable remains the known-red artifact; no
-installed or physical pass is claimed for the repair until a new isolated package is built and
-the window-close path is manually rechecked. Linux and macOS remain untested.
+failures still block exit. The original installed executable remains the known-red artifact. A
+new repaired executable built from production source commit `6a3dc45a` passes the exact installed
+regression from a fresh temporary profile, while the retained old executable still produces the
+two-window/`New Tab` failure. Physical acceptance is not claimed until the window-close path and
+risk-proportional interaction smoke are manually rechecked. Linux and macOS remain untested.
 
 Independent Spec review found and blocked an unsafe interaction in the first repair: the ordinary
 dirty-Document Discard path ignored a failed crash-draft disposition, so the later allowance for
 an unrelated recovery draft could also close the current window after its own tombstone failed.
 The review repair now stops before `commit-authorized` when the current Document's disposition is
 not durable. Its public workspace regression proves that the close request returns false while
-the original Document and View remain present and accept another edit. The fresh-package manual
-re-verification remains pending.
+the original Document and View remain present and accept another edit. The fresh package is at
+`C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\package` and its
+isolated installation is at
+`C:\Users\1407\.codex\installed\marktext-t05-6a3dc45-repaired`. Installation changed none of
+the snapshotted Markdown association, `MarkText.Document`, existing MarkText uninstall-entry, or
+shortcut state. Opening an `.md` during installed automation subsequently added the repaired exe
+to Explorer's `.md\OpenWithList` MRU without changing the selected ProgID/default; that runtime
+MRU change was restored and all 23 association snapshots again match the pre-install bytes. A
+future physical run may produce the same Windows MRU entry and must not be described as an
+installer association change. The fresh-package manual re-verification remains pending.
