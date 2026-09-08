@@ -46,4 +46,7 @@ shortcut state. Opening an `.md` during installed automation subsequently added 
 to Explorer's `.md\OpenWithList` MRU without changing the selected ProgID/default; that runtime
 MRU change was restored and all 23 association snapshots again match the pre-install bytes. A
 future physical run may produce the same Windows MRU entry and must not be described as an
-installer association change. The fresh-package manual re-verification remains pending.
+installer association change. An independent synthetic recovery profile now contains the same
+valid committed crash-draft pair as the automated regression, so the physical check can retain
+the load-bearing unresolved-recovery state while moving and closing the ordinary fixture window.
+The fresh-package manual re-verification remains pending.

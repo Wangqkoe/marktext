@@ -291,11 +291,42 @@ Do not use the old installed identity to approve the repaired behavior. In the r
 repeat Move to New Window and click the target window's top-right window close button. Verify that
 the target BrowserWindow closes, the source window remains usable, and the moved file can be
 opened again. Also perform a risk-proportional smoke of the previously passed wheel,
-scrollbar-thumb, switching, Split Right and Move to Left/Right paths. The retained empty manual
-profile is `profiles/manual-installed-repaired`; the 400-heading fixture is copied under
-`fixtures/wysiwyg-scroll-400-headings.md` in the repaired artifact root. Record the physical
-touchpad as unavailable unless a device is actually present. Windows final acceptance remains
-**Pending**; Linux and macOS remain **Untested**.
+scrollbar-thumb, switching, Split Right and Move to Left/Right paths. The clean
+`profiles/manual-installed-repaired` profile remains suitable for the broader smoke, but it has
+no crash draft and therefore cannot verify the load-bearing condition of this window-close bug.
+
+The independent exact-repro profile is
+`C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\profiles\manual-installed-repaired-recovery`.
+It was generated without launching the application by the committed
+`prepare-manual-recovery-profile.ts` helper, using the same `CrashDraftStore.checkpoint()` payload
+as `workspace-transfer-target-window-close.spec.ts`, and then verified by `CrashDraftStore.scan()`.
+It contains no user content and exactly these two files:
+
+| Relative file | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `crash-drafts/dW5yZXNvbHZlZC1yZWNvdmVyeS1kb2N1bWVudA.1.draft.json` | 324 | `0f9de0bdce3bbec10de1f38d07804d05997c7687eb71c56d1f122d7b7f6f196f` |
+| `crash-drafts/dW5yZXNvbHZlZC1yZWNvdmVyeS1kb2N1bWVudA.1.commit.json` | 238 | `8f41582f4863e6430d82f47e02dd27e0e94efd4edc123663bfafa05f03f94db2` |
+
+The sorted two-file manifest is `manual-recovery-profile-files.sha256` (SHA-256
+`9d387805ed7eef5013ef436c1543cca554fa47f0a83a2c5bb16f4e09d9e22e74`). The retained generation
+log SHA-256 is `2990cc7717cc31040da5a6bfba679df73f9c6e405aea97d4571fecbce7ca2724`.
+
+After every other MarkText/acceptance instance is closed, launch the exact check with:
+
+```powershell
+& 'C:\Users\1407\.codex\installed\marktext-t05-6a3dc45-repaired\marktext-scroll-acceptance-t05-repaired-6a3dc45.exe' --user-data-dir 'C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\profiles\manual-installed-repaired-recovery' 'C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\fixtures\wysiwyg-scroll-400-headings.md'
+```
+
+Expected startup shape is two separate windows: one recovery window containing the unsaved
+`Unresolved recovery draft`, and one ordinary editor window containing the 400-heading fixture.
+Leave the recovery window and draft open and unresolved. In the ordinary fixture window, scroll
+to a recognizable heading, use the fixture tab's **Move to new window**, and click the moved
+target's top-right window close button. Passing behavior is that the entire target BrowserWindow
+disappears rather than remaining as `New Tab`; the recovery and source windows remain usable, and
+the fixture can be reopened from the source window. Only after recording that result may the
+recovery window be closed or its draft discarded. The broader smoke may then use the clean manual
+profile. Record the physical touchpad as unavailable unless a device is actually present.
+Windows final acceptance remains **Pending**; Linux and macOS remain **Untested**.
 
 ## Exact cleanup boundary
 
