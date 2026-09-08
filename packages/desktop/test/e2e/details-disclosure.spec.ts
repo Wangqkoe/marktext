@@ -17,7 +17,7 @@ const STAB_008 = '<details>\n<summary>摘要原文</summary>\n\nDETAILS_BODY_SEN
 const disclosure = (page: Page) => page.locator('.editor-component .mu-html-preview details')
 const summary = (page: Page) => disclosure(page).locator('summary')
 const sourceAction = (page: Page) =>
-  page.locator('.editor-component .mu-html-preview .mu-details-source-action')
+  page.locator('.mu-preview-tools li.item.edit:visible')
 const tabSelector = '.tabs-container > li'
 
 const splitAtLeftEdge = async(page: Page, tab: ReturnType<Page['locator']>): Promise<void> => {
@@ -39,6 +39,7 @@ const restorePreview = async(page: Page): Promise<void> => {
 }
 
 const openDetailsSource = async(page: Page): Promise<void> => {
+  await page.locator('.editor-component .mu-html-block').hover()
   await expect(sourceAction(page)).toBeVisible()
   await sourceAction(page).click()
   const wrapper = page.locator('.editor-component .mu-html-block')
@@ -137,24 +138,17 @@ test.describe('raw HTML details disclosure in the desktop editor', () => {
     expect(await getMarkdownContent(page, app)).toBe(markdownBefore)
   })
 
-  test('shows focus-visible styling and opens source only through the external action', async() => {
-    await summary(page).focus()
+  test('shows summary focus styling and opens source through the floating action', async() => {
     await page.keyboard.press('Tab')
-    await expect(sourceAction(page)).toBeFocused()
+    await summary(page).focus()
     expect(
-      await page.evaluate(() => {
-        const target = document.querySelector('.mu-details-source-action') as HTMLElement
+      await summary(page).evaluate((target) => {
         return target.matches(':focus-visible') && getComputedStyle(target).outlineStyle
       })
     ).toBe('solid')
 
-    await expect(sourceAction(page)).toBeVisible()
-    await sourceAction(page).click()
-    await expect(
-      page.locator('.editor-component .mu-html-container .mu-codeblock-content')
-    ).toBeVisible()
+    await openDetailsSource(page)
     await expect(disclosure(page)).toBeHidden()
-
     await page.keyboard.press('Escape')
     await expect(disclosure(page)).toBeVisible()
     await expect(disclosure(page)).not.toHaveAttribute('open', '')
@@ -164,7 +158,7 @@ test.describe('raw HTML details disclosure in the desktop editor', () => {
     const wrapper = page.locator('.editor-component .mu-html-block')
     const preview = wrapper.locator('.mu-html-preview')
     const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content')
-    const floatingEdit = page.locator('.mu-preview-tools li.item.edit')
+    const floatingEdit = page.locator('.mu-preview-tools li.item.edit:visible')
 
     await wrapper.hover()
     await expect(floatingEdit).toBeVisible()
@@ -248,7 +242,8 @@ test('keeps the escaped details block in preview through a move-to-pane theme ch
     await expect(detailsDisclosure).toBeVisible()
 
     await detailsPane.click()
-    await detailsPane.locator('.mu-details-source-action').click()
+    await detailsPane.locator('.mu-html-block').hover()
+    await sourceAction(page).last().click()
     await expect(detailsPane.locator('.mu-html-block')).toHaveClass(/mu-active/)
     await page.keyboard.press('Escape')
     await expect(detailsDisclosure).toBeVisible()
@@ -281,6 +276,15 @@ test('STAB-008 hides and restores the exact raw-HTML details body in Electron', 
 
     await expect(details).not.toHaveAttribute('open', '')
     expect(await bodyHeight()).toBe(0)
+    const preview = page.locator('.editor-component .mu-html-preview')
+    await expect(preview.locator('.mu-details-source-action')).toHaveCount(0)
+    const previewBox = await preview.boundingBox()
+    const summaryBox = await details.locator('summary').boundingBox()
+    expect(previewBox!.height).toBeLessThanOrEqual(summaryBox!.height + 8)
+    await test.info().attach('collapsed-layout', {
+      body: JSON.stringify({ previewHeight: previewBox!.height, summaryHeight: summaryBox!.height }),
+      contentType: 'application/json'
+    })
     await details.locator('summary').click()
     await expect(details).toHaveAttribute('open', '')
     expect(await bodyHeight()).toBeGreaterThan(0)

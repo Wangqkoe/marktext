@@ -29,11 +29,12 @@ test('keeps details source, preview, theme, and export pane-owned in a split wor
     const leftPane = page.locator('.workspace-pane').nth(0)
     const detailsPane = page.locator('.workspace-pane').nth(1)
     const disclosure = detailsPane.locator('.mu-html-preview details')
-    const sourceAction = detailsPane.locator('.mu-details-source-action')
+    const sourceAction = page.locator('.mu-preview-tools li.item.edit:visible').last()
     await expect(leftPane.locator('.editor-component')).toContainText('Other pane')
     await expect(disclosure).toBeVisible()
 
     await detailsPane.click()
+    await detailsPane.locator('.mu-html-block').hover()
     await sourceAction.click()
     await expect(detailsPane.locator('.mu-html-block')).toHaveClass(/mu-active/)
     await expect(detailsPane.locator('.mu-html-container .mu-codeblock-content')).toBeVisible()

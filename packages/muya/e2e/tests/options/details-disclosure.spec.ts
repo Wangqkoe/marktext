@@ -30,6 +30,10 @@ test.describe('options / raw HTML details disclosure', () => {
         const summary = details.locator('summary');
         await expect(details).not.toHaveAttribute('open', '');
         expect(await bodyHeight(page)).toBe(0);
+        await expect(preview.locator('.mu-details-source-action')).toHaveCount(0);
+        const previewBox = await preview.boundingBox();
+        const summaryBox = await summary.boundingBox();
+        expect(previewBox!.height).toBeLessThanOrEqual(summaryBox!.height + 8);
 
         await summary.click();
         await expect(details).toHaveAttribute('open', '');
@@ -59,9 +63,8 @@ test.describe('options / raw HTML details disclosure', () => {
         const details = preview.locator('details');
         await expect(details).toHaveAttribute('open', '');
 
-        const action = preview.locator('.mu-details-source-action');
-        await expect(action).toHaveText('</>');
-        await action.click();
+        await wrapper.hover();
+        await page.locator('.mu-preview-tools li.item.edit').click();
         await expect(wrapper).toHaveClass(/mu-active/);
         await expect(preview).toBeHidden();
 
@@ -77,7 +80,8 @@ test.describe('options / raw HTML details disclosure', () => {
 
         const wrapper = page.locator(editor.htmlBlock);
         const preview = wrapper.locator(editor.htmlPreview);
-        await preview.locator('.mu-details-source-action').click();
+        await wrapper.hover();
+        await page.locator('.mu-preview-tools li.item.edit').click();
         const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content');
         await sourceContent.fill('<details><summary>Updated</summary>Changed body</details>');
 
@@ -101,12 +105,14 @@ test.describe('options / raw HTML details disclosure', () => {
         const preview = wrapper.locator(editor.htmlPreview);
         const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content');
 
-        await preview.locator('.mu-details-source-action').click();
+        await wrapper.hover();
+        await page.locator('.mu-preview-tools li.item.edit').click();
         await expect(sourceContent).toBeVisible();
         await wrapper.locator('.mu-html-preview-action').click();
         await expect(preview).toBeVisible();
 
-        await preview.locator('.mu-details-source-action').click();
+        await wrapper.hover();
+        await page.locator('.mu-preview-tools li.item.edit').click();
         await expect(wrapper).toHaveClass(/mu-active/);
         await expect(sourceContent).toBeVisible();
         await sourceContent.fill('<details><summary>Re-entered</summary>Edited again</details>');
@@ -124,7 +130,8 @@ test.describe('options / raw HTML details disclosure', () => {
 
         const wrapper = page.locator(editor.htmlBlock);
         const preview = wrapper.locator(editor.htmlPreview);
-        await preview.locator('.mu-details-source-action').click();
+        await wrapper.hover();
+        await page.locator('.mu-preview-tools li.item.edit').click();
         const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content');
         await sourceContent.fill('<details><summary>Escaped</summary>New body</details>');
 
@@ -144,12 +151,14 @@ test.describe('options / raw HTML details disclosure', () => {
         const preview = wrapper.locator(editor.htmlPreview);
         const sourceContent = wrapper.locator('.mu-html-container .mu-codeblock-content');
 
-        await preview.locator('.mu-details-source-action').click();
+        await wrapper.hover();
+        await page.locator('.mu-preview-tools li.item.edit').click();
         await page.keyboard.press('Escape');
         await expect(preview).toBeVisible();
 
         await preview.hover();
-        await preview.locator('.mu-details-source-action').click();
+        await wrapper.hover();
+        await page.locator('.mu-preview-tools li.item.edit').click();
         await expect(wrapper).toHaveClass(/mu-active/);
         await expect(sourceContent).toBeVisible();
         await expect(wrapper.locator('.mu-html-preview-action')).toBeVisible();
@@ -170,7 +179,8 @@ test.describe('options / raw HTML details disclosure', () => {
 
         const wrapper = page.locator(editor.htmlBlock);
         const preview = wrapper.locator(editor.htmlPreview);
-        await preview.locator('.mu-details-source-action').click();
+        await wrapper.hover();
+        await page.locator('.mu-preview-tools li.item.edit').click();
         await expect(wrapper.locator('.mu-html-container .mu-codeblock-content')).toBeVisible();
 
         const outside = page.locator(editor.paragraph).filter({ hasText: 'Outside content' });

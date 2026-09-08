@@ -2406,14 +2406,8 @@ onBeforeUnmount(() => {
   color: var(--details-disclosure-hover);
 }
 
-.editor-component figure.mu-html-block .mu-html-preview details > summary:focus-visible,
-.editor-component figure.mu-html-block .mu-html-preview .mu-details-source-action:focus-visible {
+.editor-component figure.mu-html-block .mu-html-preview details > summary:focus-visible {
   outline-color: var(--details-disclosure-focus);
-}
-
-.editor-component figure.mu-html-block .mu-html-preview .mu-details-source-action {
-  color: var(--details-disclosure-muted);
-  transition-duration: var(--details-disclosure-motion);
 }
 
 @media (prefers-reduced-motion: reduce) {

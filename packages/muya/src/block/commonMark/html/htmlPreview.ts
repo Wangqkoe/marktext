@@ -1,4 +1,3 @@
-import type HTMLBlock from '.';
 import type { Muya } from '../../../muya';
 import type { IHtmlBlockState, TState } from '../../../state/types';
 import { CLASS_NAMES, PREVIEW_DOMPURIFY_CONFIG } from '../../../config';
@@ -12,7 +11,6 @@ const debug = logger('htmlPreview:');
 // Elements whose rendered content comes from attributes (e.g. `src`) rather
 // than child nodes, so an empty tag body must not be treated as an empty block.
 const SELF_CONTAINED_MEDIA = new Set(['video', 'audio']);
-const DETAILS_SOURCE_ACTION = 'mu-details-source-action';
 const DETAILS_PREVIEW_BODY = 'mu-details-preview-body';
 
 // A single element with an empty body (`<div></div>`), except self-contained
@@ -54,16 +52,6 @@ class HTMLPreview extends Parent {
     }
 
     private _attachDOMEvents() {
-        this.muya.eventCenter.attachDOMEvent(this.domNode!, 'click', (event) => {
-            const target = event.target;
-            if (!(target instanceof Element) || !target.closest(`.${DETAILS_SOURCE_ACTION}`))
-                return;
-
-            event.preventDefault();
-            event.stopPropagation();
-            (this.parent as HTMLBlock | null)?.enterSourceEditing();
-        });
-
         // Keep native summary keyboard activation out of Muya's source-editor
         // key routing. Do not prevent default: Chromium still owns the actual
         // Enter/Space disclosure toggle and focus semantics.
@@ -125,18 +113,6 @@ class HTMLPreview extends Parent {
                 disclosureStyle.textContent
                     = `details:not([open]) > .${DETAILS_PREVIEW_BODY} { display: none; }`;
                 this.domNode!.appendChild(disclosureStyle);
-            }
-
-            // This editor-only control is deliberately appended after the
-            // sanitized document fragment, never inside a native summary. It
-            // therefore cannot affect source serialization or exported HTML.
-            if (!disableHtml && this.domNode!.querySelector('details')) {
-                const sourceAction = document.createElement('button');
-                sourceAction.type = 'button';
-                sourceAction.className = DETAILS_SOURCE_ACTION;
-                sourceAction.textContent = '</>';
-                sourceAction.setAttribute('aria-label', 'Edit raw HTML');
-                this.domNode!.appendChild(sourceAction);
             }
         }
     }
