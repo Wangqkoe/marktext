@@ -297,9 +297,50 @@ profile is `profiles/manual-installed-repaired`; the 400-heading fixture is copi
 touchpad as unavailable unless a device is actually present. Windows final acceptance remains
 **Pending**; Linux and macOS remain **Untested**.
 
-Cleanup boundary: the safe install directory and the `-03` profiles/artifacts are T05-owned.
-Do not run either generated uninstaller because the repository's current `customUnInstall`
-deletes global MarkText associations. After acceptance, cleanup must first snapshot associations,
-terminate only verified T05 executable PIDs, remove only the exact T05-owned directories, remove
-only the two T05 uninstall registry keys, and verify the daily MarkText install/profile,
-associations, and shortcuts remain unchanged.
+## Exact cleanup boundary
+
+The retained registry snapshots and current filesystem inventory identify exactly three
+T05-owned uninstall keys:
+
+- `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\5db268dd-accd-5303-98ab-479c4b2bad30`
+  (`MarkText Scroll Acceptance T05`, installed at
+  `C:\Users\1407\.codex\installed\marktext-t05-ef5a10d`);
+- `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\41bf11fe-a9a0-5b02-8a88-95cceca372d9`
+  (`MarkText Scroll Acceptance T05 Safe`, installed at
+  `C:\Users\1407\.codex\installed\marktext-t05-ef5a10d-safe`); and
+- `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\6046d1a6-e89d-5a5a-b212-28bbc5652f25`
+  (`MarkText Scroll Acceptance T05 Repaired 6a3dc45`, installed at
+  `C:\Users\1407\.codex\installed\marktext-t05-6a3dc45-repaired`).
+
+The evidence and current inventory also identify these T05-owned artifact roots:
+
+- `C:\Users\1407\.codex\artifacts\marktext-t05-ef5a10d-20260907-01` (the rejected
+  association-changing first package/install evidence);
+- `C:\Users\1407\.codex\artifacts\marktext-t05-ef5a10d-20260907-02` (the intermediate safe
+  package/reinstall evidence);
+- `C:\Users\1407\.codex\artifacts\marktext-t05-ef5a10d-20260907-03` (the accepted first-phase
+  safe package, profiles, raw measurements and restoration evidence); and
+- `C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01` (the repaired
+  deliverable, registry snapshots, logs, fixture and current manual profile).
+
+These lists describe ownership, not present authorization to delete them. The repaired package
+deliverable and
+`C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\profiles\manual-installed-repaired`
+must be retained until physical acceptance is complete and its result is recorded.
+
+Any later cleanup must run in one PowerShell shell and, immediately before mutation, resolve each
+literal path and prove it remains inside the explicitly named `.codex\installed` or
+`.codex\artifacts` subtree. It must separately query each registry key above and prove its current
+`DisplayName`, `DisplayIcon`, and install/uninstall paths still identify the corresponding T05
+installation. It must snapshot the user associations, shortcuts, production uninstall entry,
+daily MarkText installation and profile again; terminate only exact verified T05 executable PIDs;
+remove only the validated T05 paths and the three exact T05 registry keys; and verify every
+protected item afterward.
+
+No existing or newly generated uninstaller may be executed: the older packages' current
+`customUnInstall` deletes global MarkText associations. Cleanup must not remove, rewrite, or use a
+broad parent operation against `MarkText.Document`, any Markdown extension/FileExts key, the
+production uninstall key
+`HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\80b8d59a-8e25-5f52-8f55-48f4c6ccbd23`,
+the daily installation at `E:\Users\1407\AppData\Local\Programs\marktext`, the user's daily
+profile, or existing shortcuts.
