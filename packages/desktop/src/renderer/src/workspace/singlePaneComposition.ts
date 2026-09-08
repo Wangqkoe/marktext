@@ -596,7 +596,10 @@ export class PaneEditorComposition {
       if (result.status !== 'applied') return false
     }
     await this.persistence.crashDraftTail
-    return (await this.crashDraft.request({ kind: 'mark-clean' })).durable
+    const clean = await this.crashDraft.request({ kind: 'mark-clean' })
+    // Another window's unresolved draft must keep the process dirty without
+    // preventing this window from closing after its own documents are closed.
+    return clean.durable || clean.reason === 'unresolved crash drafts remain'
   }
 
   async cycleTabs(direction: boolean): Promise<WorkspaceResult> {

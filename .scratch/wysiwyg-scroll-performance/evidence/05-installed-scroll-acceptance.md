@@ -2,8 +2,9 @@
 
 Date: 2026-09-07 (America/Los_Angeles)
 
-Status: **automated installed-build phase Passed; physical/manual acceptance Pending.** This is
-not final ticket acceptance.
+Status: **initial installed performance phase Passed; Windows manual acceptance exposed one
+blocking window-close defect; the repair passes development-build automation; fresh-package
+manual re-verification is Pending.** This is not final ticket acceptance.
 
 ## Identity and build
 
@@ -140,19 +141,58 @@ T06 remains an independent result: 10k Source is P2/degraded and 50k Source is a
 P1/high capacity defect. T07 remains independent: Opened Files has P2/medium scale pressure and a
 startup delivery race. Neither changes the Passed WYSIWYG threshold, and neither is claimed fixed.
 
-## Pending physical/manual acceptance
+## Windows manual attempt and blocking follow-up
 
-Launch only this installed identity and caller-owned profile (do not use the uninstaller):
+The user exercised the first installed package with a physical mouse wheel and the physical
+scrollbar thumb. Wheel scrolling and thumb dragging were reported normal, responsive, able to
+reach the requested positions, and free of obvious stalls or crashes. No physical touchpad was
+available, so touchpad input is **Unavailable**, not Passed. The user also reported that the
+sampled switching, pane movement, position-continuity and close checks passed except for this
+exact sequence:
 
-```powershell
-& 'C:\Users\1407\.codex\installed\marktext-t05-ef5a10d-safe\marktext-scroll-acceptance-t05-safe.exe' --user-data-dir 'C:\Users\1407\.codex\artifacts\marktext-t05-ef5a10d-20260907-03\profiles\manual-installed-acceptance' 'C:\Users\1407\.codex\worktrees\scroll05\Marktext\packages\desktop\test\e2e\data\wysiwyg-scroll-400-headings.md'
+1. Move a Document View with **Move to New Window**.
+2. Click the target window's top-right, window-level close button.
+3. The View closes, but the BrowserWindow remains open with `New Tab`.
+
+The defect was reproduced without user data by creating a synthetic valid committed crash-draft
+pair, opening a normal saved Document, invoking the production Move menu callback, and clicking
+the production title-bar close control. Before the repair, both the retained installed executable
+and the development build produced the same failure:
+
+```text
+Expected: { windowCount: 1, targetClosed: true, targetTabs: [] }
+Received: { windowCount: 2, targetClosed: false, targetTabs: ["New Tab"] }
 ```
 
-The human must separately exercise a physical mouse wheel, an available physical touchpad, and
-the scrollbar thumb. For each, record native 1:1 response, lack of added glide after input stops,
-and final position continuity through tab switching, WYSIWYG/Source switching, Split Right, Move
-to Left/Right, closing a View, and reopening/sampling global non-WYSIWYG surfaces. These items are
-**Pending**, not passed by Playwright.
+The causal boundary was `PaneEditorComposition.closeForWindowExit()`: it durably closed the
+current window's Documents, then treated the process-wide `mark-clean` response
+`{ durable: false, reason: "unresolved crash drafts remain" }` as a reason to keep this already
+emptied window open. The minimal repair distinguishes that process-dirty state from a genuine
+clean-marker durability failure. It allows the current window to close but does not mark the
+process clean and does not delete, tombstone, save, discard or otherwise resolve the unrelated
+recovery draft.
+
+Focused results after the repair:
+
+- the public `closeForWindowExit()` unit contract passes when another recovery draft remains;
+- a negative unit case still returns false for a `clean-marker` durability failure;
+- the real development-build Electron sequence now destroys the transfer target, retains the
+  recovery window, and confirms the committed crash draft is still recoverable; and
+- all 15 related Move/transfer/reopen Electron cases and all 20 startup/recovery Electron cases
+  pass.
+
+These automated results do not update the identity of the installed artifact above. That retained
+executable is intentionally still the known-red build and is useful only as pre-fix evidence.
+
+## Pending fresh-package manual re-verification
+
+A fresh isolated Windows package must be built from the repaired source before final acceptance.
+Do not use the old installed identity to approve the repaired behavior. In the new package, repeat
+the Move to New Window sequence above and verify that the target BrowserWindow closes, the source
+window remains usable, and the moved file can be opened again. Also perform a risk-proportional
+smoke of the previously passed wheel, scrollbar-thumb, switching, Split Right and Move to
+Left/Right paths. Record the physical touchpad as unavailable unless a device is actually present.
+Windows final acceptance remains **Pending**; Linux and macOS remain **Untested**.
 
 Cleanup boundary: the safe install directory and the `-03` profiles/artifacts are T05-owned.
 Do not run either generated uninstaller because the repository's current `customUnInstall`

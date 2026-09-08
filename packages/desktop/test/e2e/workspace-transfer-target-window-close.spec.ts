@@ -131,6 +131,12 @@ test('closes a Move to New Window target through its title-bar close control', a
       targetClosed: true,
       targetTabs: []
     })
+    expect(source.isClosed()).toBe(false)
+    await expect(new CrashDraftStore(path.join(profile, 'crash-drafts')).scan()).resolves.toEqual([
+      expect.objectContaining({
+        draft: expect.objectContaining({ documentId: 'unresolved-recovery-document' })
+      })
+    ])
   } finally {
     await forceTerminate(app)
     fs.rmSync(profile, { recursive: true, force: true })
