@@ -252,6 +252,23 @@ existing MarkText shortcuts. After a single `/S /D=<new-directory>` installation
 - exactly one distinct repaired-package uninstall entry was added at
   `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\6046d1a6-e89d-5a5a-b212-28bbc5652f25`.
 
+That is the immediate post-installer result; it does not claim that later application execution
+has no shell MRU effect. After the installed regressions actually opened an `.md`, Windows added
+`i=marktext-scroll-acceptance-t05-repaired-6a3dc45.exe` under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.md\OpenWithList` and changed
+`MRUList` from `ehdgfbca` to `hiedgfbca`. The selected `UserChoice`, `ProgId`, hashes,
+`OpenWithProgids`, `MarkText.Document`, and the other 22 queried targets did not change.
+
+Cleanup first deleted only value `i` and restored `MRUList`; this restored the values but changed
+their registry enumeration order. To recover the exact pre-install bytes, cleanup then deleted
+only the `.md\OpenWithList` subkey and imported the retained pre-install `.md` export. `reg import`
+returned an access error when it reached protected sibling `UserChoice` keys, but it had already
+restored `OpenWithList`, and the protected keys remained byte-for-byte unchanged. The final query
+proved all 23 targets byte-identical to the pre-install snapshot; the restored JSON SHA-256 is
+again `7b76c4aa3c524fa99d0f08460fbdd4a6b04d7c1098875d428ba218424c8a23d3`. No generated
+uninstaller ran. A later manual `.md` launch may legitimately recreate this repaired-executable
+OpenWith MRU entry, so it must be distinguished from installer association/default changes.
+
 The exact installed test command set `MARKTEXT_INSTALLED_EXE` to the repaired executable and ran
 `pnpm exec playwright test --config=test/e2e/playwright.config.ts
 test/e2e/workspace-transfer-target-window-close.spec.ts --workers=1`. Its fresh `mkdtemp` profile
@@ -266,6 +283,7 @@ executable (`1367e59f4cbed064dd7bda096879c70cd02d9093cfcd2eb7b5ced6ff439e353e`).
 `windowCount=2`, `targetClosed=false`, and `targetTabs=["New Tab"]`. No old executable PID remained
 afterward. The known-red log is `known-red-old-installed-window-close.log` (SHA-256
 `e4de4e3c604e1137145b2dc82b7c781361bc67a4378e71a0d038359ac4bf1300`).
+Both exact installed-executable PID inventories were empty after their controlled tests.
 
 ## Pending fresh-package manual re-verification
 

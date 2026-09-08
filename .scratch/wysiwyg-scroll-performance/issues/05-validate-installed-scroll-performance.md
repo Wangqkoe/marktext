@@ -42,4 +42,8 @@ the original Document and View remain present and accept another edit. The fresh
 isolated installation is at
 `C:\Users\1407\.codex\installed\marktext-t05-6a3dc45-repaired`. Installation changed none of
 the snapshotted Markdown association, `MarkText.Document`, existing MarkText uninstall-entry, or
-shortcut state. The fresh-package manual re-verification remains pending.
+shortcut state. Opening an `.md` during installed automation subsequently added the repaired exe
+to Explorer's `.md\OpenWithList` MRU without changing the selected ProgID/default; that runtime
+MRU change was restored and all 23 association snapshots again match the pre-install bytes. A
+future physical run may produce the same Windows MRU entry and must not be described as an
+installer association change. The fresh-package manual re-verification remains pending.
