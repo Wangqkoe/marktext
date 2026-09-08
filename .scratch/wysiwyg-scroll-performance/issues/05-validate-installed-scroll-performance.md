@@ -4,7 +4,7 @@
 
 **Blocked by:** 03: Harden scroll ownership across transfer and destruction; 04: Commit programmatic scroll destinations once
 
-**Status:** the first installed build passed its automated performance phase and most Windows manual checks, but manual acceptance found a blocking Move to New Window close defect. The repaired source now has a fresh, isolated Windows package whose installed executable passes the focused Electron regression; final Windows physical re-verification remains pending.
+**Status:** **Passed on Windows.** The repaired isolated package passes the focused installed regression, exact physical recovery/Move/title-bar-close lifecycle, and final physical wheel/scrollbar-thumb smoke. All repaired acceptance processes are closed. Physical touchpad input was unavailable; Linux and macOS remain untested.
 
 - [x] A fresh Windows installation package is built from the completed implementation and installed into an isolated acceptance environment rather than validated only as a development build.
 - [x] The 400-heading WYSIWYG fixture is run three times in the installed application, and the median of the three per-run proportions of frame gaps greater than 50 ms is no more than 5%.
@@ -13,10 +13,10 @@
 - [x] A deterministic automated gate confirms active WYSIWYG scrolling does not publish workspace projections or rebuild TOC/Outline and that final position convergence still occurs.
 - [x] The acceptance matrix records fixture scale, input semantics, cadence, frame gaps, response latency, platform, outcome, and limitations for WYSIWYG, Source, Files/Folder tree, Outline, Search, Preferences, Opened Files, tab-strip horizontal scrolling, image-viewer zoom, command palette, and other scrollable popups.
 - [x] The first-package Windows manual run covered a physical mouse wheel and scrollbar-thumb drag; both were reported responsive with no obvious stalls. No physical touchpad was available, so touchpad behavior remains explicitly unavailable rather than passed.
-- [ ] Manual checks confirm native 1:1 response, no added glide after input stops, correct position through switching, splitting, moving, and closing, and no global interaction regression in sampled non-WYSIWYG surfaces.
+- [x] Manual checks confirm native 1:1 response, no added glide after input stops, correct position through switching, splitting, moving, and closing, and no global interaction regression in sampled non-WYSIWYG surfaces.
 - [x] Windows results are reported as Windows-only; Linux and macOS installation, performance, and physical-input statuses are explicitly marked untested unless those platforms are actually exercised.
 - [x] Source large-document capacity and Opened Files scale-pressure findings are linked as independent investigations and do not block this ticket once the WYSIWYG thresholds and required acceptance checks pass.
-- [x] The final package location, validation evidence, known limitations, and automated-phase pass/manual-pending decision are recorded for a fresh-context reviewer.
+- [x] The final package location, validation evidence, known limitations, and Windows final decision are recorded for a fresh-context reviewer.
 
 First-phase evidence: [installed Windows scroll acceptance](../evidence/05-installed-scroll-acceptance.md).
 
@@ -29,8 +29,12 @@ process-dirty state and retaining the unrelated recovery draft. Other clean-mark
 failures still block exit. The original installed executable remains the known-red artifact. A
 new repaired executable built from production source commit `6a3dc45a` passes the exact installed
 regression from a fresh temporary profile, while the retained old executable still produces the
-two-window/`New Tab` failure. Physical acceptance is not claimed until the window-close path and
-risk-proportional interaction smoke are manually rechecked. Linux and macOS remain untested.
+two-window/`New Tab` failure. On 2026-09-07, the repaired installed package passed the physical
+title-bar click path while a separate recovery draft remained unresolved: the target window
+disappeared without leaving `New Tab`, the source and recovery windows remained usable, and the
+fixture reopened from the source. The final repaired-package physical wheel/thumb smoke also
+passed and all acceptance instances were closed. The physical touchpad remains unavailable;
+Linux and macOS remain untested.
 
 Independent Spec review found and blocked an unsafe interaction in the first repair: the ordinary
 dirty-Document Discard path ignored a failed crash-draft disposition, so the later allowance for
@@ -46,4 +50,7 @@ shortcut state. Opening an `.md` during installed automation subsequently added 
 to Explorer's `.md\OpenWithList` MRU without changing the selected ProgID/default; that runtime
 MRU change was restored and all 23 association snapshots again match the pre-install bytes. A
 future physical run may produce the same Windows MRU entry and must not be described as an
-installer association change. The fresh-package manual re-verification remains pending.
+installer association change. An independent synthetic recovery profile now contains the same
+valid committed crash-draft pair as the automated regression, so the physical check can retain
+the load-bearing unresolved-recovery state while moving and closing the ordinary fixture window.
+That exact physical lifecycle and the repaired-package wheel/thumb smoke now pass on Windows.

@@ -2,10 +2,9 @@
 
 Date: 2026-09-07 (America/Los_Angeles)
 
-Status: **initial installed performance phase Passed; Windows manual acceptance exposed one
-blocking window-close defect; the repaired source now passes the exact installed regression in a
-fresh isolated package; final fresh-package physical re-verification is Pending.** This is not
-final ticket acceptance.
+Status: **Passed on Windows.** The repaired isolated package passes the installed regression,
+exact physical recovery/Move/title-bar-close lifecycle, and final physical wheel/scrollbar-thumb
+smoke. Physical touchpad input was unavailable; Linux and macOS remain untested.
 
 ## Identity and build
 
@@ -285,17 +284,69 @@ afterward. The known-red log is `known-red-old-installed-window-close.log` (SHA-
 `e4de4e3c604e1137145b2dc82b7c781361bc67a4378e71a0d038359ac4bf1300`).
 Both exact installed-executable PID inventories were empty after their controlled tests.
 
-## Pending fresh-package manual re-verification
+## Fresh-package manual re-verification
 
 Do not use the old installed identity to approve the repaired behavior. In the repaired package,
 repeat Move to New Window and click the target window's top-right window close button. Verify that
 the target BrowserWindow closes, the source window remains usable, and the moved file can be
 opened again. Also perform a risk-proportional smoke of the previously passed wheel,
-scrollbar-thumb, switching, Split Right and Move to Left/Right paths. The retained empty manual
-profile is `profiles/manual-installed-repaired`; the 400-heading fixture is copied under
-`fixtures/wysiwyg-scroll-400-headings.md` in the repaired artifact root. Record the physical
-touchpad as unavailable unless a device is actually present. Windows final acceptance remains
-**Pending**; Linux and macOS remain **Untested**.
+scrollbar-thumb, switching, Split Right and Move to Left/Right paths. The clean
+`profiles/manual-installed-repaired` profile remains suitable for the broader smoke, but it has
+no crash draft and therefore cannot verify the load-bearing condition of this window-close bug.
+
+The independent exact-repro profile is
+`C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\profiles\manual-installed-repaired-recovery`.
+It was generated without launching the application by the committed
+`prepare-manual-recovery-profile.ts` helper, using the same `CrashDraftStore.checkpoint()` payload
+as `workspace-transfer-target-window-close.spec.ts`, and then verified by `CrashDraftStore.scan()`.
+It contains no user content and exactly these two files:
+
+| Relative file | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `crash-drafts/dW5yZXNvbHZlZC1yZWNvdmVyeS1kb2N1bWVudA.1.draft.json` | 324 | `0f9de0bdce3bbec10de1f38d07804d05997c7687eb71c56d1f122d7b7f6f196f` |
+| `crash-drafts/dW5yZXNvbHZlZC1yZWNvdmVyeS1kb2N1bWVudA.1.commit.json` | 238 | `8f41582f4863e6430d82f47e02dd27e0e94efd4edc123663bfafa05f03f94db2` |
+
+The sorted two-file manifest is `manual-recovery-profile-files.sha256` (SHA-256
+`9d387805ed7eef5013ef436c1543cca554fa47f0a83a2c5bb16f4e09d9e22e74`). The retained generation
+log SHA-256 is `2990cc7717cc31040da5a6bfba679df73f9c6e405aea97d4571fecbce7ca2724`.
+
+After every other MarkText/acceptance instance is closed, launch the exact check with:
+
+```powershell
+& 'C:\Users\1407\.codex\installed\marktext-t05-6a3dc45-repaired\marktext-scroll-acceptance-t05-repaired-6a3dc45.exe' --user-data-dir 'C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\profiles\manual-installed-repaired-recovery' 'C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\fixtures\wysiwyg-scroll-400-headings.md'
+```
+
+Expected startup shape is two separate windows: one recovery window containing the unsaved
+`Unresolved recovery draft`, and one ordinary editor window containing the 400-heading fixture.
+Leave the recovery window and draft open and unresolved. In the ordinary fixture window, scroll
+to a recognizable heading, use the fixture tab's **Move to new window**, and click the moved
+target's top-right window close button. Passing behavior is that the entire target BrowserWindow
+disappears rather than remaining as `New Tab`; the recovery and source windows remain usable, and
+the fixture can be reopened from the source window. Only after recording that result may the
+recovery window be closed or its draft discarded. The broader smoke may then use the clean manual
+profile. Record the physical touchpad as unavailable unless a device is actually present.
+
+On 2026-09-07, the user completed this exact path in the repaired installed executable and
+reported all lifecycle checks normal. The recovery draft remained open and unresolved; the
+ordinary source window retained its empty tab; the fixture was moved with **Move to new window**;
+and a physical click on the moved target's top-right window close button removed the entire
+target BrowserWindow without leaving `New Tab`. The source empty-tab window and recovery window
+both remained usable, and reopening the fixture from the source succeeded. This is a **Passed**
+Windows repaired-installed physical title-bar/lifecycle result under the defect's load-bearing
+recovery condition.
+
+The user then completed the repaired-package risk-proportional scroll smoke in the 400-heading
+WYSIWYG document. Physical mouse-wheel scrolling was normal and responsive. Dragging the body
+scrollbar thumb to upper, middle, and lower positions remained responsive and reached each target.
+Stopping either input produced no added glide; there was no obvious lag or crash. The user closed
+all acceptance windows, and a read-only exact-executable query found no repaired executable PID.
+
+The 23 association targets were queried again after the physical run and were already
+byte-for-byte identical to `associations-before.json`; the known repaired-executable
+`.md\OpenWithList` MRU drift was absent, so no registry restoration was performed. Windows final
+acceptance is therefore **Passed**. A physical touchpad remains **Unavailable**, not Passed.
+Linux and macOS remain **Untested**. Surfaces recorded as Untested in the acceptance matrix remain
+Untested; this result does not expand their coverage.
 
 ## Exact cleanup boundary
 
@@ -326,7 +377,7 @@ The evidence and current inventory also identify these T05-owned artifact roots:
 These lists describe ownership, not present authorization to delete them. The repaired package
 deliverable and
 `C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\profiles\manual-installed-repaired`
-must be retained until physical acceptance is complete and its result is recorded.
+must be retained until this final evidence is integrated and the coordinator authorizes cleanup.
 
 Any later cleanup must run in one PowerShell shell and, immediately before mutation, resolve each
 literal path and prove it remains inside the explicitly named `.codex\installed` or
