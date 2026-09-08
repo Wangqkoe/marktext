@@ -2,10 +2,9 @@
 
 Date: 2026-09-07 (America/Los_Angeles)
 
-Status: **initial installed performance phase Passed; Windows manual acceptance exposed one
-blocking window-close defect; the repaired source now passes the exact installed regression in a
-fresh isolated package; final fresh-package physical re-verification is Pending.** This is not
-final ticket acceptance.
+Status: **Passed on Windows.** The repaired isolated package passes the installed regression,
+exact physical recovery/Move/title-bar-close lifecycle, and final physical wheel/scrollbar-thumb
+smoke. Physical touchpad input was unavailable; Linux and macOS remain untested.
 
 ## Identity and build
 
@@ -336,12 +335,18 @@ both remained usable, and reopening the fixture from the source succeeded. This 
 Windows repaired-installed physical title-bar/lifecycle result under the defect's load-bearing
 recovery condition.
 
-This result does not newly validate physical scrolling in the repaired package. The physical
-mouse wheel and scrollbar thumb passed in the older installed package, but the repaired-package
-risk-proportional wheel/thumb smoke is still awaiting an explicit user report, as is confirmation
-that the acceptance instances have been closed. A physical touchpad remains **Unavailable**, not
-Passed. Windows final acceptance therefore remains **Pending**; Linux and macOS remain
-**Untested**.
+The user then completed the repaired-package risk-proportional scroll smoke in the 400-heading
+WYSIWYG document. Physical mouse-wheel scrolling was normal and responsive. Dragging the body
+scrollbar thumb to upper, middle, and lower positions remained responsive and reached each target.
+Stopping either input produced no added glide; there was no obvious lag or crash. The user closed
+all acceptance windows, and a read-only exact-executable query found no repaired executable PID.
+
+The 23 association targets were queried again after the physical run and were already
+byte-for-byte identical to `associations-before.json`; the known repaired-executable
+`.md\OpenWithList` MRU drift was absent, so no registry restoration was performed. Windows final
+acceptance is therefore **Passed**. A physical touchpad remains **Unavailable**, not Passed.
+Linux and macOS remain **Untested**. Surfaces recorded as Untested in the acceptance matrix remain
+Untested; this result does not expand their coverage.
 
 ## Exact cleanup boundary
 
@@ -372,7 +377,7 @@ The evidence and current inventory also identify these T05-owned artifact roots:
 These lists describe ownership, not present authorization to delete them. The repaired package
 deliverable and
 `C:\Users\1407\.codex\artifacts\marktext-t05-6a3dc45-repaired-20260907-01\profiles\manual-installed-repaired`
-must be retained until physical acceptance is complete and its result is recorded.
+must be retained until this final evidence is integrated and the coordinator authorizes cleanup.
 
 Any later cleanup must run in one PowerShell shell and, immediately before mutation, resolve each
 literal path and prove it remains inside the explicitly named `.codex\installed` or
