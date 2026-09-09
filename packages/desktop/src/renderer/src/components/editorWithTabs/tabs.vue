@@ -482,9 +482,6 @@ onBeforeUnmount(() => {
     &:hover > .close-icon {
       opacity: 1;
     }
-    &:hover .unsaved-dot {
-      display: none;
-    }
     & .tab-filename {
       overflow: hidden;
       text-overflow: ellipsis;
@@ -500,7 +497,7 @@ onBeforeUnmount(() => {
       flex-shrink: 0;
     }
   }
-  & > li.unsaved:not(.active) {
+  & > li.unsaved {
     & > .close-icon {
       opacity: 0;
     }
@@ -509,9 +506,6 @@ onBeforeUnmount(() => {
     }
     &:hover > .close-icon {
       opacity: 1;
-    }
-    &:hover .unsaved-dot {
-      display: none;
     }
   }
   & > li.active {
@@ -528,9 +522,6 @@ onBeforeUnmount(() => {
     }
     & > .close-icon {
       opacity: 1;
-    }
-    & .unsaved-dot {
-      display: none;
     }
   }
 }

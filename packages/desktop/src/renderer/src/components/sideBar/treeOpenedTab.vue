@@ -84,9 +84,6 @@ const handleContextMenu = (event: MouseEvent): void => {
   background: var(--highlightThemeColor);
   position: absolute;
   top: 11px;
-  left: 12px;
-}
-.unsaved.opened-file:hover::before {
-  content: none;
+  left: calc(var(--files-content-inset) + 23px);
 }
 </style>
