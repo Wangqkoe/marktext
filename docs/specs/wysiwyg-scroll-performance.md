@@ -1,6 +1,6 @@
 # WYSIWYG 滚动性能规格
 
-- Status: ready-for-agent
+- Status: historical confirmed specification; implementation and acceptance status are tracked in [the current maintenance record](../testing/current-maintenance-acceptance.md) and [the scroll profile](../testing/desktop-scroll-profile.md)
 - 确认日期：2026-09-06
 - Baseline: `01a3008b8f21a2622deea5985d60dd714b51803a`
 

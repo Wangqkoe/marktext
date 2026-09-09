@@ -8,14 +8,14 @@ Preferences can be controlled and modified in the settings window or via the `pr
 | ---------------------- | ------- | ------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | autoSave               | Boolean | `false`       | Automatically save the content being edited.                                                                               |
 | autoSaveDelay          | Number  | `5000`        | The delay in milliseconds after a change before a file is saved automatically. Minimum `1000`.                             |
-| titleBarStyle          | String  | `custom`      | The title bar style on Linux and Windows: `custom` or `native`.                                                            |
+| titleBarStyle          | String  | `custom`      | The title bar style on Linux and Windows: `custom`, `native`, or `concise`.                                                |
 | openFilesInNewWindow   | Boolean | `false`       | Open files in a new window.                                                                                                |
 | openFolderInNewWindow  | Boolean | `false`       | Open folder via menu in a new window.                                                                                      |
 | zoom                   | Number  | `1.0`         | The zoom level. Between `0.5` and `2.0` inclusive.                                                                         |
 | hideScrollbar          | Boolean | `false`       | Whether to hide scrollbars.                                                                                                |
 | wordWrapInToc          | Boolean | `false`       | Whether to enable word wrap in the table of contents.                                                                      |
-| fileSortBy             | String  | `modified`    | Sort files in the opened folder. Optional values: `created`, `modified`, `title`.                                          |
-| fileSortOrder          | String  | `asc`         | Sort order for files in opened folders: `asc` (ascending) or `desc` (descending).                                          |
+| fileSortBy             | String  | `modified`    | Sort files in the opened folder by `created`, `modified`, or `title`; the Folder tree title menu updates this preference. |
+| fileSortOrder          | String  | `asc`         | File sort direction: `asc` or `desc`; the Folder tree title menu exposes all six field/direction combinations. Folders remain A–Z. |
 | startUpAction          | String  | `restoreAll`  | The action when MarkText launches. Optional values: `folder`, `openLastFolder`, `blank`, `restoreAll`.                     |
 | defaultDirectoryToOpen | String  | `""`          | The path that should be opened when `startUpAction=folder`.                                                                |
 | language               | String  | `en`          | The display language MarkText uses.                                                                                        |
@@ -29,6 +29,7 @@ Preferences can be controlled and modified in the settings window or via the `pr
 | editorFontFamily                   | String  | `Open Sans`        | Editor font family.                                                                                                                                                                  |
 | fontSize                           | Number  | `16`               | Font size in pixels. Range `12`–`32`.                                                                                                                                                |
 | lineHeight                         | Number  | `1.6`              | Line height. Range `1.2`–`2.0`.                                                                                                                                                      |
+| highlightColor                    | String  | `#ffff00`          | Default text highlight color as a six-digit hex value. The Settings picker displays uppercase HEX and applies changes immediately.                                                    |
 | wrapCodeBlocks                     | Boolean | `true`             | Wrap text inside code blocks.                                                                                                                                                        |
 | editorLineWidth                    | String  | `""`               | Maximum editor area width. Empty or a value with a `ch`, `px` or `%` suffix.                                                                                                         |
 | codeFontSize                       | Number  | `14`               | Font size inside code blocks. Range `12`–`28`.                                                                                                                                       |

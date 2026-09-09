@@ -2,6 +2,8 @@
 
 MarkText can automatically copy your images into a specified directory or handle images from clipboard.
 
+When a document contains a relative image path, MarkText resolves it from that document's own directory. Each open document view keeps its own base directory, including views in different panes. This rendering rule does not change the copy destination settings described below.
+
 ### Upload to cloud using selected uploader
 
 Please see [here](IMAGE_UPLOADER_CONFIGRATION.md) for more information.

@@ -1,5 +1,7 @@
 # Desktop renderer scroll profile
 
+Current status: the WYSIWYG work described below is integrated and passed the recorded T05 Windows installed acceptance. Physical touchpad, Linux, and macOS remain untested. T06 Source large-document capacity and T07 Opened Files scale/delivery findings remain separate, unfixed issues. See the [current maintenance record](current-maintenance-acceptance.md), [T05](../../.scratch/wysiwyg-scroll-performance/evidence/05-installed-scroll-acceptance.md), [T06](../../.scratch/wysiwyg-scroll-performance/evidence/06-source-large-document-capacity.md), [T07](../../.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.md), and [phase cleanup](../../.scratch/wysiwyg-scroll-performance/evidence/phase-cleanup.md). The measurements below retain their original baselines and are not a current rerun.
+
 ## WYSIWYG idle-commit measurement entry (ticket 01)
 
 - Baseline: `27fb95338bffb0d0eb692ec32d1a8c4423809629`
