@@ -623,12 +623,19 @@ export class WorkspaceController implements WorkspaceControllerContract {
     await this.flushPane(paneId)
     const doc = this.makeDocument({ markdown })
     const view = this.makeView(doc.id)
-    await this.refreshAdapter(paneId, this.snapshotForRecord(paneId, view, doc))
+    const cleanSurfaceReport = await this.refreshAdapter(
+      paneId,
+      this.snapshotForRecord(paneId, view, doc)
+    )
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
     pane.activeViewId = view.id
     this.focusedPaneId = paneId
+    if (cleanSurfaceReport) {
+      const bound = this.adapters.get(paneId)
+      if (bound) this.acceptCleanSurfaceReport(bound, view.id, cleanSurfaceReport)
+    }
     this.commit()
     return this.applied()
   }
@@ -658,7 +665,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
     const doc = this.makeDocument(input)
     const view = this.makeView(doc.id, input.view)
-    if (selected) await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
+    const cleanSurfaceReport = selected
+      ? await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
+      : undefined
     if (replaceableBlankViewId) {
       pane.viewIds = pane.viewIds.filter((viewId) => viewId !== replaceableBlankViewId)
       this.removeDocumentAndView(replaceableBlankViewId)
@@ -668,6 +677,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
     pane.viewIds.push(view.id)
     if (selected) pane.activeViewId = view.id
     if (selected) this.focusedPaneId = 'left'
+    if (cleanSurfaceReport) {
+      const bound = this.adapters.get(pane.id)
+      if (bound) this.acceptCleanSurfaceReport(bound, view.id, cleanSurfaceReport)
+    }
     this.commit()
     return this.applied()
   }
@@ -1259,7 +1272,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
   }
 
-  private async refreshAdapter(paneId: PaneId, snapshot: EditorBindingSnapshot): Promise<void> {
+  private async refreshAdapter(
+    paneId: PaneId,
+    snapshot: EditorBindingSnapshot
+  ): Promise<EditorReport | undefined> {
     const bound = this.adapters.get(paneId)
     if (!bound) return
     const pane = this.panes.get(paneId)
@@ -1277,6 +1293,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
       // both the lease object and this snapshot identity are controller-private.
       bound.snapshot = current
       await bound.adapter.refresh(current)
+      if (!snapshot.document.dirty) {
+        const report = await bound.adapter.flush()
+        const document = this.documents.get(snapshot.documentId)
+        if (!document) return report
+        this.acceptCleanSurfaceReport(bound, snapshot.viewId, report)
+      }
     } catch (error) {
       // An adapter may report failure after it has staged a snapshot. Restore
       // the controller's still-current binding before releasing its lease.
@@ -1291,6 +1313,22 @@ export class WorkspaceController implements WorkspaceControllerContract {
       throw error
     } finally {
       bound.refreshing = false
+    }
+  }
+
+  private acceptCleanSurfaceReport(
+    bound: BoundAdapter,
+    viewId: ViewId,
+    report: EditorReport
+  ): void {
+    const view = this.views.get(viewId)
+    const document = view && this.documents.get(view.documentId)
+    if (!document || document.dirty) return
+    if (this.applyReport(viewId, report)) {
+      document.savedMarkdown = document.markdown
+      document.dirty = false
+      this.updateBoundSnapshot(bound)
+      this.refreshSharedEditors(bound)
     }
   }
 

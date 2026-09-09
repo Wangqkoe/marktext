@@ -603,6 +603,44 @@ describe('WorkspaceRuntime', () => {
     expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(true)
   })
 
+  it('uses the accepted canonical surface baseline for each newly opened clean document', async() => {
+    class NormalizingEditor extends MemoryEditor {
+      override async flush(): Promise<EditorReport> {
+        const markdown = this.active?.document.markdown.replace(/\n{3}/g, '\n\n')
+        this.reports.push({ markdown })
+        return super.flush()
+      }
+    }
+
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'first', fileKey: '/first.md', markdown: 'first\n', title: 'first.md' }
+    ])
+    const editor = new NormalizingEditor()
+    const binding = await workspace.bindPaneEditor('left', editor)
+
+    expect((await workspace.execute({
+      kind: 'open-document',
+      document: {
+        documentId: 'second',
+        fileKey: '/second.md',
+        markdown: 'second\n\n\nparagraph\n',
+        title: 'second.md'
+      }
+    })).status).toBe('applied')
+
+    const second = expectDefined(
+      workspace.getFacadeSnapshot().documents.find(document => document.documentId === 'second')
+    )
+    expect(second.markdown).toBe('second\n\nparagraph\n')
+    expect(second.dirty).toBe(false)
+
+    const lease = currentLease(binding)
+    expect(binding.report(lease, { markdown: 'second\n\nreal edit\n' }).status).toBe('applied')
+    expect(
+      workspace.getFacadeSnapshot().documents.find(document => document.documentId === 'second')
+    ).toMatchObject({ markdown: 'second\n\nreal edit\n', dirty: true })
+  })
+
   it('binds independently created pane compositions to one controller', async() => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'left-doc', markdown: 'left', title: 'left' },
