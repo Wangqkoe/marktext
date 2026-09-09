@@ -1,6 +1,6 @@
 # 桌面 UI 与文件夹导航 Wayfinder
 
-当前维护状态与 `cdde617c` 之后的验收边界见[当前维护状态与验收记录](../testing/current-maintenance-acceptance.md)。本文保留原阶段代码地图和实现 frontier，不把后续改动回写成当时事实。
+`cdde617c` 之后截至 `33b1e24f` 的后续阶段验收见[2026-09-08 近期维护验收记录](../testing/maintenance-2026-09-08-acceptance.md)。本文保留原阶段代码地图和实现 frontier，不把后续改动回写成当时事实。
 
 后续功能导航：[Move tabs 与真正的 Split Right 规格](../specs/move-tabs-and-split-right.md)及[验收清单](../testing/move-tabs-and-split-right.md)。下文历史 Move/Open/Split 引用保留原阶段含义；旧 Split 移动动作现称 Move to Right / Move to Left，新的 Split Right 才表示保留左侧并增加同文档右侧视图。本导航不将历史通过结果视为新功能验收。
 

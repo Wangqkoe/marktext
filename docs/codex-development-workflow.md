@@ -8,6 +8,10 @@
 
 规则与基线 → 探索与原型确认 → Spec → Tickets → 独立实现与提交 → 分层 Review → 集成与自动验收 → 人工试用与缺陷循环 → 最终 Review/Acceptance → 发布、归档与清理。
 
+## 新任务快速定位
+
+新任务先读取仓库规则 [AGENTS.md](../AGENTS.md)，再用 `git rev-parse HEAD`、`git status --short` 和近期 `git log` 确认实际源码与工作区状态。随后按任务范围阅读相关 [Spec](specs/)、[测试与验收记录](testing/) 和已有 [Wayfinder](wayfinder/)，并回到相关代码与测试核验；历史记录只说明其固定基线，不能代表当前 HEAD。仅在需要理解或调整项目术语与边界时读取 [CONTEXT.md](../CONTEXT.md)。
+
 ## 1. 先建立规则、职责与可恢复的基线
 
 在仓库根目录维护 `AGENTS.md`，作为所有任务的共同约束。它至少应说明：

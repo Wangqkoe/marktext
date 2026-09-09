@@ -1,14 +1,14 @@
-# 当前维护状态与验收记录
+# 2026-09-08 近期维护验收记录
 
-- 当前源码基线：`33b1e24f809562448ecfc3eb94c041c5e7d28df7`
+- 记录截至源码：`33b1e24f809562448ecfc3eb94c041c5e7d28df7`
 - 核对日期：2026-09-08
-- 范围：`cdde617cb48a792d06ca1ed7a3daffb8d6476a85` 之后的维护改动，以及此前 WYSIWYG 滚动优化阶段的当前结论
+- 范围：`cdde617cb48a792d06ca1ed7a3daffb8d6476a85` 之后的维护改动，以及此前 WYSIWYG 滚动优化阶段的证据链接
 
-本文是当前事实入口。旧 Spec、Ticket、Wayfinder 和验收文档仍保留各自阶段的基线与历史结果；本文不把历史测试结果写成本次重跑结果。
+本文是截至上述源码的固定阶段记录，不负责持续反映仓库最新状态。旧 Spec、Ticket、Wayfinder 和验收文档仍保留各自阶段的基线与历史结果；本文不把历史测试结果写成本次重跑结果。
 
-## 当前行为
+## 截至记录基线的行为
 
-| 源码提交 | 当前行为 | 验证与接受状态 |
+| 源码提交 | 记录行为 | 验证与接受状态 |
 | --- | --- | --- |
 | `da337a7d9e7a2535c183215c38b878f49d5f94ce` | Markdown 图片和 HTML preview 图片都使用各自 Document View 的文档目录解析相对路径；切换文档或 pane 时，图片基准路径随对应 view 更新。 | 提交包含 Muya 单元测试及 Electron E2E；历史任务使用用户提供的四张图片检查。该提交曾生成开发阶段安装包，后续提交未重新打包。 |
 | `4fc232fadd4afb53a7ffe7a5542c9ca9cf19ddb5` | 折叠的 `<details>` preview 保持为 summary 单行，不渲染重复的内嵌源码按钮；选中 HTML block 后，右侧浮动工具栏仍提供源码入口。 | 历史 E2E 覆盖折叠高度、按钮数量与浮动源码入口；用户确认 details 行为“全部正常”。 |
@@ -17,18 +17,13 @@
 | `812fd9658df7d2df89fb3c7b582a847e8aed1aec` | 首次把 clean 文档刷新到编辑器时，接受编辑表面的 canonical Markdown 作为 clean baseline，避免空行规范化造成误报 dirty；之后的真实编辑仍标记 dirty。该过程不写回原文件。 | 历史 workspace 单元测试及 Electron E2E 通过；历史任务使用用户提供的两份日报副本完成 E2E，原文件未修改。没有单独记录为明确的用户人工确认。 |
 | `3bf53e72373cd03716b118586a8dbec784bf44f0`、`33b1e24f809562448ecfc3eb94c041c5e7d28df7` | titlebar、tab 和 Opened Files 的 dirty 圆点位于文件名之前。dirty 圆点在 active/hover 状态保持可见；Opened Files 圆点与文件名间距为 5px，并与 close 控件分离。 | 历史开发构建人工检查；用户确认最终 `33b1e24f` 效果“符合预期”。 |
 
-当前 `33b1e24f` 只在本地源码和开发构建中验证，没有基于该提交生成新的安装包。`da337a7d` 的历史安装包不能证明其后的 details、排序、颜色、clean baseline 或 dirty marker 改动已进入安装包。
+记录基线 `33b1e24f` 只在本地源码和开发构建中验证，没有基于该提交生成新的安装包。`da337a7d` 的历史安装包不能证明其后的 details、排序、颜色、clean baseline 或 dirty marker 改动已进入安装包。
 
-颜色 picker 的原型提交 `8b91a75a678737b2d0da9fa01ee1e9138d298725` 位于独立原型分支，不在当前源码基线中；当前行为以上表中的正式实现为准。
+颜色 picker 的原型提交 `8b91a75a678737b2d0da9fa01ee1e9138d298725` 位于独立原型分支，不在记录基线中；记录行为以上表中的正式实现为准。
 
 ## WYSIWYG 滚动阶段
 
-WYSIWYG 滚动优化已经集成：idle commit、view transition 最终位置、程序化跳转单次提交和所有权生命周期分别以 `6464940e890173f42d98f764974653f2c69a8f05`、`577fe05a88384ce77dafbb7ca9df35f8dd5d462b`、`bcf3411bf128bd2389c96ed041a509874673fdd3`、`ecb8824b2ea0ec231ebe5e6006a607f944696acf` 为集成事实。T05 Windows 安装版验收通过；物理鼠标滚轮和滚动条 thumb 通过，物理触摸板不可用，Linux/macOS 未测试。详细数值和包身份见[滚动 profile](desktop-scroll-profile.md)及[T05 证据](../../.scratch/wysiwyg-scroll-performance/evidence/05-installed-scroll-acceptance.md)。阶段清理记录收束于 `cdde617c`；两个历史 uninstall 项按用户选择保留，见[清理证据](../../.scratch/wysiwyg-scroll-performance/evidence/phase-cleanup.md)。
-
-以下是已调查但未实现修复的独立问题：
-
-- Source 大文档容量：10k 行为 P2/degraded，50k 为确认的 P1/high 容量缺陷。见[T06 证据](../../.scratch/wysiwyg-scroll-performance/evidence/06-source-large-document-capacity.md)。
-- Opened Files：存在 P2/medium 的批量打开压力，以及启动期 main send 到 renderer 应用之间的 delivery readiness race。调查没有提交生产修复。见[T07 证据](../../.scratch/wysiwyg-scroll-performance/evidence/07-opened-files-scale-pressure.md)。
+WYSIWYG 滚动阶段的集成提交、T05/T06/T07 结论、平台限制和阶段清理证据统一见[滚动 profile](desktop-scroll-profile.md)。
 
 ## 本次文档检查
 
