@@ -30,8 +30,8 @@
             @keydown.left.prevent="selectAdjacentTab(file, -1)"
             @keydown.right.prevent="selectAdjacentTab(file, 1)"
           >
-            <span class="tab-filename">{{ file.filename }}</span>
             <span class="unsaved-dot" />
+            <span class="tab-filename">{{ file.filename }}</span>
           </button>
           <button
             type="button"
@@ -489,12 +489,12 @@ onBeforeUnmount(() => {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      margin-right: 3px;
     }
     & .unsaved-dot {
       display: none;
       width: 6px;
       height: 6px;
+      margin-right: 3px;
       border-radius: 50%;
       background: var(--appShellAccent);
       flex-shrink: 0;

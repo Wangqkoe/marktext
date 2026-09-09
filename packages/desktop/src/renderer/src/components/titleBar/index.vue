@@ -29,12 +29,12 @@
           dir="ltr"
           @click="rename"
         >
-          {{ visibleTitle }}
           <span
             v-if="filename"
             class="save-dot"
             :class="{ show: !isSaved }"
           />
+          {{ visibleTitle }}
         </span>
       </div>
       <nav
