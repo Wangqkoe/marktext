@@ -92,18 +92,30 @@ describe('codeBlockContent trailing newline', () => {
         expect(content.domNode!.textContent).toBe('const a = 1\n');
     });
 
-    it('keeps the trailing line break while the local composition guard is active', () => {
+    it('seeds the IME composition anchor in front of the trailing line break', () => {
         const content = codeContent(bootMuya('```\nhello\n```\n'));
         content.text = 'hello\n\n';
         content.setCursor(7, 7, true);
-        const before = [...content.domNode!.childNodes];
 
         content.composeHandler(new CompositionEvent('compositionstart', { data: '' }));
 
         const lineBreak = trailingBreak(content)!;
         expect((content as unknown as { isComposed: boolean }).isComposed).toBe(true);
         expect(content.domNode!.lastChild).toBe(lineBreak);
+        expect(lineBreak.previousSibling?.nodeType).toBe(Node.TEXT_NODE);
+        expect(lineBreak.previousSibling?.textContent).toBe(String.fromCharCode(0x200B));
+    });
+
+    it('leaves the trailing line break in place once a cancelled composition ends', () => {
+        const content = codeContent(bootMuya('```\nhello\n```\n'));
+        content.text = 'hello\n\n';
+        content.setCursor(7, 7, true);
+
+        content.composeHandler(new CompositionEvent('compositionstart', { data: '' }));
+        content.composeHandler(new CompositionEvent('compositionend', { data: '' }));
+
+        expect(content.domNode!.lastChild).toBe(trailingBreak(content));
         expect(content.domNode!.textContent).toBe('hello\n\n');
-        expect([...content.domNode!.childNodes]).toEqual(before);
+        expect(content.text).toBe('hello\n\n');
     });
 });
