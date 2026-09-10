@@ -27,6 +27,29 @@ export const normalizeAndResolvePath = (pathname: string): string => {
 }
 
 /**
+ * Splits a link destination such as `other.md#setup` into the file path and the
+ * fragment. The path is percent-decoded (CommonMark #503, #57) and resolved
+ * against `dirname` (`''` for an unsaved document); the anchor is returned as
+ * written. A `#` belonging to an existing file name (`C#.md`) stays in the path.
+ */
+export const resolveLocalLinkTarget = (
+  link: string,
+  dirname: string
+): { pathname: string; anchor: string } => {
+  const toPathname = (target: string): string => {
+    const joined = dirname && !path.isAbsolute(target) ? path.join(dirname, target) : target
+    return path.normalize(decodeURIComponent(joined))
+  }
+
+  const pathname = toPathname(link)
+  const hashIndex = link.indexOf('#')
+  if (hashIndex <= 0 || isFile(pathname)) {
+    return { pathname, anchor: '' }
+  }
+  return { pathname: toPathname(link.slice(0, hashIndex)), anchor: link.slice(hashIndex + 1) }
+}
+
+/**
  * Copies `src` into the existing `outputDir` as `<SHA-1 of its bytes><ext>` and
  * returns the destination. The source is hashed while it is copied, so it is
  * read only once; if an identical file is already there it is kept and the new
