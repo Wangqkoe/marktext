@@ -567,7 +567,7 @@ class ParagraphContent extends Format {
         if (!isKeyboardEvent(event))
             return;
 
-        if (event.shiftKey)
+        if (event.shiftKey && !this.dropSoftBreakBeforeCursor())
             return this.shiftEnterHandler(event);
 
         // Any paragraph that would convert to a block (code fence, math block,
