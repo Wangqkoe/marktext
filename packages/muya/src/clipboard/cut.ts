@@ -7,6 +7,7 @@ import type { Nullable } from '../types';
 import type Clipboard from './index';
 import Format from '../block/base/format';
 import CodeBlockContent from '../block/content/codeBlockContent';
+import LangInputContent from '../block/content/langInputContent';
 import TableCellContent from '../block/content/tableCell';
 import { ScrollPage } from '../block/scrollPage';
 import { CLASS_NAMES } from '../config';
@@ -455,10 +456,11 @@ export function cutSelection(clipboard: Clipboard): void {
     // only the structure strictly between the two leaves (and the emptied
     // end-side containers). The start block keeps its container — a list
     // item stays a list item, a quote stays a quote.
-    const { tail, endsWholeTable } = resolveCutEnd(startBlock, endBlock, endOffset);
+    const { tail, lastRemoved, endsWholeTable } = resolveCutEnd(startBlock, endBlock, endOffset);
     startBlock.text = startBlock.text.substring(0, startOffset) + tail;
 
-    removeBlocks(startBlock, endBlock, endsWholeTable);
+    if (lastRemoved)
+        removeBlocks(startBlock, lastRemoved, endsWholeTable);
 
     setCursorAndConvert(startBlock, startOffset);
     resetIfEmpty(clipboard);
@@ -467,18 +469,29 @@ export function cutSelection(clipboard: Clipboard): void {
 interface ICutEnd {
     // Text after the selection end that joins the start block.
     tail: string;
+    // The last content leaf whose branch the cut removes; null when nothing
+    // lies between the start block and the end.
+    lastRemoved: Nullable<Content>;
     // The selection covers every cell of the table the end sits in, so the
     // table is removed instead of kept as an emptied grid (#5405).
     endsWholeTable: boolean;
 }
 
-// Normally the end leaf's tail joins the start. A table end is special because
-// its unselected tail must remain inside the cell.
+// Where a cross-block cut stops. Normally at the end leaf, whose text after the
+// caret joins the start block. Table and code-language endpoints keep their
+// unselected text in place instead (#5371, #5405).
 function resolveCutEnd(startBlock: Content, endBlock: Content, endOffset: number): ICutEnd {
     if (endBlock instanceof TableCellContent)
         return resolveTableCutEnd(startBlock, endBlock, endOffset);
 
-    return { tail: endBlock.text.substring(endOffset), endsWholeTable: false };
+    if (endBlock instanceof LangInputContent)
+        return resolveLanguageCutEnd(startBlock, endBlock, endOffset);
+
+    return {
+        tail: endBlock.text.substring(endOffset),
+        lastRemoved: endBlock,
+        endsWholeTable: false,
+    };
 }
 
 // A cut that ends in a table cell leaves what it does not cover where it is:
@@ -489,8 +502,13 @@ function resolveTableCutEnd(startBlock: Content, endBlock: TableCellContent, end
 
     // Both ends inside one table: the tail joins the start cell, as it does
     // between any two leaves. Nothing leaves the table that way.
-    if (startBlock.isInBlock(table))
-        return { tail: endBlock.text.substring(endOffset), endsWholeTable: false };
+    if (startBlock.isInBlock(table)) {
+        return {
+            tail: endBlock.text.substring(endOffset),
+            lastRemoved: endBlock,
+            endsWholeTable: false,
+        };
+    }
 
     const endsWholeTable
         = endOffset === endBlock.text.length
@@ -502,7 +520,32 @@ function resolveTableCutEnd(startBlock: Content, endBlock: TableCellContent, end
         endBlock.update();
     }
 
-    return { tail: '', endsWholeTable };
+    return { tail: '', lastRemoved: endBlock, endsWholeTable };
+}
+
+// A cut ending inside a code block's language line stops before that code
+// block: it keeps its code and language input, and loses only the selected
+// start of its language (#5371).
+function resolveLanguageCutEnd(startBlock: Content, endBlock: LangInputContent, endOffset: number): ICutEnd {
+    const language = endBlock.text.substring(endOffset);
+    if (language !== endBlock.text) {
+        endBlock.text = language;
+        endBlock.parent!.lang = language;
+        endBlock.update();
+    }
+
+    const beforeCodeBlock = endBlock.previousContentInContext();
+    const beforeTable = beforeCodeBlock?.closestBlock('table');
+    const endsWholeTable = beforeTable != null
+        && beforeTable.isParent()
+        && !startBlock.isInBlock(beforeTable)
+        && beforeCodeBlock === beforeTable.lastContentInDescendant();
+
+    return {
+        tail: '',
+        lastRemoved: beforeCodeBlock === startBlock ? null : beforeCodeBlock,
+        endsWholeTable,
+    };
 }
 // #918: collapse the start code block (whose language line begins the
 // selection) into a paragraph carrying the merged head + end-tail text, then
@@ -514,7 +557,7 @@ function collapseLanguageInputCut(
     startOffset: number,
     endOffset: number,
 ): void {
-    const { tail, endsWholeTable } = resolveCutEnd(startBlock, endBlock, endOffset);
+    const { tail, lastRemoved, endsWholeTable } = resolveCutEnd(startBlock, endBlock, endOffset);
     const mergedText = startBlock.text.substring(0, startOffset) + tail;
     // The code block itself, even inside a list item or quote: replacing the
     // outermost block would take the rest of that list or quote with it (#5368).
@@ -524,8 +567,8 @@ function collapseLanguageInputCut(
     // the replacement below removes that code with its block. `removeBlocks`
     // would detach the inner `code` node, which shares the code block's json
     // path, so the json state would lose the following block (#4903, #5148).
-    if (codeBlock == null || !endBlock.isInBlock(codeBlock))
-        removeBlocks(startBlock, endBlock, endsWholeTable);
+    if (lastRemoved && (codeBlock == null || !lastRemoved.isInBlock(codeBlock)))
+        removeBlocks(startBlock, lastRemoved, endsWholeTable);
 
     const paragraph = ScrollPage.loadBlock('paragraph').create(clipboard.muya, {
         name: 'paragraph',
