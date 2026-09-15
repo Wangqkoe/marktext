@@ -73,7 +73,7 @@ const offFocused = (event: string): void => {
   focusedBusHandlers.delete(event)
 }
 
-const { theme, sourceCode, codeFontSize, editorLineWidth } = storeToRefs(preferencesStore)
+const { theme, sourceCode, sourceCodeLineNumbers, codeFontSize, editorLineWidth } = storeToRefs(preferencesStore)
 const { currentFile: legacyCurrentTab } = storeToRefs(editorStore)
 const currentTab = computed(() => props.activeFile ?? legacyCurrentTab.value)
 const sourceZoomStyle = computed(() => {
@@ -161,6 +161,10 @@ watch(
     }
   }
 )
+
+watch(sourceCodeLineNumbers, (value) => {
+  editor.value?.setOption('lineNumbers', value)
+})
 
 const getCursor = (cm: CMInstance) => {
   let focus = cm.getCursor('head')
@@ -466,7 +470,7 @@ onMounted(async () => {
     // Set at construction: switching modes afterwards re-highlights and
     // re-measures every line, which costs seconds on a large document.
     mode: 'markdown-math',
-    lineNumbers: true,
+    lineNumbers: sourceCodeLineNumbers.value,
     autofocus: true,
     lineWrapping: true,
     styleActiveLine: true,
@@ -478,13 +482,6 @@ onMounted(async () => {
       'Ctrl-Y': handleRedo,
       'Ctrl-Shift-Z': handleRedo,
       'Cmd-Shift-Z': handleRedo
-    },
-    lineNumberFormatter (line: number) {
-      if (line % 10 === 0 || line === 1) {
-        return line
-      } else {
-        return ''
-      }
     }
   }
 
