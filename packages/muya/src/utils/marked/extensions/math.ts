@@ -1,3 +1,4 @@
+import type { Token } from 'marked';
 import katex from 'katex';
 import 'katex/dist/contrib/mhchem.mjs';
 
@@ -6,6 +7,7 @@ export interface IMathToken {
     raw: string;
     text: string;
     displayMode: boolean;
+    marker?: string;
     mathStyle?: '' | 'gitlab' | 'latex' | 'latex-inline';
     delimiterStyle?: 'dollar' | 'latex';
 }
@@ -40,13 +42,42 @@ export default function (options: IOptions = {}) {
             inlineKatex(createRenderer(opts, false), opts.latexMathDelimiters),
             blockKatex(createRenderer(opts, true), opts.latexMathDelimiters),
         ],
+        walkTokens: markDisplayMath,
     };
+}
+
+function isDollarDollarMath(token: Token): token is Token & IMathToken {
+    return token.type === 'inlineMath' && (token as Partial<IMathToken>).marker === '$$';
+}
+
+// Same rule as the editor: `$$...$$` is display math only in a paragraph that
+// holds nothing but such formulas. A tight list item's paragraph comes as a
+// block-level `text` token; inline `text` tokens carry no `tokens`.
+function markDisplayMath(token: Token) {
+    const children = token.type === 'paragraph' || token.type === 'text' ? token.tokens : undefined;
+    if (!children)
+        return;
+
+    const onlyMath = children.some(isDollarDollarMath)
+        && children.every(child =>
+            isDollarDollarMath(child)
+            || child.type === 'br'
+            || (child.type === 'text' && child.raw.trim() === ''),
+        );
+
+    if (!onlyMath)
+        return;
+
+    for (const child of children) {
+        if (isDollarDollarMath(child))
+            child.displayMode = true;
+    }
 }
 
 function createRenderer(options: IOptions, newlineAfter: boolean) {
     return (token: IMathToken) => {
         const { useKatexRender, throwOnError } = options;
-        const { type, text, displayMode, mathStyle, delimiterStyle } = token;
+        const { type, text, displayMode, marker = '$', mathStyle, delimiterStyle } = token;
         if (useKatexRender) {
             return (
                 katex.renderToString(text, {
@@ -57,7 +88,7 @@ function createRenderer(options: IOptions, newlineAfter: boolean) {
         }
         else {
             if (type === 'inlineMath')
-                return delimiterStyle === 'latex' ? `\\(${text}\\)` : `$${text}$`;
+                return delimiterStyle === 'latex' ? `\\(${text}\\)` : `${marker}${text}${marker}`;
 
             return `<pre class="multiple-math" data-math-style="${mathStyle}">${text}</pre>\n`;
         }
@@ -97,7 +128,8 @@ function inlineKatex(renderer: (token: IMathToken) => string, latexMathDelimiter
                     type: 'inlineMath',
                     raw: match[0],
                     text: match[2].trim(),
-                    displayMode: match[1].length === 2,
+                    marker: match[1],
+                    displayMode: false,
                     delimiterStyle: 'dollar',
                 };
             }
