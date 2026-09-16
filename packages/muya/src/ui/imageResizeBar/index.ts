@@ -129,12 +129,15 @@ export class ImageResizeBar {
     }
 
     private _mouseDown = (event: Event) => {
-        if (!isHTMLElement(event.target) || !event.target.closest('.bar'))
+        const { target } = event;
+        const handle = isHTMLElement(target) ? target.closest('.bar') : null;
+        // Document content can carry its own `.bar` elements (raw HTML, a
+        // mermaid `classDef bar`); only this bar's handles start a resize (#5116).
+        if (!handle || !this._container.contains(handle))
             return;
 
-        const target = event.target;
         const { eventCenter } = this.muya;
-        this._movingAnchor = target.getAttribute('data-position');
+        this._movingAnchor = handle.getAttribute('data-position');
         const mouseMoveId = eventCenter.attachDOMEvent(
             document.body,
             'mousemove',
@@ -173,6 +176,9 @@ export class ImageResizeBar {
                 relativeAnchor = this._container.querySelector('.left')!;
                 renderedWidth = clientX - relativeAnchor.getBoundingClientRect().left - CIRCLE_RADIO;
                 break;
+
+            default:
+                return;
         }
         const width = Math.max(
             renderedWidth / getRenderedScale(this._reference!, 'x'),
