@@ -15,10 +15,14 @@ import { clickMenuById, launchElectron, waitForEditor, waitForMenuReady } from '
 //   MARKTEXT_PERF_ROUNDS=<n>        app launches (default 3)
 //   MARKTEXT_PERF_SWITCHES=<n>      tab switch pairs per mode per launch (default 3)
 //   MARKTEXT_PERF_OUT=<path>        write raw JSON results
+//   MARKTEXT_PERF_PROFILE_DIR=<dir> write a renderer .cpuprofile for the first
+//                                   sample of each action in round 1 (profiling
+//                                   inflates that sample's timing)
 
 const enabled = process.env.MARKTEXT_PERF === '1'
 const rounds = Number(process.env.MARKTEXT_PERF_ROUNDS ?? 3)
 const switches = Number(process.env.MARKTEXT_PERF_SWITCHES ?? 3)
+const profileDir = process.env.MARKTEXT_PERF_PROFILE_DIR
 
 interface Sample {
   readonly round: number
@@ -236,56 +240,74 @@ test.describe('large document open and tab switch timing', () => {
         await waitForEditor(page)
         await waitForMenuReady(app)
         await installLongTaskRecorder(page)
-        const record = (action: string, result: Omit<Sample, 'round' | 'action'>): void => {
+        const cdp = profileDir && round === 1 ? await page.context().newCDPSession(page) : undefined
+        if (cdp && profileDir) {
+          fs.mkdirSync(profileDir, { recursive: true })
+          await cdp.send('Profiler.enable')
+          await cdp.send('Profiler.setSamplingInterval', { interval: 1000 })
+        }
+        const profiled = new Set<string>()
+        const record = async(
+          action: string,
+          run: () => Promise<Omit<Sample, 'round' | 'action'>>
+        ): Promise<void> => {
+          const profile = cdp && profileDir && !profiled.has(action)
+          if (profile) await cdp.send('Profiler.start')
+          const result = await run()
+          if (profile) {
+            profiled.add(action)
+            const { profile: data } = await cdp.send('Profiler.stop')
+            fs.writeFileSync(path.join(profileDir, `${action}.cpuprofile`), JSON.stringify(data))
+          }
           samples.push({ round, action, ...result })
           console.log(`[perf] round ${round} ${action}: ${JSON.stringify(result)}`)
         }
 
-        record(
+        await record(
           'open-small-b',
-          await measure(
+          () => measure(
             page,
             { kind: 'open-file', pathname: smallBPath },
             { mode: 'wysiwyg', marker: 'Small B heading' }
           )
         )
         await settle(1000)
-        record(
+        await record(
           'open-large-wysiwyg',
-          await measure(page, { kind: 'open-file', pathname: largePath }, large)
+          () => measure(page, { kind: 'open-file', pathname: largePath }, large)
         )
         await settle(2000)
 
         for (let i = 0; i < switches; i++) {
-          record(
+          await record(
             'switch-to-small',
-            await measure(page, { kind: 'select-tab', filename: 'small-a.md' }, smallA)
+            () => measure(page, { kind: 'select-tab', filename: 'small-a.md' }, smallA)
           )
           await settle(1000)
-          record(
+          await record(
             'switch-to-large-wysiwyg',
-            await measure(page, { kind: 'select-tab', filename: 'large-document.md' }, large)
+            () => measure(page, { kind: 'select-tab', filename: 'large-document.md' }, large)
           )
           await settle(2000)
         }
 
         const currentApp = app
-        record(
+        await record(
           'enter-source-large',
-          await measure(page, { kind: 'external' }, { mode: 'source', marker: large.marker }, () =>
+          () => measure(page, { kind: 'external' }, { mode: 'source', marker: large.marker }, () =>
             clickMenuById(currentApp, 'sourceCodeModeMenuItem')
           )
         )
         await settle(2000)
         for (let i = 0; i < switches; i++) {
-          record(
+          await record(
             'switch-to-small-from-source',
-            await measure(page, { kind: 'select-tab', filename: 'small-a.md' }, smallA)
+            () => measure(page, { kind: 'select-tab', filename: 'small-a.md' }, smallA)
           )
           await settle(1000)
-          record(
+          await record(
             'switch-to-large-source',
-            await measure(
+            () => measure(
               page,
               { kind: 'select-tab', filename: 'large-document.md' },
               { mode: 'source', marker: large.marker }
