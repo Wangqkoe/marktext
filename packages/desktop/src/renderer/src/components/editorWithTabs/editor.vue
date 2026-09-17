@@ -1656,6 +1656,13 @@ interface FileChangePayload {
   isReload?: boolean
   workspaceRefresh?: boolean
   sourceHandoff?: boolean
+  /**
+   * Path of the incoming document. A workspace refresh is committed before the
+   * store's `currentFile` follows the new active view, so the image base must
+   * come from the snapshot; an outdated base makes the pathname watcher force
+   * a second render that drops the restored caret.
+   */
+  pathname?: string
 }
 
 // listen for markdown change form source mode or change tabs etc
@@ -1669,7 +1676,8 @@ const handleFileChange = (payload: unknown) => {
     history: payloadHistory,
     scrollTop,
     isReload,
-    sourceHandoff
+    sourceHandoff,
+    pathname
   } = (payload ?? {}) as FileChangePayload
   if (!editor.value) return
   const container = getScrollContainer()
@@ -1677,7 +1685,7 @@ const handleFileChange = (payload: unknown) => {
 
   if (typeof newMarkdown === 'string') {
     engineDocumentId = id
-    editor.value.setOptions({ imageBasePath: imageBasePathFor(currentFile.value?.pathname) })
+    editor.value.setOptions({ imageBasePath: imageBasePathFor(pathname ?? currentFile.value?.pathname) })
     // Returning from source-code mode: the WYSIWYG engine is never unmounted
     // while source mode is up (index.vue overlays it via `v-if`), so it still
     // holds the PRE-source-mode document and undo history. Record the bulk
@@ -2041,6 +2049,7 @@ onMounted(() => {
           preserveOutsideSelection(() => handleFileChange({
             id: snapshot.document.documentId,
             markdown: snapshot.document.markdown,
+            pathname: snapshot.document.fileKey ?? '',
             cursor: isEngineCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
             muyaIndexCursor: isIndexCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
             history: engineHistoryFrom(snapshot.document.portableHistory),
