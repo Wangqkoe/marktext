@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { encodeMarkdown } from './markdown'
+import { decodeMarkdownFile, encodeMarkdown } from './markdown'
 import {
   type FileObservationHub,
   type DiskChange,
@@ -8,8 +8,11 @@ import {
   type GuardedSaveResult
 } from './fileObservation'
 import type {
+  DocumentIoAcceptReadRequest,
   DocumentIoBindingRequest,
   DocumentIoObservation,
+  DocumentIoReadRequest,
+  DocumentIoReadResult,
   DocumentIoRequest,
   DocumentIoSaveRequest,
   DocumentSaveAck
@@ -29,6 +32,8 @@ interface Binding {
   readonly ownerFence: string
   fileKey: CanonicalFileKey
   observedDiskRevision: DiskRevision | null
+  /** Revisions of reads not yet adopted, keyed by their single-use token. */
+  readonly readTokens: Map<string, DiskRevision | null>
   documentRevision: number
   dirty: boolean
   lease: FileObservationLease
@@ -107,6 +112,77 @@ export class DocumentIOCoordinator {
     return ack
   }
 
+  /**
+   * Read the bound file without adopting it. Observation stays unchanged until
+   * the renderer applies the content and accepts the returned token, so a
+   * declined reload keeps later saves guarded against this external change.
+   */
+  async read(senderId: string, request: DocumentIoReadRequest): Promise<DocumentIoReadResult> {
+    const endpoint = this.endpoints.get(senderId)
+    const binding = this.bindings.get(request.ownerFence)
+    if (!endpoint || !binding || !this.isCurrentBinding(binding, endpoint, request.documentId)) {
+      return { status: 'rejected', requestId: request.requestId, documentId: request.documentId, reason: 'stale or mismatched owner fence' }
+    }
+    const { bytes, diskRevision } = await this.hub.readWithRevision(binding.fileKey)
+    if (!this.isCurrentBinding(binding, endpoint, request.documentId)) {
+      return { status: 'rejected', requestId: request.requestId, documentId: request.documentId, reason: 'binding changed during read' }
+    }
+    if (!bytes) return { status: 'missing', requestId: request.requestId, documentId: request.documentId }
+    const { options } = request
+    let decoded: ReturnType<typeof decodeMarkdownFile>
+    try {
+      decoded = decodeMarkdownFile(
+        bytes,
+        binding.fileKey,
+        options.preferredEol,
+        options.autoGuessEncoding,
+        options.trimTrailingNewline,
+        options.autoNormalizeLineEndings
+      )
+    } catch (error) {
+      return { status: 'rejected', requestId: request.requestId, documentId: request.documentId, reason: error instanceof Error ? error.message : String(error) }
+    }
+    // Only the latest read of a binding can be adopted.
+    binding.readTokens.clear()
+    const readToken = randomUUID()
+    binding.readTokens.set(readToken, diskRevision)
+    return {
+      status: 'read',
+      requestId: request.requestId,
+      documentId: binding.documentId,
+      ownerFence: binding.ownerFence,
+      readToken,
+      document: {
+        markdown: decoded.markdown,
+        encoding: { encoding: decoded.encoding.encoding, isBom: decoded.encoding.isBom === true },
+        lineEnding: decoded.lineEnding,
+        adjustLineEndingOnSave: decoded.adjustLineEndingOnSave,
+        trimTrailingNewline: decoded.trimTrailingNewline,
+        isMixedLineEndings: decoded.isMixedLineEndings
+      }
+    }
+  }
+
+  acceptRead(senderId: string, request: DocumentIoAcceptReadRequest): DocumentSaveAck {
+    const endpoint = this.endpoints.get(senderId)
+    const binding = this.bindings.get(request.ownerFence)
+    if (!endpoint || !binding || !this.isCurrentBinding(binding, endpoint, request.documentId)) {
+      return { status: 'rejected', requestId: request.requestId, documentId: request.documentId, ownerFence: request.ownerFence, reason: 'stale or mismatched owner fence' }
+    }
+    if (!binding.readTokens.has(request.readToken)) {
+      return { status: 'rejected', requestId: request.requestId, documentId: request.documentId, ownerFence: request.ownerFence, reason: 'unknown or superseded read token' }
+    }
+    binding.observedDiskRevision = binding.readTokens.get(request.readToken) ?? null
+    binding.readTokens.clear()
+    return {
+      status: 'bound',
+      requestId: request.requestId,
+      documentId: binding.documentId,
+      ownerFence: binding.ownerFence,
+      observedDiskRevision: binding.observedDiskRevision
+    }
+  }
+
   revokeEndpoint(senderId: string): void {
     const endpoint = this.endpoints.get(senderId)
     this.endpoints.delete(senderId)
@@ -169,6 +245,7 @@ export class DocumentIOCoordinator {
         documentRevision: request.documentRevision,
         dirty: request.dirty,
         lease,
+        readTokens: new Map(),
         saveAcks: new Map()
       }
       if (!this.isCurrentReservation(reservation)) return rejected(request, 'stale bind')
@@ -268,6 +345,7 @@ export class DocumentIOCoordinator {
         documentRevision: request.documentRevision,
         dirty: false,
         lease: successor,
+        readTokens: new Map(),
         saveAcks: new Map([[request.requestId, {
           status: 'durable-success',
           requestId: request.requestId,
@@ -312,6 +390,7 @@ export class DocumentIOCoordinator {
       return this.notDurable(request, 'binding changed before durable acknowledgment')
     }
     binding.observedDiskRevision = result.diskRevision
+    binding.readTokens.clear()
     binding.dirty = false
     return this.durable(request, binding, result.diskRevision)
   }
@@ -372,6 +451,7 @@ export class DocumentIOCoordinator {
       binding.fileKey = targetKey
       binding.lease = successor
       binding.observedDiskRevision = result.diskRevision
+      binding.readTokens.clear()
       binding.dirty = false
       return this.durable(request, binding, result.diskRevision)
     } finally {

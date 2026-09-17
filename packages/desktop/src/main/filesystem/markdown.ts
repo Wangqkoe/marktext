@@ -17,7 +17,7 @@ export interface MarkdownDocumentOptions {
   encoding: Encoding
 }
 
-interface MarkdownDocumentRaw {
+export interface MarkdownDocumentRaw {
   markdown: string
   filename: string
   pathname: string
@@ -102,7 +102,25 @@ export const loadMarkdownFile = async(
   //       encoding on the first 256/512 bytes.
 
   const buffer = await fsPromises.readFile(path.resolve(pathname))
+  return decodeMarkdownFile(
+    buffer,
+    pathname,
+    preferredEol,
+    autoGuessEncoding,
+    trimTrailingNewline,
+    autoNormalizeLineEndings
+  )
+}
 
+/** Decode already-read file bytes exactly as `loadMarkdownFile` does. */
+export const decodeMarkdownFile = (
+  buffer: Buffer,
+  pathname: string,
+  preferredEol: LineEnding,
+  autoGuessEncoding: boolean = true,
+  trimTrailingNewline: number = 2,
+  autoNormalizeLineEndings: boolean = false
+): MarkdownDocumentRaw => {
   const encoding = guessEncoding(buffer, autoGuessEncoding)
   const supported = iconv.encodingExists(encoding.encoding)
   if (!supported) {

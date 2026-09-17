@@ -5,7 +5,7 @@ import {
   MemoryFileObservationWatchFactory
 } from 'main_renderer/filesystem/fileObservation'
 import { DocumentIOCoordinator, type DocumentIoEndpoint } from 'main_renderer/filesystem/documentIO'
-import type { DocumentIoBindingRequest, DocumentIoSaveRequest } from '@shared/workspace/documentIo'
+import type { DocumentIoBindingRequest, DocumentIoReadRequest, DocumentIoSaveRequest } from '@shared/workspace/documentIo'
 
 const options = { encoding: { encoding: 'utf8', isBom: false }, lineEnding: 'lf' as const, adjustLineEndingOnSave: false }
 const file = 'C:/workspace/document.md'
@@ -40,6 +40,72 @@ describe('DocumentIOCoordinator', () => {
   const save = (ownerFence: string, requestId = 'save:1', documentRevision = 2): DocumentIoSaveRequest => ({
     kind: 'save', requestId, documentId: 'document', documentRevision, ownerFence,
     markdown: 'updated\n', options, windowId: -1
+  })
+
+  const read = (ownerFence: string, requestId = 'read:1'): DocumentIoReadRequest => ({
+    kind: 'read',
+    requestId,
+    documentId: 'document',
+    ownerFence,
+    options: { preferredEol: 'lf', autoGuessEncoding: true, trimTrailingNewline: 2, autoNormalizeLineEndings: false }
+  })
+
+  it('reads an external change without adopting it until the read is accepted', async() => {
+    const { coordinator, hub, storage } = setup()
+    const canonical = await hub.canonicalFileKey(file)
+    storage.files.set(canonical, Buffer.from('baseline\n'))
+    const bound = await bind(coordinator)
+    storage.files.set(canonical, Buffer.from('external\r\nchange\r\n'))
+
+    const result = await coordinator.read('sender-a', read(bound.ownerFence))
+    expect(result).toMatchObject({
+      status: 'read',
+      document: { markdown: 'external\nchange\n', lineEnding: 'crlf', adjustLineEndingOnSave: true }
+    })
+    if (result.status !== 'read') throw new Error('read failed')
+
+    // A declined reload keeps later saves guarded against the external change.
+    await expect(coordinator.request('sender-a', save(bound.ownerFence, 'save:guarded'))).resolves.toMatchObject({
+      status: 'conflict'
+    })
+    expect(storage.files.get(canonical)?.toString()).toBe('external\r\nchange\r\n')
+
+    expect(coordinator.acceptRead('sender-a', {
+      kind: 'accept-read', requestId: 'accept:1', documentId: 'document', ownerFence: bound.ownerFence, readToken: result.readToken
+    })).toMatchObject({ status: 'bound', ownerFence: bound.ownerFence })
+    await expect(coordinator.request('sender-a', save(bound.ownerFence, 'save:after-accept'))).resolves.toMatchObject({
+      status: 'durable-success'
+    })
+  })
+
+  it('accepts only the latest read and never one older than a durable save', async() => {
+    const { coordinator, hub, storage } = setup()
+    const canonical = await hub.canonicalFileKey(file)
+    storage.files.set(canonical, Buffer.from('baseline\n'))
+    const bound = await bind(coordinator)
+    const accept = (readToken: string, requestId: string) => coordinator.acceptRead('sender-a', {
+      kind: 'accept-read', requestId, documentId: 'document', ownerFence: bound.ownerFence, readToken
+    })
+
+    const first = await coordinator.read('sender-a', read(bound.ownerFence, 'read:first'))
+    const second = await coordinator.read('sender-a', read(bound.ownerFence, 'read:second'))
+    if (first.status !== 'read' || second.status !== 'read') throw new Error('read failed')
+    expect(accept(first.readToken, 'accept:first')).toMatchObject({ status: 'rejected' })
+
+    await expect(coordinator.request('sender-a', save(bound.ownerFence, 'save:own'))).resolves.toMatchObject({
+      status: 'durable-success'
+    })
+    expect(accept(second.readToken, 'accept:second')).toMatchObject({ status: 'rejected' })
+  })
+
+  it('reports a missing file and rejects reads from another sender', async() => {
+    const { coordinator, hub, storage } = setup()
+    const canonical = await hub.canonicalFileKey(file)
+    storage.files.set(canonical, Buffer.from('baseline\n'))
+    const bound = await bind(coordinator)
+    await expect(coordinator.read('sender-b', read(bound.ownerFence))).resolves.toMatchObject({ status: 'rejected' })
+    storage.files.delete(canonical)
+    await expect(coordinator.read('sender-a', read(bound.ownerFence))).resolves.toMatchObject({ status: 'missing' })
   })
 
   it('authenticates the actual sender and ignores payload window IDs', async() => {

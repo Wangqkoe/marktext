@@ -35,9 +35,12 @@ import type { ApplicationMenuSection, MenuTemplate, MenuPopupPosition } from './
 import type { LayoutAction, LayoutMenuState } from './layout'
 import type { ViewMode, ViewModeState } from './viewMode'
 import type {
+  DocumentIoAcceptReadRequest,
   DocumentIoCloseDecision,
   DocumentIoCloseDecisionRequest,
   DocumentIoObservation,
+  DocumentIoReadRequest,
+  DocumentIoReadResult,
   DocumentIoRequest,
   DocumentIoTargetSelection,
   DocumentIoTargetSelectionRequest,
@@ -68,6 +71,11 @@ export interface IpcInvokeChannels {
   'mt::fonts::list': { args: []; ret: string[] }
   // T04b DocumentIO section. T06 owns a separate transfer/startup insertion point.
   'mt::workspace::document-io': { args: [request: DocumentIoRequest]; ret: DocumentSaveAck }
+  'mt::workspace::document-io-read': { args: [request: DocumentIoReadRequest]; ret: DocumentIoReadResult }
+  'mt::workspace::document-io-accept-read': {
+    args: [request: DocumentIoAcceptReadRequest]
+    ret: DocumentSaveAck
+  }
   'mt::workspace::choose-document-path': {
     args: [request: DocumentIoTargetSelectionRequest]
     ret: DocumentIoTargetSelection

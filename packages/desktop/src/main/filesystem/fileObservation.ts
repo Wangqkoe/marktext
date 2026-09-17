@@ -182,6 +182,15 @@ export class FileObservationHub {
     return this.storage.canonicalize(pathname)
   }
 
+  /** Read a canonical file once, returning its bytes and their revision. */
+  async readWithRevision(fileKey: CanonicalFileKey): Promise<{
+    readonly bytes: Buffer | null
+    readonly diskRevision: DiskRevision | null
+  }> {
+    const bytes = await this.storage.read(fileKey)
+    return { bytes, diskRevision: bytes ? sha256(bytes) : null }
+  }
+
   async getDiskRevision(pathname: FileKey): Promise<DiskRevision | null> {
     return this.readRevision(await this.canonicalFileKey(pathname))
   }

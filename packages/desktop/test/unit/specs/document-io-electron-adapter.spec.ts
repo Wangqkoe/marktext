@@ -151,6 +151,8 @@ describe('DocumentIO Electron adapter', () => {
     }, adapter)
     expect(removed).toEqual([
       'mt::workspace::document-io',
+      'mt::workspace::document-io-read',
+      'mt::workspace::document-io-accept-read',
       'mt::workspace::choose-document-path',
       'mt::workspace::confirm-document-close'
     ])

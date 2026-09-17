@@ -6,8 +6,11 @@ import {
 import { BrowserWindow, dialog, type SaveDialogReturnValue, type WebContents } from 'electron'
 import { DocumentIOCoordinator, type DocumentIoEndpoint } from '../filesystem/documentIO'
 import type {
+  DocumentIoAcceptReadRequest,
   DocumentIoCloseDecision,
   DocumentIoCloseDecisionRequest,
+  DocumentIoReadRequest,
+  DocumentIoReadResult,
   DocumentIoRequest,
   DocumentIoObservation,
   DocumentIoTargetSelection,
@@ -29,10 +32,25 @@ export interface DocumentIoWebContents {
   ): void
 }
 
+type DocumentIoChannel =
+  | 'mt::workspace::document-io'
+  | 'mt::workspace::document-io-read'
+  | 'mt::workspace::document-io-accept-read'
+  | 'mt::workspace::choose-document-path'
+  | 'mt::workspace::confirm-document-close'
+
 export interface DocumentIoIpcMain {
   handle(
     channel: 'mt::workspace::document-io',
     listener: (event: { readonly sender: DocumentIoWebContents }, request: DocumentIoRequest) => Promise<DocumentSaveAck>
+  ): void
+  handle(
+    channel: 'mt::workspace::document-io-read',
+    listener: (event: { readonly sender: DocumentIoWebContents }, request: DocumentIoReadRequest) => Promise<DocumentIoReadResult>
+  ): void
+  handle(
+    channel: 'mt::workspace::document-io-accept-read',
+    listener: (event: { readonly sender: DocumentIoWebContents }, request: DocumentIoAcceptReadRequest) => Promise<DocumentSaveAck>
   ): void
   handle(
     channel: 'mt::workspace::choose-document-path',
@@ -42,7 +60,7 @@ export interface DocumentIoIpcMain {
     channel: 'mt::workspace::confirm-document-close',
     listener: (event: { readonly sender: DocumentIoWebContents }, request: DocumentIoCloseDecisionRequest) => Promise<DocumentIoCloseDecision>
   ): void
-  removeHandler?(channel: 'mt::workspace::document-io' | 'mt::workspace::choose-document-path' | 'mt::workspace::confirm-document-close'): void
+  removeHandler?(channel: DocumentIoChannel): void
 }
 
 /** Keep Electron's native dialog shape at this narrow main-process boundary. */
@@ -91,6 +109,14 @@ export class DocumentIoElectronAdapter {
 
   handle(sender: DocumentIoWebContents, request: DocumentIoRequest): Promise<DocumentSaveAck> {
     return this.coordinator.request(String(sender.id), request)
+  }
+
+  read(sender: DocumentIoWebContents, request: DocumentIoReadRequest): Promise<DocumentIoReadResult> {
+    return this.coordinator.read(String(sender.id), request)
+  }
+
+  async acceptRead(sender: DocumentIoWebContents, request: DocumentIoAcceptReadRequest): Promise<DocumentSaveAck> {
+    return this.coordinator.acceptRead(String(sender.id), request)
   }
 
   async chooseSaveTarget(
@@ -144,10 +170,19 @@ export const registerDocumentIoIpc = (
   ipc: DocumentIoIpcMain,
   adapter: DocumentIoElectronAdapter
 ): (() => void) => {
-  ipc.removeHandler?.('mt::workspace::document-io')
-  ipc.removeHandler?.('mt::workspace::choose-document-path')
-  ipc.removeHandler?.('mt::workspace::confirm-document-close')
+  const channels: readonly DocumentIoChannel[] = [
+    'mt::workspace::document-io',
+    'mt::workspace::document-io-read',
+    'mt::workspace::document-io-accept-read',
+    'mt::workspace::choose-document-path',
+    'mt::workspace::confirm-document-close'
+  ]
+  for (const channel of channels) ipc.removeHandler?.(channel)
   ipc.handle('mt::workspace::document-io', (event, request) => adapter.handle(event.sender, request))
+  ipc.handle('mt::workspace::document-io-read', (event, request) => adapter.read(event.sender, request))
+  ipc.handle('mt::workspace::document-io-accept-read', (event, request) =>
+    adapter.acceptRead(event.sender, request)
+  )
   ipc.handle('mt::workspace::choose-document-path', (event, request) =>
     adapter.chooseSaveTarget(event.sender, request)
   )
@@ -155,9 +190,7 @@ export const registerDocumentIoIpc = (
     adapter.confirmClose(event.sender, request)
   )
   return () => {
-    ipc.removeHandler?.('mt::workspace::document-io')
-    ipc.removeHandler?.('mt::workspace::choose-document-path')
-    ipc.removeHandler?.('mt::workspace::confirm-document-close')
+    for (const channel of channels) ipc.removeHandler?.(channel)
   }
 }
 

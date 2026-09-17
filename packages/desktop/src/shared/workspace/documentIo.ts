@@ -89,6 +89,65 @@ export type DocumentSaveAck =
     readonly reason?: string
   }
 
+/** Renderer decode preferences; they only shape how file bytes are decoded. */
+export interface DocumentIoReadOptions {
+  readonly preferredEol: LineEnding
+  readonly autoGuessEncoding: boolean
+  /** Legacy numeric trim policy (0 trim, 1 ensure one, 2 detect, 3 disabled). */
+  readonly trimTrailingNewline: number
+  readonly autoNormalizeLineEndings: boolean
+}
+
+/** Read the bound file's current bytes without changing what main observed. */
+export interface DocumentIoReadRequest {
+  readonly kind: 'read'
+  readonly requestId: string
+  readonly documentId: DocumentId
+  readonly ownerFence: string
+  readonly options: DocumentIoReadOptions
+  readonly windowId?: number
+}
+
+export interface DocumentIoReadDocument {
+  readonly markdown: string
+  readonly encoding: FileEncoding
+  readonly lineEnding: LineEnding
+  readonly adjustLineEndingOnSave: boolean
+  readonly trimTrailingNewline: number
+  readonly isMixedLineEndings: boolean
+}
+
+export type DocumentIoReadResult =
+  | {
+    readonly status: 'read'
+    readonly requestId: string
+    readonly documentId: DocumentId
+    readonly ownerFence: string
+    /**
+     * Single-use capability naming the exact bytes returned. Accepting it makes
+     * main treat those bytes as observed, so later saves are guarded against
+     * any change made after this read rather than before it.
+     */
+    readonly readToken: string
+    readonly document: DocumentIoReadDocument
+  }
+  | {
+    readonly status: 'missing' | 'rejected'
+    readonly requestId: string
+    readonly documentId: DocumentId
+    readonly reason?: string
+  }
+
+/** Adopt a previous read as the binding's observed disk revision. */
+export interface DocumentIoAcceptReadRequest {
+  readonly kind: 'accept-read'
+  readonly requestId: string
+  readonly documentId: DocumentId
+  readonly ownerFence: string
+  readonly readToken: string
+  readonly windowId?: number
+}
+
 export interface DocumentIoObservation {
   readonly documentId: DocumentId
   readonly ownerFence: string
@@ -118,4 +177,6 @@ export interface DocumentIoPort {
   subscribe(listener: (observation: DocumentIoObservation) => void): () => void
   chooseSaveTarget?(request: DocumentIoTargetSelectionRequest): Promise<DocumentIoTargetSelection>
   confirmClose?(request: DocumentIoCloseDecisionRequest): Promise<DocumentIoCloseDecision>
+  read?(request: DocumentIoReadRequest): Promise<DocumentIoReadResult>
+  acceptRead?(request: DocumentIoAcceptReadRequest): Promise<DocumentSaveAck>
 }
