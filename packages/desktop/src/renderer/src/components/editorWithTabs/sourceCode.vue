@@ -17,6 +17,7 @@ import { adjustCursor } from '../../util'
 import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
 import { toCaretPosition } from '@/util/caretPosition'
+import { workspaceStatusFromCounts } from '@/util/documentStatus'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import type { PaneEditorComposition, PaneEditorEventScope } from '@/workspace'
 import type { IFileState } from '@shared/types/files'
@@ -375,7 +376,7 @@ const saveContent = (cm: CMInstance) => {
       props.composition.reportSource(scope, {
         markdown: newMarkdown,
         cursor,
-        status: { wordCount: wordCount.word }
+        status: workspaceStatusFromCounts(wordCount)
       })
     }
   }
@@ -510,7 +511,7 @@ onBeforeUnmount(() => {
     props.composition.reportSource(scope, {
       markdown: newMarkdown,
       cursor,
-      status: { wordCount: getWordCount(newMarkdown).word }
+      status: workspaceStatusFromCounts(getWordCount(newMarkdown))
     })
     props.composition.handoffSource(scope)
   }

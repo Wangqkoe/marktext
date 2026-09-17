@@ -65,7 +65,11 @@ export interface WorkspaceTocItem {
 /** JSON-only editor status; calculations remain owned by the editor adapter. */
 export interface WorkspaceStatus {
   readonly wordCount?: number
+  readonly paragraphCount?: number
+  /** Characters excluding whitespace. */
   readonly characterCount?: number
+  /** Markdown length including whitespace. */
+  readonly allCharacterCount?: number
   readonly lineCount?: number
   readonly caret?: CursorPosition
 }

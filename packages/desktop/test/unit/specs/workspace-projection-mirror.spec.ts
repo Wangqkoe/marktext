@@ -141,7 +141,7 @@ describe('WorkspaceProjectionMirror', () => {
       cursor: { line: 3, column: 2 },
       selection: { anchor: { line: 3, column: 1 }, head: { line: 3, column: 2 } },
       toc: [{ id: 'controller-toc', title: 'Controller TOC', level: 2 }],
-      status: { wordCount: 4, characterCount: 16, caret: { line: 3, column: 2 } }
+      status: { wordCount: 4, paragraphCount: 2, characterCount: 16, allCharacterCount: 19, caret: { line: 3, column: 2 } }
     }).status).toBe('applied')
 
     const current = store.currentFile as (typeof store.currentFile & {
@@ -157,7 +157,7 @@ describe('WorkspaceProjectionMirror', () => {
     expect(current.encoding).toEqual({ encoding: 'utf8', isBom: false })
     expect(current.toc[0]?.title).toBe('Controller TOC')
     expect(current.status.caret.line).toBe(3)
-    expect(current.wordCount).toEqual({ paragraph: 0, word: 4, character: 16, all: 16 })
+    expect(current.wordCount).toEqual({ paragraph: 2, word: 4, character: 16, all: 19 })
 
     expect(() => {
       ;((current.history as unknown as { value: { entries: Array<{ id: string }> } }).value.entries[0]!).id = 'forged'

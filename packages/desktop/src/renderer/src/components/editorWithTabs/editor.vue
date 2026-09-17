@@ -113,6 +113,7 @@ import {
 } from '@muyajs/core'
 import { exportStyledHTML, type HeaderFooterPart } from '@/util/exportHtml'
 import { applyCursor, isIndexCursor } from '@/util/cursor'
+import { workspaceStatusFromCounts } from '@/util/documentStatus'
 import {
   caretPositionFromIndexCursor,
   createAnimationFrameCoalescer,
@@ -2116,7 +2117,7 @@ onMounted(() => {
           ? snapshot.view.scrollTop
           : scrollContainer?.scrollTop ?? 0,
         toc,
-        status: { wordCount: muyaWordCount(markdown).word }
+        status: workspaceStatusFromCounts(muyaWordCount(markdown))
       }
     }
   }
@@ -2241,7 +2242,7 @@ onMounted(() => {
           ...(controllerCursor() ? { cursor: controllerCursor() } : {}),
           ...(portableEngineHistory() ? { portableHistory: portableEngineHistory() } : {}),
           toc: workspaceTocFrom(toc),
-          status: { wordCount: wordCount.word }
+          status: workspaceStatusFromCounts(wordCount)
         }).status !== 'applied'
       ) { return }
       editorStore.LISTEN_FOR_CONTENT_CHANGE({
@@ -2274,7 +2275,7 @@ onMounted(() => {
       if (
         scope.report({
           ...(cursor ? { cursor } : {}),
-          status: { wordCount: muyaWordCount(editor.value.getMarkdown()).word }
+          status: workspaceStatusFromCounts(muyaWordCount(editor.value.getMarkdown()))
         })
           .status !== 'applied'
       ) { return }

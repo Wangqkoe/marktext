@@ -279,10 +279,10 @@ const controllerFacadeFile = (
     trimTrailingNewline:
       document.trailingNewline === 'ensure-one' ? 1 : document.trailingNewline === 'preserve' ? 2 : 0,
     wordCount: {
-      paragraph: 0,
+      paragraph: document.status.paragraphCount ?? 0,
       word: document.status.wordCount ?? 0,
       character: document.status.characterCount ?? 0,
-      all: document.status.characterCount ?? document.status.wordCount ?? 0
+      all: document.status.allCharacterCount ?? 0
     },
     selection: document.selection,
     toc: document.toc,
