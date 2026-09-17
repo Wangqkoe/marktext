@@ -2045,7 +2045,8 @@ onMounted(() => {
   const engineAlreadyHolds = (snapshot: EditorBindingSnapshot): boolean => {
     if (!editor.value || snapshot.view.mode !== 'source') return false
     if (engineDocumentId !== snapshot.document.documentId) return false
-    if (editor.value.getMarkdown() !== snapshot.document.markdown) return false
+    const engineMarkdown = editor.value.getMarkdown()
+    if (engineMarkdown !== snapshot.document.markdown && engineMarkdown !== snapshot.document.canonicalMarkdown) return false
     const history = engineHistoryFrom(snapshot.document.portableHistory)
     return history !== undefined && JSON.stringify(editor.value.getHistory()) === JSON.stringify(history)
   }

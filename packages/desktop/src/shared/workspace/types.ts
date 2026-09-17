@@ -354,6 +354,8 @@ export interface EditorBindingSnapshot {
     readonly trailingNewline: TrailingNewlinePolicy
     /** Increments each time the document is reloaded from disk. */
     readonly reloadSerial?: number
+    /** Editor serialization of `markdown`; present only while the document is clean. */
+    readonly canonicalMarkdown?: string
   }
   readonly view: ViewState
   readonly toc: readonly WorkspaceTocItem[]

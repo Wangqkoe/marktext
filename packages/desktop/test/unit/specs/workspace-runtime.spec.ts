@@ -527,7 +527,7 @@ describe('WorkspaceRuntime', () => {
     composition.unmount(surface)
   })
 
-  it('uses accepted canonical surface markdown for clean and durable-save baselines', async() => {
+  it('keeps the loaded text while clean and uses the engine serialization only for comparison', async() => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'note', fileKey: '/note.md', markdown: 'disk form\n', title: 'note.md' }
     ])
@@ -536,10 +536,13 @@ describe('WorkspaceRuntime', () => {
     editor.reports.push({ markdown: 'canonical form' })
     const binding = await workspace.bindPaneEditor('left', editor)
     const initial = expectDefined(workspace.getFacadeSnapshot().documents[0])
-    expect(initial.markdown).toBe('canonical form')
+    // Saving an unedited document must write the file's own text back.
+    expect(initial.markdown).toBe('disk form\n')
     expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(false)
 
     const lease = currentLease(binding)
+    expect(binding.report(lease, { markdown: 'canonical form' }).status).toBe('applied')
+    expect(workspace.getFacadeSnapshot().documents[0]).toMatchObject({ markdown: 'disk form\n', dirty: false })
     expect(binding.report(lease, { markdown: 'edited form' }).status).toBe('applied')
     expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(true)
 
@@ -603,7 +606,7 @@ describe('WorkspaceRuntime', () => {
     expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(true)
   })
 
-  it('uses the accepted canonical surface baseline for each newly opened clean document', async() => {
+  it('compares each newly opened clean document with its engine serialization', async() => {
     class NormalizingEditor extends MemoryEditor {
       override async flush(): Promise<EditorReport> {
         const markdown = this.active?.document.markdown.replace(/\n{3}/g, '\n\n')
@@ -631,14 +634,44 @@ describe('WorkspaceRuntime', () => {
     const second = expectDefined(
       workspace.getFacadeSnapshot().documents.find(document => document.documentId === 'second')
     )
-    expect(second.markdown).toBe('second\n\nparagraph\n')
+    expect(second.markdown).toBe('second\n\n\nparagraph\n')
     expect(second.dirty).toBe(false)
 
     const lease = currentLease(binding)
+    expect(binding.report(lease, { markdown: 'second\n\nparagraph\n' }).status).toBe('applied')
+    expect(
+      workspace.getFacadeSnapshot().documents.find(document => document.documentId === 'second')
+    ).toMatchObject({ markdown: 'second\n\n\nparagraph\n', dirty: false })
     expect(binding.report(lease, { markdown: 'second\n\nreal edit\n' }).status).toBe('applied')
     expect(
       workspace.getFacadeSnapshot().documents.find(document => document.documentId === 'second')
     ).toMatchObject({ markdown: 'second\n\nreal edit\n', dirty: true })
+
+    // Undoing back to the serialization of the saved text restores the saved text.
+    expect(binding.report(lease, { markdown: 'second\n\nparagraph\n' }).status).toBe('applied')
+    expect(
+      workspace.getFacadeSnapshot().documents.find(document => document.documentId === 'second')
+    ).toMatchObject({ markdown: 'second\n\n\nparagraph\n', dirty: false })
+  })
+
+  it('treats a Source edit that matches the engine serialization as a real edit', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'note', fileKey: '/note.md', markdown: 'a\n\n\nb\n', title: 'note.md' }
+    ])
+    const editor = new MemoryEditor()
+    editor.reports.push({ markdown: 'a\n\nb\n' })
+    const binding = await workspace.bindPaneEditor('left', editor)
+    expect(workspace.getFacadeSnapshot().documents[0]).toMatchObject({ markdown: 'a\n\n\nb\n', dirty: false })
+
+    expect((await binding.handoffMode(currentLease(binding), 'source')).status).toBe('applied')
+    // The user deliberately removed the extra blank line in Source mode.
+    expect(binding.report(currentLease(binding), { markdown: 'a\n\nb\n' }).status).toBe('applied')
+    expect(workspace.getFacadeSnapshot().documents[0]).toMatchObject({ markdown: 'a\n\nb\n', dirty: true })
+
+    // Back in WYSIWYG the engine reports the same serialization; the edit stays.
+    expect((await binding.handoffMode(currentLease(binding), 'wysiwyg')).status).toBe('applied')
+    expect(binding.report(currentLease(binding), { markdown: 'a\n\nb\n' }).status).toBe('applied')
+    expect(workspace.getFacadeSnapshot().documents[0]).toMatchObject({ markdown: 'a\n\nb\n', dirty: true })
   })
 
   it('binds independently created pane compositions to one controller', async() => {

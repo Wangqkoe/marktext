@@ -33,6 +33,18 @@ interface DocumentRecord {
   observedDiskRevision?: string | null
   markdown: string
   savedMarkdown: string
+  /**
+   * The WYSIWYG engine's serialization of `savedMarkdown`. Muya rewrites some
+   * formatting (blank lines, table padding) without any user edit; a report
+   * equal to this is unchanged content, so the file's own text is kept.
+   */
+  canonicalBaseline?: string
+  /**
+   * The current text was typed in Source mode and differs from the saved text.
+   * Source reports are exact, so a Source edit that happens to equal the
+   * canonical form is still a real edit.
+   */
+  sourceEdited: boolean
   dirty: boolean
   conflict: boolean
   revision: number
@@ -404,8 +416,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const document = this.documentForPane(paneId)
     const wasDirty = document?.dirty ?? false
     await this.flushPane(paneId)
-    if (document && !wasDirty && document.dirty) {
-      document.savedMarkdown = document.markdown
+    if (document && !wasDirty && document.dirty && !document.sourceEdited) {
+      document.canonicalBaseline = document.markdown
+      document.markdown = document.savedMarkdown
       document.dirty = false
       this.updateBoundSnapshot(bound)
       this.commit()
@@ -978,7 +991,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
     }
     if (pending.request.ownerFence === undefined) document.ownerFence = ack.ownerFence!
     if (ack.observedDiskRevision !== undefined) document.observedDiskRevision = ack.observedDiskRevision
+    if (document.markdown !== document.savedMarkdown) {
+      // Text saved from WYSIWYG is already the engine's serialization.
+      document.canonicalBaseline = document.sourceEdited ? undefined : document.markdown
+    }
     document.dirty = false
+    document.sourceEdited = false
     document.savedMarkdown = document.markdown
     document.conflict = false
     for (const bound of this.adapters.values()) {
@@ -1081,6 +1099,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (!document) return this.rejected('missing document')
     document.markdown = command.markdown
     document.savedMarkdown = command.markdown
+    document.canonicalBaseline = undefined
+    document.sourceEdited = false
     document.dirty = false
     document.conflict = false
     document.encoding = clone(command.encoding)
@@ -1367,9 +1387,15 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const view = this.views.get(viewId)
     const document = view && this.documents.get(view.documentId)
     if (!document || document.dirty) return
-    if (this.applyReport(viewId, report)) {
-      document.savedMarkdown = document.markdown
-      document.dirty = false
+    const { markdown, ...rest } = report
+    // A clean refresh records the engine's serialization as the comparison
+    // baseline; the document keeps the text it was loaded or saved with.
+    const changedBaseline =
+      markdown !== undefined &&
+      view.state.mode !== 'source' &&
+      markdown !== document.canonicalBaseline
+    if (changedBaseline) document.canonicalBaseline = markdown
+    if (this.applyReport(viewId, rest) || changedBaseline) {
       this.updateBoundSnapshot(bound)
       this.refreshSharedEditors(bound)
     }
@@ -1391,10 +1417,25 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const view = this.view(viewId)
     const document = this.requireDocument(view.documentId)
     let changedDocument = false
-    if (report.markdown !== undefined && report.markdown !== document.markdown) {
-      document.markdown = report.markdown
-      document.dirty = !sameDirtyContent(document.markdown, document.savedMarkdown)
-      changedDocument = true
+    if (report.markdown !== undefined) {
+      const fromSource = view.state.mode === 'source'
+      if (
+        !fromSource &&
+        !document.sourceEdited &&
+        document.canonicalBaseline !== undefined &&
+        sameDirtyContent(report.markdown, document.canonicalBaseline)
+      ) {
+        if (document.markdown !== document.savedMarkdown || document.dirty) {
+          document.markdown = document.savedMarkdown
+          document.dirty = false
+          changedDocument = true
+        }
+      } else if (report.markdown !== document.markdown) {
+        document.markdown = report.markdown
+        document.dirty = !sameDirtyContent(document.markdown, document.savedMarkdown)
+        document.sourceEdited = document.dirty && (fromSource || document.sourceEdited)
+        changedDocument = true
+      }
     }
     if (report.portableHistory !== undefined) {
       const nextHistory = clone(report.portableHistory)
@@ -1474,7 +1515,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
         lineEnding: document.lineEnding,
         adjustLineEndingOnSave: document.adjustLineEndingOnSave,
         trailingNewline: document.trailingNewline,
-        ...(document.reloadSerial ? { reloadSerial: document.reloadSerial } : {})
+        ...(document.reloadSerial ? { reloadSerial: document.reloadSerial } : {}),
+        ...(document.canonicalBaseline !== undefined && !document.dirty
+          ? { canonicalMarkdown: document.canonicalBaseline }
+          : {})
       },
       view: clone(state),
       toc: clone(view.toc),
@@ -1502,6 +1546,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       trailingNewline: input.trailingNewline ?? 'preserve',
       ownerFence: `owner-${id}-${this.nextId++}`,
       sharedHistory: false,
+      sourceEdited: false,
       reloadSerial: 0
     }
   }
