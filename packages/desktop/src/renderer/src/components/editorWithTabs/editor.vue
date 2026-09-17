@@ -144,7 +144,7 @@ import {
   type PaneEditorEventScope,
   type PaneEditorSurface
 } from '@/workspace'
-import type { EditorBindingSnapshot, EditorReport, JsonValue, PortableHistory } from '@shared/workspace'
+import type { EditorBindingSnapshot, EditorReport, JsonValue, PortableHistory, WorkspaceTocItem } from '@shared/workspace'
 
 // Importing the engine entrypoint auto-injects its editor CSS (the muya.ts
 // module imports its stylesheets at load time). Desktop themes still target the
@@ -1590,6 +1590,16 @@ const engineHistoryFrom = (history: PortableHistory): unknown | undefined => {
 }
 
 // listen for `open-single-file` event, it will call this method only when open a new file.
+const workspaceTocFrom = (
+  items: ReadonlyArray<{ slug?: string; githubSlug?: string; content?: string; lvl?: number }>
+): WorkspaceTocItem[] =>
+  items.map((item) => ({
+    id: item.slug ?? item.content ?? '',
+    title: item.content ?? '',
+    level: item.lvl ?? 0,
+    ...(item.githubSlug ? { anchor: item.githubSlug } : {})
+  }))
+
 // Document the WYSIWYG engine currently holds, set whenever a workspace refresh
 // loads markdown into it.
 let engineDocumentId: string | undefined
@@ -2057,13 +2067,7 @@ onMounted(() => {
       // before serializing the exact source that a Move fence will seal.
       editor.value.flush()
       const markdown = editor.value.getMarkdown()
-      const toc = editor.value
-        .getTOC()
-        .map((item: { slug?: string; content?: string; lvl?: number }) => ({
-          id: item.slug ?? item.content ?? '',
-          title: item.content ?? '',
-          level: item.lvl ?? 0
-        }))
+      const toc = workspaceTocFrom(editor.value.getTOC())
       const scrollContainer = getScrollContainer()
       return {
         markdown,
@@ -2197,11 +2201,7 @@ onMounted(() => {
           markdown,
           ...(controllerCursor() ? { cursor: controllerCursor() } : {}),
           ...(portableEngineHistory() ? { portableHistory: portableEngineHistory() } : {}),
-          toc: toc.map((item: { slug?: string; content?: string; lvl?: number }) => ({
-            id: item.slug ?? item.content ?? '',
-            title: item.content ?? '',
-            level: item.lvl ?? 0
-          })),
+          toc: workspaceTocFrom(toc),
           status: { wordCount: wordCount.word }
         }).status !== 'applied'
       ) { return }

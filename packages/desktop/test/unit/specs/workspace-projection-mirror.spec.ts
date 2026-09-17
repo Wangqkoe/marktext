@@ -239,4 +239,33 @@ describe('WorkspaceProjectionMirror', () => {
     binding.dispose()
     controller.dispose()
   })
+
+  it('keeps the heading anchor separate from the editor heading key', async() => {
+    const controller = createWorkspaceRuntime([{ documentId: 'note', markdown: '# My Section' }])
+    const binding = await controller.bindPaneEditor('left', {
+      refresh: async() => {},
+      flush: async() => ({})
+    })
+    const lease = binding.getLease()
+    if (!lease) throw new Error('missing lease')
+    const store = useEditorStore()
+    store.ATTACH_WORKSPACE_FACADE(controller)
+
+    expect(
+      binding.report(lease, {
+        toc: [
+          { id: 'mu-5', title: 'My Section', level: 1, anchor: 'my-section' },
+          { id: 'mu-6', title: 'Legacy', level: 2 }
+        ]
+      }).status
+    ).toBe('applied')
+
+    expect(store.listToc).toMatchObject([
+      { slug: 'mu-5', githubSlug: 'my-section', content: 'My Section', lvl: 1 },
+      { slug: 'mu-6', githubSlug: 'mu-6', content: 'Legacy', lvl: 2 }
+    ])
+    store.DETACH_WORKSPACE_FACADE()
+    binding.dispose()
+    controller.dispose()
+  })
 })

@@ -51,9 +51,15 @@ export interface ViewState {
 
 /** JSON-only outline data for one active View. */
 export interface WorkspaceTocItem {
+  /** Editor-local heading key used to scroll to the heading block. */
   readonly id: string
   readonly title: string
   readonly level: number
+  /**
+   * GitHub-style anchor (`#anchor` links, copied heading links, Outline expand
+   * state). Optional because TOC data persisted before it existed lacks it.
+   */
+  readonly anchor?: string
 }
 
 /** JSON-only editor status; calculations remain owned by the editor adapter. */

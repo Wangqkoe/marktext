@@ -339,7 +339,7 @@ export const useEditorStore = defineStore('editor', {
         : ''
       const nextListToc = projection.toc.map((item) => ({
         slug: item.id,
-        githubSlug: item.id,
+        githubSlug: item.anchor ?? item.id,
         content: item.title,
         lvl: item.level
       }))
