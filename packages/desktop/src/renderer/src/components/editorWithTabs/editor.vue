@@ -1590,6 +1590,10 @@ const engineHistoryFrom = (history: PortableHistory): unknown | undefined => {
 }
 
 // listen for `open-single-file` event, it will call this method only when open a new file.
+// Document the WYSIWYG engine currently holds, set whenever a workspace refresh
+// loads markdown into it.
+let engineDocumentId: string | undefined
+
 const setMarkdownToEditor = (payload: unknown) => {
   // The workspace composition owns mounted-pane refreshes. A legacy
   // `file-loaded` delivery can otherwise race the queued controller command
@@ -1600,6 +1604,7 @@ const setMarkdownToEditor = (payload: unknown) => {
     // `setContent` resets the document and clears the undo history; only set a
     // cursor afterwards (a freshly-opened file has no history to restore).
     editor.value.setContent(newMarkdown ?? '')
+    engineDocumentId = id
     // The freshly loaded content is this tab's clean baseline (id 0). Re-seed
     // the monotonic save-tracking allocator so undoing an edit back to this
     // content reads as clean again (matches the store's `lastSavedHistoryId: 0`).
@@ -1661,6 +1666,7 @@ const handleFileChange = (payload: unknown) => {
   if (!container) return
 
   if (typeof newMarkdown === 'string') {
+    engineDocumentId = id
     editor.value.setOptions({ imageBasePath: imageBasePathFor(currentFile.value?.pathname) })
     // Returning from source-code mode: the WYSIWYG engine is never unmounted
     // while source mode is up (index.vue overlays it via `v-if`), so it still
@@ -1994,6 +2000,19 @@ onMounted(() => {
       applyingSourceHistory = false
     }
   })
+  // Entering Source mode refreshes this pane with the snapshot the controller
+  // just flushed from this engine. The engine stays mounted (hidden) under the
+  // Source view and must keep its document and history for the return
+  // handoff; reloading identical content only rebuilds, re-lays out, and
+  // re-scrolls a hidden surface, which takes seconds on a large document.
+  const engineAlreadyHolds = (snapshot: EditorBindingSnapshot): boolean => {
+    if (!editor.value || snapshot.view.mode !== 'source') return false
+    if (engineDocumentId !== snapshot.document.documentId) return false
+    if (editor.value.getMarkdown() !== snapshot.document.markdown) return false
+    const history = engineHistoryFrom(snapshot.document.portableHistory)
+    return history !== undefined && JSON.stringify(editor.value.getHistory()) === JSON.stringify(history)
+  }
+
   paneSurface = {
     async stage (snapshot: EditorBindingSnapshot, scope?: PaneEditorEventScope) {
       const previousScope = paneScope
@@ -2004,6 +2023,11 @@ onMounted(() => {
           paneScope = scope
           rebindPaneGeneration?.(scope)
           if (!editor.value) return
+          if (engineAlreadyHolds(snapshot)) {
+            if (focusReplacement) nextTick(focusFreshEditor)
+            committed = true
+            return
+          }
           preserveOutsideSelection(() => handleFileChange({
             id: snapshot.document.documentId,
             markdown: snapshot.document.markdown,
