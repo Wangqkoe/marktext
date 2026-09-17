@@ -7,8 +7,10 @@ import type {
   WorkspaceResult,
   WorkspaceCommand,
   DocumentIoObservation,
-  DocumentIoPort
+  DocumentIoPort,
+  TrailingNewlinePolicy
 } from '@shared/workspace'
+import type { DocumentIoReadOptions, DocumentIoReadResult } from '@shared/workspace/documentIo'
 import type { IFileState } from '@shared/types/files'
 import { createWorkspaceRuntime, type WorkspaceController } from './controller'
 import {
@@ -51,6 +53,23 @@ const createPersistence = () => ({
   crashDraftTail: Promise.resolve()
 })
 const persistenceByRuntime = new WeakMap<WorkspaceController, ReturnType<typeof createPersistence>>()
+
+type DiskChangeListener = (observation: DocumentIoObservation) => void
+// Keyed by controller rather than pane: one window owns one set of document
+// bindings, so each disk change must be handled once even with two panes.
+const diskChangeListeners = new WeakMap<WorkspaceController, Set<DiskChangeListener>>()
+
+/** Observe external changes to files bound to this controller's documents. */
+export const onWorkspaceDiskChange = (controller: WorkspaceController, listener: DiskChangeListener): (() => void) => {
+  const listeners = diskChangeListeners.get(controller) ?? new Set<DiskChangeListener>()
+  diskChangeListeners.set(controller, listeners)
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
+export type DiskReadResult = Extract<DocumentIoReadResult, { status: 'read' }>
+
+const diskConflictWarningId = (documentId: string): string => `document-io:${documentId}`
 
 /**
  * The temporary V1 single-pane assembly. It is the only compatibility edge
@@ -320,8 +339,16 @@ export class PaneEditorComposition {
     const hasProductionPort = typeof window !== 'undefined' && !!window.electron?.ipcRenderer?.invoke
     const port = this.documentIoPort ?? (hasProductionPort ? createElectronDocumentIoPort() : undefined)
     if (!port) return
+    const runtime = this.runtime
     this.persistence.documentIo ??= new RendererDocumentIoAdapter(port, (observation) => {
-      for (const member of this.persistence.members) member.routeDocumentIoObservation(observation)
+      if (observation.kind === 'conflict') {
+        const warning = { id: diskConflictWarningId(observation.documentId), kind: 'conflict' as const, message: 'File changed on disk' }
+        runtime.execute({
+          kind: 'replace-warnings',
+          warnings: [...runtime.getProjection().warnings.filter(current => current.id !== warning.id), warning]
+        })
+      }
+      for (const listener of diskChangeListeners.get(runtime) ?? []) listener(observation)
     })
     this.stopDocumentIoSync = this.runtime.subscribe(() => this.syncDocumentIo())
     this.syncDocumentIo()
@@ -418,19 +445,63 @@ export class PaneEditorComposition {
       })
   }
 
-  private routeDocumentIoObservation(observation: DocumentIoObservation): void {
-    if (!this.runtime || !this.binding) return
-    if (observation.kind === 'conflict') {
-      this.runtime.execute({
-        kind: 'replace-warnings',
-        warnings: [{ id: `document-io:${observation.documentId}`, kind: 'conflict', message: 'File changed on disk' }]
-      })
+  /** Read a document's file without making the read authoritative. */
+  readDocumentFromDisk(documentId: string, options: DocumentIoReadOptions): Promise<DocumentIoReadResult> {
+    const documentIo = this.persistence.documentIo
+    return documentIo
+      ? documentIo.read(documentId, options)
+      : Promise.resolve({ status: 'rejected', requestId: `read:${documentId}`, documentId, reason: 'document I/O is unavailable' })
+  }
+
+  /**
+   * Load a read into the document, then adopt it in main. The order matters:
+   * adopting first and failing to load would let a later save overwrite the
+   * external change the editor never showed.
+   */
+  async reloadDocumentFromDisk(read: DiskReadResult, trailingNewline: TrailingNewlinePolicy): Promise<WorkspaceResult> {
+    const runtime = this.runtime
+    if (!runtime) return { status: 'rejected', reason: 'workspace is not mounted' }
+    const { document } = read
+    const result = await runtime.execute({
+      kind: 'reload-document',
+      documentId: read.documentId,
+      markdown: document.markdown,
+      encoding: document.encoding,
+      lineEnding: document.lineEnding,
+      adjustLineEndingOnSave: document.adjustLineEndingOnSave,
+      trailingNewline
+    })
+    if (result.status !== 'applied') return result
+    await this.adoptDiskRead(read)
+    const warningId = diskConflictWarningId(read.documentId)
+    const warnings = runtime.getProjection().warnings
+    if (warnings.some(warning => warning.id === warningId)) {
+      await runtime.execute({ kind: 'replace-warnings', warnings: warnings.filter(warning => warning.id !== warningId) })
     }
-    const lease = this.binding.getLease()
-    const snapshot = lease ? this.binding.getSnapshot(lease) : undefined
-    if (snapshot?.documentId === observation.documentId && lease) {
-      this.binding.refresh(lease)
-    }
+    return result
+  }
+
+  markDocumentMissing(documentId: string): Promise<WorkspaceResult> {
+    return this.execute({ kind: 'mark-document-missing', documentId })
+  }
+
+  /** Mark a read's on-disk version as observed without touching content. */
+  async adoptDiskRead(read: DiskReadResult): Promise<WorkspaceResult> {
+    const runtime = this.runtime
+    const documentIo = this.persistence.documentIo
+    if (!runtime || !documentIo) return { status: 'rejected', reason: 'workspace is not mounted' }
+    const ack = await documentIo.acceptRead(read.documentId, read.ownerFence, read.readToken)
+    if (ack.status !== 'bound') return { status: 'rejected', reason: ack.status === 'rejected' ? ack.reason ?? 'read was not adopted' : 'read was not adopted' }
+    const current = runtime.getDocumentSnapshots().find(snapshot => snapshot.documentId === read.documentId)
+    if (!current) return { status: 'rejected', reason: 'missing document' }
+    return runtime.execute({
+      kind: 'apply-document-io-bind',
+      documentId: read.documentId,
+      documentRevision: current.documentRevision,
+      previousOwnerFence: ack.ownerFence,
+      ownerFence: ack.ownerFence,
+      observedDiskRevision: ack.observedDiskRevision ?? null
+    })
   }
 
   getFocusedDocumentId(): string | undefined {

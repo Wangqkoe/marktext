@@ -1,167 +1,206 @@
 import { expect, test } from '@playwright/test'
+import type { ElectronApplication, Page } from 'playwright'
+import * as fs from 'node:fs'
 import {
   launchWithMarkdown,
   waitForMenuReady,
   getMarkdownContent,
+  placeCaretInEditor,
   sendIpcToRenderer,
   enterSourceMode
 } from './helpers'
 
-// Trigger an editor undo through the same IPC channel the Edit › Undo menu item
-// uses (`mt::editor-edit-action` → bus `undo` → editor.undo()).
-const undo = async(app: Parameters<typeof sendIpcToRenderer>[0]): Promise<void> => {
+// External changes arrive through the real file watcher and DocumentIO: each
+// test rewrites or deletes the file on disk, exactly as another program would.
+
+const undo = async(app: ElectronApplication): Promise<void> => {
   await sendIpcToRenderer(app, 'mt::editor-edit-action', 'undo')
 }
 
-// Reproduce the watcher's external-change report: the same `mt::update-file`
-// payload shape the main-process watcher sends (a `loadMarkdownFile` result in
-// `change.data`). Drives the real renderer reload path
-// LISTEN_FOR_FILE_CHANGE → loadChange → bus `file-changed` → handleFileChange.
-const reportExternalChange = async(
-  app: Parameters<typeof sendIpcToRenderer>[0],
-  pathname: string,
-  markdown: string
-): Promise<void> => {
-  await sendIpcToRenderer(app, 'mt::update-file', {
-    type: 'change',
-    change: {
-      pathname,
-      mtimeMs: 1,
-      data: {
-        markdown,
-        filename: 'note.md',
-        pathname,
-        encoding: { encoding: 'utf8', hasBOM: false },
-        lineEnding: 'lf',
-        adjustLineEndingOnSave: false,
-        trimTrailingNewline: 1,
-        isMixedLineEndings: false
-      }
-    }
-  })
+const setAutoSave = async(app: ElectronApplication, page: Page, autoSave: boolean): Promise<void> => {
+  await sendIpcToRenderer(app, 'mt::user-preference', { autoSave })
+  await page.waitForTimeout(100)
 }
 
-test.describe('External disk reload — undo restores the pre-change document', () => {
-  // Legacy muyajs kept a full-state snapshot of the pre-reload document so the
-  // first Ctrl+Z after an external reload restored it. The @muyajs/core reload
-  // path must record the same single invertible undo boundary (via
-  // `Muya.replaceContent`) instead of `setContent` (which clears history).
-  test('first undo after an external reload restores the old content', async() => {
+const editorText = (page: Page): Promise<string> =>
+  page.evaluate(() => document.querySelector('.editor-component')?.textContent?.trim() ?? '')
+
+const isUnsaved = (page: Page): Promise<boolean> =>
+  page.evaluate(() => !!document.querySelector('.editor-tabs li.unsaved'))
+
+const notificationText = (page: Page): Promise<string | null> =>
+  page.evaluate(() => document.querySelector('.editor-notifications .msg')?.textContent?.trim() ?? null)
+
+const confirmNotification = (page: Page): Promise<void> =>
+  page.locator('.editor-notifications .inline-button').first().click()
+
+const dismissNotification = (page: Page): Promise<void> =>
+  page.locator('.editor-notifications .inline-button').last().click()
+
+// A dirty document raises the native save prompt on close; these tests are not
+// about closing, so skip the prompt.
+const closeApp = async(app: ElectronApplication): Promise<void> => {
+  await app.evaluate(({ BrowserWindow }) => {
+    for (const win of BrowserWindow.getAllWindows()) win.destroy()
+  })
+  await app.close().catch(() => undefined)
+}
+
+// Let the watcher and DocumentIO binding settle before changing the file.
+const settle = (page: Page): Promise<void> => page.waitForTimeout(1500)
+
+test.describe('External disk changes', () => {
+  test('a clean document reloads automatically with autoSave, and undo restores the old content', async() => {
     const { app, page, filePath } = await launchWithMarkdown('old content here\n')
     await waitForMenuReady(app)
+    await setAutoSave(app, page, true)
+    await settle(page)
 
-    // Auto-reload only applies silently when autoSave is on AND the tab is
-    // unmodified (a freshly-loaded tab is saved). Enable autoSave so the change
-    // applies without the manual "Reload" confirmation prompt.
-    await sendIpcToRenderer(app, 'mt::user-preference', { autoSave: true })
-    await page.waitForTimeout(100)
+    fs.writeFileSync(filePath, 'new content here\n', 'utf-8')
+    await expect.poll(() => editorText(page), { timeout: 10000 }).toBe('new content here')
+    expect(await isUnsaved(page)).toBe(false)
+    expect(await notificationText(page)).toBeNull()
 
-    await reportExternalChange(app, filePath, 'new content here\n')
-    await page.waitForTimeout(600)
-
-    // The tab now reflects the new on-disk content...
-    expect((await getMarkdownContent(page, app)).trim()).toBe('new content here')
-    // ...and stays clean: the reloaded content matches the file on disk, so the
-    // tab must NOT be flagged unsaved (replaceContent fires a json-change that
-    // would otherwise mark it dirty against the stale baseline).
-    expect(await page.evaluate(() => !!document.querySelector('.editor-tabs li.unsaved'))).toBe(
-      false
-    )
-
-    // The first undo reverts the external change in one step, back to the
-    // document as it was before the reload.
     await undo(app)
-    await page.waitForTimeout(600)
-    expect((await getMarkdownContent(page, app)).trim()).toBe('old content here')
-    // The undone document now diverges from on-disk content, so the tab is dirty.
-    await expect
-      .poll(() => page.evaluate(() => !!document.querySelector('.editor-tabs li.unsaved')))
-      .toBe(true)
-    await app.close()
+    await expect.poll(() => editorText(page)).toBe('old content here')
+    await expect.poll(() => isUnsaved(page)).toBe(true)
+    await closeApp(app)
+  })
+
+  test('a clean document without autoSave asks before reloading', async() => {
+    const { app, page, filePath } = await launchWithMarkdown('old content here\n')
+    await waitForMenuReady(app)
+    await setAutoSave(app, page, false)
+    await settle(page)
+
+    fs.writeFileSync(filePath, 'new content here\n', 'utf-8')
+    await expect.poll(() => notificationText(page), { timeout: 10000 }).toContain('changed on disk')
+    expect(await editorText(page)).toBe('old content here')
+
+    await confirmNotification(page)
+    await expect.poll(() => editorText(page)).toBe('new content here')
+    expect(await isUnsaved(page)).toBe(false)
+    await closeApp(app)
+  })
+
+  test('local edits are never replaced without confirmation, and a declined reload cannot overwrite the file', async() => {
+    const { app, page, filePath } = await launchWithMarkdown('old content here\n')
+    await waitForMenuReady(app)
+    await setAutoSave(app, page, true)
+    await settle(page)
+
+    await placeCaretInEditor(page)
+    await page.keyboard.type(' LOCAL', { delay: 0 })
+    await expect.poll(() => isUnsaved(page)).toBe(true)
+    const localText = await editorText(page)
+    expect(localText).toContain('LOCAL')
+
+    fs.writeFileSync(filePath, 'external content\n', 'utf-8')
+    await expect.poll(() => notificationText(page), { timeout: 10000 }).toContain('changed on disk')
+    expect(await editorText(page)).toBe(localText)
+
+    await dismissNotification(page)
+    await sendIpcToRenderer(app, 'mt::editor-ask-file-save')
+    await page.waitForTimeout(1500)
+    expect(fs.readFileSync(filePath, 'utf-8')).toBe('external content\n')
+    await closeApp(app)
+  })
+
+  test('confirming a conflict discards local edits and loads the file', async() => {
+    const { app, page, filePath } = await launchWithMarkdown('old content here\n')
+    await waitForMenuReady(app)
+    await setAutoSave(app, page, false)
+    await settle(page)
+
+    await placeCaretInEditor(page)
+    await page.keyboard.type(' LOCAL', { delay: 0 })
+    await expect.poll(() => isUnsaved(page)).toBe(true)
+
+    fs.writeFileSync(filePath, 'external content\n', 'utf-8')
+    await expect.poll(() => notificationText(page), { timeout: 10000 }).toContain('changed on disk')
+    await confirmNotification(page)
+    await expect.poll(() => editorText(page)).toBe('external content')
+    expect(await isUnsaved(page)).toBe(false)
+
+    // The reloaded version is now the observed one, so saving is allowed again.
+    await placeCaretInEditor(page)
+    await page.keyboard.type(' SAVED', { delay: 0 })
+    await sendIpcToRenderer(app, 'mt::editor-ask-file-save')
+    await expect.poll(() => fs.readFileSync(filePath, 'utf-8'), { timeout: 5000 }).toContain('SAVED')
+    await closeApp(app)
+  })
+
+  test('a deleted file keeps its content and is marked unsaved', async() => {
+    const { app, page, filePath } = await launchWithMarkdown('kept content\n')
+    await waitForMenuReady(app)
+    await setAutoSave(app, page, true)
+    await settle(page)
+
+    fs.rmSync(filePath)
+    await expect.poll(() => notificationText(page), { timeout: 10000 }).toContain('removed on disk')
+    expect(await editorText(page)).toBe('kept content')
+    expect(await isUnsaved(page)).toBe(true)
+    await closeApp(app)
+  })
+
+  test('identical bytes rewritten on disk change nothing', async() => {
+    const { app, page, filePath } = await launchWithMarkdown('same content\n')
+    await waitForMenuReady(app)
+    await setAutoSave(app, page, false)
+    await settle(page)
+
+    fs.writeFileSync(filePath, 'same content\r\n', 'utf-8')
+    await page.waitForTimeout(3000)
+    expect(await notificationText(page)).toBeNull()
+    expect(await isUnsaved(page)).toBe(false)
+    await closeApp(app)
   })
 })
 
 test.describe('External disk reload — source-mode scroll position survives a same-tab reload', () => {
-  // Item 258: a same-id `mt::update-file` reload must not yank the CodeMirror
-  // view back to the top. sourceCode.vue handleFileChange snapshots every
-  // plausible scroll element on `isSameTabReload`, runs `editor.setValue`, then
-  // re-applies the captured scrollTop synchronously, on nextTick, and on the
-  // next animation frame (because the muya editor.vue file-changed handler
-  // relayouts in the same tick). With `muyaIndexCursor: null` on a freshly
-  // loaded tab the restore branch — not setSelection — is the one that runs.
   test('258: same-id reload preserves the source-mode scrollTop', async() => {
-    // A long body so the CodeMirror content overflows and is actually
-    // scrollable. The exact scroll element depends on CodeMirror's height:auto
-    // + the outer .source-code overflow:auto interplay, so we discover whichever
-    // element holds the scroll rather than assuming.
     const longBody = 'line\n'.repeat(400)
     const { app, page, filePath } = await launchWithMarkdown(longBody)
     await waitForMenuReady(app)
-
-    // Auto-reload only applies silently when autoSave is on AND the tab is
-    // unmodified (a freshly-loaded tab is saved) — same gate as the undo test.
-    await sendIpcToRenderer(app, 'mt::user-preference', { autoSave: true })
-    await page.waitForTimeout(100)
-
+    await setAutoSave(app, page, true)
     await enterSourceMode(page, app)
+    await settle(page)
 
-    // Scroll well down the document. Drive both CodeMirror's own API and the
-    // outer .source-code container so the scroll lands on whichever element is
-    // the real overflow owner.
-    const captured = await page.evaluate(() => {
+    const scrollPosition = (): Promise<number> =>
+      page.evaluate(() => {
+        const container = document.querySelector('.source-code') as HTMLElement | null
+        const cmEl = document.querySelector('.source-code .CodeMirror') as
+          | (Element & { CodeMirror?: { getScrollerElement(): HTMLElement } })
+          | null
+        const scroller = cmEl?.CodeMirror?.getScrollerElement?.() ?? null
+        return Math.max(container ? container.scrollTop : 0, scroller ? scroller.scrollTop : 0)
+      })
+    await page.evaluate(() => {
       const container = document.querySelector('.source-code') as HTMLElement | null
       const cmEl = document.querySelector('.source-code .CodeMirror') as
-        | (Element & {
-          CodeMirror?: {
-            scrollTo(x: number, y: number): void
-            getScrollerElement(): HTMLElement
-          }
-        })
+        | (Element & { CodeMirror?: { scrollTo(x: number, y: number): void } })
         | null
-      const cm = cmEl?.CodeMirror
-      if (cm) cm.scrollTo(0, 4000)
+      cmEl?.CodeMirror?.scrollTo(0, 4000)
       if (container) container.scrollTop = 4000
-      const scroller = cm?.getScrollerElement?.() ?? null
-      return {
-        container: container ? container.scrollTop : 0,
-        scroller: scroller ? scroller.scrollTop : 0
-      }
     })
-
-    // At least one of the candidate elements must have actually scrolled,
-    // otherwise the assertion below would be vacuous.
-    const maxCaptured = Math.max(captured.container, captured.scroller)
+    const maxCaptured = await scrollPosition()
     expect(maxCaptured).toBeGreaterThan(0)
 
-    // Fire a same-tab external reload with slightly different long content. The
-    // body must still match what we hand `loadChange` so the tab stays clean and
-    // the reload applies silently.
-    const reloadedBody = longBody + 'tail line\n'
-    await reportExternalChange(app, filePath, reloadedBody)
-    await page.waitForTimeout(600)
-
-    // The reload landed (content updated) and CodeMirror is still mounted.
-    expect((await getMarkdownContent(page, app)).trim().endsWith('tail line')).toBe(true)
-    await enterSourceMode(page, app)
-
-    // The scroll position is restored — not reset to the top. The exact pixel
-    // value can drift slightly because the new (longer) content changes layout
-    // height, so use a generous tolerance but require it to stay well away from
-    // 0. We compare against whichever element actually owned the scroll.
+    fs.writeFileSync(filePath, longBody + 'tail line\n', 'utf-8')
     await expect
       .poll(
         () =>
           page.evaluate(() => {
-            const container = document.querySelector('.source-code') as HTMLElement | null
             const cmEl = document.querySelector('.source-code .CodeMirror') as
-              | (Element & { CodeMirror?: { getScrollerElement(): HTMLElement } })
+              | (Element & { CodeMirror?: { getValue(): string } })
               | null
-            const scroller = cmEl?.CodeMirror?.getScrollerElement?.() ?? null
-            return Math.max(container ? container.scrollTop : 0, scroller ? scroller.scrollTop : 0)
+            return cmEl?.CodeMirror?.getValue() ?? ''
           }),
-        { timeout: 4000 }
+        { timeout: 10000 }
       )
-      .toBeGreaterThan(maxCaptured * 0.5)
-    await app.close()
+      .toContain('tail line')
+    await expect.poll(scrollPosition, { timeout: 4000 }).toBeGreaterThan(maxCaptured * 0.5)
+    expect((await getMarkdownContent(page, app)).trim().endsWith('tail line')).toBe(true)
+    await closeApp(app)
   })
 })

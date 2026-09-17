@@ -228,6 +228,22 @@ export type WorkspaceCommand =
     readonly observedDiskRevision: DiskRevision | null
   }
   | { readonly kind: 'apply-save-ack'; readonly ack: DocumentSaveAck }
+  /**
+   * Replace a document with content just read from its file. The document
+   * becomes clean; editors keep their undo history and record the reload as
+   * one undoable change.
+   */
+  | {
+    readonly kind: 'reload-document'
+    readonly documentId: DocumentId
+    readonly markdown: string
+    readonly encoding: DocumentEncoding
+    readonly lineEnding: DocumentLineEnding
+    readonly adjustLineEndingOnSave: boolean
+    readonly trailingNewline: TrailingNewlinePolicy
+  }
+  /** The document's file disappeared; keep the content but require a save. */
+  | { readonly kind: 'mark-document-missing'; readonly documentId: DocumentId }
   /** Assembly-only JSON warning update for conflict/recovery presentation. */
   | { readonly kind: 'replace-warnings'; readonly warnings: readonly WorkspaceWarning[] }
 
@@ -336,6 +352,8 @@ export interface EditorBindingSnapshot {
     readonly lineEnding: DocumentLineEnding
     readonly adjustLineEndingOnSave: boolean
     readonly trailingNewline: TrailingNewlinePolicy
+    /** Increments each time the document is reloaded from disk. */
+    readonly reloadSerial?: number
   }
   readonly view: ViewState
   readonly toc: readonly WorkspaceTocItem[]

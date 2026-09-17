@@ -1619,6 +1619,9 @@ const workspaceTocFrom = (
 // Document the WYSIWYG engine currently holds, set whenever a workspace refresh
 // loads markdown into it.
 let engineDocumentId: string | undefined
+// `reloadSerial` of that document when the engine last loaded it. A larger
+// serial for the same document means its file was reloaded from disk.
+let engineReloadSerial = 0
 
 const setMarkdownToEditor = (payload: unknown) => {
   // The workspace composition owns mounted-pane refreshes. A legacy
@@ -2063,9 +2066,13 @@ onMounted(() => {
             return
           }
           const sourceHandoff = props.composition.isSourceHandoff(snapshot)
+          const reloadSerial = snapshot.document.reloadSerial ?? 0
+          const isReload = engineDocumentId === snapshot.document.documentId && reloadSerial > engineReloadSerial
+          engineReloadSerial = reloadSerial
           const apply = () => handleFileChange({
             id: snapshot.document.documentId,
             markdown: snapshot.document.markdown,
+            isReload,
             pathname: snapshot.document.fileKey ?? '',
             cursor: isEngineCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
             muyaIndexCursor: isIndexCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,

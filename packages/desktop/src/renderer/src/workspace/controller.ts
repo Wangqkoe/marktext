@@ -44,6 +44,7 @@ interface DocumentRecord {
   trailingNewline: TrailingNewlinePolicy
   ownerFence: string
   sharedHistory: boolean
+  reloadSerial: number
 }
 
 interface ViewRecord {
@@ -611,6 +612,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
           return this.applySaveAck(command.ack)
         case 'replace-warnings':
           return this.replaceWarnings(command.warnings)
+        case 'reload-document':
+          return await this.reloadDocument(command)
+        case 'mark-document-missing':
+          return this.markDocumentMissing(command.documentId)
       }
     } catch (error) {
       return this.failed(errorMessage(error))
@@ -1069,6 +1074,44 @@ export class WorkspaceController implements WorkspaceControllerContract {
     return this.applied()
   }
 
+  private async reloadDocument(
+    command: Extract<WorkspaceCommand, { kind: 'reload-document' }>
+  ): Promise<WorkspaceResult> {
+    const document = this.documents.get(command.documentId)
+    if (!document) return this.rejected('missing document')
+    document.markdown = command.markdown
+    document.savedMarkdown = command.markdown
+    document.dirty = false
+    document.conflict = false
+    document.encoding = clone(command.encoding)
+    document.lineEnding = command.lineEnding
+    document.adjustLineEndingOnSave = command.adjustLineEndingOnSave
+    document.trailingNewline = command.trailingNewline
+    document.revision += 1
+    document.reloadSerial += 1
+    // Refresh without flushing: a flush would write the editors' outgoing
+    // content back over the reloaded document.
+    for (const [paneId, bound] of this.adapters) {
+      if (bound.snapshot?.documentId !== document.id) continue
+      await this.refreshAdapter(paneId, this.snapshotFor(paneId, this.requirePane(paneId).activeViewId))
+    }
+    this.commit()
+    return this.applied()
+  }
+
+  private markDocumentMissing(documentId: DocumentId): WorkspaceResult {
+    const document = this.documents.get(documentId)
+    if (!document) return this.rejected('missing document')
+    const currentBindings = [...this.adapters.values()].filter(bound =>
+      bound.snapshot?.documentId === document.id && this.documentIsCurrent(bound)
+    )
+    document.dirty = true
+    document.revision += 1
+    for (const bound of currentBindings) this.updateBoundSnapshot(bound)
+    this.commit()
+    return this.applied()
+  }
+
   private documentForPane(paneId: PaneId, viewId?: ViewId): DocumentRecord | undefined {
     const pane = this.panes.get(paneId)
     if (!pane) return undefined
@@ -1430,7 +1473,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
         encoding: clone(document.encoding),
         lineEnding: document.lineEnding,
         adjustLineEndingOnSave: document.adjustLineEndingOnSave,
-        trailingNewline: document.trailingNewline
+        trailingNewline: document.trailingNewline,
+        ...(document.reloadSerial ? { reloadSerial: document.reloadSerial } : {})
       },
       view: clone(state),
       toc: clone(view.toc),
@@ -1457,7 +1501,8 @@ export class WorkspaceController implements WorkspaceControllerContract {
       adjustLineEndingOnSave: input.adjustLineEndingOnSave ?? false,
       trailingNewline: input.trailingNewline ?? 'preserve',
       ownerFence: `owner-${id}-${this.nextId++}`,
-      sharedHistory: false
+      sharedHistory: false,
+      reloadSerial: 0
     }
   }
 

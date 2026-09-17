@@ -22,10 +22,13 @@ import {
   type WorkspaceProjectionMirror
 } from '@/workspace'
 import type {
+  DocumentIoObservation,
   WorkspaceFacadeDocument,
   WorkspaceFacadeSnapshot,
   WorkspaceProjection
 } from '@shared/workspace'
+import type { DocumentIoReadOptions } from '@shared/workspace/documentIo'
+import { isWindows } from '../util'
 import { t } from '../i18n'
 import { debouncedSendBufferedState, sendBufferedState } from './bufferedState'
 import type {
@@ -49,6 +52,10 @@ interface TocItem extends ListItem {
 }
 
 type TocTreeNode = TreeNode<TocItem>
+
+// Trailing newlines are normalized by the trailing-newline policy on save.
+const sameDiskContent = (left: string, right: string): boolean =>
+  left.replace(/[\r\n]+$/, '') === right.replace(/[\r\n]+$/, '')
 
 const trailingNewlinePolicy = (value: number | undefined): 'trim' | 'ensure-one' | 'preserve' | 'disabled' => {
   if (value === 0) return 'trim'
@@ -1988,9 +1995,80 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
+    /**
+     * Apply an external change to a bound file: identical bytes are adopted
+     * silently, a clean document reloads automatically when autoSave is on,
+     * and every other case asks before replacing the editor content.
+     */
+    async HANDLE_WORKSPACE_DISK_CHANGE(observation: DocumentIoObservation): Promise<void> {
+      const composition = workspaceFor(this)
+      if (!composition) return
+      const preferencesStore = usePreferencesStore()
+      const { documentId } = observation
+      const { endOfLine, autoGuessEncoding, trimTrailingNewline, autoNormalizeLineEndings } = preferencesStore
+      const options: DocumentIoReadOptions = {
+        preferredEol: endOfLine === 'lf' ? 'lf' : endOfLine === 'crlf' || isWindows ? 'crlf' : 'lf',
+        autoGuessEncoding,
+        trimTrailingNewline,
+        autoNormalizeLineEndings
+      }
+      const documentFor = () =>
+        (this.workspaceFacade as WorkspaceFacadeSnapshot | null)?.documents.find((candidate) => candidate.documentId === documentId)
+      const reloadFrom = async(read: Awaited<ReturnType<typeof composition.readDocumentFromDisk>>): Promise<void> => {
+        if (read.status === 'missing') {
+          await composition.markDocumentMissing(documentId)
+          const name = documentFor()?.title ?? ''
+          this.pushTabNotification({
+            tabId: documentId,
+            msg: t('store.editor.fileRemovedOnDisk', { name }),
+            style: 'warn',
+            showConfirm: false,
+            exclusiveType: 'file_changed'
+          })
+          return
+        }
+        if (read.status !== 'read') return
+        await composition.reloadDocumentFromDisk(read, trailingNewlinePolicy(read.document.trimTrailingNewline))
+      }
+
+      const read = await composition.readDocumentFromDisk(documentId, options)
+      const document = documentFor()
+      if (!document || read.status === 'rejected') return
+      if (read.status === 'read') {
+        // Metadata-only or already-applied changes (#1861): nothing to show.
+        if (sameDiskContent(read.document.markdown, document.markdown)) {
+          await composition.adoptDiskRead(read)
+          return
+        }
+        if (!document.dirty && preferencesStore.autoSave) {
+          await reloadFrom(read)
+          return
+        }
+      } else {
+        await reloadFrom(read)
+        return
+      }
+
+      this.pushTabNotification({
+        tabId: documentId,
+        msg: t('store.editor.fileChangedOnDisk', { name: document.title }),
+        showConfirm: true,
+        exclusiveType: 'file_changed',
+        action: (confirmed) => {
+          if (!confirmed) return
+          // Read again: the file may have changed while the prompt was open.
+          composition.readDocumentFromDisk(documentId, options)
+            .then(reloadFrom)
+            .catch((error) => console.error('Failed to reload document from disk', error))
+        }
+      })
+    },
+
     LISTEN_FOR_FILE_CHANGE(): void {
       const preferencesStore = usePreferencesStore()
       window.electron.ipcRenderer.on('mt::update-file', (_, payload) => {
+        // Workspace documents receive disk changes through DocumentIO.
+        if (workspaceFor(this)) return
         const { type, change } = payload
         const { tabs } = this
         const { pathname } = change

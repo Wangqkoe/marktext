@@ -1,7 +1,10 @@
 import type {
+  DocumentIoAcceptReadRequest,
   DocumentIoBindingRequest,
   DocumentIoObservation,
   DocumentIoPort,
+  DocumentIoReadOptions,
+  DocumentIoReadResult,
   DocumentIoRequest,
   DocumentIoSaveRequest,
   DocumentIoCloseDecision,
@@ -27,6 +30,7 @@ export interface RendererDocumentBinding {
 export class RendererDocumentIoAdapter {
   private readonly bindings = new Map<string, RendererDocumentBinding>()
   private readonly acceptedRequestIds = new Set<string>()
+  private nextReadId = 0
   private readonly unsubscribe: () => void
   private disposed = false
 
@@ -178,6 +182,42 @@ export class RendererDocumentIoAdapter {
     })
   }
 
+  /** Read the document's bound file through its current owner fence. */
+  async read(documentId: string, options: DocumentIoReadOptions): Promise<DocumentIoReadResult> {
+    const binding = this.bindingForDocument(documentId)
+    const requestId = `read:${documentId}:${++this.nextReadId}`
+    if (this.disposed || !binding || !this.port.read) {
+      return { status: 'rejected', requestId, documentId, reason: 'no current file binding' }
+    }
+    const result = await this.port.read({ kind: 'read', requestId, documentId, ownerFence: binding.ownerFence, options })
+    if (this.disposed || this.bindings.get(binding.ownerFence) !== binding) {
+      return { status: 'rejected', requestId, documentId, reason: 'binding changed during read' }
+    }
+    return result
+  }
+
+  async acceptRead(documentId: string, ownerFence: string, readToken: string): Promise<DocumentSaveAck> {
+    const request: DocumentIoAcceptReadRequest = {
+      kind: 'accept-read',
+      requestId: `accept-read:${documentId}:${++this.nextReadId}`,
+      documentId,
+      ownerFence,
+      readToken
+    }
+    const binding = this.bindings.get(ownerFence)
+    if (this.disposed || !binding || binding.documentId !== documentId || !this.port.acceptRead) {
+      return { status: 'rejected', requestId: request.requestId, documentId, ownerFence, reason: 'stale renderer owner fence' }
+    }
+    return this.port.acceptRead(request)
+  }
+
+  private bindingForDocument(documentId: string): RendererDocumentBinding | undefined {
+    for (const binding of this.bindings.values()) {
+      if (binding.documentId === documentId) return binding
+    }
+    return undefined
+  }
+
   getBinding(ownerFence: string): RendererDocumentBinding | undefined {
     return this.bindings.get(ownerFence)
   }
@@ -238,6 +278,9 @@ export const createElectronDocumentIoPort = (): DocumentIoPort => ({
     window.electron.ipcRenderer.invoke('mt::workspace::choose-document-path', request),
   confirmClose: (request) =>
     window.electron.ipcRenderer.invoke('mt::workspace::confirm-document-close', request),
+  read: (request) => window.electron.ipcRenderer.invoke('mt::workspace::document-io-read', request),
+  acceptRead: (request) =>
+    window.electron.ipcRenderer.invoke('mt::workspace::document-io-accept-read', request),
   subscribe: (listener) =>
     window.electron.ipcRenderer.on('mt::workspace::document-io-observation', (_event, observation) =>
       listener(observation)

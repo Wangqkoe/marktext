@@ -34,7 +34,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
-import { createElectronCrashDraftPort, createElectronNativeGesturePort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, type PaneEditorComposition } from '@/workspace'
+import { createElectronCrashDraftPort, createElectronNativeGesturePort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, onWorkspaceDiskChange, type PaneEditorComposition } from '@/workspace'
 import {
   registerWorkspaceTabMenuResolver,
   type WorkspaceTabMenuActions,
@@ -433,6 +433,10 @@ const unsubscribe = controller.subscribe(() => {
   syncTabBarVisibility()
 })
 editorStore.ATTACH_WORKSPACE_FACADE(controller)
+const stopDiskChanges = onWorkspaceDiskChange(controller, (observation) => {
+  editorStore.HANDLE_WORKSPACE_DISK_CHANGE(observation)
+    .catch((error) => console.error('Failed to handle external file change', error))
+})
 syncLegacyCommandEdge()
 onMounted(async () => {
   observer = new ResizeObserver(updateWidth)
@@ -475,6 +479,7 @@ registerWorkspaceTreeUnmount(controller, () => {
   window.removeEventListener('pointerup', endDivider)
   window.removeEventListener('pointercancel', endDivider)
   window.removeEventListener('pointerup', releaseTabDrag, true)
+  stopDiskChanges()
   stopTransferCommands?.()
   stopTransferRecovery?.()
   stopNativeGestureCommit?.()
