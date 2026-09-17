@@ -416,6 +416,12 @@ onMounted(async () => {
   const container = sourceCodeContainer.value
   const codeMirrorConfig: Record<string, unknown> = {
     value: markdown,
+    // `markdown-math` wraps the standard Markdown mode and delegates `$...$` and
+    // `$$...$$` spans to stex so subscript underscores in math do not flip the
+    // outer mode into emphasis. See src/renderer/src/codeMirror/markdownMathMode.js.
+    // Set at construction: switching modes afterwards re-highlights and
+    // re-measures every line, which costs seconds on a large document.
+    mode: 'markdown-math',
     lineNumbers: true,
     autofocus: true,
     lineWrapping: true,
@@ -460,11 +466,6 @@ onMounted(async () => {
   tabId.value = id
   listenChange()
   container?.addEventListener('scroll', observeSourceScroll, { passive: true })
-
-  // `markdown-math` wraps the standard Markdown mode and delegates `$...$` and
-  // `$$...$$` spans to stex so subscript underscores in math do not flip the
-  // outer mode into emphasis. See src/renderer/src/codeMirror/markdownMathMode.js.
-  codeMirrorInstance.setOption('mode', 'markdown-math')
 
   codeMirrorInstance.on('contextmenu', (_cm: CMInstance, event: Event) => {
     event.preventDefault()
