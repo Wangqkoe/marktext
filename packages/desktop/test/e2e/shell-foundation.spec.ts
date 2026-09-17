@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
 import {
   clickMenuById,
+  closeDiscardingChanges,
   enterSourceMode,
   exitSourceMode,
   launchWithMarkdown,
@@ -104,6 +105,7 @@ const measurePaper = (page: Page): Promise<PaperGeometry> =>
 test.describe('Application shell foundation', () => {
   let app: ElectronApplication
   let page: Page
+  let appExited = false
 
   test.beforeAll(async() => {
     const launched = await launchWithMarkdown('# Shell geometry\n')
@@ -120,7 +122,7 @@ test.describe('Application shell foundation', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app && !appExited) await closeDiscardingChanges(app)
   })
 
   test('uses the approved exact shell dimensions', async() => {
@@ -169,7 +171,7 @@ test.describe('Application shell foundation', () => {
   test('sizes source mode from the shell workspace container', async() => {
     await enterSourceMode(page, app)
     const geometry = await page.evaluate(() => {
-      const container = document.querySelector('.editor-with-tabs > .container')
+      const container = document.querySelector('.editor-with-tabs .workspace-pane > .container')
       const source = document.querySelector('.source-code')
       const containerRect = container?.getBoundingClientRect()
       const sourceRect = source?.getBoundingClientRect()
@@ -246,8 +248,11 @@ test.describe('Application shell foundation', () => {
   test('reports the current context while toggling the complete sidebar', async() => {
     await page.getByRole('tab', { name: 'Outline' }).click()
     await expect(page.locator('.status-context')).toHaveText('Outline')
-    await page.getByRole('button', { name: 'Search' }).click()
-    await expect(page.locator('.status-context')).toHaveText('Search')
+    // The header search button opens the inline Outline filter; the sidebar
+    // context stays on the current view.
+    await page.getByRole('button', { name: 'Show inline search' }).click()
+    await expect(page.getByRole('button', { name: 'Hide inline search' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('.status-context')).toHaveText('Outline')
 
     const sidebar = page.locator('.side-bar')
     const width = await sidebar.evaluate((element) => element.getBoundingClientRect().width)
@@ -263,7 +268,8 @@ test.describe('Application shell foundation', () => {
     await toggle.click()
     await expect(sidebar).toBeVisible()
     expect(await sidebar.evaluate((element) => element.getBoundingClientRect().width)).toBe(width)
-    await expect(page.locator('.status-context')).toHaveText('Search')
+    await expect(page.locator('.status-context')).toHaveText('Outline')
+    await page.getByRole('button', { name: 'Hide inline search' }).click()
     await page.getByRole('tab', { name: 'Files' }).click()
   })
 
@@ -371,26 +377,16 @@ test.describe('Application shell foundation', () => {
     if (originalViewport) await page.setViewportSize(originalViewport)
   })
 
-  test('keeps status visible with no document context after the last tab closes', async() => {
+  // Runs last: closing the only clean tab exits the application (see
+  // last-tab-window-close.spec.ts), so no later test can reuse this app.
+  test('closing the only clean tab exits the application', async() => {
     const sourceToggle = page.getByRole('button', { name: 'Toggle Source Code Mode' })
     await sourceToggle.click()
     await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
 
+    const exited = new Promise<void>((resolve) => app.process().once('exit', () => resolve()))
     await page.locator('.tabs-container > li.active .close-icon').click()
-    await expect(page.locator('.editor-component')).toHaveCount(0)
-    await expect(page.locator('.app-status-bar')).toBeVisible()
-    await expect(page.locator('.status-context')).toHaveText('No document')
-    await expect(page.getByRole('button', { name: 'Toggle Sidebar' })).toBeEnabled()
-    await expect(sourceToggle).toBeDisabled()
-    await expect(sourceToggle).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.locator('.status-document-mode')).toHaveCount(0)
-    await expect(page.locator('.status-caret-position')).toHaveCount(0)
-    await expect(page.locator('.app-status-bar .word-count')).toHaveCount(0)
-
-    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'restored source mode\n')
-    await expect(sourceToggle).toBeEnabled()
-    await expect(sourceToggle).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
-    await expect(page.locator('.status-document-mode')).toHaveText('Source')
+    await exited
+    appExited = true
   })
 })

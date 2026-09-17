@@ -135,18 +135,18 @@ test.describe('#2421 sidebar state survives complete hide/show', () => {
     await expect(rootNode).not.toHaveClass(/is-expanded/)
   })
 
-  test('project search input survives complete hide/show', async() => {
-    await page.getByRole('button', { name: 'Search' }).click()
-    const searchInput = page.getByPlaceholder('Search in folder...')
-    await searchInput.fill('persistent query')
+  test('inline filter input survives complete hide/show', async() => {
+    await page.getByRole('button', { name: 'Show inline search' }).click()
+    const filterInput = page.locator('.side-bar-inline-search input')
+    await filterInput.fill('persistent query')
 
     await setSidebarVisibility(app, page, false)
     await setSidebarVisibility(app, page, true)
 
-    await expect(page.getByRole('button', { name: 'Search' })).toHaveAttribute(
+    await expect(page.getByRole('button', { name: 'Hide inline search' })).toHaveAttribute(
       'aria-pressed',
       'true'
     )
-    await expect(searchInput).toHaveValue('persistent query')
+    await expect(filterInput).toHaveValue('persistent query')
   })
 })

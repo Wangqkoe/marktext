@@ -96,11 +96,10 @@ test.describe('Layout panel toggles', () => {
       view: 'search'
     })
     await expect(sideBar).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Search' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    // The Search view is the full-text folder search; the header search button
+    // only toggles the inline Files/Outline filter, which this view hides.
     await expect(page.locator('.side-bar-search')).toBeVisible()
+    await expect(page.locator('.side-bar-inline-search')).toHaveCount(0)
     expect(
       await sideBar.evaluate((element) => Math.round(element.getBoundingClientRect().width))
     ).toBe(expandedWidth)

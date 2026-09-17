@@ -33,7 +33,8 @@ test.describe('First-batch audit fixture baseline', () => {
       app = f1.app
       await waitForEditor(f1.page)
       await waitForMenuReady(f1.app)
-      expect(await getMarkdownContent(f1.page, f1.app)).toBe('')
+      // A blank document serializes to at most its trailing newline.
+      expect((await getMarkdownContent(f1.page, f1.app)).trim()).toBe('')
       await f1.app.close()
       app = undefined
 
