@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { launchWithMarkdown, setSourceMarkdown, waitForMenuReady } from './helpers'
+import { launchWithMarkdown, setSourceMarkdown, waitForMenuReady, closeDiscardingChanges } from './helpers'
 
 // PARITY SCOREBOARD — gap PG1 (file PG01), desktop e2e half.
 //
@@ -118,7 +118,7 @@ test.describe('Parity PG1 — Paragraph menu reflects the current block', () => 
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   for (const block of cases) {
@@ -166,7 +166,7 @@ test.describe('Parity PG1 — Paragraph menu updates when switching blocks', () 
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   const sequence: Array<{ name: string; selector: string; expected: string }> = [

@@ -6,7 +6,8 @@ import {
   getMarkdownContent,
   setSourceMarkdown,
   sendIpcToRenderer,
-  expectNoRendererErrors
+  expectNoRendererErrors,
+  closeDiscardingChanges
 } from './helpers'
 
 // Checklist item 32 — task list + autoCheck cascade, driven by clicking a REAL
@@ -76,7 +77,7 @@ test.describe('Checklist 32 — task list autoCheck cascade via a real checkbox 
   })
 
   test.afterAll(async() => {
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 
   test('with autoCheck ON, clicking the parent flips both descendants + saves "- [x]" x3', async() => {

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { clickMenuById, launchWithMarkdown, sendIpcToRenderer } from './helpers'
+import { clickMenuById, launchWithMarkdown, sendIpcToRenderer, closeDiscardingChanges } from './helpers'
 
 const BUNDLED_THEMES = [
   'ayu-light',
@@ -135,7 +135,7 @@ test.describe('Application shell acceptance', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   test('keyboard users can operate sidebar navigation with visible focus', async() => {

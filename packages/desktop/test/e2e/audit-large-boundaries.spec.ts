@@ -13,7 +13,8 @@ import {
   placeCaretInEditor,
   sendIpcToRenderer,
   waitForEditor,
-  waitForMenuReady
+  waitForMenuReady,
+  closeDiscardingChanges
 } from './helpers'
 
 type Measurement = { inputMs: number; sourceRoundTripMs: number; saveMs: number }
@@ -133,7 +134,7 @@ test.describe('Ticket 04 W4/W5 — large document and Windows boundary audit', (
         await expect.poll(() => page.locator('.editor-component').innerText()).toContain(marker)
         await expectNoRendererErrors(app)
       } finally {
-        if (app) await app.close().catch(() => {})
+        if (app) await closeDiscardingChanges(app).catch(() => {})
         run.cleanup()
       }
     }
@@ -177,7 +178,7 @@ test.describe('Ticket 04 W4/W5 — large document and Windows boundary audit', (
       expect(state.editable).toBe('true')
       await expectNoRendererErrors(app)
     } finally {
-      if (app) await app.close().catch(() => {})
+      if (app) await closeDiscardingChanges(app).catch(() => {})
       run.cleanup()
     }
   })
@@ -222,7 +223,7 @@ test.describe('Ticket 04 W4/W5 — large document and Windows boundary audit', (
         .toContain('E3-SMALL-WINDOW-SAVED')
       await expectNoRendererErrors(app)
     } finally {
-      if (app) await app.close().catch(() => {})
+      if (app) await closeDiscardingChanges(app).catch(() => {})
       run.cleanup()
     }
   })
@@ -258,7 +259,7 @@ test.describe('Ticket 04 W4/W5 — large document and Windows boundary audit', (
       expect(geometry.statusInsideViewport).toBe(true)
       await expectNoRendererErrors(app)
     } finally {
-      if (app) await app.close().catch(() => {})
+      if (app) await closeDiscardingChanges(app).catch(() => {})
       run.cleanup()
     }
   })
@@ -288,7 +289,7 @@ test.describe('Ticket 04 W4/W5 — large document and Windows boundary audit', (
       await sendIpcToRenderer(app, 'mt::editor-ask-file-save')
       await expect.poll(() => fs.readFileSync(documentPath, 'utf8')).toContain('E5-NATIVE-SAVED')
       await expectNoRendererErrors(app)
-      await app.close()
+      await closeDiscardingChanges(app)
       app = undefined
 
       launched = await launchElectron([documentPath], {
@@ -304,7 +305,7 @@ test.describe('Ticket 04 W4/W5 — large document and Windows boundary audit', (
         .toContain('E5-NATIVE-SAVED')
       await expectNoRendererErrors(app)
     } finally {
-      if (app) await app.close().catch(() => {})
+      if (app) await closeDiscardingChanges(app).catch(() => {})
       run.cleanup()
     }
   })
