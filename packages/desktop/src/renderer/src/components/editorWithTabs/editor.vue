@@ -1947,9 +1947,17 @@ onMounted(() => {
   muya.init()
   editor.value = muya
 
+  // A rename or Save As changes the image base under the loaded document, so
+  // re-render it. A tab switch has already applied the new base while loading
+  // the incoming document; forcing a second full render there doubles the
+  // cost of switching to a large document.
   watch(
     () => currentFile.value?.pathname,
-    (pathname) => editor.value?.setOptions({ imageBasePath: imageBasePathFor(pathname) }, true)
+    (pathname) => {
+      const imageBasePath = imageBasePathFor(pathname)
+      if (!editor.value || editor.value.options.imageBasePath === imageBasePath) return
+      editor.value.setOptions({ imageBasePath }, true)
+    }
   )
 
   let applyingSourceHistory = false
