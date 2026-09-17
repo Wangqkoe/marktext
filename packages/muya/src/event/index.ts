@@ -11,8 +11,17 @@ const PREFIX = 'event-';
 const idIterator = uniqueIdGenerator();
 
 class EventCenter {
-    public events: IEvent[] = [];
     public listeners: IListeners = {};
+
+    // Registrations by id (insertion-ordered) and by target. A rebuilt
+    // document registers thousands of block listeners, so both the duplicate
+    // check and detaching must not scan every registration.
+    private _events = new Map<string, IEvent>();
+    private _eventsByTarget = new WeakMap<EventTarget, IEvent[]>();
+
+    get events(): IEvent[] {
+        return [...this._events.values()];
+    }
 
     private get _eventId() {
         return `${PREFIX}${idIterator.next().value}`;
@@ -33,13 +42,13 @@ class EventCenter {
 
         const eventId = this._eventId;
         target.addEventListener(event, listener, capture);
-        this.events.push({
-            eventId,
-            target,
-            event,
-            listener,
-            capture,
-        });
+        const registration = { eventId, target, event, listener, capture };
+        this._events.set(eventId, registration);
+        const sameTarget = this._eventsByTarget.get(target);
+        if (sameTarget)
+            sameTarget.push(registration);
+        else
+            this._eventsByTarget.set(target, [registration]);
 
         return eventId;
     }
@@ -52,12 +61,21 @@ class EventCenter {
         if (!eventId)
             return false;
 
-        const removeEvent = this.events.find(e => e.eventId === eventId);
-        if (removeEvent) {
-            const { target, event, listener, capture } = removeEvent;
-            target.removeEventListener(event, listener, capture);
-            const index = this.events.findIndex(e => e.eventId === eventId);
-            this.events.splice(index, 1);
+        const removeEvent = this._events.get(eventId);
+        if (removeEvent)
+            this._detach(removeEvent);
+    }
+
+    /**
+     * Detach every listener bound to a strict descendant of `root`. Whole
+     * document rebuilds drop block trees without calling `remove()` on nested
+     * blocks, so their registrations are released here instead of leaking.
+     */
+    detachDOMEventsWithin(root: Node) {
+        for (const registration of this._events.values()) {
+            const { target } = registration;
+            if (target !== root && root.contains(target))
+                this._detach(registration);
         }
     }
 
@@ -65,12 +83,27 @@ class EventCenter {
      * [detachAllDomEvents remove all the DOM events handler]
      */
     detachAllDomEvents() {
-        for (const removedEvent of this.events) {
+        for (const removedEvent of this._events.values()) {
             const { target, event, listener, capture } = removedEvent;
             target.removeEventListener(event, listener, capture);
         }
 
-        this.events = [];
+        this._events.clear();
+        this._eventsByTarget = new WeakMap();
+    }
+
+    private _detach(registration: IEvent) {
+        const { eventId, target, event, listener, capture } = registration;
+        target.removeEventListener(event, listener, capture);
+        this._events.delete(eventId);
+        const sameTarget = this._eventsByTarget.get(target);
+        if (sameTarget) {
+            const index = sameTarget.indexOf(registration);
+            if (index !== -1)
+                sameTarget.splice(index, 1);
+            if (sameTarget.length === 0)
+                this._eventsByTarget.delete(target);
+        }
     }
 
     /**
@@ -146,10 +179,9 @@ class EventCenter {
         cListener: EventListenerOrEventListenerObject,
         cCapture?: boolean | AddEventListenerOptions,
     ) {
-        for (const { target, event, listener, capture } of this.events) {
+        for (const { event, listener, capture } of this._eventsByTarget.get(cTarget) ?? []) {
             if (
-                target === cTarget
-                && event === cEvent
+                event === cEvent
                 && listener === cListener
                 && capture === cCapture
             ) {

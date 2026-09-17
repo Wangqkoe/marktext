@@ -95,6 +95,9 @@ export class ScrollPage extends Parent {
 
     updateState(state: TState[]) {
         const { muya } = this;
+        // Nested blocks are not individually removed below, so release the
+        // listeners the old tree registered before dropping it.
+        muya.eventCenter.detachDOMEventsWithin(this.domNode!);
         // Empty scrollPage dom
         this.empty();
         this.append(
