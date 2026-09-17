@@ -13,7 +13,8 @@ import {
   sendIpcToRenderer,
   setSourceMarkdown,
   waitForEditor,
-  waitForMenuReady
+  waitForMenuReady,
+  closeDiscardingChanges
 } from './helpers'
 
 const UNSAVED_DOT = '.editor-tabs li.unsaved'
@@ -235,7 +236,7 @@ test.describe('Ticket 02 W3 — F3 path, CRLF, image, auto-save and external cha
       assertOnlyCrLf(fs.readFileSync(documentPath))
       await expectNoRendererErrors(app)
     } finally {
-      if (app) await app.close().catch(() => {})
+      if (app) await closeDiscardingChanges(app).catch(() => {})
       run.cleanup()
     }
   })

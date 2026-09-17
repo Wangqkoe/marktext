@@ -9,7 +9,8 @@ import {
   launchElectron,
   sendIpcToRenderer,
   waitForEditor,
-  waitForMenuReady
+  waitForMenuReady,
+  closeDiscardingChanges
 } from './helpers'
 
 const tabSelector = '.tabs-container > li'
@@ -295,7 +296,7 @@ test.describe('W2 audit — tabs, no normal restart restore and Save As', () => 
       await sendIpcToRenderer(app, 'mt::switch-tab-by-index', 1)
       await expect.poll(() => activeText(page)).toContain('B-DIRTY')
     } finally {
-      if (app) await app.close().catch(() => {})
+      if (app) await closeDiscardingChanges(app).catch(() => {})
       run.cleanup()
     }
   })
