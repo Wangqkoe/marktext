@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { parse, compileScript } from 'vue/compiler-sfc'
 import ts from 'typescript'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { toCaretPosition } from '@/util/caretPosition'
 
 // `handleImageAction` lives as a <script setup> closure in sourceCode.vue
@@ -38,10 +38,26 @@ const loadComponent = (deps: Record<string, unknown>) => {
   const compiled = compileScript(descriptor, { id: 'test' })
   // Drop every import; bindings come from the injected `__deps` object so the
   // store/codeMirror/muya/config modules never load.
-  const noImports = compiled.content
-    .split('\n')
-    .filter((l) => !/^\s*import\s/.test(l))
-    .join('\n')
+  const lines = compiled.content.split('\n')
+  const importLines = lines.filter((l) => /^\s*import\s/.test(l))
+  const noImports = lines.filter((l) => !/^\s*import\s/.test(l)).join('\n')
+  // Inject exactly the names the component imports, so a new import fails
+  // loudly here instead of as an unexplained ReferenceError inside setup().
+  const importedNames = importLines
+    .filter((l) => !/^\s*import\s+type\s/.test(l))
+    .flatMap((l) => {
+      const clause = /^\s*import\s+(.*?)\s+from\s/.exec(l)?.[1] ?? ''
+      const named = /\{([^}]*)\}/.exec(clause)?.[1] ?? ''
+      const defaultName = /^([A-Za-z_$][\w$]*)/.exec(clause)?.[1]
+      const namedLocals = named
+        .split(',')
+        .map((part) => part.trim())
+        .filter((part) => part && !part.startsWith('type '))
+        .map((part) => part.split(/\s+as\s+/).pop() as string)
+      return defaultName ? [defaultName, ...namedLocals] : namedLocals
+    })
+  const missing = importedNames.filter((name) => !(name in deps))
+  if (missing.length) throw new Error(`sourceCode.vue imports without test stubs: ${missing.join(', ')}`)
   // esbuild's transformSync trips over jsdom's TextEncoder realm, so transpile
   // the TS away with the (pure-JS) typescript compiler.
   const js = ts.transpileModule(noImports, {
@@ -54,10 +70,7 @@ const loadComponent = (deps: Record<string, unknown>) => {
     '__deps',
     'exports',
     'module',
-    `const { _defineComponent, ref, watch, onMounted, onBeforeUnmount, nextTick,
-      useEditorStore, usePreferencesStore, storeToRefs, codeMirror,
-      setCursorAtFirstLine, setTextDirection, getWordCount, adjustCursor, bus,
-      oneDarkThemes, railscastsThemes, toCaretPosition } = __deps
+    `const { ${importedNames.join(', ')} } = __deps
     ${js}
     return module.exports`
   ) as (deps: Record<string, unknown>, exports: object, module: object) => SetupModule
@@ -69,6 +82,7 @@ const loadComponent = (deps: Record<string, unknown>) => {
 const makeDeps = (over: Record<string, unknown> = {}) => ({
   _defineComponent: (o: unknown) => o,
   ref,
+  computed,
   watch: () => {},
   onMounted: () => {},
   onBeforeUnmount: () => {},
@@ -85,6 +99,8 @@ const makeDeps = (over: Record<string, unknown> = {}) => ({
   oneDarkThemes: [],
   railscastsThemes: [],
   toCaretPosition,
+  findMarkdownHeadingLine: () => -1,
+  scrollSourceEditorToLine: () => {},
   ...over
 })
 
