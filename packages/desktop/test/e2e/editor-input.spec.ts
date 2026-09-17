@@ -11,7 +11,8 @@ import {
   placeCaretInEditor,
   setSourceMarkdown,
   sendIpcToRenderer,
-  waitForEditor
+  waitForEditor,
+  closeDiscardingChanges
 } from './helpers'
 
 test.describe('Editor input and source-mode roundtrip', () => {
@@ -25,7 +26,7 @@ test.describe('Editor input and source-mode roundtrip', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   test('Initial markdown is loaded into the editor', async() => {
@@ -77,14 +78,14 @@ test.describe('Source-mode entry preserves pending WYSIWYG input', () => {
       await sendIpcToRenderer(app, 'mt::editor-ask-file-save')
       await expect.poll(() => fs.readFileSync(launched.filePath, 'utf8')).toContain(tail)
 
-      await app.close()
+      await closeDiscardingChanges(app)
       const reopened = await launchElectron([launched.filePath])
       app = reopened.app
       page = reopened.page
       await waitForEditor(page)
       await expect.poll(async() => await getMarkdownContent(page, app)).toContain(tail)
     } finally {
-      await app.close()
+      await closeDiscardingChanges(app)
     }
   })
 })
@@ -125,7 +126,7 @@ test.describe('Status-bar word counter (item 24)', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   test('the counter is mounted and starts in word ("W") mode', async() => {
@@ -248,7 +249,7 @@ test.describe('Edit > Select All (item 169)', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   test('Select All escalates the selection to the whole WYSIWYG document', async() => {

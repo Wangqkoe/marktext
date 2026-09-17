@@ -22,7 +22,8 @@ import {
   launchWithMarkdown,
   placeCaretInEditor,
   typeIntoEditor,
-  waitForMenuReady
+  waitForMenuReady,
+  closeDiscardingChanges
 } from './helpers'
 
 // Each test owns its own launch so the seed markdown can match the recipe
@@ -70,7 +71,7 @@ test.describe('Crash: updateParagraph null block', () => {
 
       await expectNoRendererErrors(app)
     } finally {
-      await app.close()
+      await closeDiscardingChanges(app)
     }
   })
 
@@ -108,7 +109,7 @@ test.describe('Crash: updateParagraph null block', () => {
 
       await expectNoRendererErrors(app)
     } finally {
-      await app.close()
+      await closeDiscardingChanges(app)
     }
   })
 
@@ -128,7 +129,7 @@ test.describe('Crash: updateParagraph null block', () => {
       expect(hasHeading + hasParagraph).toBeGreaterThan(0)
       await expectNoRendererErrors(app)
     } finally {
-      await app.close()
+      await closeDiscardingChanges(app)
     }
   })
 })
