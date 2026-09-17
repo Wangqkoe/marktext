@@ -331,8 +331,26 @@ let rebindPaneGeneration: ((scope: PaneEditorEventScope | undefined) => void) | 
 let jsonChangeListener: (() => void) | undefined
 let selectionChangeListener: ((changes: MuyaChange) => void) | undefined
 const focusedBusHandlers = new Map<string, (...args: any[]) => void>()
+// A refresh into a Source mode view leaves this hidden engine untouched and
+// keeps the snapshot here instead: loading a large document into a surface
+// covered by CodeMirror costs seconds on every tab switch. It is loaded before
+// anything needs the engine (leaving Source mode, shared history, commands).
+let deferredSnapshot: EditorBindingSnapshot | undefined
+let loadDeferredSnapshot = (): void => {}
+// Both editors follow Outline navigation; the hidden one has nothing to show.
+const hiddenEngineOnlyEvents = new Set(['scroll-to-header', 'scroll-to-anchor-element'])
+// These deliver a document themselves and replace any deferred one.
+const documentDeliveryEvents = new Set(['file-changed', 'file-loaded'])
+
 const onFocused = (event: string, handler: (...args: any[]) => void): void => {
-  const guarded = (...args: any[]) => { if (props.focused !== false) handler(...args) }
+  const guarded = (...args: any[]) => {
+    if (props.focused === false) return
+    if (deferredSnapshot) {
+      if (hiddenEngineOnlyEvents.has(event)) return
+      if (!documentDeliveryEvents.has(event)) loadDeferredSnapshot()
+    }
+    handler(...args)
+  }
   focusedBusHandlers.set(event, guarded)
   bus.on(event, guarded)
 }
@@ -1999,7 +2017,9 @@ onMounted(() => {
     () => currentFile.value?.pathname,
     (pathname) => {
       const imageBasePath = imageBasePathFor(pathname)
-      if (!editor.value || editor.value.options.imageBasePath === imageBasePath) return
+      // A deferred document applies its own base when it is loaded; re-rendering
+      // the earlier document hidden under Source mode would be wasted work.
+      if (!editor.value || deferredSnapshot || editor.value.options.imageBasePath === imageBasePath) return
       editor.value.setOptions({ imageBasePath }, true)
     }
   )
@@ -2022,6 +2042,7 @@ onMounted(() => {
   }
   props.composition.setSourceHistoryHandler((report, action) => {
     if (!editor.value) return report
+    loadDeferredSnapshot()
     applyingSourceHistory = true
     try {
       preserveOutsideSelection(() => {
@@ -2063,31 +2084,18 @@ onMounted(() => {
           rebindPaneGeneration?.(scope)
           if (!editor.value) return
           if (engineAlreadyHolds(snapshot)) {
+            deferredSnapshot = undefined
             if (focusReplacement) nextTick(focusFreshEditor)
             committed = true
             return
           }
-          const sourceHandoff = props.composition.isSourceHandoff(snapshot)
-          const reloadSerial = snapshot.document.reloadSerial ?? 0
-          const isReload = engineDocumentId === snapshot.document.documentId && reloadSerial > engineReloadSerial
-          engineReloadSerial = reloadSerial
-          const apply = () => handleFileChange({
-            id: snapshot.document.documentId,
-            markdown: snapshot.document.markdown,
-            isReload,
-            pathname: snapshot.document.fileKey ?? '',
-            cursor: isEngineCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
-            muyaIndexCursor: isIndexCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
-            history: engineHistoryFrom(snapshot.document.portableHistory),
-            scrollTop: snapshot.view.scrollTop,
-            workspaceRefresh: true,
-            sourceHandoff
-          })
-          // Leaving Source mode hands the caret back to this editor. Focus is
-          // still outside it (CodeMirror was just removed), so preserving the
-          // outside selection would overwrite the restored Source caret.
-          if (sourceHandoff && props.focused) apply()
-          else preserveOutsideSelection(apply)
+          if (snapshot.view.mode === 'source') {
+            deferredSnapshot = snapshot
+            committed = true
+            return
+          }
+          deferredSnapshot = undefined
+          loadSnapshot(snapshot)
           if (focusReplacement) nextTick(focusFreshEditor)
           committed = true
         },
@@ -2102,6 +2110,8 @@ onMounted(() => {
       const sourceReport = props.composition.sourceReportFor(snapshot)
       if (sourceReport) return sourceReport
       if (!editor.value) return {}
+      // The engine still holds an earlier document; it has nothing to report.
+      if (deferredSnapshot) return {}
       // Muya batches the tail of a contenteditable input.  An explicit
       // controller lease flush is a synchronous editor boundary, so drain it
       // before serializing the exact source that a Move fence will seal.
@@ -2121,7 +2131,37 @@ onMounted(() => {
       }
     }
   }
+  function loadSnapshot (snapshot: EditorBindingSnapshot): void {
+    const sourceHandoff = props.composition.isSourceHandoff(snapshot)
+    const reloadSerial = snapshot.document.reloadSerial ?? 0
+    const isReload = engineDocumentId === snapshot.document.documentId && reloadSerial > engineReloadSerial
+    engineReloadSerial = reloadSerial
+    const apply = () => handleFileChange({
+      id: snapshot.document.documentId,
+      markdown: snapshot.document.markdown,
+      isReload,
+      pathname: snapshot.document.fileKey ?? '',
+      cursor: isEngineCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
+      muyaIndexCursor: isIndexCursor(snapshot.view.cursor) ? snapshot.view.cursor : undefined,
+      history: engineHistoryFrom(snapshot.document.portableHistory),
+      scrollTop: snapshot.view.scrollTop,
+      workspaceRefresh: true,
+      sourceHandoff
+    })
+    // Leaving Source mode hands the caret back to this editor. Focus is
+    // still outside it (CodeMirror was just removed), so preserving the
+    // outside selection would overwrite the restored Source caret.
+    if (sourceHandoff && props.focused) apply()
+    else preserveOutsideSelection(apply)
+  }
+  loadDeferredSnapshot = () => {
+    const snapshot = deferredSnapshot
+    if (!snapshot || !editor.value) return
+    deferredSnapshot = undefined
+    loadSnapshot(snapshot)
+  }
   props.composition.setSourceHandoffHandler((report) => {
+    loadDeferredSnapshot()
     handleFileChange({
       markdown: report.markdown,
       muyaIndexCursor: isIndexCursor(report.cursor) ? report.cursor : undefined,
@@ -2229,7 +2269,7 @@ onMounted(() => {
     if (!scope) return
 
     jsonChangeListener = () => {
-      if (!editor.value || applyingSourceHistory) return
+      if (!editor.value || applyingSourceHistory || deferredSnapshot) return
       const markdown = editor.value.getMarkdown()
       const toc = editor.value.getTOC()
       const wordCount = muyaWordCount(markdown)
@@ -2257,7 +2297,9 @@ onMounted(() => {
     }
 
     const generationScrollReportGate = createScrollReportGate(
-      (scrollTop) => scope.report({ scrollTop })
+      (scrollTop) => deferredSnapshot
+        ? { status: 'rejected', reason: 'hidden editor holds an earlier document' }
+        : scope.report({ scrollTop })
     )
     scrollReportGate = generationScrollReportGate
     scrollHandler = () => {
@@ -2270,7 +2312,7 @@ onMounted(() => {
       generationScrollReportGate.request(container.scrollTop)
     }
     selectionChangeListener = (changes: MuyaChange) => {
-      if (!editor.value || applyingSourceHistory) return
+      if (!editor.value || applyingSourceHistory || deferredSnapshot) return
       const cursor = controllerCursor()
       if (
         scope.report({
