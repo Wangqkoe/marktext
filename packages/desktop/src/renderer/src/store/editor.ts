@@ -215,6 +215,9 @@ export interface EditorState {
 }
 
 const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
+// Workspace auto-save timers keyed by document, with the revision they were
+// scheduled for; a new revision restarts the delay.
+const workspaceAutoSaveTimers = new Map<string, { readonly revision: number; readonly timer: ReturnType<typeof setTimeout> }>()
 type ControllerFacadeFile = IFileState & {
   selection: WorkspaceFacadeDocument['selection']
   toc: WorkspaceFacadeDocument['toc']
@@ -1798,6 +1801,37 @@ export const useEditorStore = defineStore('editor', {
         tab.isSaved = true // An undo can trigger this
       }
       debouncedSendBufferedState()
+    },
+
+    /**
+     * Keep one debounced auto-save per dirty, file-backed workspace document.
+     * A failed or conflicting save leaves the revision unchanged, so it is not
+     * retried until the document changes again.
+     */
+    SYNC_WORKSPACE_AUTO_SAVE(facade: WorkspaceFacadeSnapshot): void {
+      const composition = workspaceFor(this)
+      const preferencesStore = usePreferencesStore()
+      const due = new Map<string, number>()
+      if (composition && facade && preferencesStore.autoSave) {
+        for (const document of facade.documents) {
+          if (document.dirty && document.fileKey) due.set(document.documentId, document.documentRevision)
+        }
+      }
+      for (const [documentId, scheduled] of workspaceAutoSaveTimers) {
+        if (due.get(documentId) !== scheduled.revision) {
+          clearTimeout(scheduled.timer)
+          workspaceAutoSaveTimers.delete(documentId)
+        }
+      }
+      for (const [documentId, revision] of due) {
+        if (workspaceAutoSaveTimers.has(documentId)) continue
+        const timer = setTimeout(() => {
+          workspaceAutoSaveTimers.delete(documentId)
+          workspaceFor(this)?.autoSaveDocument(documentId)
+            .catch((error) => console.error('Auto-save failed', error))
+        }, preferencesStore.autoSaveDelay)
+        workspaceAutoSaveTimers.set(documentId, { revision, timer })
+      }
     },
 
     HANDLE_AUTO_SAVE({ id, filename, pathname, markdown, options }: AutoSavePayload): void {

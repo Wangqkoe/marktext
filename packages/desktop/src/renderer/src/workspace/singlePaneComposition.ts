@@ -445,6 +445,20 @@ export class PaneEditorComposition {
       })
   }
 
+  /**
+   * Save a document through the pane that shows it, without changing focus.
+   * Used by auto-save, which may fire for a document in the other pane.
+   */
+  async autoSaveDocument(documentId: string): Promise<WorkspaceResult> {
+    const pane = this.runtime?.getProjection().panes.find(candidate =>
+      candidate.tabs.some(tab => tab.documentId === documentId)
+    )
+    const tab = pane?.tabs.find(candidate => candidate.documentId === documentId)
+    const member = [...this.persistence.members].find(candidate => candidate.paneId === pane?.paneId)
+    if (!pane || !tab || !member) return { status: 'rejected', reason: 'document is not shown in a mounted pane' }
+    return member.execute({ kind: 'save', paneId: pane.paneId, viewId: tab.viewId })
+  }
+
   /** Read a document's file without making the read authoritative. */
   readDocumentFromDisk(documentId: string, options: DocumentIoReadOptions): Promise<DocumentIoReadResult> {
     const documentIo = this.persistence.documentIo

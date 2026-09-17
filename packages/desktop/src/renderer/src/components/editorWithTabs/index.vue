@@ -32,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import { createElectronCrashDraftPort, createElectronNativeGesturePort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, onWorkspaceDiskChange, type PaneEditorComposition } from '@/workspace'
 import {
@@ -431,8 +431,13 @@ const unsubscribe = controller.subscribe(() => {
   syncLegacyCommandEdge()
   syncLegacySourceMode()
   syncTabBarVisibility()
+  editorStore.SYNC_WORKSPACE_AUTO_SAVE(snapshot.value)
 })
 editorStore.ATTACH_WORKSPACE_FACADE(controller)
+watch(
+  () => [preferencesStore.autoSave, preferencesStore.autoSaveDelay],
+  () => editorStore.SYNC_WORKSPACE_AUTO_SAVE(controller.getFacadeSnapshot())
+)
 const stopDiskChanges = onWorkspaceDiskChange(controller, (observation) => {
   editorStore.HANDLE_WORKSPACE_DISK_CHANGE(observation)
     .catch((error) => console.error('Failed to handle external file change', error))
