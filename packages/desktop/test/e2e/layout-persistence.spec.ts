@@ -4,6 +4,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import {
   clickMenuById,
+  closeDiscardingChanges,
   launchElectron,
   launchWithMarkdown,
   typeIntoEditor,
@@ -11,23 +12,14 @@ import {
   waitForMenuReady
 } from './helpers'
 
-const waitForBufferedLayout = (page: Page): Promise<void> => page.waitForTimeout(1200)
+// Layout preferences are written with a debounce; wait past it before closing.
+const waitForPersistedLayout = (page: Page): Promise<void> => page.waitForTimeout(1200)
 
 const launchRestored = async(
   userDataDir: string
 ): Promise<{ app: ElectronApplication; page: Page }> => {
   const relaunched = await launchElectron([], { userDataDir })
-  try {
-    await waitForEditor(relaunched.page)
-  } catch (error) {
-    const processInfo = await relaunched.app.evaluate(({ app }) => ({
-      appPath: app.getAppPath(),
-      argv: process.argv,
-      defaultApp: process.defaultApp
-    }))
-    const body = await relaunched.page.locator('body').innerText()
-    throw new Error(`${String(error)}\n${JSON.stringify(processInfo)}\n${body}`)
-  }
+  await waitForEditor(relaunched.page)
   await waitForMenuReady(relaunched.app)
   return relaunched
 }
@@ -37,15 +29,8 @@ const restart = async(
   page: Page,
   userDataDir: string
 ): Promise<{ app: ElectronApplication; page: Page }> => {
-  await waitForBufferedLayout(page)
-  await app.close()
-  const editorStateDirectory = path.join(userDataDir, 'editorStates')
-  const stateFiles = fs.existsSync(editorStateDirectory)
-    ? fs
-      .readdirSync(editorStateDirectory)
-      .filter((name) => name.endsWith('_editor_buffer_store.json'))
-    : []
-  if (stateFiles.length === 0) throw new Error('Editor buffer was not retained after close')
+  await waitForPersistedLayout(page)
+  await closeDiscardingChanges(app)
   return launchRestored(userDataDir)
 }
 
@@ -57,7 +42,10 @@ const menuChecked = (app: ElectronApplication, id: string): Promise<boolean> =>
     return !!Menu.getApplicationMenu()?.getMenuItemById(menuId)?.checked
   }, id)
 
-test('canonical and legacy sidebar layouts survive application restart', async() => {
+// Startup never restores a previous session's documents, so the layout comes
+// from preferences: sidebar visibility and width, tab bar visibility and Source
+// mode persist, while the active sidebar view and the inline filter start fresh.
+test('sidebar and editor layout preferences survive application restart', async() => {
   test.setTimeout(120_000)
   const launched = await launchWithMarkdown('# Persisted layout\n')
   let { app, page } = launched
@@ -82,19 +70,14 @@ test('canonical and legacy sidebar layouts survive application restart', async()
     await expect(page.getByRole('tab', { name: 'Files' })).toHaveAttribute('aria-selected', 'true')
     expect(await sidebarWidth(page)).toBe(widenedWidth)
 
-    await page.getByRole('button', { name: 'Search' }).click()
-    ;({ app, page } = await restart(app, page, userDataDir))
-    await expect(page.getByRole('button', { name: 'Search' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
-
+    await page.getByRole('button', { name: 'Show inline search' }).click()
     await page.getByRole('tab', { name: 'Outline' }).click()
     ;({ app, page } = await restart(app, page, userDataDir))
-    await expect(page.getByRole('tab', { name: 'Outline' })).toHaveAttribute(
-      'aria-selected',
-      'true'
+    await expect(page.getByRole('button', { name: 'Show inline search' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
     )
+    await expect(page.getByRole('tab', { name: 'Files' })).toHaveAttribute('aria-selected', 'true')
 
     const tabsWereVisible = await page.locator('.editor-tabs').isVisible()
     expect(await menuChecked(app, 'tabBarMenuItem')).toBe(tabsWereVisible)
@@ -121,27 +104,10 @@ test('canonical and legacy sidebar layouts survive application restart', async()
     ;({ app, page } = await restart(app, page, userDataDir))
     await expect(page.locator('.side-bar')).toBeHidden()
 
-    await app.close()
-    const bufferPath = fs
-      .readdirSync(path.join(userDataDir, 'editorStates'))
-      .map((name) => path.join(userDataDir, 'editorStates', name))
-      .find((filename) => filename.endsWith('_editor_buffer_store.json'))
-    if (!bufferPath) throw new Error('Editor buffer was not written')
-    const buffer = JSON.parse(fs.readFileSync(bufferPath, 'utf8')) as Record<string, unknown>
-    buffer.layout = {
-      rightColumn: '',
-      showSideBar: true,
-      showTabBar: true,
-      sideBarWidth: 45
-    }
-    fs.writeFileSync(bufferPath, JSON.stringify(buffer), 'utf8')
-    ;({ app, page } = await launchRestored(userDataDir))
+    await clickMenuById(app, 'sideBarMenuItem')
     await expect(page.locator('.side-bar')).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'Files' })).toHaveAttribute('aria-selected', 'true')
-    expect(await sidebarWidth(page)).toBe(220)
-    await expect(page.locator('.editor-tabs')).toBeVisible()
-
-    await app.close()
+    await waitForPersistedLayout(page)
+    await closeDiscardingChanges(app)
     const preferencesPath = path.join(userDataDir, 'preferences.json')
     const preferences = JSON.parse(fs.readFileSync(preferencesPath, 'utf8')) as Record<
       string,
@@ -152,6 +118,6 @@ test('canonical and legacy sidebar layouts survive application restart', async()
     ;({ app, page } = await launchRestored(userDataDir))
     await expect(page.locator('.side-bar')).toBeHidden()
   } finally {
-    await app.close().catch(() => {})
+    await closeDiscardingChanges(app).catch(() => {})
   }
 })

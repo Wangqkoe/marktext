@@ -57,7 +57,13 @@ const layoutStore = useLayoutStore()
 const preferencesStore = usePreferencesStore()
 const projectStore = useProjectStore()
 const seed = editorStore.currentFile
-const controller = createWorkspaceRuntime(seed ? [workspaceDocumentInputFromFileState(seed)] : [{ markdown: props.markdown, title: 'New Tab' }])
+// The window menu is built from the saved Source mode preference, so the first
+// view must open in that mode; otherwise syncLegacySourceMode would reset the
+// preference to the view's default WYSIWYG mode and leave the menu checked.
+const initialView = { mode: preferencesStore.sourceCode ? 'source' as const : 'wysiwyg' as const }
+const controller = createWorkspaceRuntime(seed
+  ? [{ ...workspaceDocumentInputFromFileState(seed), view: initialView }]
+  : [{ markdown: props.markdown, title: 'New Tab', view: initialView }])
 const left = createPaneEditorComposition({ paneId: 'left', controller })
 const right = createPaneEditorComposition({ paneId: 'right', controller })
 const transfer = createElectronTransferPort()
