@@ -493,6 +493,17 @@ const controllerCursor = (): JsonValue | undefined => {
   return cursor ? JSON.parse(JSON.stringify(cursor)) as JsonValue : undefined
 }
 
+// Set while this surface hands its View to Source mode. The View keeps one
+// cursor, and CodeMirror can only restore the `{ line, ch }` index form, so
+// flushes during the handoff report that form instead of block paths.
+let handingOffToSource = false
+
+const flushCursor = (): JsonValue | undefined => {
+  if (!handingOffToSource) return controllerCursor()
+  const cursor = editor.value?.getCursorOffset()
+  return cursor ? JSON.parse(JSON.stringify(cursor)) as JsonValue : controllerCursor()
+}
+
 const isEngineCursor = (cursor: unknown): cursor is JsonValue =>
   !!cursor && typeof cursor === 'object' && 'anchorPath' in cursor && 'focusPath' in cursor
 
@@ -606,9 +617,14 @@ watch(focus, (value) => {
 watch(sourceCode, (isSource) => {
   if (props.composition.getController()?.getProjection().focusedPaneId !== props.composition.getScope()?.paneId) return
   if (isSource && props.composition.getScope()?.mode !== 'source') {
-    props.composition.handoffMode('source').catch((error) => {
-      console.error('Failed to hand off pane editor mode:', error)
-    })
+    handingOffToSource = true
+    props.composition.handoffMode('source')
+      .catch((error) => {
+        console.error('Failed to hand off pane editor mode:', error)
+      })
+      .finally(() => {
+        handingOffToSource = false
+      })
   }
   if (!isSource && props.composition.getScope()?.mode === 'source') {
     props.composition.handoffMode('wysiwyg').catch((error) => {
@@ -2046,7 +2062,8 @@ onMounted(() => {
             committed = true
             return
           }
-          preserveOutsideSelection(() => handleFileChange({
+          const sourceHandoff = props.composition.isSourceHandoff(snapshot)
+          const apply = () => handleFileChange({
             id: snapshot.document.documentId,
             markdown: snapshot.document.markdown,
             pathname: snapshot.document.fileKey ?? '',
@@ -2055,8 +2072,13 @@ onMounted(() => {
             history: engineHistoryFrom(snapshot.document.portableHistory),
             scrollTop: snapshot.view.scrollTop,
             workspaceRefresh: true,
-            sourceHandoff: props.composition.isSourceHandoff(snapshot)
-          }))
+            sourceHandoff
+          })
+          // Leaving Source mode hands the caret back to this editor. Focus is
+          // still outside it (CodeMirror was just removed), so preserving the
+          // outside selection would overwrite the restored Source caret.
+          if (sourceHandoff && props.focused) apply()
+          else preserveOutsideSelection(apply)
           if (focusReplacement) nextTick(focusFreshEditor)
           committed = true
         },
@@ -2080,7 +2102,7 @@ onMounted(() => {
       const scrollContainer = getScrollContainer()
       return {
         markdown,
-        ...(controllerCursor() ? { cursor: controllerCursor() } : {}),
+        ...(flushCursor() ? { cursor: flushCursor() } : {}),
         ...(portableEngineHistory() ? { portableHistory: portableEngineHistory() } : {}),
         scrollTop: scrollContainer?.style.visibility === 'hidden'
           ? snapshot.view.scrollTop
