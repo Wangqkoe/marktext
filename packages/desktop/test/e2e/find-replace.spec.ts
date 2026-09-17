@@ -118,10 +118,9 @@ const closeAndReset = async(page: Page): Promise<void> => {
   await expect.poll(() => page.locator('.mu-selection').count()).toBe(0)
 }
 
-// Seed the document content for a test and mark the tab clean (records the
-// current history entry as `lastSavedHistoryId` + clears the dirty flag), so a
-// subsequent edit's effect on the unsaved indicator is observed from a known
-// clean baseline. Mirrors the real post-save IPC the main process sends.
+// Seed the document content for a test and save it, so a subsequent edit's
+// effect on the unsaved indicator is observed from a known clean baseline.
+// Workspace documents only become clean through a real save acknowledgement.
 const seedDocClean = async(
   app: ElectronApplication,
   page: Page,
@@ -130,12 +129,8 @@ const seedDocClean = async(
   await closeAndReset(page)
   await setSourceMarkdown(page, app, markdown)
   await page.waitForTimeout(400)
-  const tabId = await page.evaluate(
-    () => document.querySelector('.editor-tabs li.active')?.getAttribute('data-id') ?? null
-  )
-  if (!tabId) throw new Error('could not resolve the active tab id')
-  await sendIpcToRenderer(app, 'mt::tab-saved', tabId)
-  await expect.poll(() => isTabDirty(page)).toBe(false)
+  await sendIpcToRenderer(app, 'mt::editor-ask-file-save')
+  await expect.poll(() => isTabDirty(page), { timeout: 5000 }).toBe(false)
 }
 
 const openFind = async(app: ElectronApplication, page: Page): Promise<void> => {
