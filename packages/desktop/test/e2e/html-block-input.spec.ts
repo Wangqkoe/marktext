@@ -5,7 +5,8 @@ import {
   setSourceMarkdown,
   getMarkdownContent,
   typeIntoEditor,
-  placeCaretInEditor
+  placeCaretInEditor,
+  closeDiscardingChanges
 } from './helpers'
 
 // Reset the document to a single empty paragraph and place a collapsed caret
@@ -64,7 +65,7 @@ test.describe('HTML block typing shortcut and single-image lowering', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   test('typing "<div>" then Enter opens an html-block with caret between the tags', async() => {

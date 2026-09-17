@@ -5,7 +5,8 @@ import {
   launchWithMarkdown,
   placeCaretInEditor,
   sendIpcToRenderer,
-  typeIntoEditor
+  typeIntoEditor,
+  closeDiscardingChanges
 } from './helpers'
 
 const tabSelector = '.tabs-container > li'
@@ -71,7 +72,7 @@ test.describe('Tab management', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   test('Initial document loads as a single tab in the tab list', async() => {
@@ -295,7 +296,7 @@ test.describe('Tab management', () => {
       // Undoing back to the exact on-disk content clears A's unsaved indicator.
       await expect.poll(isDirty, { timeout: 5000 }).toBe(false)
     } finally {
-      await aApp.close()
+      await closeDiscardingChanges(aApp)
     }
   })
 
@@ -360,7 +361,7 @@ test.describe('Tab management', () => {
       await sendIpcToRenderer(sApp, 'mt::switch-tab-by-index', 0)
       await expect.poll(activeTabVisible, { timeout: 5000 }).toBe(true)
     } finally {
-      await sApp.close()
+      await closeDiscardingChanges(sApp)
     }
   })
 
@@ -426,7 +427,7 @@ test.describe('Tab management', () => {
       await expect.poll(() => readTabIds(cPage), { timeout: 5000 }).toHaveLength(1)
       await expect(cPage.locator(`${tabSelector} .tab-filename`)).toHaveText('New Tab')
     } finally {
-      await cApp.close()
+      await closeDiscardingChanges(cApp)
     }
   })
 })

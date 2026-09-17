@@ -370,6 +370,24 @@ export const launchWithMarkdown = async(
   return { app, page, filePath, userDataDir }
 }
 
+/**
+ * Close the app, answering "Don't Save" to any unsaved-changes prompt. A dirty
+ * document otherwise raises a native dialog that headless tests cannot answer.
+ * Other native message boxes keep their real behaviour.
+ */
+export const closeDiscardingChanges = async(app: ElectronApplication): Promise<void> => {
+  await app.evaluate(({ dialog }) => {
+    const original = dialog.showMessageBox.bind(dialog) as (...args: unknown[]) => Promise<unknown>
+    const answer = (...args: unknown[]) => {
+      const options = (args.length > 1 ? args[1] : args[0]) as { buttons?: string[] } | undefined
+      const discard = options?.buttons?.indexOf("Don't Save") ?? -1
+      return discard >= 0 ? Promise.resolve({ response: discard, checkboxChecked: false }) : original(...args)
+    }
+    ;(dialog as unknown as { showMessageBox: typeof answer }).showMessageBox = answer
+  })
+  await app.close()
+}
+
 export const sendIpcToRenderer = async(
   app: ElectronApplication,
   channel: string,

@@ -4,7 +4,8 @@ import {
   launchWithMarkdown,
   waitForMenuReady,
   enterSourceMode,
-  sendIpcToRenderer
+  sendIpcToRenderer,
+  closeDiscardingChanges
 } from './helpers'
 
 // Issue #781 — Undo/redo while in Source Code mode must act on the CodeMirror
@@ -66,6 +67,6 @@ test.describe('Issue #781 — undo/redo in source code mode', () => {
     await redo(app)
     await expect.poll(() => cmValue(page)).toContain('saved baseline SRCKEY')
 
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 })

@@ -9,7 +9,8 @@ import {
   sendIpcToRenderer,
   getMarkdownContent,
   typeIntoEditor,
-  placeCaretInEditor
+  placeCaretInEditor,
+  closeDiscardingChanges
 } from './helpers'
 
 // PARITY SCOREBOARD — desktop gaps PG2 (file PG02), PG14 (file PG15),
@@ -70,7 +71,7 @@ test.describe('Parity PG2 — WYSIWYG caret restored after a source-mode edit', 
 
     // Desired: the caret is restored into the "third para here" block.
     expect(enclosingText).toContain('third para')
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 })
 
@@ -98,7 +99,7 @@ test.describe('Parity PG14 — first undo after source mode reverts the edit in 
     // Desired: the document reverts to the exact pre-source-mode content in a
     // single undo step.
     expect((await getMarkdownContent(page, app)).trim()).toBe('base')
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 
   test('PG14: redo re-applies the source-mode change in one step', async() => {
@@ -116,7 +117,7 @@ test.describe('Parity PG14 — first undo after source mode reverts the edit in 
     await redo(app)
     await page.waitForTimeout(600)
     expect((await getMarkdownContent(page, app)).trim()).toContain('SOURCE ADDED LINE')
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 
   test('PG14: a block-type bulk change reverts in one undo step', async() => {
@@ -133,7 +134,7 @@ test.describe('Parity PG14 — first undo after source mode reverts the edit in 
     await undo(app)
     await page.waitForTimeout(600)
     expect((await getMarkdownContent(page, app)).trim()).toBe('hello')
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 })
 
@@ -166,7 +167,7 @@ test.describe('Parity PG15 — undo back to on-disk content restores the saved i
     await expect
       .poll(() => page.evaluate(() => !!document.querySelector('.editor-tabs li.unsaved')))
       .toBe(false)
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 
   // G6: the saved/clean indicator must NOT falsely show clean after
@@ -203,7 +204,7 @@ test.describe('Parity PG15 — undo back to on-disk content restores the saved i
       () => !!document.querySelector('.editor-tabs li.unsaved')
     )
     expect(dirty).toBe(true)
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 })
 
@@ -280,7 +281,7 @@ test.describe('Item 248 — a real source-mode keystroke dirties the tab dot', (
     await expect
       .poll(() => getMarkdownContent(page, app).then((md) => md.trim()))
       .toContain('saved baseline SRCKEY')
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 })
 
@@ -336,6 +337,6 @@ test.describe('Item 256 — save -> clean -> edit -> dirty -> undo-to-saved cycl
     await undo(app)
     await expect.poll(() => wysiwygText(page)).toBe(savedText)
     await expect.poll(() => isTabDirty(page)).toBe(false)
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 })

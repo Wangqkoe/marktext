@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { launchWithMarkdown, sendIpcToRenderer, waitForMenuReady } from './helpers'
+import { launchWithMarkdown, sendIpcToRenderer, waitForMenuReady, closeDiscardingChanges } from './helpers'
 
 const tabSelector = '.tabs-container > li'
 
@@ -78,7 +78,7 @@ test.describe('Tab switch restores the per-tab caret', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   test('caret returns to its original block after switching away and back', async() => {
@@ -122,7 +122,7 @@ test.describe('Tab switch restores the per-tab undo history', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   // Reuse the proven caret-injection helper (TreeWalker + synthetic keyup) so
@@ -205,7 +205,7 @@ test.describe('Tab switch restores the per-tab scroll position', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   const scrollTop = (): Promise<number> =>

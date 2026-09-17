@@ -4,7 +4,8 @@ import {
   enterSourceMode,
   launchWithMarkdown,
   sendIpcToRenderer,
-  waitForMenuReady
+  waitForMenuReady,
+  closeDiscardingChanges
 } from './helpers'
 
 const caretStatus = (page: Page) => page.locator('.status-caret-position')
@@ -77,7 +78,7 @@ test.describe('Caret status', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   test('follows clicking, arrow movement and typing in WYSIWYG mode', async() => {
