@@ -135,14 +135,14 @@ let cancelDrag: ((event: KeyboardEvent) => void) | undefined
 // Computed properties
 
 // Methods incorporated from tabsMixins
-const selectFile = (file: IFileState) => {
+const selectFile = async (file: IFileState): Promise<void> => {
   if (props.pane) {
     const tab = props.pane.tabs.find((candidate) => candidate.documentId === file.id)
-    if (tab) props.composition.execute({ kind: 'activate-view', paneId: props.pane.paneId, viewId: tab.viewId })
+    if (tab) await props.composition.execute({ kind: 'activate-view', paneId: props.pane.paneId, viewId: tab.viewId })
     return
   }
   if (file.id !== currentFile.value?.id) {
-    props.composition.activateLegacyTab(file).catch((error) => {
+    await props.composition.activateLegacyTab(file).catch((error) => {
       console.error('Failed to activate workspace pane tab:', error)
     })
   }
@@ -160,10 +160,16 @@ const selectAdjacentTab = (file: IFileState, offset: -1 | 1): void => {
   const nextIndex = (currentIndex + offset + tabs.value.length) % tabs.value.length
   const nextFile = tabs.value[nextIndex]
   if (!nextFile) return
+  // Activating a tab focuses its editor in an animation frame after the
+  // switch commits. Keyboard navigation keeps focus in the tab list, so move
+  // it to the tab after that frame.
   selectFile(nextFile)
-  nextTick(() => {
-    tabDropContainer.value?.querySelectorAll<HTMLButtonElement>('.tab-select')[nextIndex]?.focus()
-  })
+    .then(() => nextTick())
+    .then(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    .then(() => {
+      tabDropContainer.value?.querySelectorAll<HTMLButtonElement>('.tab-select')[nextIndex]?.focus()
+    })
+    .catch((error) => console.error('Failed to select adjacent tab:', error))
 }
 
 const removeFileInTab = (file: IFileState) => {

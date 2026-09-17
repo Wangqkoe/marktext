@@ -167,7 +167,7 @@ test.describe('Application shell acceptance', () => {
     await expect(firstEditorTab).toBeFocused()
     await expect(firstEditorTab).toHaveAttribute('aria-selected', 'true')
 
-    const newTab = page.getByRole('button', { name: 'New Tab' })
+    const newTab = page.getByRole('button', { name: 'New Tab', exact: true })
     await expectVisibleKeyboardFocus(page, newTab)
     await expect
       .poll(() => newTab.evaluate((element) => Number(getComputedStyle(element).opacity)))
@@ -241,7 +241,7 @@ test.describe('Application shell acceptance', () => {
         await activeTab.evaluate((element) => getComputedStyle(element, '::after').backgroundColor)
       ).toBe(semanticColors.accent)
 
-      const newTab = page.getByRole('button', { name: 'New Tab' })
+      const newTab = page.getByRole('button', { name: 'New Tab', exact: true })
       await newTab.hover()
       await expect
         .poll(() => newTab.evaluate((element) => getComputedStyle(element).color))
