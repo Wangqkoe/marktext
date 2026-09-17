@@ -14,6 +14,10 @@ const debug = logger('inlineRenderer:');
 class InlineRenderer {
     public labels: Labels = new Map();
     public renderer: Renderer;
+    // `jsonState.revision` that `labels` was collected from. Every block
+    // rendered while the document is unchanged (e.g. a full rebuild on
+    // setContent) shares one collection instead of rescanning the document.
+    private _labelsRevision = -1;
 
     constructor(public muya: Muya) {
         this.renderer = new Renderer(muya, this);
@@ -75,10 +79,14 @@ class InlineRenderer {
     }
 
     private _collectReferenceDefinitions() {
-        const state = this.muya.editor.jsonState.getState();
+        const { jsonState } = this.muya.editor;
+        if (jsonState.revision === this._labelsRevision)
+            return;
+
+        const state = jsonState.peekState();
         const labels = new Map();
 
-        const travel = (sts: TState[]) => {
+        const travel = (sts: readonly TState[]) => {
             if (Array.isArray(sts) && sts.length) {
                 for (const st of sts) {
                     if (st.name === 'paragraph') {
@@ -96,6 +104,7 @@ class InlineRenderer {
         travel(state);
 
         this.labels = labels;
+        this._labelsRevision = jsonState.revision;
     }
 
     getLabelInfo(blockOrState: ParagraphContent | IParagraphState) {

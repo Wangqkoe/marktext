@@ -52,6 +52,11 @@ class JSONState {
 
     private _state: TState[] = [];
 
+    // Bumped whenever `_state` is replaced. `_state` is never mutated in
+    // place, so an unchanged revision means an unchanged document; readers
+    // use it to reuse data derived from the whole document.
+    private _revision = 0;
+
     constructor(private _muya: Muya, stateOrMarkdown: TState[] | string) {
         this.setContent(stateOrMarkdown);
     }
@@ -63,6 +68,7 @@ class JSONState {
         if (op === null)
             return;
         this._state = asState(json1.type.apply(asDoc(this._state), op));
+        this._revision++;
     }
 
     setContent(content: TState[] | string) {
@@ -84,10 +90,12 @@ class JSONState {
 
     private _setState(state: TState[]) {
         this._state = state;
+        this._revision++;
     }
 
     private _setMarkdown(markdown: string) {
         this._state = this.markdownToState(markdown);
+        this._revision++;
     }
 
     // Parse markdown into a block-state array with the editor's current
@@ -223,6 +231,19 @@ class JSONState {
 
     getState(): TState[] {
         return deepClone(this._state);
+    }
+
+    get revision(): number {
+        return this._revision;
+    }
+
+    /**
+     * The live document without the defensive copy `getState` makes. Callers
+     * must treat it as read-only; it exists for whole-document scans that run
+     * once per rendered block, where a full clone per call is quadratic.
+     */
+    peekState(): readonly TState[] {
+        return this._state;
     }
 
     getMarkdown() {
