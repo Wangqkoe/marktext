@@ -43,7 +43,7 @@ import {
 import { matchesFolderRootIdentity } from '@/contextMenu/tabs/folderTarget'
 import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload, PortableHistory } from '@shared/workspace'
-import { useEditorStore } from '@/store/editor'
+import { useEditorStore, workspaceDocumentInputFromFileState } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { usePreferencesStore } from '@/store/preferences'
 import { useProjectStore } from '@/store/project'
@@ -57,7 +57,7 @@ const layoutStore = useLayoutStore()
 const preferencesStore = usePreferencesStore()
 const projectStore = useProjectStore()
 const seed = editorStore.currentFile
-const controller = createWorkspaceRuntime(seed ? [{ documentId: seed.id, markdown: seed.markdown, title: seed.filename, ...(seed.pathname ? { fileKey: seed.pathname } : {}) }] : [{ markdown: props.markdown, title: 'New Tab' }])
+const controller = createWorkspaceRuntime(seed ? [workspaceDocumentInputFromFileState(seed)] : [{ markdown: props.markdown, title: 'New Tab' }])
 const left = createPaneEditorComposition({ paneId: 'left', controller })
 const right = createPaneEditorComposition({ paneId: 'right', controller })
 const transfer = createElectronTransferPort()

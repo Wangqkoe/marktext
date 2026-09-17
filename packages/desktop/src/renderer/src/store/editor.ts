@@ -94,6 +94,28 @@ const workspaceDocumentInput = (markdownDocument: MarkdownDocument, options: Tab
   }
 }
 
+/**
+ * Workspace input for a document that already exists as legacy file state,
+ * such as the file a window was launched with. It carries the same encoding,
+ * line-ending and trailing-newline options as a document opened later, so
+ * saving writes the file back in its own format.
+ */
+export const workspaceDocumentInputFromFileState = (file: IFileState) => ({
+  documentId: file.id,
+  ...workspaceDocumentInput(
+    {
+      markdown: file.markdown,
+      filename: file.filename,
+      pathname: file.pathname || null,
+      encoding: file.encoding,
+      ...(file.lineEnding === 'lf' || file.lineEnding === 'crlf' ? { lineEnding: file.lineEnding } : {}),
+      adjustLineEndingOnSave: file.adjustLineEndingOnSave,
+      trimTrailingNewline: file.trimTrailingNewline
+    },
+    {}
+  )
+})
+
 interface PushTabNotificationPayload {
   tabId: string
   msg: string
