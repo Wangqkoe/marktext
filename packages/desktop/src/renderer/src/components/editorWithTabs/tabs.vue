@@ -154,20 +154,25 @@ const beginTabGesture = (event: PointerEvent, file: IFileState): void => {
   emit('tab-press', { viewId, button: event.button, trusted: true })
 }
 
+let tabNavigation = 0
 const selectAdjacentTab = (file: IFileState, offset: -1 | 1): void => {
   const currentIndex = tabs.value.findIndex((tab) => tab.id === file.id)
   if (currentIndex === -1) return
   const nextIndex = (currentIndex + offset + tabs.value.length) % tabs.value.length
   const nextFile = tabs.value[nextIndex]
   if (!nextFile) return
-  // Activating a tab focuses its editor in an animation frame after the
-  // switch commits. Keyboard navigation keeps focus in the tab list, so move
-  // it to the tab after that frame.
+  // Move focus now so a repeated key press continues from the new tab. The
+  // switch then focuses the editor in an animation frame after it commits, so
+  // take focus back after that frame unless another key press moved on.
+  const focusTab = () =>
+    tabDropContainer.value?.querySelectorAll<HTMLButtonElement>('.tab-select')[nextIndex]?.focus()
+  const navigation = ++tabNavigation
+  focusTab()
   selectFile(nextFile)
     .then(() => nextTick())
     .then(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
     .then(() => {
-      tabDropContainer.value?.querySelectorAll<HTMLButtonElement>('.tab-select')[nextIndex]?.focus()
+      if (navigation === tabNavigation) focusTab()
     })
     .catch((error) => console.error('Failed to select adjacent tab:', error))
 }
