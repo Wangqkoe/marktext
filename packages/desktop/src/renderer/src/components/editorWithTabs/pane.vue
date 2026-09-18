@@ -32,6 +32,7 @@
       />
       <source-code
         v-if="activeMode === 'source' && (!focused || sourceCode)"
+        :key="pane.activeViewId"
         :markdown="activeFile.markdown"
         :muya-index-cursor="activeFile.muyaIndexCursor"
         :caret-session="caretSession"

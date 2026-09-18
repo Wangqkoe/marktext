@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import {
+  closeDiscardingChanges,
   enterSourceMode,
   exitSourceMode,
   getMarkdownContent,
@@ -120,6 +121,49 @@ test.describe('Entering Source mode keeps the hidden WYSIWYG engine', () => {
     await expect(page.locator('.source-code')).toHaveCount(0)
     await expect.poll(sourceMenuChecked).toBe(false)
     await app.close()
+  })
+
+  test('switching between Source tabs keeps each tab its own edits and caret', async() => {
+    const { app, page } = await launchWithMarkdown('first para\n\nsecond line\n')
+    await waitForMenuReady(app)
+    type SourceEditor = Element & {
+      CodeMirror: {
+        focus(): void
+        getValue(): string
+        getCursor(): { line: number, ch: number }
+        setCursor(pos: { line: number, ch: number }): void
+      }
+    }
+    const placeSourceCaret = (line: number, ch: number) => page.evaluate(({ line, ch }) => {
+      const cm = (document.querySelector('.source-code .CodeMirror') as SourceEditor).CodeMirror
+      cm.focus()
+      cm.setCursor({ line, ch })
+    }, { line, ch })
+    const sourceState = () => page.evaluate(() => {
+      const cm = (document.querySelector('.source-code .CodeMirror') as SourceEditor).CodeMirror
+      const { line, ch } = cm.getCursor()
+      return { value: cm.getValue(), line, ch }
+    })
+
+    await enterSourceMode(page, app)
+    await placeSourceCaret(2, 3)
+    await page.keyboard.type('Z')
+    await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, 'new tab\n')
+    await expect.poll(sourceState).toEqual({ value: 'new tab\n', line: 0, ch: 0 })
+    // CodeMirror resets its input field shortly after it is created; a key
+    // pressed within that window is dropped.
+    await page.waitForTimeout(200)
+
+    await placeSourceCaret(0, 3)
+    await page.keyboard.type('Q')
+    await expect.poll(sourceState).toEqual({ value: 'newQ tab\n', line: 0, ch: 4 })
+    await expect(page.locator('.editor-tabs li.active')).toHaveClass(/unsaved/)
+
+    await page.locator('.editor-tabs .tab-select', { hasText: 'note.md' }).click()
+    await expect.poll(sourceState).toEqual({ value: 'first para\n\nsecZond line\n', line: 2, ch: 4 })
+    await page.locator('.editor-tabs .tab-select', { hasText: 'New Tab' }).click()
+    await expect.poll(sourceState).toEqual({ value: 'newQ tab\n', line: 0, ch: 4 })
+    await closeDiscardingChanges(app)
   })
 
   test('an unchanged Source round trip keeps content and undo of the earlier WYSIWYG edit', async() => {

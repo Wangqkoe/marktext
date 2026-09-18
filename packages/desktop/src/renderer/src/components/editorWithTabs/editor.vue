@@ -2091,6 +2091,8 @@ onMounted(() => {
           paneScope = scope
           rebindPaneGeneration?.(scope)
           if (!editor.value) return
+          // A Source mode view takes focus in its own CodeMirror, so the
+          // hidden engine must not take it back.
           if (engineAlreadyHolds(snapshot)) {
             deferredSnapshot = undefined
             committed = true
