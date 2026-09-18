@@ -17,6 +17,7 @@ import { useLayoutStore } from './layout'
 import { useMainStore } from '.'
 import {
   createWorkspaceProjectionMirror,
+  patchWorkspaceFacadeViewState,
   type PaneEditorComposition,
   type WorkspaceController,
   type WorkspaceProjectionMirror
@@ -25,7 +26,8 @@ import type {
   DocumentIoObservation,
   WorkspaceFacadeDocument,
   WorkspaceFacadeSnapshot,
-  WorkspaceProjection
+  WorkspaceProjection,
+  WorkspaceViewStateUpdate
 } from '@shared/workspace'
 import type { DocumentIoReadOptions } from '@shared/workspace/documentIo'
 import { isWindows } from '../util'
@@ -292,6 +294,26 @@ const controllerFacadeFile = (
     status: document.status
   })
 }
+
+const patchControllerFacadeFileViewState = (
+  file: IFileState,
+  document: WorkspaceFacadeDocument
+): ControllerFacadeFile => {
+  const next = { ...file } as ControllerFacadeFile
+  const viewValues: Partial<Record<(typeof controllerFacadeFields)[number], unknown>> = {
+    cursor: document.cursor,
+    scrollTop: document.scrollTop,
+    selection: document.selection
+  }
+  for (const key of controllerFacadeFields) {
+    Object.defineProperty(next, key, {
+      value: key in viewValues ? viewValues[key] : (file as ControllerFacadeFile)[key],
+      enumerable: true,
+      writable: false
+    })
+  }
+  return next
+}
 interface WorkspaceFacadeBinding {
   readonly mirror: WorkspaceProjectionMirror
   readonly unsubscribe: () => void
@@ -330,7 +352,13 @@ export const useEditorStore = defineStore('editor', {
     ATTACH_WORKSPACE_FACADE(controller: WorkspaceController): void {
       this.DETACH_WORKSPACE_FACADE()
       const mirror = createWorkspaceProjectionMirror(controller)
-      const unsubscribe = mirror.subscribe((projection) => this.APPLY_WORKSPACE_PROJECTION(projection))
+      const unsubscribe = mirror.subscribe((projection, update) => {
+        if (update?.kind === 'view-state') {
+          this.APPLY_WORKSPACE_VIEW_STATE(projection, update)
+        } else {
+          this.APPLY_WORKSPACE_PROJECTION(projection)
+        }
+      })
       workspaceFacadeBindings.set(this, { mirror, unsubscribe })
     },
 
@@ -378,6 +406,32 @@ export const useEditorStore = defineStore('editor', {
       if (!equal(nextListToc, this.listToc)) {
         this.listToc = freezeFacadeValue(nextListToc) as unknown as TocItem[]
         this.toc = freezeFacadeValue(listToTree<TocItem>([...this.listToc])) as unknown as TocTreeNode[]
+      }
+    },
+    APPLY_WORKSPACE_VIEW_STATE(
+      facade: WorkspaceFacadeSnapshot,
+      update: WorkspaceViewStateUpdate
+    ): void {
+      const previousFacade = this.workspaceFacade as WorkspaceFacadeSnapshot | null
+      const localFacade = previousFacade
+        ? patchWorkspaceFacadeViewState(previousFacade, facade.projection, update)
+        : facade
+      this.workspaceFacade = localFacade
+      this.workspaceProjection = localFacade.projection
+      const pane = localFacade.projection.panes.find(
+        candidate => candidate.paneId === localFacade.projection.focusedPaneId
+      )
+      const tabIndex = pane?.tabs.findIndex(tab => tab.viewId === update.viewId) ?? -1
+      const document = localFacade.documents.find(candidate => candidate.viewId === update.viewId)
+      if (!pane || tabIndex < 0 || !document) return
+      const previousTab = this.tabs[tabIndex]
+      if (previousTab) {
+        const tabs = [...this.tabs]
+        tabs[tabIndex] = patchControllerFacadeFileViewState(previousTab, document)
+        this.tabs = Object.freeze(tabs) as unknown as IFileState[]
+      }
+      if (pane.activeViewId === update.viewId && this.currentFile) {
+        this.currentFile = patchControllerFacadeFileViewState(this.currentFile, document)
       }
     },
     updateTabIdToIndex(): void {

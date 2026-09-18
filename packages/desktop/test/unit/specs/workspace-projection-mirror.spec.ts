@@ -240,6 +240,96 @@ describe('WorkspaceProjectionMirror', () => {
     controller.dispose()
   })
 
+  it('publishes a cursor-only view update without rebuilding immutable document data', async() => {
+    const historyEntries = Array.from({ length: 2_000 }, (_, index) => ({
+      id: `history-${index}`,
+      text: `entry-${index}`
+    }))
+    const controller = createWorkspaceRuntime([
+      {
+        documentId: 'note',
+        markdown: 'body',
+        portableHistory: { version: 1, value: { entries: historyEntries } }
+      }
+    ])
+    const binding = await controller.bindPaneEditor('left', {
+      refresh: async() => {},
+      flush: async() => ({})
+    })
+    const lease = binding.getLease()
+    if (!lease) throw new Error('missing lease')
+    const mirror = createWorkspaceProjectionMirror(controller)
+    const store = useEditorStore()
+    store.ATTACH_WORKSPACE_FACADE(controller)
+    const beforeMirror = mirror.getSnapshot()
+    const beforeMirrorDocument = beforeMirror.documents[0]!
+    const beforeStoreFacade = store.workspaceFacade as ReturnType<typeof controller.getFacadeSnapshot>
+    const beforeStoreDocument = beforeStoreFacade.documents[0]!
+    const beforeTabHistory = store.tabs[0]!.history
+    const beforeCurrentHistory = store.currentFile!.history
+
+    expect(binding.report(lease, { cursor: { line: 4, column: 7 } }).status).toBe('applied')
+
+    const afterMirror = mirror.getSnapshot()
+    const afterMirrorDocument = afterMirror.documents[0]!
+    const afterStoreFacade = store.workspaceFacade as ReturnType<typeof controller.getFacadeSnapshot>
+    const afterStoreDocument = afterStoreFacade.documents[0]!
+    expect(afterMirror.projection.workspaceRevision).toBeGreaterThan(
+      beforeMirror.projection.workspaceRevision
+    )
+    expect(afterMirrorDocument.cursor).toEqual({ line: 4, column: 7 })
+    expect(afterStoreDocument.cursor).toEqual({ line: 4, column: 7 })
+    expect(store.tabs[0]!.cursor).toEqual({ line: 4, column: 7 })
+    expect(store.currentFile!.cursor).toEqual({ line: 4, column: 7 })
+    expect(afterMirrorDocument.portableHistory).toBe(beforeMirrorDocument.portableHistory)
+    expect(afterStoreDocument.portableHistory).toBe(beforeStoreDocument.portableHistory)
+    expect(store.tabs[0]!.history).toBe(beforeTabHistory)
+    expect(store.currentFile!.history).toBe(beforeCurrentHistory)
+
+    store.DETACH_WORKSPACE_FACADE()
+    mirror.dispose()
+    binding.dispose()
+    controller.dispose()
+  })
+
+  it('keeps the latest full document commit when a cursor-only update follows it', async() => {
+    const controller = createWorkspaceRuntime([
+      {
+        documentId: 'note',
+        markdown: 'before',
+        portableHistory: { version: 1, value: ['before-history'] }
+      }
+    ])
+    const binding = await controller.bindPaneEditor('left', {
+      refresh: async() => {},
+      flush: async() => ({})
+    })
+    const lease = binding.getLease()
+    if (!lease) throw new Error('missing lease')
+    const mirror = createWorkspaceProjectionMirror(controller)
+
+    expect(binding.report(lease, {
+      markdown: 'after',
+      portableHistory: { version: 1, value: ['after-history'] },
+      cursor: { line: 0, column: 5 }
+    }).status).toBe('applied')
+    const afterContent = mirror.getSnapshot().documents[0]!
+    expect(binding.report(lease, { cursor: { line: 0, column: 2 } }).status).toBe('applied')
+
+    const afterCursor = mirror.getSnapshot().documents[0]!
+    expect(afterCursor).toMatchObject({
+      markdown: 'after',
+      dirty: true,
+      cursor: { line: 0, column: 2 }
+    })
+    expect(afterCursor.portableHistory.value).toEqual(['after-history'])
+    expect(afterCursor.portableHistory).toBe(afterContent.portableHistory)
+
+    mirror.dispose()
+    binding.dispose()
+    controller.dispose()
+  })
+
   it('keeps the heading anchor separate from the editor heading key', async() => {
     const controller = createWorkspaceRuntime([{ documentId: 'note', markdown: '# My Section' }])
     const binding = await controller.bindPaneEditor('left', {

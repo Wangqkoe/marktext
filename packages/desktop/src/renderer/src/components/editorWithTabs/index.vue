@@ -34,7 +34,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
-import { createElectronCrashDraftPort, createElectronNativeGesturePort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, onWorkspaceDiskChange, type PaneEditorComposition } from '@/workspace'
+import { createElectronCrashDraftPort, createElectronNativeGesturePort, createElectronTransferPort, createMoveTabToNewWindowAction, createPaneEditorComposition, createWorkspaceRuntime, onWorkspaceDiskChange, patchWorkspaceFacadeViewState, type PaneEditorComposition } from '@/workspace'
 import {
   registerWorkspaceTabMenuResolver,
   type WorkspaceTabMenuActions,
@@ -433,7 +433,11 @@ const syncLegacySourceMode = () => {
     preferencesStore.DISPATCH_EDITOR_VIEW_STATE({ sourceCode: activeMode === 'source' })
   }
 }
-const unsubscribe = controller.subscribe(() => {
+const unsubscribe = controller.subscribe((projection, update) => {
+  if (update?.kind === 'view-state') {
+    snapshot.value = patchWorkspaceFacadeViewState(snapshot.value, projection, update)
+    return
+  }
   snapshot.value = controller.getFacadeSnapshot()
   syncLegacyCommandEdge()
   syncLegacySourceMode()

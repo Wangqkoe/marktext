@@ -698,6 +698,55 @@ describe('WorkspaceRuntime', () => {
     expect(paneById(projection, 'right').status).toMatchObject({})
   })
 
+  it('keeps shared-view cursor reports view-local without manufacturing document history', async() => {
+    const workspace = createWorkspaceRuntime([
+      {
+        documentId: 'shared',
+        markdown: 'body',
+        portableHistory: { version: 1, value: ['initial-history'] }
+      }
+    ])
+    const composition = createPaneEditorComposition({ paneId: 'left', controller: workspace })
+    const surface = new MemoryPaneSurface()
+    await composition.mount(surface, { id: 'shared', markdown: 'body', title: 'shared' })
+    const scope = expectDefined(composition.getScope())
+    expect((await workspace.execute({
+      kind: 'split-right',
+      paneId: 'left',
+      viewId: scope.viewId
+    })).status).toBe('applied')
+    const historyHandler = vi.fn((report: EditorReport) => ({
+      ...report,
+      portableHistory: { version: 1, value: ['captured-history'] }
+    }))
+    composition.setSourceHistoryHandler(historyHandler)
+
+    expect(composition.reportSource(scope, {
+      cursor: { line: 3, column: 4 }
+    }).status).toBe('applied')
+
+    const afterCursor = workspace.getFacadeSnapshot().documents
+    expect(historyHandler).not.toHaveBeenCalled()
+    expect(afterCursor.find(document => document.viewId === scope.viewId)?.cursor).toEqual({
+      line: 3,
+      column: 4
+    })
+    expect(afterCursor.find(document => document.viewId !== scope.viewId)?.cursor).toEqual({
+      line: 0,
+      column: 0
+    })
+    expect(afterCursor[0]?.portableHistory.value).toEqual(['initial-history'])
+
+    expect(composition.reportSource(scope, { markdown: 'edited body' }).status).toBe('applied')
+    expect(historyHandler).toHaveBeenCalledOnce()
+    expect(workspace.getFacadeSnapshot().documents[0]?.portableHistory.value).toEqual([
+      'captured-history'
+    ])
+
+    composition.unmount(surface)
+    workspace.dispose()
+  })
+
   it('hands a file-backed View between mounted compositions with one active DocumentIO fence', async() => {
     const workspace = createWorkspaceRuntime([
       { documentId: 'left-doc', fileKey: '/left.md', markdown: 'left', title: 'left' },

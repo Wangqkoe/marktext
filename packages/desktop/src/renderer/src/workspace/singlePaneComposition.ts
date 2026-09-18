@@ -137,7 +137,9 @@ export class PaneEditorComposition {
     this.binding = binding
     this.reporter.attach(this.binding)
     this.mountDocumentIo()
-    this.stopCrashDraftSync = this.runtime.subscribe(() => { this.syncCrashDraft().catch(() => undefined) })
+    this.stopCrashDraftSync = this.runtime.subscribe((_projection, update) => {
+      if (!update) this.syncCrashDraft().catch(() => undefined)
+    })
     this.syncCrashDraft().catch(() => undefined)
     if (seed.mode === 'source') {
       const lease = this.binding.getLease()
@@ -241,7 +243,12 @@ export class PaneEditorComposition {
     // Validate the generation before touching the hidden engine's shared undo
     // stack. A superseded CodeMirror callback cannot author a new revision.
     const current = scope.report({})
-    if (current.status === 'applied' && this.sourceHistoryHandler && this.runtime?.usesSharedHistory(scope.viewId)) {
+    if (
+      current.status === 'applied' &&
+      report.markdown !== undefined &&
+      this.sourceHistoryHandler &&
+      this.runtime?.usesSharedHistory(scope.viewId)
+    ) {
       report = this.sourceHistoryHandler(report)
     }
     const result = scope.report(report)
@@ -350,7 +357,9 @@ export class PaneEditorComposition {
       }
       for (const listener of diskChangeListeners.get(runtime) ?? []) listener(observation)
     })
-    this.stopDocumentIoSync = this.runtime.subscribe(() => this.syncDocumentIo())
+    this.stopDocumentIoSync = this.runtime.subscribe((_projection, update) => {
+      if (!update) this.syncDocumentIo()
+    })
     this.syncDocumentIo()
   }
 

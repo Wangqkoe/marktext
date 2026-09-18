@@ -329,6 +329,17 @@ export interface WorkspaceFacadeSnapshot {
   readonly documents: readonly WorkspaceFacadeDocument[]
 }
 
+/**
+ * A bounded fast-path notification for a View whose document and rendered
+ * metadata did not change. Consumers may retain immutable document data and
+ * replace only this View's presentation state.
+ */
+export interface WorkspaceViewStateUpdate {
+  readonly kind: 'view-state'
+  readonly viewId: ViewId
+  readonly view: ViewState
+}
+
 export interface EditorBindingSnapshot {
   /**
    * Complete, controller-issued binding identity.  This is deliberately a
@@ -414,7 +425,7 @@ export interface WorkspaceController {
   execute(command: WorkspaceCommand): Promise<WorkspaceResult>
   getProjection(): WorkspaceProjection
   getFacadeSnapshot(): WorkspaceFacadeSnapshot
-  subscribe(listener: (projection: WorkspaceProjection) => void): () => void
+  subscribe(listener: (projection: WorkspaceProjection, update?: WorkspaceViewStateUpdate) => void): () => void
   /** Assembly lifecycle only; releases all bindings and makes future commands inert. */
   dispose(): void
 }

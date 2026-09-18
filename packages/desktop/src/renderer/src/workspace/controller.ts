@@ -23,6 +23,7 @@ import type {
   WorkspaceResult,
   WorkspaceStatus,
   WorkspaceTocItem,
+  WorkspaceViewStateUpdate,
   WorkspaceWarning
 } from '@shared/workspace'
 import type { DocumentIoSaveRequest, DocumentSaveAck } from '@shared/workspace/documentIo'
@@ -141,6 +142,11 @@ const EMPTY_VIEW: ViewState = {
   mode: 'wysiwyg'
 }
 
+const isCursorSelectionReport = (report: EditorReport): boolean => {
+  const fields = Object.keys(report)
+  return fields.length > 0 && fields.every(field => field === 'cursor' || field === 'selection')
+}
+
 function clone<T>(value: T): T {
   return structuredClone(value)
 }
@@ -168,7 +174,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
   private readonly capabilities = new WeakMap<WorkspaceCapability, CapabilityRecord>()
   private readonly transferFences = new Map<string, TransferFence>()
   private readonly pendingDocumentIo = new Map<string, PendingDocumentIo>()
-  private readonly listeners = new Set<(projection: WorkspaceProjection) => void>()
+  private readonly listeners = new Set<(
+    projection: WorkspaceProjection,
+    update?: WorkspaceViewStateUpdate
+  ) => void>()
+
   private warnings: WorkspaceWarning[] = []
   private focusedPaneId: PaneId = 'left'
   private splitRatio = 0.5
@@ -319,7 +329,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
     })
   }
 
-  subscribe(listener: (projection: WorkspaceProjection) => void): () => void {
+  subscribe(listener: (
+    projection: WorkspaceProjection,
+    update?: WorkspaceViewStateUpdate
+  ) => void): () => void {
     if (this.disposed) return () => undefined
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
@@ -449,11 +462,16 @@ export class WorkspaceController implements WorkspaceControllerContract {
         if (!this.documentIsCurrent(bound)) return this.rejected('stale document revision')
         if (this.hasPreflightForView(candidate.viewId)) return this.rejected('transfer preflight fence is active')
         if (this.pendingOperations > 0 || bound.refreshing) return this.rejected('workspace mutation is in progress')
+        const viewStateOnly = isCursorSelectionReport(report)
         const changed = this.applyReport(candidate.viewId, report)
         if (changed) {
-          this.updateBoundSnapshot(bound)
-          this.refreshSharedEditors(bound)
-          this.commit()
+          if (viewStateOnly) {
+            this.commitViewState(bound, candidate.viewId)
+          } else {
+            this.updateBoundSnapshot(bound)
+            this.refreshSharedEditors(bound)
+            this.commit()
+          }
         }
         return this.applied()
       },
@@ -1701,6 +1719,23 @@ export class WorkspaceController implements WorkspaceControllerContract {
     bound.snapshot = this.snapshotWithLease(this.snapshotFor(lease.paneId, lease.viewId), lease)
   }
 
+  private updateBoundViewSnapshot(bound: BoundAdapter, viewId: ViewId): void {
+    const lease = bound.lease
+    const snapshot = bound.snapshot
+    if (
+      !lease ||
+      !snapshot ||
+      !this.validLease(bound, lease) ||
+      lease.viewId !== viewId ||
+      snapshot.viewId !== viewId
+    ) return
+    bound.snapshot = freeze({
+      ...snapshot,
+      workspaceRevision: this.workspaceRevision,
+      view: clone(this.view(viewId).state)
+    })
+  }
+
   private disposeBinding(bound: BoundAdapter): void {
     for (const [paneId, candidate] of this.adapters) {
       if (candidate === bound) {
@@ -1744,12 +1779,27 @@ export class WorkspaceController implements WorkspaceControllerContract {
     })
   }
 
+  private commitViewState(bound: BoundAdapter, viewId: ViewId): void {
+    this.workspaceRevision += 1
+    this.updateBoundViewSnapshot(bound, viewId)
+    const update = freeze({
+      kind: 'view-state' as const,
+      viewId,
+      view: clone(this.view(viewId).state)
+    })
+    this.notify(update)
+  }
+
   private commit(): void {
     this.workspaceRevision += 1
+    this.notify()
+  }
+
+  private notify(update?: WorkspaceViewStateUpdate): void {
     const projection = this.getProjection()
     for (const listener of this.listeners) {
       try {
-        listener(projection)
+        listener(projection, update)
       } catch {
         // An observer must never prevent other subscribers or a committed state.
       }

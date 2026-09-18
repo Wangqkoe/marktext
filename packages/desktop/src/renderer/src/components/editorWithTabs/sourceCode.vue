@@ -128,11 +128,10 @@ watch(
   }
 )
 
-const getMarkdownAndCursor = (cm: CMInstance) => {
+const getCursor = (cm: CMInstance) => {
   let focus = cm.getCursor('head')
   let anchor = cm.getCursor('anchor')
 
-  const markdown: string = cm.getValue()
   const convertToMuyaCursor = (cursor: CMCursor) => {
     const line = cm.getLine(cursor.line)
     const preLine = cm.getLine(cursor.line - 1)
@@ -159,7 +158,11 @@ const getMarkdownAndCursor = (cm: CMInstance) => {
     focus = anchor
     anchor = tmpCursor
   }
-  return { cursor: { focus, anchor }, markdown }
+  return { focus, anchor }
+}
+
+const getMarkdownAndCursor = (cm: CMInstance) => {
+  return { cursor: getCursor(cm), markdown: cm.getValue() as string }
 }
 
 const activeSourceScope = (): PaneEditorEventScope | undefined => {
@@ -382,13 +385,19 @@ const saveContent = (cm: CMInstance) => {
   }
 }
 
+const saveCursor = (cm: CMInstance) => {
+  if (receivingSharedDocument || viewDestroyed.value) return
+  const scope = activeSourceScope()
+  if (scope) props.composition.reportSource(scope, { cursor: getCursor(cm) })
+}
+
 const listenChange = () => {
   editor.value.on('change', (cm: CMInstance) => {
     saveContent(cm)
   })
   editor.value.on('cursorActivity', (cm: CMInstance) => {
     reportCaretPosition(cm, props.caretSession)
-    saveContent(cm)
+    saveCursor(cm)
   })
 }
 

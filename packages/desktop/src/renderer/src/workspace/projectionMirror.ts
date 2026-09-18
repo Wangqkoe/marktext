@@ -1,4 +1,28 @@
-import type { WorkspaceController, WorkspaceFacadeSnapshot } from '@shared/workspace'
+import type {
+  WorkspaceController,
+  WorkspaceFacadeSnapshot,
+  WorkspaceProjection,
+  WorkspaceViewStateUpdate
+} from '@shared/workspace'
+
+export const patchWorkspaceFacadeViewState = (
+  current: WorkspaceFacadeSnapshot,
+  projection: WorkspaceProjection,
+  update: WorkspaceViewStateUpdate
+): WorkspaceFacadeSnapshot => Object.freeze({
+  projection,
+  documents: Object.freeze(current.documents.map((document) =>
+    document.viewId === update.viewId
+      ? Object.freeze({
+        ...document,
+        cursor: update.view.cursor,
+        selection: update.view.selection,
+        scrollTop: update.view.scrollTop,
+        mode: update.view.mode
+      })
+      : document
+  ))
+})
 
 /**
  * The one-way compatibility seam for legacy renderer consumers.  It stores
@@ -9,15 +33,21 @@ import type { WorkspaceController, WorkspaceFacadeSnapshot } from '@shared/works
 export class WorkspaceProjectionMirror {
   private projection: WorkspaceFacadeSnapshot
   private readonly unsubscribe: () => void
-  private readonly listeners = new Set<(projection: WorkspaceFacadeSnapshot) => void>()
+  private readonly listeners = new Set<(
+    projection: WorkspaceFacadeSnapshot,
+    update?: WorkspaceViewStateUpdate
+  ) => void>()
+
   private disposed = false
 
   constructor(private readonly controller: WorkspaceController) {
     this.projection = controller.getFacadeSnapshot()
-    this.unsubscribe = controller.subscribe(() => {
+    this.unsubscribe = controller.subscribe((projection, update) => {
       if (this.disposed) return
-      this.projection = controller.getFacadeSnapshot()
-      for (const listener of this.listeners) listener(this.projection)
+      this.projection = update?.kind === 'view-state'
+        ? patchWorkspaceFacadeViewState(this.projection, projection, update)
+        : controller.getFacadeSnapshot()
+      for (const listener of this.listeners) listener(this.projection, update)
     })
   }
 
@@ -25,7 +55,10 @@ export class WorkspaceProjectionMirror {
     return this.projection
   }
 
-  subscribe(listener: (projection: WorkspaceFacadeSnapshot) => void): () => void {
+  subscribe(listener: (
+    projection: WorkspaceFacadeSnapshot,
+    update?: WorkspaceViewStateUpdate
+  ) => void): () => void {
     if (this.disposed) return () => undefined
     this.listeners.add(listener)
     listener(this.projection)

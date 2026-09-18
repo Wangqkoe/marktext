@@ -569,6 +569,79 @@ describe('scroll report frequency', () => {
     }
   })
 
+  it('skips document persistence work for cursor-only commits and checkpoints that cursor on the next edit', async() => {
+    const testWindow = window as unknown as {
+      electron?: {
+        ipcRenderer?: {
+          invoke?: (channel: string, request: unknown) => Promise<unknown>
+        }
+      }
+    }
+    const originalElectron = testWindow.electron
+    const invoke = vi.fn(async(_channel: string, _request: unknown): Promise<unknown> => ({
+      durable: true,
+      receipt: 'crash-receipt'
+    }))
+    testWindow.electron = {
+      ...originalElectron,
+      ipcRenderer: { ...originalElectron?.ipcRenderer, invoke }
+    }
+
+    try {
+      const workspace = createWorkspaceRuntime([
+        { documentId: 'note', fileKey: '/note.md', markdown: 'body' }
+      ])
+      const documentIoPort = new RecordingDocumentIoPort()
+      const composition = createPaneEditorComposition({
+        paneId: 'left',
+        controller: workspace,
+        documentIoPort
+      })
+      const surface = new LifecyclePaneSurface()
+      await composition.mount(surface, {
+        id: 'note',
+        fileKey: '/note.md',
+        markdown: 'body',
+        title: 'note'
+      })
+      const scope = composition.getScope()
+      if (!scope) throw new Error('expected a mounted pane scope')
+      expect(scope.report({ markdown: 'first edit' }).status).toBe('applied')
+      await vi.waitFor(() =>
+        expect(documentIoPort.requests.some(request => request.kind === 'sync')).toBe(true)
+      )
+      await composition.checkpointCrashDraft()
+      documentIoPort.requests.length = 0
+      invoke.mockClear()
+
+      expect(scope.report({ cursor: { line: 3, column: 4 } }).status).toBe('applied')
+      await Promise.resolve()
+
+      expect(documentIoPort.requests).toEqual([])
+      expect(invoke).not.toHaveBeenCalled()
+      expect(workspace.getFacadeSnapshot().documents[0]?.cursor).toEqual({ line: 3, column: 4 })
+
+      expect(scope.report({ markdown: 'second edit' }).status).toBe('applied')
+      await vi.waitFor(() =>
+        expect(documentIoPort.requests.some(request => request.kind === 'sync')).toBe(true)
+      )
+      await composition.checkpointCrashDraft()
+      const checkpoints = invoke.mock.calls
+        .filter(([channel]) => channel === 'mt::workspace::crash-draft')
+        .map(([, request]) => request as {
+          kind?: string
+          checkpoint?: { view?: { cursor?: unknown } }
+        })
+        .filter(request => request.kind === 'checkpoint')
+      expect(checkpoints.at(-1)?.checkpoint?.view?.cursor).toEqual({ line: 3, column: 4 })
+
+      composition.unmount(surface)
+      workspace.dispose()
+    } finally {
+      testWindow.electron = originalElectron
+    }
+  })
+
   it('lets a queued successor generation win over its predecessor final scroll', async() => {
     const workspace = createWorkspaceRuntime([{ documentId: 'note', markdown: 'body' }])
     const predecessor = createPaneEditorComposition({ paneId: 'left', controller: workspace })
