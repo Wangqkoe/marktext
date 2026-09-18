@@ -26,6 +26,7 @@ import type {
   WorkspaceWarning
 } from '@shared/workspace'
 import type { DocumentIoSaveRequest, DocumentSaveAck } from '@shared/workspace/documentIo'
+import { mapIndexCursor } from '@shared/workspace/indexCursorMap'
 
 interface DocumentRecord {
   id: DocumentId
@@ -1395,7 +1396,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
       view.state.mode !== 'source' &&
       markdown !== document.canonicalBaseline
     if (changedBaseline) document.canonicalBaseline = markdown
-    if (this.applyReport(viewId, rest) || changedBaseline) {
+    const cursor = markdown !== undefined
+      ? mapIndexCursor(rest.cursor, markdown, document.markdown)
+      : rest.cursor
+    if (this.applyReport(viewId, { ...rest, cursor }) || changedBaseline) {
       this.updateBoundSnapshot(bound)
       this.refreshSharedEditors(bound)
     }
@@ -1456,6 +1460,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
       view.status = nextStatus
     }
     if (changedDocument) document.revision += 1
+    // A caret reported in the engine's serialization must address the text the
+    // document keeps, which Source mode displays.
+    const cursor = report.markdown !== undefined
+      ? mapIndexCursor(report.cursor, report.markdown, document.markdown)
+      : report.cursor
     const acceptsScroll =
       scrollObservationEpoch === undefined ||
       scrollObservationEpoch === view.scrollObservationEpoch
@@ -1465,7 +1474,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       !Object.is(view.state.scrollTop, report.scrollTop)
     const nextState = {
       ...view.state,
-      ...(report.cursor ? { cursor: clone(report.cursor) } : {}),
+      ...(cursor ? { cursor: clone(cursor) } : {}),
       ...(report.selection !== undefined ? { selection: clone(report.selection) } : {}),
       ...(acceptsScroll && report.scrollTop !== undefined ? { scrollTop: report.scrollTop } : {})
     }

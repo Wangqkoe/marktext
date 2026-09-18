@@ -37,6 +37,62 @@ test.describe('Entering Source mode keeps the hidden WYSIWYG engine', () => {
     await app.close()
   })
 
+  test('the caret stays on the same text when Source shows the unnormalized file', async() => {
+    // The file keeps extra blank lines and `*` bullets that the engine's own
+    // serialization rewrites, so line numbers differ between the two texts.
+    const { app, page } = await launchWithMarkdown(
+      '# Title\n\n\n\npara one\n\n\n\n* star item\n* second TARGET here\n\n\n\nlast para\n'
+    )
+    await waitForMenuReady(app)
+
+    await page.evaluate(() => {
+      const root = document.querySelector('.editor-component') as HTMLElement
+      root.focus()
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const index = (node.textContent ?? '').indexOf('TARGET')
+        if (index < 0) continue
+        const range = document.createRange()
+        range.setStart(node, index + 2)
+        range.collapse(true)
+        window.getSelection()?.removeAllRanges()
+        window.getSelection()?.addRange(range)
+        root.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true }))
+        return
+      }
+    })
+    await page.waitForTimeout(300)
+
+    await enterSourceMode(page, app)
+    await page.waitForTimeout(300)
+    const sourceCaret = await page.evaluate(() => {
+      const cm = (document.querySelector('.source-code .CodeMirror') as Element & {
+        CodeMirror: { getCursor(): { line: number, ch: number }, getLine(line: number): string }
+      }).CodeMirror
+      const { line, ch } = cm.getCursor()
+      return { line, text: cm.getLine(line), before: cm.getLine(line).slice(0, ch) }
+    })
+    expect(sourceCaret.line).toBe(9)
+    expect(sourceCaret.before).toBe('* second TA')
+
+    await page.evaluate(() => {
+      const cm = (document.querySelector('.source-code .CodeMirror') as Element & {
+        CodeMirror: { focus(): void, setCursor(pos: { line: number, ch: number }): void }
+      }).CodeMirror
+      cm.focus()
+      cm.setCursor({ line: 13, ch: 3 })
+    })
+    await page.waitForTimeout(300)
+    await exitSourceMode(page, app)
+    await page.waitForTimeout(500)
+    const caret = await page.evaluate(() => {
+      const selection = window.getSelection()
+      return { text: selection?.anchorNode?.textContent, offset: selection?.anchorOffset }
+    })
+    expect(caret).toEqual({ text: 'last para', offset: 3 })
+    await app.close()
+  })
+
   test('an unchanged Source round trip keeps content and undo of the earlier WYSIWYG edit', async() => {
     const { app, page } = await launchWithMarkdown('alpha\n')
     await waitForMenuReady(app)

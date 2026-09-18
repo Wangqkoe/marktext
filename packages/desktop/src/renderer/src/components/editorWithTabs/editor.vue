@@ -113,6 +113,7 @@ import {
 } from '@muyajs/core'
 import { exportStyledHTML, type HeaderFooterPart } from '@/util/exportHtml'
 import { applyCursor, isIndexCursor } from '@/util/cursor'
+import { mapIndexCursor } from '@shared/workspace/indexCursorMap'
 import { workspaceStatusFromCounts } from '@/util/documentStatus'
 import {
   caretPositionFromIndexCursor,
@@ -1721,6 +1722,13 @@ const handleFileChange = (payload: unknown) => {
   const container = getScrollContainer()
   if (!container) return
 
+  // An index cursor addresses `newMarkdown`, the text Source mode shows; the
+  // engine resolves it against its own serialization of that text.
+  function engineCursor<T> (cursor: T): T {
+    if (typeof newMarkdown !== 'string' || !isIndexCursor(cursor) || !editor.value) return cursor
+    return mapIndexCursor(cursor, newMarkdown, editor.value.getMarkdown())
+  }
+
   if (typeof newMarkdown === 'string') {
     engineDocumentId = id
     editor.value.setOptions({ imageBasePath: imageBasePathFor(pathname ?? currentFile.value?.pathname) })
@@ -1754,7 +1762,7 @@ const handleFileChange = (payload: unknown) => {
       editorStore.UPDATE_TOC(editor.value.getTOC())
       // Map the CodeMirror `{ line, ch }` cursor onto a block-key cursor so the
       // WYSIWYG caret lands where the source-mode cursor was (PG2).
-      editor.value.setCursorByOffset(muyaIndexCursor)
+      editor.value.setCursorByOffset(engineCursor(muyaIndexCursor))
     } else if (isReload) {
       // External disk reload (`loadChange`): the tab is already the live engine
       // document, so record the new on-disk content as a SINGLE invertible undo
@@ -1775,7 +1783,7 @@ const handleFileChange = (payload: unknown) => {
       editor.value.replaceContent(newMarkdown)
       editorStore.UPDATE_TOC(editor.value.getTOC())
       if (newCursor) {
-        applyCursor(editor.value, newCursor)
+        applyCursor(editor.value, engineCursor(newCursor))
       }
     } else {
       // Tab switch / programmatic content swap: `setContent` replaces the
@@ -1788,13 +1796,13 @@ const handleFileChange = (payload: unknown) => {
       // TOC (otherwise returning to an open tab keeps the other tab's TOC).
       editorStore.UPDATE_TOC(editor.value.getTOC())
       if (newCursor) {
-        applyCursor(editor.value, newCursor)
+        applyCursor(editor.value, engineCursor(newCursor))
       } else if (isIndexCursor(muyaIndexCursor)) {
         // Source-mode handoff for a tab the engine has no history for (e.g.
         // first interaction after load): fall back to a caret-only remap. The
         // engine runs its own setContent dance internally, so restore the
         // history after.
-        editor.value.setCursorByOffset(muyaIndexCursor)
+        editor.value.setCursorByOffset(engineCursor(muyaIndexCursor))
       }
       const savedEngineHistory = payloadHistory && typeof payloadHistory === 'object'
         ? payloadHistory
@@ -2085,7 +2093,6 @@ onMounted(() => {
           if (!editor.value) return
           if (engineAlreadyHolds(snapshot)) {
             deferredSnapshot = undefined
-            if (focusReplacement) nextTick(focusFreshEditor)
             committed = true
             return
           }
