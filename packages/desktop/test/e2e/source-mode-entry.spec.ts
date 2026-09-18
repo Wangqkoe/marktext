@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 import {
   enterSourceMode,
   exitSourceMode,
@@ -90,6 +92,33 @@ test.describe('Entering Source mode keeps the hidden WYSIWYG engine', () => {
       return { text: selection?.anchorNode?.textContent, offset: selection?.anchorOffset }
     })
     expect(caret).toEqual({ text: 'last para', offset: 3 })
+    await app.close()
+  })
+
+  test('a file opened in Source mode opens in Source mode and the menu follows the active tab', async() => {
+    const { app, page, filePath } = await launchWithMarkdown('# First\n')
+    await waitForMenuReady(app)
+    const sourceMenuChecked = () => app.evaluate(({ Menu }) =>
+      !!Menu.getApplicationMenu()?.getMenuItemById('sourceCodeModeMenuItem')?.checked)
+
+    await enterSourceMode(page, app)
+    const second = path.join(path.dirname(filePath), 'second.md')
+    fs.writeFileSync(second, '# Second\n', 'utf-8')
+    await page.evaluate((file) => window.electron.ipcRenderer.send('mt::open-file', file, {}), second)
+    await expect(page.locator('.editor-tabs li.active')).toContainText('second.md')
+    await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
+    await expect.poll(() => page.evaluate(() =>
+      (document.querySelector('.source-code .CodeMirror') as Element & { CodeMirror: { getValue(): string } })
+        .CodeMirror.getValue())).toBe('# Second\n')
+    expect(await sourceMenuChecked()).toBe(true)
+
+    await exitSourceMode(page, app)
+    await page.locator('.editor-tabs .tab-select', { hasText: 'note.md' }).click()
+    await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
+    await expect.poll(sourceMenuChecked).toBe(true)
+    await page.locator('.editor-tabs .tab-select', { hasText: 'second.md' }).click()
+    await expect(page.locator('.source-code')).toHaveCount(0)
+    await expect.poll(sourceMenuChecked).toBe(false)
     await app.close()
   })
 

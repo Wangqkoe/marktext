@@ -430,6 +430,7 @@ const syncLegacySourceMode = () => {
   const activeMode = focusedPane?.tabs.find((tab) => tab.viewId === focusedPane.activeViewId)?.mode
   if (activeMode && preferencesStore.sourceCode !== (activeMode === 'source')) {
     preferencesStore.SET_MODE({ type: 'sourceCode', checked: activeMode === 'source' })
+    preferencesStore.DISPATCH_EDITOR_VIEW_STATE({ sourceCode: activeMode === 'source' })
   }
 }
 const unsubscribe = controller.subscribe(() => {

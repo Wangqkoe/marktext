@@ -87,17 +87,18 @@ test('sidebar and editor layout preferences survive application restart', async(
     expect(await menuChecked(app, 'sourceCodeModeMenuItem')).toBe(sourceWasVisible)
     if (!sourceWasVisible) await clickMenuById(app, 'sourceCodeModeMenuItem')
     await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
-    await page.evaluate(() => {
-      window.electron.ipcRenderer.send('mt::set-user-preference', {
-        sourceCodeModeEnabled: true
-      })
-    })
     ;({ app, page } = await restart(app, page, userDataDir))
     await expect(page.locator('.editor-tabs')).toBeHidden()
     await expect(page.locator('.source-code .CodeMirror')).toBeVisible()
     expect(await menuChecked(app, 'tabBarMenuItem')).toBe(false)
     expect(await menuChecked(app, 'sourceCodeModeMenuItem')).toBe(true)
     expect(await menuChecked(app, 'sideBarMenuItem')).toBe(true)
+
+    await clickMenuById(app, 'sourceCodeModeMenuItem')
+    await expect(page.locator('.source-code .CodeMirror')).toHaveCount(0)
+    ;({ app, page } = await restart(app, page, userDataDir))
+    await expect(page.locator('.source-code .CodeMirror')).toHaveCount(0)
+    expect(await menuChecked(app, 'sourceCodeModeMenuItem')).toBe(false)
 
     await clickMenuById(app, 'sideBarMenuItem')
     await expect(page.locator('.side-bar')).toBeHidden()

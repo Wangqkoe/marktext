@@ -281,6 +281,11 @@ export const usePreferencesStore = defineStore('preferences', {
         bus.emit('flush-active-editor')
       }
       this[entryName] = !this[entryName]
+      // New windows open in the mode the user last chose. Only an explicit
+      // toggle records it; the live mode also flips while a window closes.
+      if (entryName === 'sourceCode') {
+        this.SET_SINGLE_PREFERENCE({ type: 'sourceCodeModeEnabled', value: this.sourceCode })
+      }
     },
 
     ASK_FOR_USER_PREFERENCE(): void {

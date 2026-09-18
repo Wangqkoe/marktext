@@ -641,7 +641,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (!pane) return this.rejected('missing pane')
     await this.flushPane(paneId)
     const doc = this.makeDocument({ markdown })
-    const view = this.makeView(doc.id)
+    const view = this.makeView(doc.id, { mode: this.modeForNewView(pane) })
     const cleanSurfaceReport = await this.refreshAdapter(
       paneId,
       this.snapshotForRecord(paneId, view, doc)
@@ -683,7 +683,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       }
     }
     const doc = this.makeDocument(input)
-    const view = this.makeView(doc.id, input.view)
+    const view = this.makeView(doc.id, { mode: this.modeForNewView(pane), ...input.view })
     const cleanSurfaceReport = selected
       ? await this.refreshAdapter(pane.id, this.snapshotForRecord(pane.id, view, doc))
       : undefined
@@ -1180,7 +1180,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       return this.applied()
     } else {
       const clean = this.makeDocument({})
-      const replacement = this.makeView(clean.id)
+      const replacement = this.makeView(clean.id, { mode: this.modeForNewView(pane) })
       await this.flushAndRefresh(pane.id, () => this.snapshotForRecord(pane.id, replacement, clean))
       this.documents.set(clean.id, clean)
       this.views.set(replacement.id, replacement)
@@ -1558,6 +1558,12 @@ export class WorkspaceController implements WorkspaceControllerContract {
       sourceEdited: false,
       reloadSerial: 0
     }
+  }
+
+  // Opening a document keeps the editing mode the pane is showing, as the
+  // single window-wide Source mode toggle did before views had their own mode.
+  private modeForNewView(pane: PaneRecord): EditorMode {
+    return this.views.get(pane.activeViewId)?.state.mode ?? EMPTY_VIEW.mode
   }
 
   private makeView(documentId: DocumentId, state: Partial<ViewState> = {}): ViewRecord {

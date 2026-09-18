@@ -1668,7 +1668,9 @@ describe('WorkspaceRuntime', () => {
     expect((await pendingHandoff).status).toBe('applied')
     expect((await pendingTransition).status).toBe('applied')
     expect(binding.report(oldLease, { markdown: 'stale' }).status).toBe('rejected')
-    expect(currentLease(binding).mode).toBe('wysiwyg')
+    // The new tab opens in the mode the handoff switched the pane to.
+    expect(currentLease(binding).viewId).not.toBe(oldLease.viewId)
+    expect(currentLease(binding).mode).toBe('source')
   })
 
   it('keeps unaffected pane bindings isolated while global projection revisions remain monotonic', async() => {
