@@ -35,7 +35,7 @@ function buildHtmlOptions(options: Muya['options']) {
     const {
         footnote,
         frontMatter = true,
-        math,
+        texMathDollars,
         latexMathDelimiters,
         isGitlabCompatibilityEnabled,
         superSubScript,
@@ -44,7 +44,7 @@ function buildHtmlOptions(options: Muya['options']) {
     return {
         footnote,
         frontMatter,
-        math,
+        texMathDollars,
         latexMathDelimiters,
         isGitlabCompatibilityEnabled,
         superSubScript,

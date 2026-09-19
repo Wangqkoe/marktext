@@ -428,6 +428,7 @@
         "superSubScript": "Pandocs Markdown-Erweiterung für hoch- und tiefgestellte Zeichen aktivieren",
         "footnote": "Pandocs Markdown-Erweiterung für Fußnoten aktivieren",
         "latexMathDelimiters": "LaTeX-Mathematikbegrenzer \\(...\\) und \\[...\\] aktivieren",
+        "texMathDollars": "Pandocs Markdown-Erweiterung tex_math_dollars aktivieren",
         "isHtmlEnabled": "HTML-Rendering aktivieren",
         "isGitlabCompatibilityEnabled": "GitLab-Kompatibilitätsmodus aktivieren",
         "sequenceTheme": "Sequenzdiagramm-Theme",
@@ -659,6 +660,7 @@
         "footnote": "Fußnote",
         "footnoteNotes": "Fußnoten",
         "latexMathDelimiters": "LaTeX-Mathematikbegrenzer \\(...\\) und \\[...\\]",
+        "texMathDollars": "TeX-Mathematik mit $ und $$",
         "frontmatterType": {
           "jsonBrace": "JSON-Klammer",
           "jsonSemicolon": "JSON-Semikolon",

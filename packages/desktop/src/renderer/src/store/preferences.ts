@@ -84,6 +84,7 @@ export interface PreferencesState {
   superSubScript: boolean
   footnote: boolean
   latexMathDelimiters: boolean
+  texMathDollars: boolean
   isHtmlEnabled: boolean
   isGitlabCompatibilityEnabled: boolean
   sequenceTheme: SequenceTheme | string
@@ -204,6 +205,7 @@ export const usePreferencesStore = defineStore('preferences', {
     superSubScript: false,
     footnote: false,
     latexMathDelimiters: false,
+    texMathDollars: true,
     isHtmlEnabled: true,
     isGitlabCompatibilityEnabled: false,
     sequenceTheme: 'hand',

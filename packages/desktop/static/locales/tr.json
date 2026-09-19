@@ -427,6 +427,7 @@
         "superSubScript": "Pandoc'un markdown uzantısı üst simge ve alt simgeyi etkinleştir",
         "footnote": "Pandoc'un markdown uzantısı dipnotu etkinleştir",
         "latexMathDelimiters": "LaTeX matematik sınırlayıcılarını \\(...\\) ve \\[...\\] etkinleştir",
+        "texMathDollars": "Pandoc'un markdown uzantısı tex_math_dollars'ı etkinleştir",
         "isHtmlEnabled": "HTML işlemeyi etkinleştir",
         "isGitlabCompatibilityEnabled": "GitLab uyumluluk modunu etkinleştir",
         "sequenceTheme": "Dizi diyagramı teması",
@@ -659,6 +660,7 @@
         "footnote": "Dipnot",
         "footnoteNotes": "Dipnot notları",
         "latexMathDelimiters": "LaTeX matematik sınırlayıcıları \\(...\\) ve \\[...\\]",
+        "texMathDollars": "$ ve $$ ile TeX matematiği",
         "frontmatterType": {
           "jsonBrace": "Süslü Parantezli JSON",
           "jsonSemicolon": "Noktalı Virgüllü JSON",

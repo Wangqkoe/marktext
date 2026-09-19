@@ -428,6 +428,7 @@
         "superSubScript": "Habilitar extensão markdown do pandoc para sobrescrito e subscrito",
         "footnote": "Habilitar extensão markdown do pandoc para nota de rodapé",
         "latexMathDelimiters": "Habilitar delimitadores matemáticos LaTeX \\(...\\) e \\[...\\]",
+        "texMathDollars": "Ativar a extensão markdown do pandoc tex_math_dollars",
         "isHtmlEnabled": "Habilitar renderização HTML",
         "isGitlabCompatibilityEnabled": "Habilitar modo de compatibilidade GitLab",
         "sequenceTheme": "Tema do diagrama de sequência",
@@ -659,6 +660,7 @@
         "footnote": "Nota de rodapé",
         "footnoteNotes": "Notas de rodapé",
         "latexMathDelimiters": "Delimitadores matemáticos LaTeX \\(...\\) e \\[...\\]",
+        "texMathDollars": "Matemática TeX com $ e $$",
         "frontmatterType": {
           "jsonBrace": "JSON com Chaves",
           "jsonSemicolon": "JSON com Ponto e Vírgula",

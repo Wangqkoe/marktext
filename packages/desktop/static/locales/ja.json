@@ -428,6 +428,7 @@
         "superSubScript": "Pandocのmarkdown拡張上付き文字と下付き文字を有効にする",
         "footnote": "Pandocのmarkdown拡張脚注を有効にする",
         "latexMathDelimiters": "LaTeX 数式区切り \\(...\\) と \\[...\\] を有効にする",
+        "texMathDollars": "Pandoc の markdown 拡張 tex_math_dollars を有効にする",
         "isHtmlEnabled": "HTMLレンダリングを有効にする",
         "isGitlabCompatibilityEnabled": "GitLab互換モードを有効にする",
         "sequenceTheme": "シーケンス図のテーマ",
@@ -659,6 +660,7 @@
         "footnote": "脚注",
         "footnoteNotes": "脚注",
         "latexMathDelimiters": "LaTeX 数式区切り \\(...\\) と \\[...\\]",
+        "texMathDollars": "$ と $$ による TeX 数式",
         "frontmatterType": {
           "jsonBrace": "JSON括弧",
           "jsonSemicolon": "JSONセミコロン",

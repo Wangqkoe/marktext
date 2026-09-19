@@ -6,7 +6,7 @@ import StateToMarkdown from '../stateToMarkdown';
 function parse(markdown: string, latexMathDelimiters = true): TState[] {
     return new MarkdownToState({
         footnote: false,
-        math: true,
+        texMathDollars: true,
         latexMathDelimiters,
         isGitlabCompatibilityEnabled: false,
         trimUnnecessaryCodeBlockEmptyLines: false,

@@ -46,6 +46,7 @@ export interface IUserPreferences {
   superSubScript?: boolean
   footnote?: boolean
   latexMathDelimiters?: boolean
+  texMathDollars?: boolean
   isHtmlEnabled?: boolean
   isGitlabCompatibilityEnabled?: boolean
   theme?: string

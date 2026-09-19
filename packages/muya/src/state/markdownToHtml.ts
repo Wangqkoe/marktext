@@ -187,7 +187,7 @@ export class MarkdownToHtml {
             footnote,
             isGitlabCompatibilityEnabled:
         this._muya?.options?.isGitlabCompatibilityEnabled ?? true,
-            math: this._muya?.options?.math ?? true,
+            texMathDollars: this._muya?.options?.texMathDollars ?? true,
             latexMathDelimiters: this._muya?.options?.latexMathDelimiters ?? false,
         });
 

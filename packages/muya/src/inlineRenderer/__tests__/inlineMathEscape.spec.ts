@@ -20,6 +20,7 @@ function latexMathToken(src: string): CodeEmojiMathToken | undefined {
         options: {
             superSubScript: true,
             footnote: false,
+            texMathDollars: true,
             latexMathDelimiters: true,
         },
     }).find(t => t.type === 'inline_math') as CodeEmojiMathToken | undefined;

@@ -68,6 +68,12 @@
           :bool="latexMathDelimiters"
           :on-change="(value) => onSelectChange('latexMathDelimiters', value)"
         />
+        <bool
+          :description="t('preferences.markdown.extensions.texMathDollars')"
+          :bool="texMathDollars"
+          :on-change="(value) => onSelectChange('texMathDollars', value)"
+          more="https://pandoc.org/MANUAL.html#extension-tex_math_dollars"
+        />
       </template>
     </compound>
 
@@ -165,6 +171,7 @@ const {
   superSubScript,
   footnote,
   latexMathDelimiters,
+  texMathDollars,
   isHtmlEnabled,
   isGitlabCompatibilityEnabled,
   sequenceTheme,

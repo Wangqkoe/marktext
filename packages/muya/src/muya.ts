@@ -129,7 +129,7 @@ const HEADING_LEVEL_BLOCK_NAMES = new Set(['paragraph', 'atx-heading', 'setext-h
 const PARSE_AFFECTING_OPTIONS = new Set<keyof IMuyaOptions>([
     'isGitlabCompatibilityEnabled',
     'latexMathDelimiters',
-    'math',
+    'texMathDollars',
     'footnote',
     'frontMatter',
     'trimUnnecessaryCodeBlockEmptyLines',

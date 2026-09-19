@@ -40,7 +40,7 @@ export function getHighlightHtml(src: string, options: ILexOption = {}) {
     const {
         footnote,
         frontMatter,
-        math,
+        texMathDollars,
         latexMathDelimiters,
         isGitlabCompatibilityEnabled,
         superSubScript,
@@ -54,7 +54,7 @@ export function getHighlightHtml(src: string, options: ILexOption = {}) {
     const marked = new Marked(markedHighlight({ highlight }));
 
     marked.use({
-        walkTokens: walkTokens({ math, isGitlabCompatibilityEnabled }),
+        walkTokens: walkTokens({ texMathDollars, isGitlabCompatibilityEnabled }),
     });
 
     // Treat CJK characters as punctuation for emphasis/strong flanking so
@@ -64,7 +64,7 @@ export function getHighlightHtml(src: string, options: ILexOption = {}) {
 
     marked.use(emojiExtension({ isRenderEmoji: true }));
 
-    if (math) {
+    if (texMathDollars) {
         marked.use(
             mathExtension({
                 throwOnError: false,

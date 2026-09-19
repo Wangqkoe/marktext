@@ -56,6 +56,7 @@
   "superSubScript": false,
   "footnote": false,
   "latexMathDelimiters": false,
+  "texMathDollars": true,
   "isHtmlEnabled": true,
   "isGitlabCompatibilityEnabled": false,
   "sequenceTheme": "hand",

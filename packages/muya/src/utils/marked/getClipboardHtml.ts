@@ -25,7 +25,7 @@ export function getClipBoardHtml(src: string, options: ILexOption = {}) {
     const {
         footnote,
         frontMatter,
-        math,
+        texMathDollars,
         latexMathDelimiters,
         isGitlabCompatibilityEnabled,
         superSubScript,
@@ -40,14 +40,14 @@ export function getClipBoardHtml(src: string, options: ILexOption = {}) {
     const marked = new Marked();
 
     marked.use({
-        walkTokens: walkTokens({ math, isGitlabCompatibilityEnabled }),
+        walkTokens: walkTokens({ texMathDollars, isGitlabCompatibilityEnabled }),
     });
 
     // CJK-as-punctuation emphasis flanking (marktext/marktext#4307); keeps the
     // clipboard HTML consistent with the static / export render path.
     marked.use(cjkEmStrongExtension());
 
-    if (math) {
+    if (texMathDollars) {
         marked.use(
             mathExtension({
                 throwOnError: false,

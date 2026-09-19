@@ -63,6 +63,7 @@ Preferences can be controlled and modified in the settings window or via the `pr
 | frontmatterType              | String  | `-`     | Frontmatter delimiter: `-` (YAML), `+` (TOML), `;` (JSON), or `{` (JSON).                                                            |
 | superSubScript               | Boolean | `false` | Enable pandoc's superscript/subscript markdown extension.                                                                            |
 | footnote                     | Boolean | `false` | Enable pandoc's footnote markdown extension.                                                                                         |
+| texMathDollars               | Boolean | `true`  | Enable pandoc's [`tex_math_dollars`](https://pandoc.org/MANUAL.html#extension-tex_math_dollars) extension — `$…$` and `$$…$$` math. |
 | isHtmlEnabled                | Boolean | `true`  | Enable inline HTML rendering.                                                                                                        |
 | isGitlabCompatibilityEnabled | Boolean | `false` | Enable GitLab compatibility mode.                                                                                                    |
 | sequenceTheme                | String  | `hand`  | Theme for [js-sequence-diagrams](https://bramp.github.io/js-sequence-diagrams/): `hand` or `simple`.                                 |

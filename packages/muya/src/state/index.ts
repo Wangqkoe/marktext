@@ -107,7 +107,7 @@ class JSONState {
             isGitlabCompatibilityEnabled,
             trimUnnecessaryCodeBlockEmptyLines,
             frontMatter,
-            math,
+            texMathDollars,
             latexMathDelimiters,
         } = this._muya.options;
 
@@ -116,7 +116,7 @@ class JSONState {
             isGitlabCompatibilityEnabled,
             trimUnnecessaryCodeBlockEmptyLines,
             frontMatter,
-            math,
+            texMathDollars,
             latexMathDelimiters,
         }).generate(markdown);
     }

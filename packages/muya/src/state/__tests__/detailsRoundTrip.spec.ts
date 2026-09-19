@@ -16,7 +16,7 @@ describe('raw HTML details round-trip', () => {
     it('preserves original details source and open through Markdown state', () => {
         const states = new MarkdownToState({
             footnote: false,
-            math: false,
+            texMathDollars: false,
             isGitlabCompatibilityEnabled: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
@@ -29,7 +29,7 @@ describe('raw HTML details round-trip', () => {
     it('keeps raw details text with blank lines in one previewable HTML block', () => {
         const states = new MarkdownToState({
             footnote: false,
-            math: false,
+            texMathDollars: false,
             isGitlabCompatibilityEnabled: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
@@ -42,7 +42,7 @@ describe('raw HTML details round-trip', () => {
     it('keeps a quoted closing-tag string inside matching raw details', () => {
         const states = new MarkdownToState({
             footnote: false,
-            math: false,
+            texMathDollars: false,
             isGitlabCompatibilityEnabled: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
@@ -61,7 +61,7 @@ describe('raw HTML details round-trip', () => {
     it('ignores closing-tag strings in raw script and style content', () => {
         const states = new MarkdownToState({
             footnote: false,
-            math: false,
+            texMathDollars: false,
             isGitlabCompatibilityEnabled: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
@@ -80,7 +80,7 @@ describe('raw HTML details round-trip', () => {
     it('ignores closing-tag strings in raw textarea content', () => {
         const states = new MarkdownToState({
             footnote: false,
-            math: false,
+            texMathDollars: false,
             isGitlabCompatibilityEnabled: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
@@ -99,7 +99,7 @@ describe('raw HTML details round-trip', () => {
     it('replays malformed details openers without swallowing later content', () => {
         const states = new MarkdownToState({
             footnote: false,
-            math: false,
+            texMathDollars: false,
             isGitlabCompatibilityEnabled: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
