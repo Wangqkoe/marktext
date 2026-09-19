@@ -1,5 +1,9 @@
 # Source CodeMirror `changes` batching: diagnostic timing
 
+## 决策：暂缓实施（2026-09-19）
+
+这次实验只为一次操作内产生多个 `change` 的批量编辑提供了收益证据；不保证普通单字输入、文档打开或切换、滚动更快。用户决定当前先不实施，产品保留现有 `change` 监听。只有后续出现实际批量编辑性能需求时，才重新开启实现，并完成内容、光标、撤销重做和持久化等正确性验收。
+
 This is a measurement, not a product change. Baseline: `1dde81b11f1f84d4d848f5138e9b7b954e792e6f`. The product listener remains `change` after this run. The only candidate difference was that the same `saveContent` call was made from CodeMirror's operation-level `changes` event instead of each `change` event. No timer, debounce, deferred Markdown synchronization, or other product optimization was introduced.
 
 The [diagnostic test](../../packages/desktop/test/e2e/source-batch-timing.spec.ts) uses the same synthetic document generator as `source-cursor-response-perf.spec.ts`, with hard assertions for 9309 lines and 626129 UTF-8 bytes. It launches an isolated temporary Electron profile, enters Source mode, presses real trusted `x` and `Tab` keys, and times keydown-to-visible text via `requestAnimationFrame`. The Tab command acts on a 20-line selection. Each variant/action had two warmups and five recorded repetitions in one session. The test checked CodeMirror and workspace Markdown after the edit, undo, redo, and final undo. All checks passed. The temporary instrumentation and A/B listener switch are preserved as [a reproducible patch](source-batch-probe.patch); they were removed from the product tree afterward, followed by a successful uninstrumented build.
