@@ -1,4 +1,4 @@
-import { test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -92,6 +92,14 @@ const armOperation = async(page: Page, action: Action): Promise<void> => {
         const onKeyDown = (event: KeyboardEvent) => {
           if (!event.isTrusted || event.key !== expectedKey) return
           const startedAt = performance.now()
+          const probe = (window as typeof window & { __MT_UI_CLONE_PROBE__?: {
+            active: boolean
+            spans: Array<{ label: string; ms: number }>
+          } }).__MT_UI_CLONE_PROBE__
+          if (probe && selectedAction === 'insert') {
+            probe.spans = []
+            probe.active = true
+          }
           let frames = 0
           const poll = () => {
             frames += 1
@@ -114,6 +122,7 @@ const armOperation = async(page: Page, action: Action): Promise<void> => {
                 beforeLine.slice(0, start.ch) + 'x' + beforeLine.slice(start.ch)
               )
             if (modelReady && cursorVisible && textVisible) {
+              if (probe) probe.active = false
               window.clearTimeout(timeout)
               document.removeEventListener('keydown', onKeyDown, true)
               resolve({ latencyMs: performance.now() - startedAt, frames })
@@ -124,6 +133,9 @@ const armOperation = async(page: Page, action: Action): Promise<void> => {
           requestAnimationFrame(poll)
         }
         const timeout = window.setTimeout(() => {
+          const probe = (window as typeof window & { __MT_UI_CLONE_PROBE__?: { active: boolean } })
+            .__MT_UI_CLONE_PROBE__
+          if (probe) probe.active = false
           document.removeEventListener('keydown', onKeyDown, true)
           reject(new Error('operation did not become visible'))
         }, 2_000)
@@ -199,6 +211,109 @@ test.describe('Source cursor response performance', () => {
         lineCount: markdown.split('\n').length,
         repetitions,
         warmups,
+        samples
+      }, null, 2) + '\n')
+    } finally {
+      if (app) await closeDiscardingChanges(app)
+      fs.rmSync(temporaryRoot, { recursive: true, force: true })
+    }
+  })
+})
+
+const readSourceState = (page: Page) => page.evaluate(() => {
+  type CM = { getValue(): string }
+  const cm = (document.querySelector('.source-code .CodeMirror') as
+    | (Element & { CodeMirror?: CM }) | null)?.CodeMirror
+  const facade = (window as typeof window & { __mtWorkspaceSnapshot?: () => {
+    documents: Array<{ markdown: string; portableHistory: unknown; documentRevision: number }>
+    projection: { panes: Array<{ tabs: unknown[] }> }
+  } }).__mtWorkspaceSnapshot?.()
+  if (!cm || !facade || facade.documents.length !== 1) throw new Error('Source facade is unavailable')
+  const workspaceDocument = facade.documents[0]
+  return {
+    cmMarkdown: cm.getValue(),
+    workspaceMarkdown: workspaceDocument.markdown,
+    revision: workspaceDocument.documentRevision,
+    documentCount: facade.documents.length,
+    tabCount: facade.projection.panes.reduce((count, pane) => count + pane.tabs.length, 0),
+    historyBytes: new TextEncoder().encode(JSON.stringify(workspaceDocument.portableHistory)).length,
+    markdownBytes: new TextEncoder().encode(workspaceDocument.markdown).length
+  }
+})
+
+test.describe('Source UI clone timing', () => {
+  const timingOutputPath = process.env.MARKTEXT_SOURCE_UI_CLONE_TIMING_OUT
+  test.skip(!timingOutputPath, 'set MARKTEXT_SOURCE_UI_CLONE_TIMING_OUT')
+
+  test('measures only trusted inserts in one controlled session', async() => {
+    test.setTimeout(10 * 60 * 1_000)
+    if (!timingOutputPath) throw new Error('timing output path is required')
+    const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'marktext-ui-clone-'))
+    const fixturePath = path.join(temporaryRoot, 'large.md')
+    const userDataDir = path.join(temporaryRoot, 'profile')
+    const markdown = generateLargeDocument()
+    fs.writeFileSync(fixturePath, markdown, 'utf8')
+    let app: ElectronApplication | undefined
+    try {
+      const launched = await launchElectron([fixturePath], { userDataDir, userDataDirOwnership: 'caller' })
+      app = launched.app
+      const page = launched.page
+      await waitForEditor(page)
+      await waitForMenuReady(app)
+      await enterSourceMode(page, app)
+      await page.waitForTimeout(500)
+      const initial = await readSourceState(page)
+      expect(initial.cmMarkdown).toBe(markdown)
+      expect(initial.workspaceMarkdown).toBe(markdown)
+      await page.evaluate(() => {
+        (window as typeof window & { __MT_UI_CLONE_PROBE__?: unknown }).__MT_UI_CLONE_PROBE__ = {
+          active: false,
+          spans: []
+        }
+      })
+      const samples: Array<{ repetition: number; latencyMs: number; frames: number;
+        spans: Array<{ label: string; ms: number }> }> = []
+      let previousRevision = initial.revision
+      for (let repetition = 1 - warmups; repetition <= repetitions; repetition += 1) {
+        await armOperation(page, 'insert')
+        await page.keyboard.press('x')
+        const response = await readOperation(page)
+        const spans = await page.evaluate(() => {
+          const probe = (window as typeof window & { __MT_UI_CLONE_PROBE__?: {
+            spans: Array<{ label: string; ms: number }>
+          } }).__MT_UI_CLONE_PROBE__
+          if (!probe) throw new Error('timing probe is unavailable')
+          return probe.spans
+        })
+        expect(spans.length).toBeGreaterThan(0)
+        expect(spans.some(span => span.label === 'snapshot.clone')).toBe(true)
+        expect(spans.some(span => span.label === 'apply.total')).toBe(true)
+        expect(spans.some(span => span.label === 'reportSource.markdown')).toBe(true)
+        const inserted = await readSourceState(page)
+        expect(inserted.cmMarkdown).toBe(inserted.workspaceMarkdown)
+        expect(inserted.cmMarkdown.length).toBe(markdown.length + 1)
+        expect(inserted.revision).toBeGreaterThan(previousRevision)
+        if (repetition > 0) samples.push({ repetition, ...response, spans })
+        await cleanupInsert(page)
+        const cleaned = await readSourceState(page)
+        expect(cleaned.cmMarkdown).toBe(markdown)
+        expect(cleaned.workspaceMarkdown).toBe(markdown)
+        previousRevision = cleaned.revision
+        await page.waitForTimeout(20)
+      }
+      const final = await readSourceState(page)
+      fs.mkdirSync(path.dirname(timingOutputPath), { recursive: true })
+      fs.writeFileSync(timingOutputPath, JSON.stringify({
+        recordedAt: new Date().toISOString(),
+        baseCommit: '22972132975e54127a564f77dfd6d306cb8f3854',
+        bytes: Buffer.byteLength(markdown),
+        lineCount: markdown.split('\n').length,
+        warmups,
+        repetitions,
+        initial: { documentCount: initial.documentCount, tabCount: initial.tabCount,
+          historyBytes: initial.historyBytes, markdownBytes: initial.markdownBytes },
+        final: { documentCount: final.documentCount, tabCount: final.tabCount,
+          historyBytes: final.historyBytes, markdownBytes: final.markdownBytes },
         samples
       }, null, 2) + '\n')
     } finally {

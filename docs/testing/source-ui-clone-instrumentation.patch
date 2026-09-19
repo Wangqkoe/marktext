@@ -1,0 +1,118 @@
+diff --git a/packages/desktop/src/renderer/src/store/editor.ts b/packages/desktop/src/renderer/src/store/editor.ts
+--- a/packages/desktop/src/renderer/src/store/editor.ts
++++ b/packages/desktop/src/renderer/src/store/editor.ts
+@@ -239,10 +239,26 @@ const freezeFacadeValue = <T>(value: T, seen = new WeakSet<object>()): T => {
+   return Object.freeze(value)
+ }
+ 
+-const inertControllerFacadeFile = (file: ControllerFacadeFile): ControllerFacadeFile => {
++// [DEBUG-ui-clone] Temporary timing probe; removed from product source after capture.
++const measureUiClone = <T>(label: string, operation: () => T): T => {
++  const probe = (window as typeof window & { __MT_UI_CLONE_PROBE__?: {
++    active: boolean
++    spans: Array<{ label: string; ms: number }>
++  } }).__MT_UI_CLONE_PROBE__
++  if (!probe?.active) return operation()
++  const startedAt = performance.now()
++  try {
++    return operation()
++  } finally {
++    probe.spans.push({ label, ms: performance.now() - startedAt })
++  }
++}
++
++const inertControllerFacadeFile = (file: ControllerFacadeFile, origin: 'tab' | 'currentFile'): ControllerFacadeFile => {
+   for (const key of controllerFacadeFields) {
++    const cloned = measureUiClone(`field.${origin}.${key}.clone`, () => deepClone(file[key]))
+     Object.defineProperty(file, key, {
+-      value: freezeFacadeValue(deepClone(file[key])),
++      value: measureUiClone(`field.${origin}.${key}.freeze`, () => freezeFacadeValue(cloned)),
+       enumerable: true,
+       writable: false
+     })
+@@ -253,7 +269,8 @@ const inertControllerFacadeFile = (file: ControllerFacadeFile): ControllerFacade
+ const controllerFacadeFile = (
+   tab: { documentId: string; title: string; fileKey?: string; dirty: boolean },
+   document: WorkspaceFacadeDocument,
+-  previous?: IFileState
++  previous?: IFileState,
++  origin: 'tab' | 'currentFile' = 'tab'
+ ): ControllerFacadeFile => {
+   const blank = getBlankFileState([], 'utf8', 'lf')
+   return inertControllerFacadeFile({
+@@ -292,7 +309,7 @@ const controllerFacadeFile = (
+     selection: document.selection,
+     toc: document.toc,
+     status: document.status
+-  })
++  }, origin)
+ }
+ 
+ const patchControllerFacadeFileViewState = (
+@@ -374,9 +391,13 @@ export const useEditorStore = defineStore('editor', {
+ 
+     /** Controller projection is the only writer of these compatibility fields. */
+     APPLY_WORKSPACE_PROJECTION(snapshot: WorkspaceFacadeSnapshot): void {
+-      const facade = freezeFacadeValue(deepClone(snapshot)) as WorkspaceFacadeSnapshot
++      const startedAt = performance.now()
++      try {
++      const snapshotClone = measureUiClone('snapshot.clone', () => deepClone(snapshot))
++      const facade = measureUiClone('snapshot.freeze', () => freezeFacadeValue(snapshotClone)) as WorkspaceFacadeSnapshot
+       this.workspaceFacade = facade
+-      const projection = freezeFacadeValue(deepClone(facade.projection))
++      const projectionClone = measureUiClone('projection.clone', () => deepClone(facade.projection))
++      const projection = measureUiClone('projection.freeze', () => freezeFacadeValue(projectionClone))
+       this.workspaceProjection = projection
+       const pane = projection.panes.find((candidate) => candidate.paneId === projection.focusedPaneId)
+       if (!pane) return
+@@ -392,7 +413,7 @@ export const useEditorStore = defineStore('editor', {
+       const activeTab = pane.tabs.find((tab) => tab.documentId === activeDocumentId)
+       const activeDocument = activeTab && documentsByView.get(activeTab.viewId)
+       this.currentFile = activeTab && activeDocument
+-        ? controllerFacadeFile(activeTab, activeDocument, this.currentFile?.id === activeTab.documentId ? this.currentFile : existing.get(activeTab.documentId))
++        ? controllerFacadeFile(activeTab, activeDocument, this.currentFile?.id === activeTab.documentId ? this.currentFile : existing.get(activeTab.documentId), 'currentFile')
+         : null
+       window.DIRNAME = this.currentFile?.pathname
+         ? window.path.dirname(this.currentFile.pathname)
+@@ -407,6 +428,13 @@ export const useEditorStore = defineStore('editor', {
+         this.listToc = freezeFacadeValue(nextListToc) as unknown as TocItem[]
+         this.toc = freezeFacadeValue(listToTree<TocItem>([...this.listToc])) as unknown as TocTreeNode[]
+       }
++      } finally {
++        const probe = (window as typeof window & { __MT_UI_CLONE_PROBE__?: {
++          active: boolean
++          spans: Array<{ label: string; ms: number }>
++        } }).__MT_UI_CLONE_PROBE__
++        if (probe?.active) probe.spans.push({ label: 'apply.total', ms: performance.now() - startedAt })
++      }
+     },
+     APPLY_WORKSPACE_VIEW_STATE(
+       facade: WorkspaceFacadeSnapshot,
+diff --git a/packages/desktop/src/renderer/src/workspace/singlePaneComposition.ts b/packages/desktop/src/renderer/src/workspace/singlePaneComposition.ts
+--- a/packages/desktop/src/renderer/src/workspace/singlePaneComposition.ts
++++ b/packages/desktop/src/renderer/src/workspace/singlePaneComposition.ts
+@@ -237,6 +237,14 @@ export class PaneEditorComposition {
+    * the hidden WYSIWYG document and overwrite a source edit.
+    */
+   reportSource(scope: PaneEditorEventScope, report: EditorReport): WorkspaceResult {
++    // [DEBUG-ui-clone] Temporary timing probe; removed from product source after capture.
++    const probe = (window as typeof window & { __MT_UI_CLONE_PROBE__?: {
++      active: boolean
++      spans: Array<{ label: string; ms: number }>
++    } }).__MT_UI_CLONE_PROBE__
++    const startedAt = probe?.active ? performance.now() : 0
++    const timingLabel = report.markdown === undefined ? 'reportSource.cursor' : 'reportSource.markdown'
++    try {
+     const previousReport = this.sourceReport?.scope === scope
+       ? this.sourceReport.report
+       : undefined
+@@ -264,6 +272,9 @@ export class PaneEditorComposition {
+       this.flushSourceReport(scope)
+     }
+     return result
++    } finally {
++      if (probe?.active) probe.spans.push({ label: timingLabel, ms: performance.now() - startedAt })
++    }
+   }
+ 
+   /** Keep Source's live position local until an existing pane command flushes it. */
