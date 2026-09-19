@@ -1,0 +1,52 @@
+diff --git a/packages/desktop/src/renderer/src/components/editorWithTabs/sourceCode.vue b/packages/desktop/src/renderer/src/components/editorWithTabs/sourceCode.vue
+--- a/packages/desktop/src/renderer/src/components/editorWithTabs/sourceCode.vue
++++ b/packages/desktop/src/renderer/src/components/editorWithTabs/sourceCode.vue
+@@ -370,5 +370,10 @@
+ const saveContent = (cm: CMInstance) => {
+   if (receivingSharedDocument) return
++  // [DEBUG-source-batch] Temporary measurement; remove after the A/B run.
++  const probe = (window as typeof window & { __MT_SOURCE_BATCH_PROBE__?: {
++    active: boolean; saveCount: number; saveMs: number; reportCount: number; reportMs: number
++  } }).__MT_SOURCE_BATCH_PROBE__
++  const startedAt = probe?.active ? performance.now() : 0
+   const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(cm)
+   // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
+   const wordCount = getWordCount(newMarkdown)
+@@ -377,11 +382,20 @@
+   if (!viewDestroyed.value) {
+     const scope = activeSourceScope()
+     if (scope) {
++      const reportStartedAt = probe?.active ? performance.now() : 0
+       props.composition.reportSource(scope, {
+         markdown: newMarkdown,
+         cursor,
+         status: workspaceStatusFromCounts(wordCount)
+       })
++      if (probe?.active) {
++        probe.reportCount += 1
++        probe.reportMs += performance.now() - reportStartedAt
++      }
+     }
+   }
++  if (probe?.active) {
++    probe.saveCount += 1
++    probe.saveMs += performance.now() - startedAt
++  }
+ }
+@@ -394,6 +408,15 @@
+ const listenChange = () => {
+   editor.value.on('change', (cm: CMInstance) => {
+-    saveContent(cm)
++    const probe = (window as typeof window & { __MT_SOURCE_BATCH_PROBE__?: {
++      variant: 'change' | 'changes'
++    } }).__MT_SOURCE_BATCH_PROBE__
++    if (!probe || probe.variant === 'change') saveContent(cm)
++  })
++  editor.value.on('changes', (cm: CMInstance) => {
++    const probe = (window as typeof window & { __MT_SOURCE_BATCH_PROBE__?: {
++      variant: 'change' | 'changes'
++    } }).__MT_SOURCE_BATCH_PROBE__
++    if (probe?.variant === 'changes') saveContent(cm)
+   })
+   editor.value.on('cursorActivity', (cm: CMInstance) => {
+     reportCaretPosition(cm, props.caretSession)
