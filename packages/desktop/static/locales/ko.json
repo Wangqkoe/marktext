@@ -429,8 +429,8 @@
         "footnote": "Pandoc의 마크다운 확장 각주 활성화",
         "latexMathDelimiters": "LaTeX 수식 구분 기호 \\(...\\) 및 \\[...\\] 활성화",
         "texMathDollars": "Pandoc의 markdown 확장 tex_math_dollars 활성화",
+        "texMathGfm": "Pandoc의 markdown 확장 tex_math_gfm 활성화",
         "isHtmlEnabled": "HTML 렌더링 활성화",
-        "isGitlabCompatibilityEnabled": "GitLab 호환 모드 활성화",
         "sequenceTheme": "시퀀스 다이어그램 테마",
         "plantumlServer": "PlantUML 서버 URL",
         "theme": "MarkText에서 사용할 테마 선택",
@@ -661,6 +661,7 @@
         "footnoteNotes": "각주 노트",
         "latexMathDelimiters": "LaTeX 수식 구분 기호 \\(...\\) 및 \\[...\\]",
         "texMathDollars": "$ 및 $$ TeX 수식",
+        "texMathGfm": "GitHub TeX 수식($`…`$ 및 ```math)",
         "frontmatterType": {
           "jsonBrace": "중괄호가 있는 JSON",
           "jsonSemicolon": "세미콜론이 있는 JSON",
@@ -687,7 +688,6 @@
         "title": "기타"
       },
       "compatibility": {
-        "enableGitlab": "GitLab 호환성 활성화",
         "enableHtml": "HTML 지원 활성화",
         "title": "호환성"
       },

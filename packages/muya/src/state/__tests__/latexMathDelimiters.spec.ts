@@ -8,7 +8,7 @@ function parse(markdown: string, latexMathDelimiters = true): TState[] {
         footnote: false,
         texMathDollars: true,
         latexMathDelimiters,
-        isGitlabCompatibilityEnabled: false,
+        texMathGfm: false,
         trimUnnecessaryCodeBlockEmptyLines: false,
         frontMatter: false,
     }).generate(markdown);

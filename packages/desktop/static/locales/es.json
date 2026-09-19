@@ -429,8 +429,8 @@
         "footnote": "Habilitar extensión markdown de pandoc nota al pie",
         "latexMathDelimiters": "Habilitar delimitadores matemáticos LaTeX \\(...\\) y \\[...\\]",
         "texMathDollars": "Activar la extensión de markdown de pandoc tex_math_dollars",
+        "texMathGfm": "Activar la extensión de markdown de pandoc tex_math_gfm",
         "isHtmlEnabled": "Habilitar renderizado HTML",
-        "isGitlabCompatibilityEnabled": "Habilitar modo de compatibilidad GitLab",
         "sequenceTheme": "Tema del diagrama de secuencia",
         "plantumlServer": "URL del servidor PlantUML",
         "theme": "Seleccionar el tema usado en MarkText",
@@ -661,6 +661,7 @@
         "footnoteNotes": "Notas al pie",
         "latexMathDelimiters": "Delimitadores matemáticos LaTeX \\(...\\) y \\[...\\]",
         "texMathDollars": "Matemáticas TeX con $ y $$",
+        "texMathGfm": "Matemáticas TeX de GitHub ($`…`$ y ```math)",
         "frontmatterType": {
           "jsonBrace": "JSON con Llaves",
           "jsonSemicolon": "JSON con Punto y Coma",
@@ -687,7 +688,6 @@
         "title": "Misceláneos"
       },
       "compatibility": {
-        "enableGitlab": "Habilitar compatibilidad con GitLab",
         "enableHtml": "Habilitar soporte HTML",
         "title": "Compatibilidad"
       },

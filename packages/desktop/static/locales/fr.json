@@ -429,8 +429,8 @@
         "footnote": "Activer l'extension markdown de pandoc pour note de bas de page",
         "latexMathDelimiters": "Activer les délimiteurs mathématiques LaTeX \\(...\\) et \\[...\\]",
         "texMathDollars": "Activer l'extension markdown de pandoc tex_math_dollars",
+        "texMathGfm": "Activer l'extension markdown de pandoc tex_math_gfm",
         "isHtmlEnabled": "Activer le rendu HTML",
-        "isGitlabCompatibilityEnabled": "Activer le mode de compatibilité GitLab",
         "sequenceTheme": "Thème du diagramme de séquence",
         "plantumlServer": "URL du serveur PlantUML",
         "theme": "Sélectionner le thème utilisé dans MarkText",
@@ -661,6 +661,7 @@
         "footnoteNotes": "Notes de bas de page",
         "latexMathDelimiters": "Délimiteurs mathématiques LaTeX \\(...\\) et \\[...\\]",
         "texMathDollars": "Maths TeX avec $ et $$",
+        "texMathGfm": "Maths TeX de GitHub ($`…`$ et ```math)",
         "frontmatterType": {
           "jsonBrace": "Accolade JSON",
           "jsonSemicolon": "Point-virgule JSON",
@@ -687,7 +688,6 @@
         "title": "Divers"
       },
       "compatibility": {
-        "enableGitlab": "Activer la compatibilité GitLab",
         "enableHtml": "Activer le support HTML",
         "title": "Compatibilité"
       },

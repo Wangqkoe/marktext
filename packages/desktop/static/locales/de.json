@@ -429,8 +429,8 @@
         "footnote": "Pandocs Markdown-Erweiterung für Fußnoten aktivieren",
         "latexMathDelimiters": "LaTeX-Mathematikbegrenzer \\(...\\) und \\[...\\] aktivieren",
         "texMathDollars": "Pandocs Markdown-Erweiterung tex_math_dollars aktivieren",
+        "texMathGfm": "Pandocs Markdown-Erweiterung tex_math_gfm aktivieren",
         "isHtmlEnabled": "HTML-Rendering aktivieren",
-        "isGitlabCompatibilityEnabled": "GitLab-Kompatibilitätsmodus aktivieren",
         "sequenceTheme": "Sequenzdiagramm-Theme",
         "plantumlServer": "PlantUML-Server-URL",
         "theme": "Das in MarkText verwendete Theme auswählen",
@@ -661,6 +661,7 @@
         "footnoteNotes": "Fußnoten",
         "latexMathDelimiters": "LaTeX-Mathematikbegrenzer \\(...\\) und \\[...\\]",
         "texMathDollars": "TeX-Mathematik mit $ und $$",
+        "texMathGfm": "GitHub-TeX-Mathematik ($`…`$ und ```math)",
         "frontmatterType": {
           "jsonBrace": "JSON-Klammer",
           "jsonSemicolon": "JSON-Semikolon",
@@ -687,7 +688,6 @@
         "title": "Verschiedenes"
       },
       "compatibility": {
-        "enableGitlab": "GitLab-Kompatibilität aktivieren",
         "enableHtml": "HTML-Unterstützung aktivieren",
         "title": "Kompatibilität"
       },

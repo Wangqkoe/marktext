@@ -257,8 +257,8 @@ const {
   footnote,
   latexMathDelimiters,
   texMathDollars,
+  texMathGfm,
   isHtmlEnabled,
-  isGitlabCompatibilityEnabled,
   lineHeight,
   fontSize,
   highlightColor,
@@ -813,9 +813,9 @@ watch(isHtmlEnabled, (value, oldValue) => {
   }
 })
 
-watch(isGitlabCompatibilityEnabled, (value, oldValue) => {
+watch(texMathGfm, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ isGitlabCompatibilityEnabled: value }, true)
+    editor.value.setOptions({ texMathGfm: value }, true)
   }
 })
 
@@ -2097,8 +2097,8 @@ onMounted(() => {
     footnote: footnote.value,
     latexMathDelimiters: latexMathDelimiters.value,
     texMathDollars: texMathDollars.value,
+    texMathGfm: texMathGfm.value,
     disableHtml: !isHtmlEnabled.value,
-    isGitlabCompatibilityEnabled: isGitlabCompatibilityEnabled.value,
     hideQuickInsertHint: hideQuickInsertHint.value,
     hideLinkPopup: hideLinkPopup.value,
     autoCheck: autoCheck.value,

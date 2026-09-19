@@ -429,8 +429,8 @@
         "footnote": "启用 Pandoc 的 Markdown 扩展脚注",
         "latexMathDelimiters": "启用 LaTeX 数学分隔符 \\(...\\) 和 \\[...\\]",
         "texMathDollars": "启用 Pandoc 的 Markdown 扩展 tex_math_dollars",
+        "texMathGfm": "启用 Pandoc 的 Markdown 扩展 tex_math_gfm",
         "isHtmlEnabled": "启用 HTML 渲染",
-        "isGitlabCompatibilityEnabled": "启用 GitLab 兼容模式",
         "sequenceTheme": "序列图主题",
         "plantumlServer": "PlantUML 服务器 URL",
         "theme": "选择 MarkText 中使用的主题",
@@ -661,6 +661,7 @@
         "footnoteNotes": "脚注注释",
         "latexMathDelimiters": "LaTeX 数学分隔符 \\(...\\) 和 \\[...\\]",
         "texMathDollars": "使用 $ 和 $$ 的 TeX 数学公式",
+        "texMathGfm": "GitHub 的 TeX 数学公式（$`…`$ 和 ```math）",
         "frontmatterType": {
           "jsonBrace": "带大括号的 JSON",
           "jsonSemicolon": "带分号的 JSON",
@@ -687,7 +688,6 @@
         "title": "杂项"
       },
       "compatibility": {
-        "enableGitlab": "启用 GitLab 兼容性",
         "enableHtml": "启用 HTML 支持",
         "title": "兼容性"
       },

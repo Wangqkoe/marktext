@@ -348,9 +348,11 @@ export const MUYA_DEFAULT_OPTIONS = {
     footnote: false,
     // pandoc's `tex_math_dollars`: `$…$` and `$$…$$`.
     texMathDollars: true,
+    // pandoc's `tex_math_gfm`: GitHub's `` $`…`$ `` and ```` ```math ````.
+    // Off by default, as in pandoc, where only tex_math_dollars ships enabled.
+    texMathGfm: false,
     // Whether LaTeX-style \(...\) and \[...\] math delimiters are supported.
     latexMathDelimiters: false,
-    isGitlabCompatibilityEnabled: true,
     // Move checked task list item to the end of task list.
     autoMoveCheckedToEnd: false,
     // Whether HTML rendering is disabled or not.

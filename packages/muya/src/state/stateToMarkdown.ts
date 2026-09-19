@@ -443,7 +443,7 @@ export default class ExportMarkdown {
             openMarker = '$$\n';
             closeMarker = '$$\n';
         }
-        else if (mathStyle === 'gitlab') {
+        else if (mathStyle === 'gfm') {
             openMarker = '```math\n';
             closeMarker = '```\n';
         }

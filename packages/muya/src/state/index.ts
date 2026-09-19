@@ -104,7 +104,7 @@ class JSONState {
     markdownToState(markdown: string): TState[] {
         const {
             footnote,
-            isGitlabCompatibilityEnabled,
+            texMathGfm,
             trimUnnecessaryCodeBlockEmptyLines,
             frontMatter,
             texMathDollars,
@@ -113,7 +113,7 @@ class JSONState {
 
         return new MarkdownToState({
             footnote,
-            isGitlabCompatibilityEnabled,
+            texMathGfm,
             trimUnnecessaryCodeBlockEmptyLines,
             frontMatter,
             texMathDollars,

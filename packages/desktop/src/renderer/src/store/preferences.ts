@@ -85,8 +85,8 @@ export interface PreferencesState {
   footnote: boolean
   latexMathDelimiters: boolean
   texMathDollars: boolean
+  texMathGfm: boolean
   isHtmlEnabled: boolean
-  isGitlabCompatibilityEnabled: boolean
   sequenceTheme: SequenceTheme | string
   plantumlServer: string
 
@@ -206,8 +206,8 @@ export const usePreferencesStore = defineStore('preferences', {
     footnote: false,
     latexMathDelimiters: false,
     texMathDollars: true,
+    texMathGfm: false,
     isHtmlEnabled: true,
-    isGitlabCompatibilityEnabled: false,
     sequenceTheme: 'hand',
     plantumlServer: 'https://www.plantuml.com/plantuml',
 

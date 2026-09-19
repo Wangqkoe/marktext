@@ -47,8 +47,8 @@ export interface IUserPreferences {
   footnote?: boolean
   latexMathDelimiters?: boolean
   texMathDollars?: boolean
+  texMathGfm?: boolean
   isHtmlEnabled?: boolean
-  isGitlabCompatibilityEnabled?: boolean
   theme?: string
   spellcheckerEnabled?: boolean
   spellcheckerNoUnderline?: boolean

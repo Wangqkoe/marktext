@@ -428,8 +428,8 @@
         "footnote": "Enable pandoc's markdown extension footnote",
         "latexMathDelimiters": "Enable LaTeX math delimiters \\(...\\) and \\[...\\]",
         "texMathDollars": "Enable pandoc's markdown extension tex_math_dollars",
+        "texMathGfm": "Enable pandoc's markdown extension tex_math_gfm",
         "isHtmlEnabled": "Enable HTML rendering",
-        "isGitlabCompatibilityEnabled": "Enable GitLab compatibility mode",
         "sequenceTheme": "Sequence diagram theme",
         "plantumlServer": "PlantUML server URL",
         "theme": "Select the theme used in MarkText",
@@ -661,6 +661,7 @@
         "footnoteNotes": "Footnote notes",
         "latexMathDelimiters": "LaTeX math delimiters \\(...\\) and \\[...\\]",
         "texMathDollars": "TeX math with $ and $$",
+        "texMathGfm": "GitHub TeX math ($`…`$ and ```math)",
         "frontmatterType": {
           "jsonBrace": "JSON with Braces",
           "jsonSemicolon": "JSON with Semicolon",
@@ -687,7 +688,6 @@
         "title": "Miscellaneous"
       },
       "compatibility": {
-        "enableGitlab": "Enable GitLab compatibility",
         "enableHtml": "Enable HTML support",
         "title": "Compatibility"
       },

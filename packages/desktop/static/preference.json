@@ -57,8 +57,8 @@
   "footnote": false,
   "latexMathDelimiters": false,
   "texMathDollars": true,
+  "texMathGfm": false,
   "isHtmlEnabled": true,
-  "isGitlabCompatibilityEnabled": false,
   "sequenceTheme": "hand",
   "plantumlServer": "https://www.plantuml.com/plantuml",
 

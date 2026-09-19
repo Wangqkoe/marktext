@@ -8,7 +8,9 @@ export interface IMathToken {
     text: string;
     displayMode: boolean;
     marker?: string;
-    mathStyle?: '' | 'gitlab' | 'latex' | 'latex-inline';
+    // Only `` $`…`$ `` needs this: every other form closes on its own marker.
+    closeMarker?: string;
+    mathStyle?: '' | 'gfm' | 'latex' | 'latex-inline';
     delimiterStyle?: 'dollar' | 'latex';
 }
 
@@ -34,6 +36,11 @@ const blockRule = /^(\${1,2})\n((?:\\[\s\S]|[^\\])+?)\n\1[ \t]*(?:\n|$)/;
 const latexBlockRule
     = /^\\\[(?:[ \t]*\n([\s\S]+?)\n[ \t]*|([^\n]+?))\\\][ \t]*(?:\n|$)/;
 
+// GitHub's inline math, pandoc's `tex_math_gfm` — mirrors the editor's
+// `inline_math_gfm` rule.
+const gfmStartRule = /\$`/g;
+const gfmRule = /^(\$`)((?:[^`\\\n]|\\.)+)`\$/;
+
 const DEFAULT_OPTIONS = {
     throwOnError: false,
     useKatexRender: false,
@@ -48,6 +55,17 @@ export default function (options: IOptions = {}) {
             blockKatex(createRenderer(opts, true), opts.latexMathDelimiters),
         ],
         walkTokens: markDisplayMath,
+    };
+}
+
+// Registered separately, and after the dollar extension: `Marked.use` unshifts,
+// so the later registration is tried first and `` $`…`$ `` is claimed before
+// `$…$` can take it with the backticks inside.
+export function gfmMathExtension(options: IOptions = {}) {
+    const opts = Object.assign({}, DEFAULT_OPTIONS, options);
+
+    return {
+        extensions: [inlineGfmKatex(createRenderer(opts, false))],
     };
 }
 
@@ -82,7 +100,7 @@ function markDisplayMath(token: Token) {
 function createRenderer(options: IOptions, newlineAfter: boolean) {
     return (token: IMathToken) => {
         const { useKatexRender, throwOnError } = options;
-        const { type, text, displayMode, marker = '$', mathStyle, delimiterStyle } = token;
+        const { type, text, displayMode, marker = '$', closeMarker = marker, mathStyle, delimiterStyle } = token;
         if (useKatexRender) {
             return (
                 katex.renderToString(text, {
@@ -93,10 +111,42 @@ function createRenderer(options: IOptions, newlineAfter: boolean) {
         }
         else {
             if (type === 'inlineMath')
-                return delimiterStyle === 'latex' ? `\\(${text}\\)` : `${marker}${text}${marker}`;
+                return delimiterStyle === 'latex' ? `\\(${text}\\)` : `${marker}${text}${closeMarker}`;
 
             return `<pre class="multiple-math" data-math-style="${mathStyle}">${text}</pre>\n`;
         }
+    };
+}
+
+function inlineGfmKatex(renderer: (token: IMathToken) => string) {
+    return {
+        name: 'inlineMathGfm',
+        level: 'inline' as const,
+        start(src: string) {
+            gfmStartRule.lastIndex = 0;
+            for (
+                let match = gfmStartRule.exec(src);
+                match;
+                match = gfmStartRule.exec(src)
+            ) {
+                if (gfmRule.test(src.substring(match.index)))
+                    return match.index;
+            }
+        },
+        tokenizer(src: string) {
+            const match = src.match(gfmRule);
+            if (match) {
+                return {
+                    type: 'inlineMath',
+                    raw: match[0],
+                    text: match[2].trim(),
+                    marker: match[1],
+                    closeMarker: '`$',
+                    displayMode: false,
+                };
+            }
+        },
+        renderer,
     };
 }
 

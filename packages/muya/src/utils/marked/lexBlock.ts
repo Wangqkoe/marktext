@@ -3,7 +3,7 @@ import type { IFrontmatterToken, ILexOption, TLexedToken } from './types';
 import { Marked } from 'marked';
 import compatibleTaskList from './compatibleTaskList';
 import footnoteExtension from './extensions/footnote';
-import mathExtension from './extensions/math';
+import mathExtension, { gfmMathExtension } from './extensions/math';
 import fm from './frontMatter';
 import { DEFAULT_OPTIONS } from './options';
 import walkTokens from './walkTokens';
@@ -91,7 +91,7 @@ export function lexBlock(
     options: ILexOption = DEFAULT_OPTIONS,
 ): TLexedToken[] {
     options = Object.assign({}, DEFAULT_OPTIONS, options);
-    const { texMathDollars, latexMathDelimiters, frontMatter, footnote } = options;
+    const { texMathDollars, texMathGfm, latexMathDelimiters, frontMatter, footnote } = options;
     let tokens: (Token | IFrontmatterToken)[] = [];
 
     // Use a per-call Marked instance so extensions don't bleed across calls.
@@ -105,6 +105,15 @@ export function lexBlock(
                 throwOnError: false,
                 useKatexRender: false,
                 latexMathDelimiters,
+            }),
+        );
+    }
+
+    if (texMathGfm) {
+        m.use(
+            gfmMathExtension({
+                throwOnError: false,
+                useKatexRender: false,
             }),
         );
     }

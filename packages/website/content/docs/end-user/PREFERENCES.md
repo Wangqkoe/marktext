@@ -65,7 +65,7 @@ Preferences can be controlled and modified in the settings window or via the `pr
 | footnote                     | Boolean | `false` | Enable pandoc's footnote markdown extension.                                                                                         |
 | texMathDollars               | Boolean | `true`  | Enable pandoc's [`tex_math_dollars`](https://pandoc.org/MANUAL.html#extension-tex_math_dollars) extension — `$…$` and `$$…$$` math. |
 | isHtmlEnabled                | Boolean | `true`  | Enable inline HTML rendering.                                                                                                        |
-| isGitlabCompatibilityEnabled | Boolean | `false` | Enable GitLab compatibility mode.                                                                                                    |
+| texMathGfm                   | Boolean | `false` | Enable pandoc's [`tex_math_gfm`](https://pandoc.org/MANUAL.html#extension-tex_math_gfm) extension — GitHub's ``$`…`$`` and ` ```math ` math. Replaces the former `isGitlabCompatibilityEnabled`; an enabled old setting is carried over. |
 | sequenceTheme                | String  | `hand`  | Theme for [js-sequence-diagrams](https://bramp.github.io/js-sequence-diagrams/): `hand` or `simple`.                                 |
 
 #### Theme

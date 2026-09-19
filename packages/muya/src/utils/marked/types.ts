@@ -3,8 +3,8 @@ import type { MarkedToken, Tokens } from 'marked';
 export interface ILexOption {
     footnote?: boolean;
     texMathDollars?: boolean;
+    texMathGfm?: boolean;
     latexMathDelimiters?: boolean;
-    isGitlabCompatibilityEnabled?: boolean;
     frontMatter?: boolean;
     superSubScript?: boolean;
 }
@@ -40,7 +40,7 @@ export interface IMultipleMathToken {
     raw: string;
     text: string;
     displayMode: boolean;
-    mathStyle: '' | 'gitlab' | 'latex' | 'latex-inline';
+    mathStyle: '' | 'gfm' | 'latex' | 'latex-inline';
 }
 
 export interface IFrontmatterToken {

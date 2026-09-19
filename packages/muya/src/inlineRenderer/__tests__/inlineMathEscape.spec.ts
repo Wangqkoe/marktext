@@ -21,6 +21,7 @@ function latexMathToken(src: string): CodeEmojiMathToken | undefined {
             superSubScript: true,
             footnote: false,
             texMathDollars: true,
+            texMathGfm: false,
             latexMathDelimiters: true,
         },
     }).find(t => t.type === 'inline_math') as CodeEmojiMathToken | undefined;

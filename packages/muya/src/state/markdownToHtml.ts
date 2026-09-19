@@ -185,8 +185,7 @@ export class MarkdownToHtml {
         let html = getHighlightHtml(this.markdown, {
             superSubScript: this._muya?.options?.superSubScript ?? true,
             footnote,
-            isGitlabCompatibilityEnabled:
-        this._muya?.options?.isGitlabCompatibilityEnabled ?? true,
+            texMathGfm: this._muya?.options?.texMathGfm ?? false,
             texMathDollars: this._muya?.options?.texMathDollars ?? true,
             latexMathDelimiters: this._muya?.options?.latexMathDelimiters ?? false,
         });

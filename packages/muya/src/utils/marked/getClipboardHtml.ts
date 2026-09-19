@@ -4,7 +4,7 @@ import { EXPORT_DOMPURIFY_CONFIG } from '../../config';
 import { sanitize } from '../index';
 import cjkEmStrongExtension from './extensions/cjkEmStrong';
 import footnoteExtension from './extensions/footnote';
-import mathExtension from './extensions/math';
+import mathExtension, { gfmMathExtension } from './extensions/math';
 import superSubScriptExtension from './extensions/superSubscript';
 import fm, { frontMatterRender } from './frontMatter';
 import { DEFAULT_OPTIONS } from './options';
@@ -27,7 +27,7 @@ export function getClipBoardHtml(src: string, options: ILexOption = {}) {
         frontMatter,
         texMathDollars,
         latexMathDelimiters,
-        isGitlabCompatibilityEnabled,
+        texMathGfm,
         superSubScript,
     }
         = options;
@@ -40,7 +40,7 @@ export function getClipBoardHtml(src: string, options: ILexOption = {}) {
     const marked = new Marked();
 
     marked.use({
-        walkTokens: walkTokens({ texMathDollars, isGitlabCompatibilityEnabled }),
+        walkTokens: walkTokens({ texMathDollars, texMathGfm }),
     });
 
     // CJK-as-punctuation emphasis flanking (marktext/marktext#4307); keeps the
@@ -53,6 +53,15 @@ export function getClipBoardHtml(src: string, options: ILexOption = {}) {
                 throwOnError: false,
                 useKatexRender: false,
                 latexMathDelimiters,
+            }),
+        );
+    }
+
+    if (texMathGfm) {
+        marked.use(
+            gfmMathExtension({
+                throwOnError: false,
+                useKatexRender: false,
             }),
         );
     }

@@ -429,8 +429,8 @@
         "footnote": "Pandocのmarkdown拡張脚注を有効にする",
         "latexMathDelimiters": "LaTeX 数式区切り \\(...\\) と \\[...\\] を有効にする",
         "texMathDollars": "Pandoc の markdown 拡張 tex_math_dollars を有効にする",
+        "texMathGfm": "Pandoc の markdown 拡張 tex_math_gfm を有効にする",
         "isHtmlEnabled": "HTMLレンダリングを有効にする",
-        "isGitlabCompatibilityEnabled": "GitLab互換モードを有効にする",
         "sequenceTheme": "シーケンス図のテーマ",
         "plantumlServer": "PlantUMLサーバーのURL",
         "theme": "MarkTextで使用するテーマを選択",
@@ -661,6 +661,7 @@
         "footnoteNotes": "脚注",
         "latexMathDelimiters": "LaTeX 数式区切り \\(...\\) と \\[...\\]",
         "texMathDollars": "$ と $$ による TeX 数式",
+        "texMathGfm": "GitHub の TeX 数式（$`…`$ と ```math）",
         "frontmatterType": {
           "jsonBrace": "JSON括弧",
           "jsonSemicolon": "JSONセミコロン",
@@ -687,7 +688,6 @@
         "title": "その他"
       },
       "compatibility": {
-        "enableGitlab": "GitLab互換性を有効",
         "enableHtml": "HTMLサポートを有効",
         "title": "互換性"
       },

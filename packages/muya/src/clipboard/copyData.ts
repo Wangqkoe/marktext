@@ -36,19 +36,12 @@ function buildHtmlOptions(options: Muya['options']) {
         footnote,
         frontMatter = true,
         texMathDollars,
+        texMathGfm,
         latexMathDelimiters,
-        isGitlabCompatibilityEnabled,
         superSubScript,
     } = options;
 
-    return {
-        footnote,
-        frontMatter,
-        texMathDollars,
-        latexMathDelimiters,
-        isGitlabCompatibilityEnabled,
-        superSubScript,
-    };
+    return { footnote, frontMatter, texMathDollars, texMathGfm, latexMathDelimiters, superSubScript };
 }
 
 /**

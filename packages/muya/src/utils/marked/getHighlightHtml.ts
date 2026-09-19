@@ -5,7 +5,7 @@ import Prism from 'prismjs';
 import cjkEmStrongExtension from './extensions/cjkEmStrong';
 import emojiExtension from './extensions/emoji';
 import footnoteExtension from './extensions/footnote';
-import mathExtension from './extensions/math';
+import mathExtension, { gfmMathExtension } from './extensions/math';
 import superSubScriptExtension from './extensions/superSubscript';
 import fm, { frontMatterRender } from './frontMatter';
 import { DEFAULT_OPTIONS } from './options';
@@ -42,7 +42,7 @@ export function getHighlightHtml(src: string, options: ILexOption = {}) {
         frontMatter,
         texMathDollars,
         latexMathDelimiters,
-        isGitlabCompatibilityEnabled,
+        texMathGfm,
         superSubScript,
     }
         = options;
@@ -54,7 +54,7 @@ export function getHighlightHtml(src: string, options: ILexOption = {}) {
     const marked = new Marked(markedHighlight({ highlight }));
 
     marked.use({
-        walkTokens: walkTokens({ texMathDollars, isGitlabCompatibilityEnabled }),
+        walkTokens: walkTokens({ texMathDollars, texMathGfm }),
     });
 
     // Treat CJK characters as punctuation for emphasis/strong flanking so
@@ -70,6 +70,15 @@ export function getHighlightHtml(src: string, options: ILexOption = {}) {
                 throwOnError: false,
                 useKatexRender: true,
                 latexMathDelimiters,
+            }),
+        );
+    }
+
+    if (texMathGfm) {
+        marked.use(
+            gfmMathExtension({
+                throwOnError: false,
+                useKatexRender: true,
             }),
         );
     }

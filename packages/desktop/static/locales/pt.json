@@ -429,8 +429,8 @@
         "footnote": "Habilitar extensão markdown do pandoc para nota de rodapé",
         "latexMathDelimiters": "Habilitar delimitadores matemáticos LaTeX \\(...\\) e \\[...\\]",
         "texMathDollars": "Ativar a extensão markdown do pandoc tex_math_dollars",
+        "texMathGfm": "Ativar a extensão markdown do pandoc tex_math_gfm",
         "isHtmlEnabled": "Habilitar renderização HTML",
-        "isGitlabCompatibilityEnabled": "Habilitar modo de compatibilidade GitLab",
         "sequenceTheme": "Tema do diagrama de sequência",
         "plantumlServer": "URL do servidor PlantUML",
         "theme": "Selecionar o tema usado no MarkText",
@@ -661,6 +661,7 @@
         "footnoteNotes": "Notas de rodapé",
         "latexMathDelimiters": "Delimitadores matemáticos LaTeX \\(...\\) e \\[...\\]",
         "texMathDollars": "Matemática TeX com $ e $$",
+        "texMathGfm": "Matemática TeX do GitHub ($`…`$ e ```math)",
         "frontmatterType": {
           "jsonBrace": "JSON com Chaves",
           "jsonSemicolon": "JSON com Ponto e Vírgula",
@@ -687,7 +688,6 @@
         "title": "Diversos"
       },
       "compatibility": {
-        "enableGitlab": "Habilitar compatibilidade GitLab",
         "enableHtml": "Habilitar suporte HTML",
         "title": "Compatibilidade"
       },
