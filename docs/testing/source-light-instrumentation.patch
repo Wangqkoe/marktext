@@ -1,0 +1,14 @@
+diff --git a/packages/desktop/src/renderer/src/components/editorWithTabs/sourceCode.vue b/packages/desktop/src/renderer/src/components/editorWithTabs/sourceCode.vue
+--- a/packages/desktop/src/renderer/src/components/editorWithTabs/sourceCode.vue
++++ b/packages/desktop/src/renderer/src/components/editorWithTabs/sourceCode.vue
+@@ -454,4 +454,10 @@ onMounted(async () => {
+     }
+   }
++  // [DEBUG-source-light] Diagnostic-only construction variant. Remove after timing.
++  const sourceLightVariant = (window as typeof window & {
++    __MT_SOURCE_LIGHT_VARIANT__?: string
++  }).__MT_SOURCE_LIGHT_VARIANT__
++  if (sourceLightVariant === 'off-active') codeMirrorConfig.styleActiveLine = false
++  if (sourceLightVariant === 'off-wrap') codeMirrorConfig.lineWrapping = false
+ 
+   if (railscastsThemes.includes(theme.value)) {
