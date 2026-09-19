@@ -1,0 +1,115 @@
+diff --git a/packages/desktop/electron.vite.config.ts b/packages/desktop/electron.vite.config.ts
+index faadce61..d8fdd1cb 100644
+--- a/packages/desktop/electron.vite.config.ts
++++ b/packages/desktop/electron.vite.config.ts
+@@ -81,6 +81,7 @@ export default defineConfig({
+       alias: {
+         '@': resolve(__dirname, 'src/renderer/src'),
+         common: resolve(__dirname, 'src/common'),
++        '@muyajs/core': resolve(__dirname, '../muya/src/index.ts'),
+         muya: resolve(__dirname, '../muyajs'),
+         '@shared': resolve(__dirname, 'src/shared'),
+         path: 'pathe'
+diff --git a/packages/muya/src/block/commonMark/html/htmlPreview.ts b/packages/muya/src/block/commonMark/html/htmlPreview.ts
+index e0426913..f96502c5 100644
+--- a/packages/muya/src/block/commonMark/html/htmlPreview.ts
++++ b/packages/muya/src/block/commonMark/html/htmlPreview.ts
+@@ -1,7 +1,8 @@
+ import type { Muya } from '../../../muya';
+ import type { IHtmlBlockState, TState } from '../../../state/types';
++import DOMPurify from 'dompurify';
+ import { CLASS_NAMES, PREVIEW_DOMPURIFY_CONFIG } from '../../../config';
+-import { sanitize } from '../../../utils';
++import { escapeHTML, escapeInBlockHtml, sanitize } from '../../../utils';
+ import { getImageSrc } from '../../../utils/image';
+ import logger from '../../../utils/logger';
+ import Parent from '../../base/parent';
+@@ -13,6 +14,37 @@ const debug = logger('htmlPreview:');
+ const SELF_CONTAINED_MEDIA = new Set(['video', 'audio']);
+ const DETAILS_PREVIEW_BODY = 'mu-details-preview-body';
+ 
++// Temporary diagnostic probe; removed after the baseline/candidate experiment.
++interface HtmlConfigProbe {
++    active: boolean;
++    variant: 'baseline' | 'candidate';
++    sanitizeCalls: number;
++    sanitizeMs: number;
++    createCalls: number;
++    createMs: number;
++    updateCalls: number;
++    updateMs: number;
++    captureOutput?: boolean;
++    outputs?: string[];
++}
++
++const getProbe = (): HtmlConfigProbe | undefined =>
++    (window as typeof window & { __MT_HTML_CONFIG_PROBE__?: HtmlConfigProbe }).__MT_HTML_CONFIG_PROBE__;
++
++let previewPurifier: ReturnType<typeof DOMPurify> | undefined;
++
++function sanitizeForDiagnostic(html: string, disableHtml: boolean, variant: HtmlConfigProbe['variant']): string {
++    if (variant === 'baseline')
++        return sanitize(html, PREVIEW_DOMPURIFY_CONFIG, disableHtml) as string;
++
++    if (!previewPurifier) {
++        previewPurifier = DOMPurify();
++        previewPurifier.setConfig(PREVIEW_DOMPURIFY_CONFIG);
++    }
++    const escaped = disableHtml ? escapeHTML(html) : escapeInBlockHtml(html);
++    return previewPurifier.sanitize(escaped) as string;
++}
++
+ // A single element with an empty body (`<div></div>`), except self-contained
+ // media elements whose content lives in attributes (`<video src=...></video>`).
+ export function isEmptyHtmlBlock(html: string): boolean {
+@@ -27,8 +59,15 @@ class HTMLPreview extends Parent {
+     static override blockName = 'html-preview';
+ 
+     static create(muya: Muya, state: IHtmlBlockState) {
++        const probe = getProbe();
++        const start = probe?.active ? performance.now() : 0;
+         const htmlBlock = new HTMLPreview(muya, state);
+ 
++        if (probe?.active) {
++            probe.createCalls++;
++            probe.createMs += performance.now() - start;
++        }
++
+         return htmlBlock;
+     }
+ 
+@@ -69,11 +108,22 @@ class HTMLPreview extends Parent {
+     }
+ 
+     update(html = this._html) {
++        const probe = getProbe();
++        const updateStart = probe?.active ? performance.now() : 0;
+         if (this._html !== html)
+             this._html = html;
+ 
+         const { disableHtml } = this.muya.options;
+-        const htmlContent = sanitize(html, PREVIEW_DOMPURIFY_CONFIG, disableHtml) as string;
++        const sanitizeStart = probe?.active ? performance.now() : 0;
++        const htmlContent = probe?.active
++            ? sanitizeForDiagnostic(html, disableHtml, probe.variant)
++            : sanitize(html, PREVIEW_DOMPURIFY_CONFIG, disableHtml) as string;
++        if (probe?.active) {
++            probe.sanitizeCalls++;
++            probe.sanitizeMs += performance.now() - sanitizeStart;
++            if (probe.captureOutput)
++                (probe.outputs ??= []).push(htmlContent);
++        }
+ 
+         // handle empty html bock
+         if (isEmptyHtmlBlock(htmlContent)) {
+@@ -115,6 +165,10 @@ class HTMLPreview extends Parent {
+                 this.domNode!.appendChild(disclosureStyle);
+             }
+         }
++        if (probe?.active) {
++            probe.updateCalls++;
++            probe.updateMs += performance.now() - updateStart;
++        }
+     }
+ 
+     override getState(): TState {
