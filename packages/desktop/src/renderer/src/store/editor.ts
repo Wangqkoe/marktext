@@ -2206,7 +2206,6 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LISTEN_FOR_FILE_CHANGE(): void {
-      const preferencesStore = usePreferencesStore()
       window.electron.ipcRenderer.on('mt::update-file', (_, payload) => {
         // Workspace documents receive disk changes through DocumentIO.
         if (workspaceFor(this)) return
@@ -2239,21 +2238,21 @@ export const useEditorStore = defineStore('editor', {
                 break
               }
 
-              const { autoSave } = preferencesStore
-              if (autoSave) {
+              // The tab holds no local edits, so reloading discards nothing and
+              // needs no confirmation (#3652). Deliberately independent of
+              // autoSave: that writes our buffer back to disk and would
+              // overwrite whichever editor produced this change.
+              if (isSaved) {
                 if (autoSaveTimers.has(id)) {
                   const timer = autoSaveTimers.get(id)
                   if (timer) clearTimeout(timer)
                   autoSaveTimers.delete(id)
                 }
 
-                if (isSaved) {
-                  this.loadChange(change as unknown as FileChangePayload)
-                  return
-                }
+                this.loadChange(change as unknown as FileChangePayload)
+                return
               }
 
-              tab.isSaved = false
               this.pushTabNotification({
                 tabId: id,
                 msg: t('store.editor.fileChangedOnDisk', { name: filename }),
