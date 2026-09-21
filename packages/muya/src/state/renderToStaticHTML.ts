@@ -7,7 +7,8 @@ export interface IRenderToStaticHTMLOptions {
     footnote?: boolean;
     texMathDollars?: boolean;
     texMathGfm?: boolean;
-    latexMathDelimiters?: boolean;
+    texMathSingleBackslash?: boolean;
+    texMathDoubleBackslash?: boolean;
     superSubScript?: boolean;
     frontMatter?: boolean;
     /**
@@ -54,7 +55,8 @@ export function renderToStaticHTML(
         footnote,
         texMathDollars: options.texMathDollars ?? true,
         texMathGfm: options.texMathGfm ?? false,
-        latexMathDelimiters: options.latexMathDelimiters ?? false,
+        texMathSingleBackslash: options.texMathSingleBackslash ?? false,
+        texMathDoubleBackslash: options.texMathDoubleBackslash ?? false,
         superSubScript: options.superSubScript ?? true,
         frontMatter: options.frontMatter ?? false,
     });

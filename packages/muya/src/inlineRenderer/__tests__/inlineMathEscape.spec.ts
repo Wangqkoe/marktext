@@ -22,7 +22,8 @@ function latexMathToken(src: string): CodeEmojiMathToken | undefined {
             footnote: false,
             texMathDollars: true,
             texMathGfm: false,
-            latexMathDelimiters: true,
+            texMathSingleBackslash: true,
+            texMathDoubleBackslash: false,
         },
     }).find(t => t.type === 'inline_math') as CodeEmojiMathToken | undefined;
 }

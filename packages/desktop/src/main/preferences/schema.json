@@ -285,11 +285,6 @@
     "type": "boolean",
     "default": false
   },
-  "latexMathDelimiters": {
-    "description": "Markdown-Enable LaTeX math delimiters \\(...\\) and \\[...\\].",
-    "type": "boolean",
-    "default": false
-  },
   "texMathDollars": {
     "description": "Markdown-Enable pandoc's markdown extension tex_math_dollars.",
     "type": "boolean",
@@ -297,6 +292,16 @@
   },
   "texMathGfm": {
     "description": "Markdown-Enable pandoc's markdown extension tex_math_gfm.",
+    "type": "boolean",
+    "default": false
+  },
+  "texMathSingleBackslash": {
+    "description": "Markdown-Enable pandoc's markdown extension tex_math_single_backslash.",
+    "type": "boolean",
+    "default": false
+  },
+  "texMathDoubleBackslash": {
+    "description": "Markdown-Enable pandoc's markdown extension tex_math_double_backslash.",
     "type": "boolean",
     "default": false
   },

@@ -255,9 +255,10 @@ const {
   frontmatterType,
   superSubScript,
   footnote,
-  latexMathDelimiters,
   texMathDollars,
   texMathGfm,
+  texMathSingleBackslash,
+  texMathDoubleBackslash,
   isHtmlEnabled,
   lineHeight,
   fontSize,
@@ -795,12 +796,6 @@ watch(footnote, (value, oldValue) => {
   }
 })
 
-watch(latexMathDelimiters, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ latexMathDelimiters: value }, true)
-  }
-})
-
 watch(texMathDollars, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
     editor.value.setOptions({ texMathDollars: value }, true)
@@ -816,6 +811,18 @@ watch(isHtmlEnabled, (value, oldValue) => {
 watch(texMathGfm, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
     editor.value.setOptions({ texMathGfm: value }, true)
+  }
+})
+
+watch(texMathSingleBackslash, (value, oldValue) => {
+  if (value !== oldValue && editor.value) {
+    editor.value.setOptions({ texMathSingleBackslash: value }, true)
+  }
+})
+
+watch(texMathDoubleBackslash, (value, oldValue) => {
+  if (value !== oldValue && editor.value) {
+    editor.value.setOptions({ texMathDoubleBackslash: value }, true)
   }
 })
 
@@ -2095,9 +2102,10 @@ onMounted(() => {
     frontmatterType: frontmatterType.value,
     superSubScript: superSubScript.value,
     footnote: footnote.value,
-    latexMathDelimiters: latexMathDelimiters.value,
     texMathDollars: texMathDollars.value,
     texMathGfm: texMathGfm.value,
+    texMathSingleBackslash: texMathSingleBackslash.value,
+    texMathDoubleBackslash: texMathDoubleBackslash.value,
     disableHtml: !isHtmlEnabled.value,
     hideQuickInsertHint: hideQuickInsertHint.value,
     hideLinkPopup: hideLinkPopup.value,

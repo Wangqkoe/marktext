@@ -18,6 +18,8 @@ describe('raw HTML details round-trip', () => {
             footnote: false,
             texMathDollars: false,
             texMathGfm: false,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
         }).generate(source);
@@ -31,6 +33,8 @@ describe('raw HTML details round-trip', () => {
             footnote: false,
             texMathDollars: false,
             texMathGfm: false,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
         }).generate(rawTextSource);
@@ -44,6 +48,8 @@ describe('raw HTML details round-trip', () => {
             footnote: false,
             texMathDollars: false,
             texMathGfm: false,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
         }).generate(quotedClosingTagSource);
@@ -63,6 +69,8 @@ describe('raw HTML details round-trip', () => {
             footnote: false,
             texMathDollars: false,
             texMathGfm: false,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
         }).generate(scriptClosingTagSource);
@@ -82,6 +90,8 @@ describe('raw HTML details round-trip', () => {
             footnote: false,
             texMathDollars: false,
             texMathGfm: false,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
         }).generate(textareaClosingTagSource);
@@ -101,6 +111,8 @@ describe('raw HTML details round-trip', () => {
             footnote: false,
             texMathDollars: false,
             texMathGfm: false,
+            texMathSingleBackslash: false,
+            texMathDoubleBackslash: false,
             trimUnnecessaryCodeBlockEmptyLines: false,
             frontMatter: false,
         }).generate(malformedDetailsSource);

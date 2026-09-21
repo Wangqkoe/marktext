@@ -74,9 +74,9 @@ type BlockConversion
         mathStyle: '' | 'latex' | 'latex-inline';
         text: string;
     }
-        | { kind: 'code'; lang: string }
-        | { kind: 'table' }
-        | { kind: 'html'; tagName: string };
+    | { kind: 'code'; lang: string }
+    | { kind: 'table' }
+    | { kind: 'html'; tagName: string };
 
 // Single source of truth for "what block, if any, does this paragraph text
 // convert into on Enter". Shared by the enterHandler guard (to decide whether
@@ -85,7 +85,7 @@ type BlockConversion
 function matchBlockConversion(
     text: string,
     texMathDollars: boolean,
-    latexMathDelimiters = false,
+    texMathSingleBackslash = false,
 ): BlockConversion | null {
     // A `$$` paragraph only becomes a math block while the dollar syntax is
     // recognised; otherwise the block would serialize to markdown this editor
@@ -93,7 +93,7 @@ function matchBlockConversion(
     if (texMathDollars && MATH_BLOCK_REG.test(text))
         return { kind: 'math', mathStyle: '', text: '' };
 
-    if (latexMathDelimiters) {
+    if (texMathSingleBackslash) {
         const inlineMatch = LATEX_MATH_INLINE_REG.exec(text);
         if (inlineMatch)
             return { kind: 'math', mathStyle: 'latex-inline', text: inlineMatch[1] };
@@ -305,7 +305,7 @@ class ParagraphContent extends Format {
         const match = matchBlockConversion(
             this.text,
             this.muya.options.texMathDollars,
-            this.muya.options.latexMathDelimiters,
+            this.muya.options.texMathSingleBackslash,
         );
         if (!match)
             return super.enterHandler(event);
@@ -608,7 +608,7 @@ class ParagraphContent extends Format {
         // (matches muyajs). Otherwise typing the block syntax in a list would
         // split the item and strand an empty list entry (#2276, plus table /
         // HTML block).
-        if (matchBlockConversion(this.text, this.muya.options.texMathDollars, this.muya.options.latexMathDelimiters))
+        if (matchBlockConversion(this.text, this.muya.options.texMathDollars, this.muya.options.texMathSingleBackslash))
             return this._enterConvert(event);
 
         const type = this._paragraphParentType();

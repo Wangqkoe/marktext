@@ -45,9 +45,10 @@ export interface IUserPreferences {
   frontmatterType?: '-' | ';' | '+' | '{'
   superSubScript?: boolean
   footnote?: boolean
-  latexMathDelimiters?: boolean
   texMathDollars?: boolean
   texMathGfm?: boolean
+  texMathSingleBackslash?: boolean
+  texMathDoubleBackslash?: boolean
   isHtmlEnabled?: boolean
   theme?: string
   spellcheckerEnabled?: boolean

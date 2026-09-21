@@ -16,7 +16,7 @@ import { renderToStaticHTML } from '../renderToStaticHTML';
 //   4. Forward the same per-render option surface as `getHighlightHtml` —
 //      see `option surface` describe block below for explicit coverage of
 //      each option (footnote, math, superSubScript,
-//      texMathGfm, latexMathDelimiters, frontMatter).
+//      texMathGfm, texMathSingleBackslash, frontMatter).
 //
 // `MarkdownToHtml` (the existing class) already produces wrapped HTML, but its
 // `renderHtml()` path is async (awaits mermaid + diagram renderers) and wraps
@@ -220,7 +220,7 @@ describe('renderToStaticHTML', () => {
             expect(html).toMatch(/katex|<math/i);
         });
 
-        it('honours latexMathDelimiters for inline and display math', () => {
+        it('honours texMathSingleBackslash for inline math and a standalone \[…\] block', () => {
             const source = String.raw`Inline \(x^2\).
 
 \[
@@ -228,11 +228,11 @@ y^2
 \]`;
             const disabled = renderToStaticHTML(source, {
                 texMathDollars: true,
-                latexMathDelimiters: false,
+                texMathSingleBackslash: false,
             });
             const enabled = renderToStaticHTML(source, {
                 texMathDollars: true,
-                latexMathDelimiters: true,
+                texMathSingleBackslash: true,
             });
 
             expect(disabled).not.toMatch(/katex|<math/i);

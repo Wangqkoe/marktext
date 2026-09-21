@@ -83,9 +83,10 @@ export interface PreferencesState {
   frontmatterType: FrontmatterType | string
   superSubScript: boolean
   footnote: boolean
-  latexMathDelimiters: boolean
   texMathDollars: boolean
   texMathGfm: boolean
+  texMathSingleBackslash: boolean
+  texMathDoubleBackslash: boolean
   isHtmlEnabled: boolean
   sequenceTheme: SequenceTheme | string
   plantumlServer: string
@@ -204,9 +205,10 @@ export const usePreferencesStore = defineStore('preferences', {
     frontmatterType: '-',
     superSubScript: false,
     footnote: false,
-    latexMathDelimiters: false,
     texMathDollars: true,
     texMathGfm: false,
+    texMathSingleBackslash: false,
+    texMathDoubleBackslash: false,
     isHtmlEnabled: true,
     sequenceTheme: 'hand',
     plantumlServer: 'https://www.plantuml.com/plantuml',

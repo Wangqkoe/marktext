@@ -20,7 +20,8 @@ interface IMarkdownToStateOptions {
     footnote: boolean;
     texMathDollars: boolean;
     texMathGfm: boolean;
-    latexMathDelimiters?: boolean;
+    texMathSingleBackslash: boolean;
+    texMathDoubleBackslash: boolean;
     trimUnnecessaryCodeBlockEmptyLines: boolean;
     frontMatter: boolean;
 };
@@ -29,7 +30,8 @@ const DEFAULT_OPTIONS = {
     footnote: false,
     texMathDollars: true,
     texMathGfm: false,
-    latexMathDelimiters: false,
+    texMathSingleBackslash: false,
+    texMathDoubleBackslash: false,
     trimUnnecessaryCodeBlockEmptyLines: false,
     frontMatter: true,
 };
@@ -57,7 +59,8 @@ export class MarkdownToState {
             footnote = false,
             texMathDollars = true,
             texMathGfm = false,
-            latexMathDelimiters = false,
+            texMathSingleBackslash = false,
+            texMathDoubleBackslash = false,
             trimUnnecessaryCodeBlockEmptyLines = false,
             frontMatter = true,
         } = this._options;
@@ -68,9 +71,10 @@ export class MarkdownToState {
         const tokens: TBlockToken[] = lexBlock(markdown, {
             footnote,
             texMathDollars,
-            latexMathDelimiters,
             frontMatter,
             texMathGfm,
+            texMathSingleBackslash,
+            texMathDoubleBackslash,
         });
 
         const states: TState[] = [];
@@ -354,8 +358,10 @@ export class MarkdownToState {
             }
 
             case 'multiplemath': {
-                const text = token.text.trim();
                 const { mathStyle = '' } = token;
+                // A `\[…\]` block keeps its padding so it saves back as typed.
+                const isLatex = mathStyle === 'latex' || mathStyle === 'latex-inline';
+                const text = isLatex ? token.text : token.text.trim();
                 const state = {
                     name: 'math-block' as const,
                     text,

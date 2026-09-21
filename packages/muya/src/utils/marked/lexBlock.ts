@@ -3,7 +3,7 @@ import type { IFrontmatterToken, ILexOption, TLexedToken } from './types';
 import { Marked } from 'marked';
 import compatibleTaskList from './compatibleTaskList';
 import footnoteExtension from './extensions/footnote';
-import mathExtension, { gfmMathExtension } from './extensions/math';
+import mathExtension, { doubleBackslashMathExtension, gfmMathExtension, singleBackslashMathExtension } from './extensions/math';
 import fm from './frontMatter';
 import { DEFAULT_OPTIONS } from './options';
 import walkTokens from './walkTokens';
@@ -91,7 +91,7 @@ export function lexBlock(
     options: ILexOption = DEFAULT_OPTIONS,
 ): TLexedToken[] {
     options = Object.assign({}, DEFAULT_OPTIONS, options);
-    const { texMathDollars, texMathGfm, latexMathDelimiters, frontMatter, footnote } = options;
+    const { texMathDollars, texMathGfm, texMathSingleBackslash, texMathDoubleBackslash, frontMatter, footnote } = options;
     let tokens: (Token | IFrontmatterToken)[] = [];
 
     // Use a per-call Marked instance so extensions don't bleed across calls.
@@ -104,7 +104,6 @@ export function lexBlock(
             mathExtension({
                 throwOnError: false,
                 useKatexRender: false,
-                latexMathDelimiters,
             }),
         );
     }
@@ -112,6 +111,24 @@ export function lexBlock(
     if (texMathGfm) {
         m.use(
             gfmMathExtension({
+                throwOnError: false,
+                useKatexRender: false,
+            }),
+        );
+    }
+
+    if (texMathSingleBackslash) {
+        m.use(
+            singleBackslashMathExtension({
+                throwOnError: false,
+                useKatexRender: false,
+            }),
+        );
+    }
+
+    if (texMathDoubleBackslash) {
+        m.use(
+            doubleBackslashMathExtension({
                 throwOnError: false,
                 useKatexRender: false,
             }),

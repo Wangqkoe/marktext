@@ -3,24 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { MarkdownToState } from '../markdownToState';
 import StateToMarkdown from '../stateToMarkdown';
 
-function parse(markdown: string, latexMathDelimiters = true): TState[] {
+function parse(markdown: string, texMathSingleBackslash = true): TState[] {
     return new MarkdownToState({
         footnote: false,
         texMathDollars: true,
-        latexMathDelimiters,
+        texMathSingleBackslash,
+        texMathDoubleBackslash: false,
         texMathGfm: false,
         trimUnnecessaryCodeBlockEmptyLines: false,
         frontMatter: false,
     }).generate(markdown);
 }
 
-function roundTrip(markdown: string, latexMathDelimiters = true): string {
+function roundTrip(markdown: string, texMathSingleBackslash = true): string {
     return new StateToMarkdown({ listIndentation: 1 }).generate(
-        parse(markdown, latexMathDelimiters),
+        parse(markdown, texMathSingleBackslash),
     );
 }
 
-describe('LaTeX math delimiters', () => {
+describe('standalone \[…\] math blocks (texMathSingleBackslash)', () => {
     it('keeps the feature opt-in', () => {
         const markdown = String.raw`\[
 x^2

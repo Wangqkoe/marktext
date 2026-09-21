@@ -64,11 +64,6 @@
           more="https://pandoc.org/MANUAL.html#footnotes"
         />
         <bool
-          :description="t('preferences.markdown.extensions.latexMathDelimiters')"
-          :bool="latexMathDelimiters"
-          :on-change="(value) => onSelectChange('latexMathDelimiters', value)"
-        />
-        <bool
           :description="t('preferences.markdown.extensions.texMathDollars')"
           :bool="texMathDollars"
           :on-change="(value) => onSelectChange('texMathDollars', value)"
@@ -79,6 +74,18 @@
           :bool="texMathGfm"
           :on-change="(value) => onSelectChange('texMathGfm', value)"
           more="https://pandoc.org/MANUAL.html#extension-tex_math_gfm"
+        />
+        <bool
+          :description="t('preferences.markdown.extensions.texMathSingleBackslash')"
+          :bool="texMathSingleBackslash"
+          :on-change="(value) => onSelectChange('texMathSingleBackslash', value)"
+          more="https://pandoc.org/MANUAL.html#extension-tex_math_single_backslash"
+        />
+        <bool
+          :description="t('preferences.markdown.extensions.texMathDoubleBackslash')"
+          :bool="texMathDoubleBackslash"
+          :on-change="(value) => onSelectChange('texMathDoubleBackslash', value)"
+          more="https://pandoc.org/MANUAL.html#extension-tex_math_double_backslash"
         />
       </template>
     </compound>
@@ -171,9 +178,10 @@ const {
   frontmatterType,
   superSubScript,
   footnote,
-  latexMathDelimiters,
   texMathDollars,
   texMathGfm,
+  texMathSingleBackslash,
+  texMathDoubleBackslash,
   isHtmlEnabled,
   sequenceTheme,
   plantumlServer

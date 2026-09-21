@@ -105,19 +105,21 @@ class JSONState {
         const {
             footnote,
             texMathGfm,
+            texMathSingleBackslash,
+            texMathDoubleBackslash,
             trimUnnecessaryCodeBlockEmptyLines,
             frontMatter,
             texMathDollars,
-            latexMathDelimiters,
         } = this._muya.options;
 
         return new MarkdownToState({
             footnote,
             texMathGfm,
+            texMathSingleBackslash,
+            texMathDoubleBackslash,
             trimUnnecessaryCodeBlockEmptyLines,
             frontMatter,
             texMathDollars,
-            latexMathDelimiters,
         }).generate(markdown);
     }
 

@@ -128,7 +128,8 @@ const HEADING_LEVEL_BLOCK_NAMES = new Set(['paragraph', 'atx-heading', 'setext-h
 // document must be re-parsed from markdown. See setOptions below.
 const PARSE_AFFECTING_OPTIONS = new Set<keyof IMuyaOptions>([
     'texMathGfm',
-    'latexMathDelimiters',
+    // A standalone `\[…\]` is a math block, so this one re-parses too.
+    'texMathSingleBackslash',
     'texMathDollars',
     'footnote',
     'frontMatter',

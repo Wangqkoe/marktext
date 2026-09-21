@@ -186,8 +186,9 @@ export class MarkdownToHtml {
             superSubScript: this._muya?.options?.superSubScript ?? true,
             footnote,
             texMathGfm: this._muya?.options?.texMathGfm ?? false,
+            texMathSingleBackslash: this._muya?.options?.texMathSingleBackslash ?? false,
+            texMathDoubleBackslash: this._muya?.options?.texMathDoubleBackslash ?? false,
             texMathDollars: this._muya?.options?.texMathDollars ?? true,
-            latexMathDelimiters: this._muya?.options?.latexMathDelimiters ?? false,
         });
 
         // Post-process footnotes into the standard GFM / pandoc shape (inline
