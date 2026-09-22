@@ -230,6 +230,8 @@ export interface EditorState {
   toc: TocTreeNode[]
   workspaceProjection: WorkspaceProjection | null
   workspaceFacade: unknown
+  // Heading the cursor is inside, for the TOC highlight; null above the first.
+  activeHeadingSlug: string | null
 }
 
 const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
@@ -375,7 +377,8 @@ export const useEditorStore = defineStore('editor', {
     listToc: [], // Used for equal check and for searching for the correct github-slug to jump to
     toc: [],
     workspaceProjection: null,
-    workspaceFacade: null
+    workspaceFacade: null,
+    activeHeadingSlug: null
   }),
 
   actions: {
@@ -1164,6 +1167,8 @@ export const useEditorStore = defineStore('editor', {
         this.currentFile = currentFile
         rememberLegacyTabActivation(this, currentFile.id)
         didUpdateCurrentFile = true
+        // Slugs belong to the old document; the next selection-change re-seeds.
+        this.activeHeadingSlug = null
 
         if (!this.tabs.some((file) => file.id === currentFile.id)) {
           this.tabs.push(currentFile)
@@ -1819,6 +1824,14 @@ export const useEditorStore = defineStore('editor', {
       if (workspaceFor(this)) return
       this.listToc = toc ?? []
       this.toc = listToTree<TocItem>(toc ?? [])
+      // Every caller replaces the whole document, so the old slug is gone.
+      this.activeHeadingSlug = null
+    },
+
+    SET_ACTIVE_HEADING(slug: string | null): void {
+      if (this.activeHeadingSlug !== slug) {
+        this.activeHeadingSlug = slug
+      }
     },
 
     UPDATE_WORD_COUNT(id: string, wordCount: IFileState['wordCount']): void {

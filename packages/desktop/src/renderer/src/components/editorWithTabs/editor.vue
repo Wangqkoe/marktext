@@ -134,7 +134,12 @@ import { moveImageToFolder, uploadImage } from '@/util/fileSystem'
 import { guessClipboardFilePath } from '@/util/clipboard'
 import { dataURLToFile } from '@/util/dataURLToFile'
 import { getCssForOptions, getHtmlToc, type PdfCssOptions, type HtmlTocOptions } from '@/util/pdf'
-import { getTocHeadingScrollTop, resolveTocHeadingElement } from '@/util/tocNavigation'
+import {
+  getTocHeadingScrollTop,
+  resolveTocHeadingElement,
+  TOP_LEVEL_HEADINGS_SELECTOR
+} from '@/util/tocNavigation'
+import { findActiveHeadingSlug, type HeadingPosition } from '@/util/findActiveHeading'
 import { addCommonStyle, setEditorWidth } from '@/util/theme'
 import { createScrollReportGate, type ScrollReportGate } from '@/util/scrollReportGate'
 import { captureScrollAnchor } from '@/util/documentZoom'
@@ -672,6 +677,15 @@ watch(sourceCode, (isSource) => {
     }
   })
 }, { flush: 'sync' })
+
+// nextTick: the rebuilt headings have to be in the DOM before we pair them up.
+// listToc follows the focused pane, so a pane gaining focus pairs it again.
+watch(
+  [() => editorStore.listToc, () => props.focused],
+  () => {
+    nextTick(rebuildHeadingCache)
+  }
+)
 
 watch(fontSize, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
@@ -1363,6 +1377,44 @@ const getCursorY = (): number | null => {
     rects = parent ? parent.getClientRects() : rects
   }
   return rects.length ? rects[0].y : null
+}
+
+// Only the slug-to-element pairing is cached. Positions are not: typing body
+// text moves every later heading without changing the TOC, so a stored offset
+// is stale within a keystroke and the highlight lands a section ahead.
+interface CachedHeading {
+  slug: string
+  el: HTMLElement
+}
+
+let headingElementCache: CachedHeading[] = []
+
+const rebuildHeadingCache = (): void => {
+  const container = getScrollContainer()
+  if (!container || editorStore.listToc.length === 0) {
+    headingElementCache = []
+    return
+  }
+  const headingEls = container.querySelectorAll(TOP_LEVEL_HEADINGS_SELECTOR)
+  headingElementCache = editorStore.listToc
+    .map((item, index) => {
+      const el = headingEls[index] as HTMLElement | undefined
+      if (!el || typeof item.slug !== 'string') return null
+      return { slug: item.slug, el }
+    })
+    .filter((entry): entry is CachedHeading => entry != null)
+}
+
+// Measured with `getBoundingClientRect`, not `offsetTop`: the caret's position
+// is fractional, and rounding the headings to whole pixels reports the one the
+// caret sits in as the heading above it.
+const updateActiveHeading = (viewportY: number): void => {
+  if (headingElementCache.length === 0) return
+  const positions: HeadingPosition[] = headingElementCache.map(({ slug, el }) => ({
+    slug,
+    top: el.getBoundingClientRect().top
+  }))
+  editorStore.SET_ACTIVE_HEADING(findActiveHeadingSlug(positions, viewportY))
 }
 
 const scrollToCursor = (duration = 300) => {
@@ -2397,7 +2449,12 @@ onMounted(() => {
           .status !== 'applied'
       ) { return }
       editorStore.PERSIST_CURSOR(scope.documentId, cursor)
-      followCaret((changes.cursorCoords?.y ?? null) as number | null)
+      const caretY = (changes.cursorCoords?.y ?? null) as number | null
+      // Before followCaret: a 0-duration scroll assigns `scrollTop` at once,
+      // moving the headings out from under `caretY`. The outline shows the
+      // focused pane's document, so other panes must not move its highlight.
+      if (caretY != null && props.focused !== false) updateActiveHeading(caretY)
+      followCaret(caretY)
       selectionChange.value = changes
       if (!sourceCode.value) caretReporter.request(props.caretSession)
       pushSelectionMenuState(changes)
