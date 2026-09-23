@@ -4,8 +4,7 @@ import type { TBlockPath } from '../block/types';
 import type { Muya } from '../muya';
 import type { Nullable } from '../types';
 import type Selection from './index';
-import type { IAnchorFocusInfo, INodeOffset, ISelection } from './types';
-import { BLOCK_DOM_PROPERTY } from '../config';
+import type { IAnchorFocusInfo, INodeOffset, ISelection, ISelectionEndpoints } from './types';
 import { isHTMLElement, isMouseEvent } from '../utils';
 import {
     buildSelectionAffiliation,
@@ -14,10 +13,10 @@ import {
 import { getCursorCoords } from './cursorCoords';
 import {
     compareParagraphsOrder,
-    findContentDOM,
     getLegalOffset,
     getNodeAndOffset,
-    getOffsetOfParagraph,
+    lineAtPoint,
+    resolveEndpoint,
 } from './dom';
 import { SelectionCaretType, SelectionDirection, SelectionType } from './types';
 
@@ -62,7 +61,7 @@ class TextSelection {
 
     private _selectInfo: {
         isSelect: boolean;
-        selection: { anchor: IAnchorFocusInfo; focus: IAnchorFocusInfo } | null;
+        selection: ISelectionEndpoints | null;
     } = {
         isSelect: false,
         selection: null,
@@ -163,50 +162,30 @@ class TextSelection {
         if (!anchorNode || !focusNode)
             return null;
 
-        const anchorDomNode = findContentDOM(anchorNode);
-        const focusDomNode = findContentDOM(focusNode);
+        const anchor = resolveEndpoint(anchorNode, anchorOffset);
+        const focus = resolveEndpoint(focusNode, focusOffset);
 
-        if (!anchorDomNode || !focusDomNode)
+        if (!anchor || !focus)
             return null;
 
-        const anchorBlock = anchorDomNode[BLOCK_DOM_PROPERTY] as Content | undefined;
-        const focusBlock = focusDomNode[BLOCK_DOM_PROPERTY] as Content | undefined;
-        // An `mu-content` span cloned by the browser's native edit
-        // behavior is not linked back to a block. Bail out instead of
-        // crashing — the caller treats null the same as "no selection".
-        if (!anchorBlock || !focusBlock)
-            return null;
-
-        if (!anchorBlock.outMostBlock || !focusBlock.outMostBlock)
-            return null;
-
-        const anchorPath = anchorBlock.path;
-        const focusPath = focusBlock.path;
-
-        const aOffset = getOffsetOfParagraph(anchorNode, anchorDomNode) + anchorOffset;
-        const fOffset = getOffsetOfParagraph(focusNode, focusDomNode) + focusOffset;
-        const anchor = { offset: aOffset };
-        const focus = { offset: fOffset };
-
+        const anchorBlock = anchor.block;
+        const focusBlock = focus.block;
         const isCollapsed = anchorBlock === focusBlock && anchor.offset === focus.offset;
         const isSelectionInSameBlock = anchorBlock === focusBlock;
 
-        const direction = computeDirection(
-            anchorBlock,
-            focusBlock,
-            anchor.offset,
-            focus.offset,
-            isSelectionInSameBlock,
-        );
-        const type = computeCaretType(anchorBlock, focusBlock, isCollapsed);
-
         return {
-            anchor: { offset: anchor.offset, block: anchorBlock, path: anchorPath },
-            focus: { offset: focus.offset, block: focusBlock, path: focusPath },
+            anchor,
+            focus,
             isCollapsed,
             isSelectionInSameBlock,
-            direction,
-            type,
+            direction: computeDirection(
+                anchorBlock,
+                focusBlock,
+                anchor.offset,
+                focus.offset,
+                isSelectionInSameBlock,
+            ),
+            type: computeCaretType(anchorBlock, focusBlock, isCollapsed),
         };
     }
 
@@ -265,11 +244,22 @@ class TextSelection {
     private _listenSelectActions() {
         const { eventCenter, domNode } = this._muya;
 
-        const handleMousedown = () => {
+        const handleMousedown = (event: Event) => {
             this._selectInfo = {
                 isSelect: true,
                 selection: null,
             };
+
+            if (!isMouseEvent(event) || event.button !== 0 || event.detail < 3)
+                return;
+
+            const line = lineAtPoint(this._doc, event.clientX, event.clientY);
+            if (!line)
+                return;
+
+            event.preventDefault();
+            this._selectInfo.isSelect = false;
+            line.block.setCursor(line.start, line.end);
         };
 
         const handleMouseupOrLeave = () => {

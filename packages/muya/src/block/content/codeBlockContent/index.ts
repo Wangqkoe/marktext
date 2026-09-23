@@ -16,6 +16,7 @@ import {
     firstWordOfInfo,
     isKeyboardEvent,
     lastGraphemeLength,
+    lineBounds,
 } from '../../../utils';
 import { computeLineCount, repositionLineNumberSpans, syncLineNumbersSpans } from '../../../utils/codeBlockLineNumbers';
 import { getHighlightHtml, MARKER_HASH } from '../../../utils/highlightHTML';
@@ -30,10 +31,7 @@ function checkAutoIndent(text: string, offset: number) {
 }
 
 function getIndentSpace(text: string, offset: number) {
-    const lineStart = text.lastIndexOf('\n', offset - 1) + 1;
-    let lineEnd = text.indexOf('\n', lineStart);
-    if (lineEnd === -1)
-        lineEnd = text.length;
+    const [lineStart, lineEnd] = lineBounds(text, offset);
     const match = /^(\s*)\S/.exec(text.slice(lineStart, lineEnd));
 
     return match ? match[1] : '';
