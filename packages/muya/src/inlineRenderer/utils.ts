@@ -198,6 +198,32 @@ export function getAttributes(html: string) {
 }
 
 export function parseSrcAndTitle(text = '') {
+    const trimmedText = text.trim();
+    if (trimmedText.startsWith('<')) {
+        let closingBracket = -1;
+        for (let i = 1; i < trimmedText.length; i++) {
+            if (trimmedText[i] === '\\') {
+                i++;
+            }
+            else if (trimmedText[i] === '>') {
+                closingBracket = i;
+                break;
+            }
+        }
+
+        if (closingBracket > -1) {
+            const src = trimmedText.substring(1, closingBracket);
+            const rawTitle = trimmedText.substring(closingBracket + 1).trim();
+            const titleMatch = /^(?:'(.*?)'|"(.*?)")$/.exec(rawTitle);
+            if (!rawTitle || titleMatch) {
+                return {
+                    src,
+                    title: titleMatch ? (titleMatch[1] ?? titleMatch[2]) : '',
+                };
+            }
+        }
+    }
+
     const parts = text.split(/\s+/);
     if (parts.length === 1) {
         return {
@@ -340,7 +366,26 @@ export function validateEmphasize(src: string, offset: number, marker: string, p
 
 export function correctUrl(token: string[] | null) {
     if (token && typeof token[4] === 'string') {
-        const lastParenIndex = findClosingBracket(token[4], '()');
+        // Parentheses inside an angle-bracket destination are literal path
+        // characters, so they must not close the surrounding Markdown image
+        // or link. Scan for the outer `)` only after the matching `>`.
+        const trimmedStart = token[4].search(/\S/);
+        let angleDestinationEnd = -1;
+        if (trimmedStart > -1 && token[4][trimmedStart] === '<') {
+            for (let i = trimmedStart + 1; i < token[4].length; i++) {
+                if (token[4][i] === '\\') {
+                    i++;
+                }
+                else if (token[4][i] === '>') {
+                    angleDestinationEnd = i;
+                    break;
+                }
+            }
+        }
+
+        const searchStart = angleDestinationEnd + 1;
+        const closingParen = findClosingBracket(token[4].substring(searchStart), '()');
+        const lastParenIndex = closingParen < 0 ? -1 : searchStart + closingParen;
 
         if (lastParenIndex > -1) {
             const len = token[0].length - (token[4].length - lastParenIndex);

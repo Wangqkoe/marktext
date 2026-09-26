@@ -172,6 +172,43 @@ test.describe('Tab management', () => {
     expect(await activeTabId(page)).toBe(bId)
   })
 
+  test('Closing tabs follows MRU focus and leaves background focus unchanged', async() => {
+    const launch = await launchWithMarkdown('# focus base\n')
+    const focusApp = launch.app
+    const focusPage = launch.page
+    try {
+      for (const body of ['second\n', 'third\n']) {
+        const before = await focusPage.locator(tabSelector).count()
+        await sendIpcToRenderer(focusApp, 'mt::new-untitled-tab', true, body)
+        await focusPage.waitForFunction(
+          ({ selector, prev }) => document.querySelectorAll(selector).length > prev,
+          { selector: tabSelector, prev: before },
+          { timeout: 5000 }
+        )
+      }
+
+      const [firstId, secondId, thirdId] = await readTabIds(focusPage)
+      expect(firstId).toBeTruthy()
+      expect(secondId).toBeTruthy()
+      expect(thirdId).toBeTruthy()
+
+      await sendIpcToRenderer(focusApp, 'mt::switch-tab-by-index', 1)
+      await expect.poll(() => activeTabId(focusPage), { timeout: 5000 }).toBe(secondId)
+      await sendIpcToRenderer(focusApp, 'mt::switch-tab-by-index', 2)
+      await expect.poll(() => activeTabId(focusPage), { timeout: 5000 }).toBe(thirdId)
+
+      expect(await callEditorStoreAction(focusPage, 'CLOSE_TAB', thirdId)).toBe(true)
+      await expect.poll(() => readTabIds(focusPage), { timeout: 5000 }).toHaveLength(2)
+      await expect.poll(() => activeTabId(focusPage), { timeout: 5000 }).toBe(secondId)
+
+      expect(await callEditorStoreAction(focusPage, 'CLOSE_TAB', firstId)).toBe(true)
+      await expect.poll(() => readTabIds(focusPage), { timeout: 5000 }).toEqual([secondId])
+      expect(await activeTabId(focusPage)).toBe(secondId)
+    } finally {
+      await closeDiscardingChanges(focusApp)
+    }
+  })
+
   // Item 262 — a blank untitled tab is NOT marked unsaved before any input
   // (the engine's lone-'\n' init json-change is guarded in
   // LISTEN_FOR_CONTENT_CHANGE), and flips to unsaved on the first real keystroke.

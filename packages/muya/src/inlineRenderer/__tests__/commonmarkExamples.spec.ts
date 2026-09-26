@@ -193,6 +193,82 @@ describe('inline lexer — GFM link/image title (marktext ad5ddbf9)', () => {
     });
 });
 
+describe('inline lexer — angle-bracket destinations', () => {
+    it('removes destination delimiters while preserving the image source text', () => {
+        const input = '![alt](<assets/figure one.png>)';
+        const image = findByType(tokenizer(input), 'image') as ImageToken;
+
+        expect(image).toBeDefined();
+        expect(image.src).toBe('assets/figure one.png');
+        expect(image.attrs.src).toBe('assets/figure one.png');
+        expect(image.srcAndTitle).toBe('<assets/figure one.png>');
+        expect(image.raw).toBe(input);
+    });
+
+    it('extracts a title after an angle-bracket image destination', () => {
+        const image = findByType(
+            tokenizer('![alt](<assets/figure one.png> "Figure title")'),
+            'image',
+        ) as ImageToken;
+
+        expect(image.src).toBe('assets/figure one.png');
+        expect(image.title).toBe('Figure title');
+    });
+
+    it('extracts a single-quoted title after an angle-bracket destination', () => {
+        const image = findByType(
+            tokenizer(`![alt](<assets/figure one.png> 'Figure title')`),
+            'image',
+        ) as ImageToken;
+
+        expect(image.src).toBe('assets/figure one.png');
+        expect(image.title).toBe('Figure title');
+    });
+
+    it('does not treat parentheses inside an angle-bracket path as the image boundary', () => {
+        const input = '![alt](<assets/figure) one.png> "Figure title") after (text)';
+        const tokens = tokenizer(input);
+        const image = findByType(tokens, 'image') as ImageToken;
+
+        expect(image.src).toBe('assets/figure) one.png');
+        expect(image.title).toBe('Figure title');
+        expect(image.raw).toBe('![alt](<assets/figure) one.png> "Figure title")');
+        expect(tokens.map(token => token.raw ?? '').join('')).toBe(input);
+    });
+
+    it('accepts an unmatched opening parenthesis inside an angle-bracket path', () => {
+        const input = '![alt](<assets/figure( one.png>) trailing';
+        const image = findByType(tokenizer(input), 'image') as ImageToken;
+
+        expect(image.src).toBe('assets/figure( one.png');
+        expect(image.raw).toBe('![alt](<assets/figure( one.png>)');
+    });
+
+    it('keeps consecutive angle-bracket image destinations separate', () => {
+        const input = '![one](<assets/one (draft).png>) ![two](<assets/two.png>)';
+        const images = tokenizer(input).filter(token => token.type === 'image') as ImageToken[];
+
+        expect(images).toHaveLength(2);
+        expect(images.map(image => image.src)).toEqual([
+            'assets/one (draft).png',
+            'assets/two.png',
+        ]);
+        expect(images.map(image => image.raw)).toEqual([
+            '![one](<assets/one (draft).png>)',
+            '![two](<assets/two.png>)',
+        ]);
+    });
+
+    it('keeps ordinary image paths and link destinations unchanged', () => {
+        const image = findByType(tokenizer('![alt](assets/figure.png)'), 'image') as ImageToken;
+        const link = findByType(tokenizer('[text](<docs/read me.html> "Read me")'), 'link') as LinkToken;
+
+        expect(image.src).toBe('assets/figure.png');
+        expect(link.href).toBe('docs/read me.html');
+        expect(link.title).toBe('Read me');
+    });
+});
+
 // Defensive regression for marktext commit d937fac0 (issue #1071, PR #1072):
 // a sequence like `**\`word 1\`**, **\`word 2\`**` used to only bold the LAST
 // instance — every earlier `**` pair was emitted as literal text. The legacy

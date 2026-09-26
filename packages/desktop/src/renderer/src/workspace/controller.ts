@@ -74,6 +74,8 @@ interface PaneRecord {
   id: PaneId
   viewIds: ViewId[]
   activeViewId: ViewId
+  /** In-memory activation order, oldest to newest. */
+  activationHistory: ViewId[]
 }
 
 interface CapabilityRecord {
@@ -668,6 +670,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
     pane.activeViewId = view.id
+    this.rememberActivation(pane, view.id)
     this.focusedPaneId = paneId
     if (cleanSurfaceReport) {
       const bound = this.adapters.get(paneId)
@@ -712,7 +715,10 @@ export class WorkspaceController implements WorkspaceControllerContract {
     this.documents.set(doc.id, doc)
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
-    if (selected) pane.activeViewId = view.id
+    if (selected) {
+      pane.activeViewId = view.id
+      this.rememberActivation(pane, view.id)
+    }
     if (selected) this.focusedPaneId = 'left'
     if (cleanSurfaceReport) {
       const bound = this.adapters.get(pane.id)
@@ -738,6 +744,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       await this.refreshAdapter(paneId, this.snapshotFor(paneId, viewId))
       pane.activeViewId = viewId
     }
+    this.rememberActivation(pane, viewId)
     if (focus && this.focusedPaneId !== paneId) await this.focus(paneId, false)
     this.commit()
     return this.applied()
@@ -774,6 +781,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const target = right ?? this.createPane('right')
     target.viewIds.push(view.id)
     target.activeViewId = view.id
+    this.rememberActivation(target, view.id)
     this.focusedPaneId = 'right'
     this.commit()
     return this.applied()
@@ -796,9 +804,16 @@ export class WorkspaceController implements WorkspaceControllerContract {
     const sourcePane: PaneRecord = {
       id: sourceId,
       viewIds: remaining,
-      activeViewId: newSourceActive
+      activeViewId: newSourceActive,
+      activationHistory: source.activationHistory.filter(id => remaining.includes(id))
     }
-    const targetPane: PaneRecord = { id: targetPaneId, viewIds: [moved.id], activeViewId: moved.id }
+    this.rememberActivation(sourcePane, newSourceActive)
+    const targetPane: PaneRecord = {
+      id: targetPaneId,
+      viewIds: [moved.id],
+      activeViewId: moved.id,
+      activationHistory: [moved.id]
+    }
     this.panes.clear()
     this.panes.set('left', targetPaneId === 'left' ? targetPane : sourcePane)
     this.panes.set('right', targetPaneId === 'right' ? targetPane : sourcePane)
@@ -845,8 +860,11 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (remaining.length > 0) {
       source.viewIds = remaining
       source.activeViewId = nextSourceActiveId
+      source.activationHistory = source.activationHistory.filter(id => remaining.includes(id))
+      this.rememberActivation(source, nextSourceActiveId)
       target.viewIds.push(viewId)
       target.activeViewId = viewId
+      this.rememberActivation(target, viewId)
       this.focusedPaneId = target.id
     }
     this.commit()
@@ -1184,12 +1202,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
     if (remaining.length > 0) {
       const nextId = remaining.includes(pane.activeViewId)
         ? pane.activeViewId
-        : this.firstViewId(remaining, 'remaining pane')
+        : this.mostRecentViewId(pane, remaining, viewId)
       if (nextId !== pane.activeViewId) {
         await this.flushAndRefresh(pane.id, () => this.snapshotFor(pane.id, nextId))
       }
       pane.viewIds = remaining
       pane.activeViewId = nextId
+      pane.activationHistory = pane.activationHistory.filter(id => remaining.includes(id))
+      this.rememberActivation(pane, nextId)
     } else if (this.panes.size === 2) {
       const survivor = this.otherPane(pane.id)
       await this.collapse(pane.id, survivor.viewIds, survivor.activeViewId)
@@ -1204,6 +1224,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
       this.views.set(replacement.id, replacement)
       pane.viewIds = [replacement.id]
       pane.activeViewId = replacement.id
+      pane.activationHistory = [replacement.id]
     }
     this.removeDocumentAndView(viewId)
     this.commit()
@@ -1234,7 +1255,14 @@ export class WorkspaceController implements WorkspaceControllerContract {
       if (bound !== adapter) this.invalidate(bound)
     }
     this.panes.clear()
-    this.panes.set('left', { id: 'left', viewIds: [...survivingViewIds], activeViewId })
+    const activationHistory = survivor.activationHistory.filter(id => survivingViewIds.includes(id))
+    if (!activationHistory.includes(activeViewId)) activationHistory.push(activeViewId)
+    this.panes.set('left', {
+      id: 'left',
+      viewIds: [...survivingViewIds],
+      activeViewId,
+      activationHistory
+    })
     this.adapters.clear()
     if (adapter) this.adapters.set('left', adapter)
     this.focusedPaneId = 'left'
@@ -1596,7 +1624,7 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   private createPane(id: PaneId): PaneRecord {
-    const pane: PaneRecord = { id, viewIds: [], activeViewId: '' }
+    const pane: PaneRecord = { id, viewIds: [], activeViewId: '', activationHistory: [] }
     this.panes.set(id, pane)
     return pane
   }
@@ -1608,6 +1636,28 @@ export class WorkspaceController implements WorkspaceControllerContract {
     this.views.set(view.id, view)
     pane.viewIds.push(view.id)
     pane.activeViewId = view.id
+    this.rememberActivation(pane, view.id)
+  }
+
+  private rememberActivation(pane: PaneRecord, viewId: ViewId): void {
+    pane.activationHistory = pane.activationHistory.filter(
+      id => id !== viewId && pane.viewIds.includes(id)
+    )
+    pane.activationHistory.push(viewId)
+  }
+
+  private mostRecentViewId(
+    pane: PaneRecord,
+    remaining: readonly ViewId[],
+    closingViewId: ViewId
+  ): ViewId {
+    for (let index = pane.activationHistory.length - 1; index >= 0; index -= 1) {
+      const recent = pane.activationHistory[index]
+      if (recent && recent !== closingViewId && remaining.includes(recent)) return recent
+    }
+    const closingIndex = pane.viewIds.indexOf(closingViewId)
+    return remaining[Math.min(Math.max(closingIndex, 0), remaining.length - 1)] ??
+      this.firstViewId(remaining, 'remaining pane')
   }
 
   private view(viewId: ViewId): ViewRecord {

@@ -485,7 +485,11 @@ describe('WorkspaceRuntime', () => {
       await cancelledComposition.mount(surface, { id: 'saved', fileKey: '/cancelled.md', markdown: 'saved', title: 'saved' })
       expect(expectDefined(surface.scopes.at(-1)).report({ markdown: 'dirty' }).status).toBe('applied')
 
+      const beforeCancel = paneAt(cancelledWorkspace.getProjection(), 0)
       expect((await cancelledComposition.closeLegacyTab('saved')).status).toBe('rejected')
+      const afterCancel = paneAt(cancelledWorkspace.getProjection(), 0)
+      expect(afterCancel.activeViewId).toBe(beforeCancel.activeViewId)
+      expect(afterCancel.tabs.map(tab => tab.viewId)).toEqual(beforeCancel.tabs.map(tab => tab.viewId))
       expect(send).not.toHaveBeenCalled()
       cancelledComposition.unmount(surface)
     } finally {
@@ -1136,6 +1140,66 @@ describe('WorkspaceRuntime', () => {
     expect(pane.tabs).toHaveLength(1)
     expect(tabAt(pane, 0).title).toBe('New Tab')
     expect(tabAt(pane, 0).dirty).toBe(false)
+  })
+
+  it('returns to the most recently active open tab after closing the active tab', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'first', fileKey: '/first.md' },
+      { documentId: 'second', fileKey: '/second.md' },
+      { documentId: 'third', fileKey: '/third.md' }
+    ])
+    const initial = paneAt(workspace.getProjection(), 0)
+    const second = tabAt(initial, 1)
+    const third = tabAt(initial, 2)
+
+    await workspace.execute({ kind: 'activate-view', paneId: 'left', viewId: second.viewId })
+    await workspace.execute({ kind: 'activate-view', paneId: 'left', viewId: third.viewId })
+    expect((await workspace.execute({ kind: 'close-view', viewId: third.viewId })).status).toBe('applied')
+
+    const pane = paneAt(workspace.getProjection(), 0)
+    expect(pane.tabs.find(tab => tab.viewId === pane.activeViewId)?.documentId).toBe('second')
+  })
+
+  it('keeps focus when closing a background tab and skips that tab in later MRU fallback', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'first', fileKey: '/first.md' },
+      { documentId: 'second', fileKey: '/second.md' },
+      { documentId: 'third', fileKey: '/third.md' }
+    ])
+    const initial = paneAt(workspace.getProjection(), 0)
+    const first = tabAt(initial, 0)
+    const second = tabAt(initial, 1)
+    const third = tabAt(initial, 2)
+
+    await workspace.execute({ kind: 'activate-view', paneId: 'left', viewId: second.viewId })
+    await workspace.execute({ kind: 'activate-view', paneId: 'left', viewId: first.viewId })
+    expect((await workspace.execute({ kind: 'close-view', viewId: second.viewId })).status).toBe('applied')
+    expect(paneAt(workspace.getProjection(), 0).activeViewId).toBe(first.viewId)
+
+    expect((await workspace.execute({ kind: 'close-view', viewId: first.viewId })).status).toBe('applied')
+    expect(paneAt(workspace.getProjection(), 0).activeViewId).toBe(third.viewId)
+  })
+
+  it('preserves the surviving pane MRU when closing the other pane collapses the split', async() => {
+    const workspace = createWorkspaceRuntime([
+      { documentId: 'first', fileKey: '/first.md' },
+      { documentId: 'second', fileKey: '/second.md' },
+      { documentId: 'third', fileKey: '/third.md' }
+    ])
+    await workspace.execute({ kind: 'move-to-pane', targetPaneId: 'right' })
+    const split = workspace.getProjection()
+    const left = paneById(split, 'left')
+    const first = tabAt(left, 0)
+    const second = tabAt(left, 1)
+    const right = tabAt(paneById(split, 'right'), 0)
+
+    await workspace.execute({ kind: 'activate-view', paneId: 'left', viewId: second.viewId })
+    await workspace.execute({ kind: 'activate-view', paneId: 'left', viewId: first.viewId })
+    expect((await workspace.execute({ kind: 'close-view', viewId: right.viewId })).status).toBe('applied')
+    expect(workspace.getProjection().panes).toHaveLength(1)
+
+    expect((await workspace.execute({ kind: 'close-view', viewId: first.viewId })).status).toBe('applied')
+    expect(paneAt(workspace.getProjection(), 0).activeViewId).toBe(second.viewId)
   })
 
   it('moves a View rather than its Document and collapses an empty pane', async() => {

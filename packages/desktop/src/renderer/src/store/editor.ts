@@ -325,6 +325,28 @@ const workspaceFacadeBindings = new WeakMap<object, WorkspaceFacadeBinding>()
  * fallback when that edge has been released.
  */
 const workspaceCompositionBindings = new WeakMap<object, PaneEditorComposition>()
+const legacyTabActivationHistory = new WeakMap<object, string[]>()
+
+const rememberLegacyTabActivation = (store: object, tabId: string): void => {
+  const history = legacyTabActivationHistory.get(store) ?? []
+  legacyTabActivationHistory.set(store, [...history.filter(id => id !== tabId), tabId])
+}
+
+const forgetLegacyTabActivations = (store: object, tabIds: ReadonlySet<string>): void => {
+  const history = legacyTabActivationHistory.get(store)
+  if (history) legacyTabActivationHistory.set(store, history.filter(id => !tabIds.has(id)))
+}
+
+const mostRecentLegacyTab = <T extends { id: string }>(
+  store: object,
+  tabs: readonly T[]
+): T | undefined => {
+  const history = legacyTabActivationHistory.get(store) ?? []
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const tab = tabs.find(candidate => candidate.id === history[index])
+    if (tab) return tab
+  }
+}
 
 const workspaceFor = (store: object): PaneEditorComposition | undefined =>
   workspaceCompositionBindings.get(store)
@@ -1115,9 +1137,11 @@ export const useEditorStore = defineStore('editor', {
         // flushed edit is attributed to that tab and not lost on switch (#2938).
         if (oldCurrentFile) {
           this.flushActiveEditor()
+          rememberLegacyTabActivation(this, oldCurrentFile.id)
         }
         window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
         this.currentFile = currentFile
+        rememberLegacyTabActivation(this, currentFile.id)
         didUpdateCurrentFile = true
 
         if (!this.tabs.some((file) => file.id === currentFile.id)) {
@@ -1294,6 +1318,7 @@ export const useEditorStore = defineStore('editor', {
       const index = tabs.findIndex((t) => t.id === file.id)
       if (index > -1) {
         tabs.splice(index, 1)
+        forgetLegacyTabActivations(this, new Set([file.id]))
         this.updateTabIdToIndex()
       }
 
@@ -1307,8 +1332,10 @@ export const useEditorStore = defineStore('editor', {
 
       if (currentFile && file.id === currentFile.id) {
         const fileState: IFileState | null =
+          mostRecentLegacyTab(this, this.tabs) ??
           this.tabs[index] ?? this.tabs[index - 1] ?? this.tabs[0] ?? null
         this.currentFile = fileState
+        if (fileState) rememberLegacyTabActivation(this, fileState.id)
         if (fileState && typeof fileState.markdown === 'string') {
           const { id, markdown, cursor, history, pathname, scrollTop, blocks, muyaIndexCursor } =
             fileState
@@ -1395,6 +1422,7 @@ export const useEditorStore = defineStore('editor', {
       if (!tabIdList || tabIdList.length === 0) return
 
       let tabIndex = 0
+      const closingTabIds = new Set(tabIdList)
       tabIdList.forEach((id) => {
         const index = this.tabs.findIndex((f) => f.id === id)
         if (index === -1) return
@@ -1415,11 +1443,14 @@ export const useEditorStore = defineStore('editor', {
           }
         }
       })
+      forgetLegacyTabActivations(this, closingTabIds)
 
       this.updateTabIdToIndex() // Update before sending it out to prevent stale mappings.
 
       if (this.currentFile == null && this.tabs.length > 0) {
-        this.currentFile = this.tabs[tabIndex] ?? this.tabs[tabIndex - 1] ?? this.tabs[0] ?? null
+        this.currentFile = mostRecentLegacyTab(this, this.tabs) ??
+          this.tabs[tabIndex] ?? this.tabs[tabIndex - 1] ?? this.tabs[0] ?? null
+        if (this.currentFile) rememberLegacyTabActivation(this, this.currentFile.id)
         if (this.currentFile && typeof this.currentFile.markdown === 'string') {
           const { id, markdown, cursor, history, pathname, scrollTop, blocks, muyaIndexCursor } =
             this.currentFile
