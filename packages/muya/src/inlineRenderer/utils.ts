@@ -1,6 +1,6 @@
 import type { Labels, Rules } from './types';
 import { isLengthEven } from '../utils';
-import { findClosingBracket } from '../utils/marked/utils';
+import { parseSrcAndTitle } from './linkDestination';
 
 const AUTO_LINK_BOUNDARY = /[* _~(]/;
 
@@ -198,55 +198,6 @@ export function getAttributes(html: string) {
     return attrs;
 }
 
-export function parseSrcAndTitle(text = '') {
-    const trimmedText = text.trim();
-    if (trimmedText.startsWith('<')) {
-        let closingBracket = -1;
-        for (let i = 1; i < trimmedText.length; i++) {
-            if (trimmedText[i] === '\\') {
-                i++;
-            }
-            else if (trimmedText[i] === '>') {
-                closingBracket = i;
-                break;
-            }
-        }
-
-        if (closingBracket > -1) {
-            const src = trimmedText.substring(1, closingBracket);
-            const rawTitle = trimmedText.substring(closingBracket + 1).trim();
-            const titleMatch = /^(?:'(.*?)'|"(.*?)")$/.exec(rawTitle);
-            if (!rawTitle || titleMatch) {
-                return {
-                    src,
-                    title: titleMatch ? (titleMatch[1] ?? titleMatch[2]) : '',
-                };
-            }
-        }
-    }
-
-    const parts = text.split(/\s+/);
-    if (parts.length === 1) {
-        return {
-            src: text.trim(),
-            title: '',
-        };
-    }
-    const rawTitle = text.replace(/^[^ ]+ +/, '');
-    let src = '';
-    const TITLE_REG = /^('|")(.*?)\1$/; // we only support use `'` and `"` to indicate a title now.
-    let title = '';
-    if (rawTitle && TITLE_REG.test(rawTitle))
-        title = rawTitle.replace(TITLE_REG, '$2');
-
-    if (title)
-        src = text.substring(0, text.length - rawTitle.length).trim();
-    else
-        src = text.trim();
-
-    return { src, title };
-}
-
 // GFM §6.9 (https://github.github.com/gfm/#autolinks-extension-): trim a
 // www/url autolink's extent to drop characters that are not part of the link.
 // The match is greedy (`\S+`), so these are applied after the regex, mirroring
@@ -259,7 +210,6 @@ export function parseSrcAndTitle(text = '') {
 // The last three rules interleave and are applied repeatedly (e.g. `).`).
 export function trimAutoLinkExtent(raw: string): string {
     let end = raw.length;
-
     const lt = raw.indexOf('<');
     if (lt !== -1)
         end = lt;
@@ -301,28 +251,16 @@ export function trimAutoLinkExtent(raw: string): string {
     return raw.slice(0, end);
 }
 
+/**
+ * The `link` and `image` patterns match to the LAST `)` on the line, so
+ * `[a](b) c (d)` arrives as one tentative link. Cut it back to where the
+ * destination and title actually end — the `)` right after them closes the
+ * link, and everything past it is ordinary text again.
+ */
 export function correctUrl(token: string[] | null) {
     if (token && typeof token[4] === 'string') {
-        // Parentheses inside an angle-bracket destination are literal path
-        // characters, so they must not close the surrounding Markdown image
-        // or link. Scan for the outer `)` only after the matching `>`.
-        const trimmedStart = token[4].search(/\S/);
-        let angleDestinationEnd = -1;
-        if (trimmedStart > -1 && token[4][trimmedStart] === '<') {
-            for (let i = trimmedStart + 1; i < token[4].length; i++) {
-                if (token[4][i] === '\\') {
-                    i++;
-                }
-                else if (token[4][i] === '>') {
-                    angleDestinationEnd = i;
-                    break;
-                }
-            }
-        }
-
-        const searchStart = angleDestinationEnd + 1;
-        const closingParen = findClosingBracket(token[4].substring(searchStart), '()');
-        const lastParenIndex = closingParen < 0 ? -1 : searchStart + closingParen;
+        const tail = parseSrcAndTitle(token[4]);
+        const lastParenIndex = tail && tail.length < token[4].length ? tail.length : -1;
 
         if (lastParenIndex > -1) {
             const len = token[0].length - (token[4].length - lastParenIndex);
