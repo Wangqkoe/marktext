@@ -1,5 +1,7 @@
 # 当前 Windows x64 包（2026-09-19）
 
+> 历史记录：此包已由 [2026-09-25 三项修复 Windows x64 包](image-tab-table-fixes-2026-09-25.md#windows-x64-package) 替代；新包已于 2026-09-29 收到用户验收通过反馈。
+
 源码提交：`078394878cd589b9e198333ebe9834c607e558ef`；版本仍为 `0.20.0-rc.1`。该提交只记录 [Source 批量通知暂缓决定](source-batch-timing.md#决策暂缓实施2026-09-19)，未改产品代码。以干净工作树重新执行 locales minify、native rebuild、Vite build、`electron-builder --win --x64 --publish never --config.directories.output='E:/Program Files/Marktext-builds/07839487'`，命令退出码 0。独立输出目录保留旧包，不覆盖主仓 `dist`。
 
 | 产物 | 字节 | SHA-256 |

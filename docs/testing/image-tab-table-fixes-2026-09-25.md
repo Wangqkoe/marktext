@@ -2,6 +2,10 @@
 
 Source commit: `1e68199050a3ea43c97d83cdb46e5a82aeef16e0` (`fix: restore tab focus and correct image and table rendering`). The commit contains eight product and test files. It was reviewed at the final high-risk review gate with no blocking findings. No changes were pushed.
 
+## User acceptance (2026-09-29)
+
+The user reported that the Windows x64 package passed manual acceptance for all three fixes: angle-bracket images render correctly, closing tabs restores focus by most-recently-used order, and text remains readable inside a rectangular table selection. This records the user's feedback only; no additional installation, environment validation, or retest was performed for this closeout.
+
 ## Fixed behavior
 
 1. Angle-bracket image destinations such as `![fixture](<assets/fig1.png>)` now keep the destination delimiters long enough for the inline lexer to find the correct outer closing parenthesis, while exposing the decoded path without `<` and `>` to image loading. Paths containing spaces or parentheses and optional single- or double-quoted titles are covered. Ordinary image paths and link destinations retain their existing behavior.
