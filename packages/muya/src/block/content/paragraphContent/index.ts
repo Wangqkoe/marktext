@@ -4,7 +4,6 @@ import type { IRenderCursor } from '../../../selection/types';
 import type {
     IBlockQuoteState,
     IBulletListState,
-    IDiagramMeta,
     IListItemState,
     IOrderListState,
     IParagraphState,
@@ -19,7 +18,8 @@ import type Paragraph from '../../commonMark/paragraph';
 import { HTML_TAGS, VOID_HTML_TAGS } from '../../../config';
 import { tokenizer } from '../../../inlineRenderer/lexer';
 import { isListItemState, isTaskListItemState } from '../../../state/types';
-import { isKeyboardEvent, isLengthEven } from '../../../utils';
+import { firstWordOfInfo, isKeyboardEvent, isLengthEven, parseFenceLine } from '../../../utils';
+import { createDiagramState, diagramTypeOfLang } from '../../../utils/diagram/fence';
 import logger from '../../../utils/logger';
 import Format from '../../base/format';
 import OrderList from '../../commonMark/orderList';
@@ -74,7 +74,6 @@ function holdsItemKind(list: Parent, listItem: Parent) {
 const debug = logger('paragraph:content');
 
 const HTML_BLOCK_REG = /^<([a-z\d-]+)(?=\s|>)[^<>]*>$/i;
-const CODE_BLOCK_REG = /(^ {0,3}`{3,})([^` ]*)/;
 const MATH_BLOCK_REG = /^\$\$[ \t]*$/;
 const LATEX_MATH_OPEN_REG = /^\\\[$/;
 const LATEX_MATH_INLINE_REG = /^\\\[((?:\\(?!\])|[^\\\n])+?)\\\]$/;
@@ -87,7 +86,7 @@ type BlockConversion
         mathStyle: '' | 'latex' | 'latex-inline';
         text: string;
     }
-    | { kind: 'code'; lang: string }
+    | { kind: 'code'; lang: string; fenceChar: '`' | '~' }
     | { kind: 'table' }
     | { kind: 'html'; tagName: string };
 
@@ -114,9 +113,9 @@ function matchBlockConversion(
             return { kind: 'math', mathStyle: 'latex', text: '' };
     }
 
-    const codeBlockToken = text.match(CODE_BLOCK_REG);
-    if (codeBlockToken)
-        return { kind: 'code', lang: codeBlockToken[2] };
+    const fence = parseFenceLine(text);
+    if (fence)
+        return { kind: 'code', lang: firstWordOfInfo(fence.info), fenceChar: fence.fenceChar };
 
     const tableMatch = TABLE_BLOCK_REG.exec(text);
     if (tableMatch && isLengthEven(tableMatch[1]) && isLengthEven(tableMatch[2]))
@@ -342,21 +341,13 @@ class ParagraphContent extends Format {
             }
 
             case 'code': {
-                const { lang } = match;
+                const { lang, fenceChar } = match;
                 // Diagram fences (```mermaid etc.) become diagram blocks,
                 // mirroring the file-load path in markdownToState; everything
                 // else is a fenced code block.
-                const diagramMatch = /^(?:mermaid|vega-lite|plantuml|flowchart|sequence)$/.exec(lang);
-                if (diagramMatch) {
-                    const type = lang as IDiagramMeta['type'];
-                    const state = {
-                        name: 'diagram',
-                        text: '',
-                        meta: {
-                            type,
-                            lang: type === 'vega-lite' ? 'json' : 'yaml',
-                        },
-                    };
+                const diagramType = diagramTypeOfLang(lang);
+                if (diagramType) {
+                    const state = createDiagramState(diagramType);
                     const diagramBlock = ScrollPage.loadBlock(state.name).create(
                         this.muya,
                         state,
@@ -372,6 +363,7 @@ class ParagraphContent extends Format {
                         meta: {
                             lang,
                             type: 'fenced',
+                            fenceChar,
                         },
                         text: '',
                     };
