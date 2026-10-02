@@ -317,6 +317,9 @@ importers:
         specifier: ^3.3.5
         version: 3.3.5(typescript@6.0.3)
     optionalDependencies:
+      '@vscode/ripgrep-win32-x64':
+        specifier: 1.18.0
+        version: 1.18.0
       native-keymap:
         specifier: ^3.3.9
         version: 3.3.9
