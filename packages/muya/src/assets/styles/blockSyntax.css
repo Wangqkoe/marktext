@@ -1064,6 +1064,7 @@ pre.mu-active.mu-fenced-code::after {
 
 .mu-table-cell-content {
     min-width: 10em;
+    overflow-wrap: anywhere;
 }
 
 /* Footnote definition block — port of marktext's `figure[data-role='FOOTNOTE']`
