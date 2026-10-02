@@ -1,14 +1,16 @@
+import type { Page } from '@playwright/test'
 import { expect, test } from '../fixtures/muya'
 
+// Baseline alignment and horizontal reachability for hidden inline math.
 // #4339: a long inline math must stay scrollable (not truncated) when hidden,
 // and the popup/inline scrollbar is thinned. The parse-error message is short
 // and never scrolls, so it keeps `overflow: visible` to stay on the text
 // baseline (the popup's `overflow: auto` otherwise takes the inline-block's
 // baseline from its bottom edge, pushing the message a few px above the text).
-// (A long valid formula keeps `overflow: auto` to stay scrollable, which is the
-// chosen trade-off — it sits slightly high rather than being truncated.)
+// A valid formula keeps `overflow: auto` on an inline-flex render box, which
+// remains scrollable while exporting the KaTeX item's baseline.
 
-async function renderVsTextTop(page, md: string): Promise<number> {
+async function renderVsTextTop(page: Page, md: string): Promise<number> {
   await page.evaluate((m) => window.muya!.setContent(m), md)
   await page.waitForTimeout(150)
   return page.evaluate(() => {
@@ -24,8 +26,57 @@ async function renderVsTextTop(page, md: string): Promise<number> {
   })
 }
 
+async function mathVsTextBaseline(page: Page, md: string): Promise<number> {
+  await page.evaluate((m) => window.muya!.setContent(m), md)
+  await page.evaluate(() => document.fonts.ready)
+  return page.evaluate(() => {
+    const outer = document.querySelector('.mu-hide.mu-math') as HTMLElement
+    const katex = outer.querySelector('.katex') as HTMLElement
+    const base = katex.querySelector('.katex-html > .base') as HTMLElement
+    const probeCss = [
+      'display:inline-block',
+      'width:0',
+      'height:0',
+      'padding:0',
+      'margin:0',
+      'border:0',
+      'overflow:visible',
+      'vertical-align:baseline',
+    ].join(';')
+    const textProbe = document.createElement('span')
+    const mathProbe = document.createElement('span')
+    textProbe.style.cssText = probeCss
+    mathProbe.style.cssText = probeCss
+    outer.before(textProbe)
+    base.append(mathProbe)
+    return mathProbe.getBoundingClientRect().top - textProbe.getBoundingClientRect().top
+  })
+}
+
+test('hidden inline math exports the KaTeX body baseline to surrounding text', async ({ page }) => {
+  for (const formula of [
+    'x',
+    'F=\\frac{1}{2}',
+    'S_0',
+    '|u\\rangle',
+    '\\langle u|T^{\\dagger}T|v\\rangle',
+    '(|0\\rangle+|1\\rangle)/\\sqrt2',
+  ]) expect(Math.abs(await mathVsTextBaseline(page, `hxy $${formula}$ hxy`))).toBeLessThanOrEqual(0.5)
+  expect(await page.evaluate(async () => {
+    const [math, main] = await Promise.all([
+      document.fonts.load('italic 19.36px KaTeX_Math', 'x'),
+      document.fonts.load('normal 19.36px KaTeX_Main', 'M'),
+    ])
+    return {
+      math: math.some(face => face.status === 'loaded' && face.style === 'italic'),
+      main: main.some(face => face.status === 'loaded' && face.style === 'normal'),
+    }
+  })).toEqual({ math: true, main: true })
+})
+
 test('a hidden inline-math parse error sits on the surrounding text baseline', async ({ page }) => {
   expect(Math.abs(await renderVsTextTop(page, 'hello $\\invalidcmd$ www'))).toBeLessThanOrEqual(3)
+  expect(await page.locator('.mu-math-render.mu-math-error').evaluate(el => getComputedStyle(el).display)).toBe('inline-block')
 })
 
 test('a long hidden inline math stays scrollable, not truncated', async ({ page }) => {
@@ -33,16 +84,51 @@ test('a long hidden inline math stays scrollable, not truncated', async ({ page 
   await page.evaluate((m) => window.muya!.setContent(`text ${m} end`), longMath)
   await page.waitForTimeout(250)
   const r = await page.evaluate(() => {
+    const outer = document.querySelector('.mu-hide.mu-math') as HTMLElement
     const render = document.querySelector('.mu-math > .mu-math-render') as HTMLElement
+    const base = render.querySelector('.katex-html > .base') as HTMLElement
+    const lastAtom = [...render.querySelectorAll('.mord')].at(-1) as HTMLElement
+    const probeCss = [
+      'display:inline-block',
+      'width:0',
+      'height:0',
+      'padding:0',
+      'margin:0',
+      'border:0',
+      'overflow:visible',
+      'vertical-align:baseline',
+    ].join(';')
+    const textProbe = document.createElement('span')
+    const mathProbe = document.createElement('span')
+    textProbe.style.cssText = probeCss
+    mathProbe.style.cssText = probeCss
+    const probeGroup = document.createElement('span')
+    probeGroup.style.whiteSpace = 'nowrap'
+    outer.before(probeGroup)
+    probeGroup.append(outer, textProbe)
+    base.append(mathProbe)
+    const baseline = mathProbe.getBoundingClientRect().top - textProbe.getBoundingClientRect().top
+    const viewport = render.getBoundingClientRect()
+    const initiallyClipped = lastAtom.getBoundingClientRect().right > viewport.right + 1
+    render.scrollLeft = render.scrollWidth
+    const last = lastAtom.getBoundingClientRect()
     return {
       hidden: render.closest('.mu-math')!.classList.contains('mu-hide'),
+      display: getComputedStyle(render).display,
       overflowX: getComputedStyle(render).overflowX,
       scrollable: render.scrollWidth > render.clientWidth + 2,
+      baseline,
+      initiallyClipped,
+      lastAtomVisible: last.left >= viewport.left - 1 && last.right <= viewport.right + 1,
     }
   })
   expect(r.hidden).toBe(true)
+  expect(r.display).toBe('inline-flex')
   expect(r.overflowX).toBe('auto')
   expect(r.scrollable).toBe(true) // content is reachable by scrolling, not cut off
+  expect(Math.abs(r.baseline)).toBeLessThanOrEqual(0.5)
+  expect(r.initiallyClipped).toBe(true)
+  expect(r.lastAtomVisible).toBe(true)
 })
 
 test('a short inline math ending in a subscript shows no scrollbar (#4837)', async ({ page }) => {

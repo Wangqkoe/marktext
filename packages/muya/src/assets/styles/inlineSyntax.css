@@ -270,6 +270,12 @@ div .mu-math-error,
     height: auto;
 }
 
+.mu-hide.mu-math {
+    overflow: visible;
+
+    vertical-align: baseline;
+}
+
 .mu-hide.mu-ruby > .mu-ruby-text,
 .mu-hide.mu-math > .mu-math-text {
     display: inline-block;
@@ -329,6 +335,10 @@ div .mu-math-error,
 blockquote .mu-hide.mu-ruby > .mu-ruby-render,
 blockquote .mu-hide.mu-math > .mu-math-render {
     color: var(--editor-color-50);
+}
+
+.mu-hide.mu-math > .mu-math-render:not(.mu-math-error) {
+    display: inline-flex;
 }
 
 /* header space */
