@@ -290,6 +290,12 @@ export const useProjectStore = defineStore('project', () => {
     clipboard.value = data
   }
 
+  // Rename and create share one "input is open" state, so they clear together.
+  function CLEAR_NAME_INPUT_STATE(): void {
+    createCache.value = {}
+    renameCache.value = null
+  }
+
   function ASK_FOR_OPEN_PROJECT(): void {
     window.electron.ipcRenderer.send('mt::ask-for-open-project-in-sidebar')
   }
@@ -305,15 +311,22 @@ export const useProjectStore = defineStore('project', () => {
       createCache.value = { dirname, type: String(type) }
       bus.emit('SIDEBAR::show-new-input')
     })
-    bus.on('SIDEBAR::remove', () => {
+    bus.on('SIDEBAR::remove', async() => {
       const { pathname } = activeItem.value
-      window.electron.ipcRenderer.invoke('mt::fs-trash-item', pathname).catch((err) => {
+      if (typeof pathname !== 'string' || !pathname) return
+      try {
+        const trashed = await window.electron.ipcRenderer.invoke('mt::fs-trash-item', pathname)
+        // The node is gone; drop the selection so Delete cannot retarget it.
+        if (trashed && activeItem.value?.pathname === pathname) {
+          activeItem.value = {}
+        }
+      } catch (err) {
         notice.notify({
           title: 'Error while deleting',
           type: 'error',
           message: err instanceof Error ? err.message : String(err)
         })
-      })
+      }
     })
     bus.on('SIDEBAR::copy-cut', (type: unknown) => {
       const { pathname: src } = activeItem.value
@@ -447,6 +460,7 @@ export const useProjectStore = defineStore('project', () => {
     LISTEN_FOR_UPDATE_PROJECT,
     CHANGE_ACTIVE_ITEM,
     CHANGE_CLIPBOARD,
+    CLEAR_NAME_INPUT_STATE,
     ASK_FOR_OPEN_PROJECT,
     LISTEN_FOR_SIDEBAR_CONTEXT_MENU,
     CREATE_FILE_DIRECTORY,

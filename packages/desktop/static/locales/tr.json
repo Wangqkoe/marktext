@@ -923,6 +923,7 @@
     "ok": "Tamam"
   },
   "dialog": {
+    "moveToTrash": "\"{name}\" öğesini çöp kutusuna taşımak istediğinizden emin misiniz?",
     "cancel": "İptal",
     "changesWillBeLost": "Değişiklikler kaybolacak",
     "close": "Kapat",

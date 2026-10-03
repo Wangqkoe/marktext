@@ -92,7 +92,7 @@ export interface IpcInvokeChannels {
   'mt::workspace::tab-transfer-ready': { args: []; ret: boolean }
   'mt::workspace::tab-transfer-recovery-ready': { args: [transferId: string]; ret: boolean }
   'mt::workspace::native-gesture-begin': { args: [request: unknown]; ret: boolean }
-  'mt::fs-trash-item': { args: [pathname: string]; ret: void }
+  'mt::fs-trash-item': { args: [pathname: string]; ret: boolean }
   'mt::fs::copy': { args: [src: string, dest: string]; ret: void }
   'mt::fs::copy-with-content-hash': { args: [src: string, outputDir: string]; ret: string }
   'mt::fs::empty-dir': { args: [path: string]; ret: void }
