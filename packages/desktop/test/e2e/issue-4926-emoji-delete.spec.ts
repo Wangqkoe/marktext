@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
 import {
   clearRendererErrors,
+  closeDiscardingChanges,
   expectNoRendererErrors,
   launchWithMarkdown,
   placeCaretInEditor,
@@ -27,7 +28,7 @@ test.describe('Emoji deletion (#4926)', () => {
   })
 
   test.afterEach(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
   })
 
   const pasteText = async(text: string) => {
