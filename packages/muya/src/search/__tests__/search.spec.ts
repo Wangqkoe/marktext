@@ -243,6 +243,41 @@ describe('search.replace() — a capture holding a dollar sign', () => {
 });
 
 describe('search.replace() — regexp capture groups', () => {
+    it('repairs fallback captures without copying a safe prefix', async () => {
+        const smile = '\u{1F642}';
+        const muya = bootMuya(`-${smile}\n`);
+        placeCursorOnFirstBlock(muya);
+
+        const search = muya.editor.searchModule;
+        search.search('\\-(.)', { isRegexp: true });
+        expect(search.matches[0].subMatches).toEqual([smile]);
+
+        search.replace('$1', { isSingle: true, isRegexp: true });
+
+        await vi.waitFor(() => {
+            expect(muya.getMarkdown()).toBe(`${smile}\n`);
+        });
+    });
+
+    it('combines repaired captures, dollar text, and unmatched groups safely', async () => {
+        const smile = '\u{1F642}';
+        const muya = bootMuya(`$$${smile}\n`);
+        placeCursorOnFirstBlock(muya);
+
+        const search = muya.editor.searchModule;
+        search.search('(\\$\\$)|(.)|(\\-)', { isRegexp: true });
+        expect(search.matches.map(match => match.subMatches)).toEqual([
+            ['$$', undefined, undefined],
+            [undefined, smile, undefined],
+        ]);
+
+        search.replace('[$1$2$3]', { isSingle: false, isRegexp: true });
+
+        await vi.waitFor(() => {
+            expect(muya.getMarkdown()).toBe(`[$$][${smile}]\n`);
+        });
+    });
+
     it('expands every match with its own groups when replacing all', async () => {
         const muya = bootMuya('a1 b2\n\nc3\n');
         placeCursorOnFirstBlock(muya);

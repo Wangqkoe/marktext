@@ -7,6 +7,14 @@ export interface IStringMatch {
     index: number;
 }
 
+interface IIndexedStringMatch extends IStringMatch {
+    subMatchRanges?: ([number, number] | undefined)[];
+}
+
+interface IRegExpExecArrayWithIndices extends RegExpExecArray {
+    indices?: ([number, number] | undefined)[];
+}
+
 function isHighSurrogate(code: number) {
     return code >= 0xD800 && code <= 0xDBFF;
 }
@@ -20,8 +28,8 @@ function splitsSurrogatePair(text: string, index: number) {
     return isHighSurrogate(text.charCodeAt(index - 1)) && isLowSurrogate(text.charCodeAt(index));
 }
 
-function execAll(regexp: RegExp, text: string): IStringMatch[] {
-    const matches: IStringMatch[] = [];
+function execAll(regexp: RegExp, text: string): IIndexedStringMatch[] {
+    const matches: IIndexedStringMatch[] = [];
     let result: RegExpExecArray | null;
 
     // eslint-disable-next-line no-cond-assign
@@ -34,7 +42,14 @@ function execAll(regexp: RegExp, text: string): IStringMatch[] {
         if (match === '')
             regexp.lastIndex = index + (regexp.unicode && splitsSurrogatePair(text, index + 1) ? 2 : 1);
 
-        matches.push({ match, subMatches, index });
+        const indexedMatch: IIndexedStringMatch = { match, subMatches, index };
+        const indices = (result as IRegExpExecArrayWithIndices).indices;
+        if (indices) {
+            Object.defineProperty(indexedMatch, 'subMatchRanges', {
+                value: indices.slice(1),
+            });
+        }
+        matches.push(indexedMatch);
     }
 
     return matches;
@@ -59,7 +74,7 @@ function mayHaveMultiUnitClusters(text: string) {
 // character and is dropped, while a regexp match reaching into one (`.`,
 // `[^a-z]`) takes the whole cluster. A zero-width match inside a cluster is
 // dropped: inserting there would split it.
-function alignToGraphemeClusters(text: string, matches: IStringMatch[], expand: boolean): IStringMatch[] {
+function alignToGraphemeClusters(text: string, matches: IIndexedStringMatch[], expand: boolean): IStringMatch[] {
     if (!matches.length || !mayHaveMultiUnitClusters(text))
         return matches;
 
@@ -82,6 +97,24 @@ function alignToGraphemeClusters(text: string, matches: IStringMatch[], expand: 
                 end++;
         }
 
+        const subMatches = match.subMatches.map((subMatch, index) => {
+            const range = match.subMatchRanges?.[index];
+            if (subMatch === undefined || !range || range[0] === range[1])
+                return subMatch;
+
+            let [captureStart, captureEnd] = range;
+            // A non-Unicode fallback can capture only one half of an astral
+            // code point. Repair just that invalid boundary; valid captures
+            // keep their regexp meaning even when the full match expands to a
+            // user-visible grapheme cluster.
+            if (splitsSurrogatePair(text, captureStart))
+                captureStart--;
+            if (splitsSurrogatePair(text, captureEnd))
+                captureEnd++;
+
+            return text.slice(captureStart, captureEnd);
+        });
+
         const previous = aligned[aligned.length - 1];
         const previousEnd = previous ? previous.index + previous.match.length : 0;
         // Expanded matches can overlap; merge them so each character is
@@ -93,7 +126,7 @@ function alignToGraphemeClusters(text: string, matches: IStringMatch[], expand: 
             continue;
         }
 
-        aligned.push({ ...match, match: text.slice(start, end), index: start });
+        aligned.push({ match: text.slice(start, end), subMatches, index: start });
     }
 
     return aligned;
@@ -103,7 +136,9 @@ function alignToGraphemeClusters(text: string, matches: IStringMatch[], expand: 
 // emoji whole. Patterns that are only valid without it (e.g. `\-`) fall back to
 // the plain flags.
 function createSearchRegExp(source: string, flags: string, isRegexp: boolean): RegExp | null {
-    const candidates = isRegexp ? [`${flags}u`, flags] : [flags];
+    // Match indices let a legacy non-Unicode capture that split a surrogate
+    // pair be repaired at its own boundary, without changing safe captures.
+    const candidates = isRegexp ? [`${flags}ud`, `${flags}d`] : [flags];
     for (const candidate of candidates) {
         try {
             return new RegExp(source, candidate);

@@ -255,6 +255,20 @@ describe('matchString — regexp matches keep surrogate pairs whole', () => {
         const matches = matchString(`a-${SMILE}`, '\\-|.', { isRegexp: true });
         expect(matches.map(m => m.match)).toEqual(['a', '-', SMILE]);
     });
+
+    it('repairs a captured half-pair at its own boundary', () => {
+        const [match] = matchString(SMILE, '(.|\\-)', { isRegexp: true });
+        expect(match.match).toBe(SMILE);
+        expect(match.subMatches).toEqual([SMILE]);
+        expect(buildRegexValue(makeMatch(match.match, match.subMatches), '$1')).toBe(SMILE);
+    });
+
+    it('does not include a safe prefix when repairing a trailing capture', () => {
+        const [match] = matchString(`-${SMILE}`, '\\-(.)', { isRegexp: true });
+        expect(match.match).toBe(`-${SMILE}`);
+        expect(match.subMatches).toEqual([SMILE]);
+        expect(buildRegexValue(makeMatch(match.match, match.subMatches), '$1')).toBe(SMILE);
+    });
 });
 
 // One user-visible character — an emoji ZWJ sequence, a letter with a combining
@@ -269,6 +283,12 @@ describe('matchString — grapheme clusters are one unit', () => {
         const matches = matchString(`${FAMILY}z`, '.', { isRegexp: true });
         expect(matches.map(m => m.match)).toEqual([FAMILY, 'z']);
         expect(matches.map(m => m.index)).toEqual([0, 11]);
+    });
+
+    it('keeps a safe capture at its original code-point boundary', () => {
+        const [match] = matchString(FAMILY, '(.)', { isRegexp: true });
+        expect(match.match).toBe(FAMILY);
+        expect(match.subMatches).toEqual([PERSON]);
     });
 
     it('regexp character class matches a ZWJ sequence as one character', () => {
