@@ -7,7 +7,7 @@ const MARKDOWN = `| ${LONG_TOKEN} | short header |
 | short body | ${LONG_URL} |
 `;
 
-interface TableMetrics {
+interface ITableMetrics {
     availableWidth: number;
     tableWidth: number;
     longHeaderLines: number;
@@ -17,7 +17,7 @@ interface TableMetrics {
     minimumWidthEm?: number;
 }
 
-function expectWrappedWithoutOverflow(metrics: TableMetrics): void {
+function expectWrappedWithoutOverflow(metrics: ITableMetrics): void {
     expect(metrics.tableWidth).toBeLessThanOrEqual(metrics.availableWidth + 1);
     expect(metrics.longHeaderLines).toBeGreaterThan(1);
     expect(metrics.longBodyLines).toBeGreaterThan(1);
@@ -53,7 +53,7 @@ test.describe('long table content layout (#5605)', () => {
         expectWrappedWithoutOverflow(editorMetrics);
         expect(editorMetrics.minimumWidthEm).toBeCloseTo(10, 1);
 
-        const exportedHtml = await page.evaluate(async md => {
+        const exportedHtml = await page.evaluate(async (md) => {
             const exporter = new window.MarkdownToHtml!(md);
             return exporter.generate();
         }, MARKDOWN);
