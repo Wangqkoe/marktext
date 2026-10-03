@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
 import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
 import {
   launchWithMarkdown,
   waitForMenuReady,
@@ -23,11 +25,23 @@ import {
 // beginning with the `%PDF-` magic bytes is written and that `mt::export-success`
 // fires back to the renderer. Pixel/layout fidelity stays a manual check.
 
+const LONG_CODE_LINE = 'marktext-' + 'long-unbroken-code-token-'.repeat(24)
+
 const PDF_DOC =
   '# Export Smoke\n\n' +
   'First paragraph with **bold** and *italic* text.\n\n' +
   'Second paragraph for a multi-block document.\n\n' +
-  '- list item one\n- list item two\n'
+  '- list item one\n- list item two\n\n' +
+  `\`\`\`bash\n${LONG_CODE_LINE}\n\`\`\`\n\n` +
+  `\`\`\`\n${LONG_CODE_LINE}\n\`\`\`\n`
+
+const generatedPdfPaths = new Set<string>()
+
+const pdfPath = (suffix: string): string => {
+  const target = path.join(os.tmpdir(), `marktext-e2e-export-${Date.now()}-${suffix}.pdf`)
+  generatedPdfPaths.add(target)
+  return target
+}
 
 // Install a main-process stub for `dialog.showSaveDialog` that returns the
 // supplied path (no native picker). Returns nothing; the renderer success
@@ -58,6 +72,35 @@ const restoreSaveDialog = async(app: ElectronApplication): Promise<void> => {
       ;(dialog as unknown as { showSaveDialog: unknown }).showSaveDialog =
         g.__mt_orig_showSaveDialog__
     }
+  })
+}
+
+const stubPausedSaveDialog = async(
+  app: ElectronApplication,
+  targetPath: string
+): Promise<void> => {
+  await app.evaluate(({ dialog }, savePath) => {
+    const g = global as unknown as {
+      __mt_release_save_dialog__?: () => void
+    }
+    ;(dialog as unknown as { showSaveDialog: unknown }).showSaveDialog = () =>
+      new Promise((resolve) => {
+        g.__mt_release_save_dialog__ = () =>
+          resolve({
+            canceled: false,
+            filePath: savePath
+          })
+      })
+  }, targetPath)
+}
+
+const releasePausedSaveDialog = async(app: ElectronApplication): Promise<void> => {
+  await app.evaluate(() => {
+    const g = global as unknown as {
+      __mt_release_save_dialog__?: () => void
+    }
+    g.__mt_release_save_dialog__?.()
+    delete g.__mt_release_save_dialog__
   })
 }
 
@@ -138,8 +181,17 @@ test.describe('PDF export to a real file (item 231)', () => {
     }
   })
 
+  test.afterEach(async() => {
+    await releasePausedSaveDialog(app)
+    await page.emulateMedia({ media: 'screen' })
+    for (const target of generatedPdfPaths) {
+      fs.rmSync(target, { force: true })
+    }
+    generatedPdfPaths.clear()
+  })
+
   test('writes a non-empty file beginning with the %PDF- magic bytes', async() => {
-    const out = '/tmp/marktext-e2e-export-' + Date.now() + '-a.pdf'
+    const out = pdfPath('a')
     if (fs.existsSync(out)) fs.rmSync(out)
     await clearExportSuccesses(page)
     await stubSaveDialog(app, out)
@@ -154,7 +206,7 @@ test.describe('PDF export to a real file (item 231)', () => {
   })
 
   test('fires mt::export-success with type "pdf" and the written file path', async() => {
-    const out = '/tmp/marktext-e2e-export-' + Date.now() + '-b.pdf'
+    const out = pdfPath('b')
     if (fs.existsSync(out)) fs.rmSync(out)
     await clearExportSuccesses(page)
     await stubSaveDialog(app, out)
@@ -176,7 +228,7 @@ test.describe('PDF export to a real file (item 231)', () => {
   })
 
   test('canceling the save dialog writes no file and fires no export-success', async() => {
-    const out = '/tmp/marktext-e2e-export-' + Date.now() + '-c.pdf'
+    const out = pdfPath('c')
     if (fs.existsSync(out)) fs.rmSync(out)
     await clearExportSuccesses(page)
     // Stub the save dialog to report cancellation — main must skip printToPDF.
@@ -200,7 +252,7 @@ test.describe('PDF export to a real file (item 231)', () => {
   test('the renderer EXPORT path round-trips a second export to a fresh path', async() => {
     // Re-export to a different path to prove the print service is re-armed and
     // the wiring is not single-shot.
-    const out = '/tmp/marktext-e2e-export-' + Date.now() + '-d.pdf'
+    const out = pdfPath('d')
     if (fs.existsSync(out)) fs.rmSync(out)
     await clearExportSuccesses(page)
     await stubSaveDialog(app, out)
@@ -216,6 +268,51 @@ test.describe('PDF export to a real file (item 231)', () => {
       })
       .toBe(true)
 
+    fs.rmSync(out, { force: true })
+  })
+
+  test('print media wraps long code with and without a language before writing the PDF', async() => {
+    const out = pdfPath('long-code')
+    fs.rmSync(out, { force: true })
+    await stubPausedSaveDialog(app, out)
+
+    await triggerPdfExportViaDialog(app, page)
+    const printContainer = page.locator('article.print-container')
+    await printContainer.waitFor({ state: 'attached', timeout: 20000 })
+    await page.emulateMedia({ media: 'print' })
+
+    const report = await printContainer.locator('pre code').evaluateAll((codes) =>
+      codes.map((code) => {
+        const element = code as HTMLElement
+        const pre = element.closest('pre')!
+        const style = getComputedStyle(element)
+        const rect = element.getBoundingClientRect()
+        const lineHeight = Number.parseFloat(style.lineHeight)
+        return {
+          className: element.className,
+          whiteSpace: style.whiteSpace,
+          wordBreak: style.wordBreak,
+          wrapped: Number.isFinite(lineHeight) && rect.height > lineHeight * 1.5,
+          fitsPage: pre.scrollWidth <= pre.clientWidth + 1
+        }
+      })
+    )
+
+    expect(report).toHaveLength(2)
+    expect(report[0]?.className).toContain('language-bash')
+    expect(report[1]?.className).not.toContain('language-')
+    for (const code of report) {
+      expect(code.whiteSpace).toBe('pre-wrap')
+      expect(code.wordBreak).toBe('break-word')
+      expect(code.wrapped).toBe(true)
+      expect(code.fitsPage).toBe(true)
+    }
+
+    await releasePausedSaveDialog(app)
+    const data = await pollForPdfFile(out)
+    expect(data.subarray(0, 5).toString('latin1')).toBe('%PDF-')
+
+    await page.emulateMedia({ media: 'screen' })
     fs.rmSync(out, { force: true })
   })
 })
