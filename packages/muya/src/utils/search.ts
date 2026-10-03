@@ -28,6 +28,22 @@ function splitsSurrogatePair(text: string, index: number) {
     return isHighSurrogate(text.charCodeAt(index - 1)) && isLowSurrogate(text.charCodeAt(index));
 }
 
+function hasLoneSurrogate(text: string) {
+    for (let i = 0; i < text.length; i++) {
+        const code = text.charCodeAt(i);
+        if (isHighSurrogate(code)) {
+            if (!isLowSurrogate(text.charCodeAt(i + 1)))
+                return true;
+            i++;
+        }
+        else if (isLowSurrogate(code)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function execAll(regexp: RegExp, text: string): IIndexedStringMatch[] {
     const matches: IIndexedStringMatch[] = [];
     let result: RegExpExecArray | null;
@@ -36,14 +52,20 @@ function execAll(regexp: RegExp, text: string): IIndexedStringMatch[] {
     while ((result = regexp.exec(text)) !== null) {
         const [match, ...subMatches] = result;
         const { index } = result;
+        const indices = (result as IRegExpExecArrayWithIndices).indices;
         // A zero-width match (`\b`, a lookahead) leaves `lastIndex` in place, so
         // `exec` would return it forever and freeze the editor. A Unicode-mode
         // RegExp resumes from the start of a pair, so step over the whole pair.
         if (match === '')
             regexp.lastIndex = index + (regexp.unicode && splitsSurrogatePair(text, index + 1) ? 2 : 1);
 
+        // Runtimes as old as the public build target have no match indices. In
+        // that fallback, reject only captures that are already invalid Unicode;
+        // the full match can still be aligned safely without capture positions.
+        if (!indices && subMatches.some(subMatch => subMatch !== undefined && hasLoneSurrogate(subMatch)))
+            continue;
+
         const indexedMatch: IIndexedStringMatch = { match, subMatches, index };
-        const indices = (result as IRegExpExecArrayWithIndices).indices;
         if (indices) {
             Object.defineProperty(indexedMatch, 'subMatchRanges', {
                 value: indices.slice(1),
@@ -138,7 +160,9 @@ function alignToGraphemeClusters(text: string, matches: IIndexedStringMatch[], e
 function createSearchRegExp(source: string, flags: string, isRegexp: boolean): RegExp | null {
     // Match indices let a legacy non-Unicode capture that split a surrogate
     // pair be repaired at its own boundary, without changing safe captures.
-    const candidates = isRegexp ? [`${flags}ud`, `${flags}d`] : [flags];
+    const candidates = isRegexp
+        ? [`${flags}ud`, `${flags}u`, `${flags}d`, flags]
+        : [flags];
     for (const candidate of candidates) {
         try {
             return new RegExp(source, candidate);

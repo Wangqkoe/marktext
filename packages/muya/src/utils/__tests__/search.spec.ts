@@ -271,6 +271,50 @@ describe('matchString — regexp matches keep surrogate pairs whole', () => {
     });
 });
 
+describe('matchString — runtimes without regexp match indices', () => {
+    const NativeRegExp = RegExp;
+
+    beforeEach(() => {
+        class RegExpWithoutIndices extends NativeRegExp {
+            constructor(pattern: string | RegExp, flags?: string) {
+                if (flags?.includes('d'))
+                    throw new SyntaxError('match indices are unavailable');
+                super(pattern, flags);
+            }
+        }
+        vi.stubGlobal('RegExp', RegExpWithoutIndices);
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('keeps ordinary Unicode regexp search available', () => {
+        expect(matchString('a1 b22', '\\d+', { isRegexp: true }).map(match => match.match))
+            .toEqual(['1', '22']);
+    });
+
+    it('keeps safe ASCII captures', () => {
+        const [match] = matchString('a1', '([a-z])(\\d)', { isRegexp: true });
+        expect(match.subMatches).toEqual(['a', '1']);
+    });
+
+    it('keeps a fallback pattern without captures Unicode-safe', () => {
+        const smile = '\u{1F642}';
+        expect(matchString(`a-${smile}`, '\\-|.', { isRegexp: true }).map(match => match.match))
+            .toEqual(['a', '-', smile]);
+    });
+
+    it('keeps zero-width search finite', () => {
+        expect(matchString('abcb', '(?=b)', { isRegexp: true }).map(match => match.index))
+            .toEqual([1, 3]);
+    });
+
+    it('rejects a fallback capture containing a lone surrogate', () => {
+        expect(matchString('\u{1F642}', '(.|\\-)', { isRegexp: true })).toEqual([]);
+    });
+});
+
 // One user-visible character — an emoji ZWJ sequence, a letter with a combining
 // mark — is replaced as a unit, never piece by piece.
 describe('matchString — grapheme clusters are one unit', () => {
