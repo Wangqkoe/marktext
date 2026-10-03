@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
 import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
 import { launchWithMarkdown, waitForMenuReady, sendIpcToRenderer } from './helpers'
 
 // #2423 — arrowheads vanished from sequence diagrams in exported PDFs.
@@ -79,6 +81,7 @@ const pollForFile = async(filePath: string, timeoutMs = 60000): Promise<void> =>
 test.describe('sequence diagram arrowheads survive PDF export (#2423)', () => {
   let app: ElectronApplication
   let page: Page
+  let target: string | undefined
 
   test.beforeAll(async() => {
     test.setTimeout(120000)
@@ -95,9 +98,14 @@ test.describe('sequence diagram arrowheads survive PDF export (#2423)', () => {
     if (app) await app.close()
   })
 
+  test.afterEach(() => {
+    if (target) fs.rmSync(target, { force: true })
+    target = undefined
+  })
+
   test('every url(#…) reference in the print container resolves inside it', async() => {
     test.setTimeout(120000)
-    const target = `/tmp/marktext-e2e-2423-${Date.now()}.pdf`
+    target = path.join(os.tmpdir(), `marktext-e2e-2423-${Date.now()}.pdf`)
     fs.rmSync(target, { force: true })
 
     await installReferenceProbe(page)
@@ -107,7 +115,6 @@ test.describe('sequence diagram arrowheads survive PDF export (#2423)', () => {
     await confirm.waitFor({ state: 'visible', timeout: 20000 })
     await confirm.click()
     await pollForFile(target)
-    fs.rmSync(target, { force: true })
 
     const report = (await page.evaluate(
       () => (window as unknown as { __mt_svg_refs__?: ReferenceReport }).__mt_svg_refs__
