@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test'
-import type { ElectronApplication } from 'playwright'
+import * as fs from 'node:fs'
 import {
   clearRendererErrors,
+  closeDiscardingChanges,
   enterSourceMode,
   launchWithMarkdown,
   sendIpcToRenderer,
@@ -39,28 +40,11 @@ matrix() {
 matrix
 `
 
-const reportExternalChange = async(
-  app: ElectronApplication,
-  pathname: string,
-  markdown: string
-): Promise<void> => {
-  await sendIpcToRenderer(app, 'mt::update-file', {
-    type: 'change',
-    change: {
-      pathname,
-      mtimeMs: 1,
-      data: {
-        markdown,
-        filename: 'note.md',
-        pathname,
-        encoding: { encoding: 'utf8', hasBOM: false },
-        lineEnding: 'lf',
-        adjustLineEndingOnSave: false,
-        trimTrailingNewline: 1,
-        isMixedLineEndings: false
-      }
-    }
-  })
+const reportExternalChange = (pathname: string, markdown: string): void => {
+  // Exercise the current watcher -> DocumentIO -> workspace projection path.
+  // That path updates sourceCode.vue's markdown prop, which calls setValue on
+  // the CodeMirror instance held in its Vue ref.
+  fs.writeFileSync(pathname, markdown, 'utf-8')
 }
 
 test('Issue #4921: source-mode updates preserve CodeMirror line-tree identity', async() => {
@@ -73,9 +57,11 @@ test('Issue #4921: source-mode updates preserve CodeMirror line-tree identity', 
     await page.waitForTimeout(100)
     await enterSourceMode(page, app)
     await clearRendererErrors(app)
+    // Let the file watcher and DocumentIO owner-fence binding settle.
+    await page.waitForTimeout(1500)
 
     const updatedMarkdown = BASH_SCRIPT.repeat(3)
-    await reportExternalChange(app, filePath, updatedMarkdown)
+    reportExternalChange(filePath, updatedMarkdown)
     await expect
       .poll(() =>
         page.evaluate(() => {
@@ -127,6 +113,6 @@ test('Issue #4921: source-mode updates preserve CodeMirror line-tree identity', 
     const rendererError = await waitForRendererError(app, () => true, 1000)
     expect(rendererError).toBeNull()
   } finally {
-    await app.close()
+    await closeDiscardingChanges(app)
   }
 })

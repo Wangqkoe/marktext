@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { parse, compileScript } from 'vue/compiler-sfc'
 import ts from 'typescript'
-import { computed, ref } from 'vue'
+import { computed, markRaw, ref } from 'vue'
 import { toCaretPosition } from '@/util/caretPosition'
 
 // `handleImageAction` lives as a <script setup> closure in sourceCode.vue
@@ -82,6 +82,7 @@ const loadComponent = (deps: Record<string, unknown>) => {
 const makeDeps = (over: Record<string, unknown> = {}) => ({
   _defineComponent: (o: unknown) => o,
   ref,
+  markRaw,
   computed,
   watch: () => {},
   onMounted: () => {},
