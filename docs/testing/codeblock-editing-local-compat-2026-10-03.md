@@ -50,8 +50,8 @@ offset 补偿；raw text 已正确时保留浏览器 offset。没有修改通用
   代码块专属空行 Up/Down 只在命中时提前返回，其余继续调用 `super`。
 - 保留 Unicode grapheme deletion、line-number gutter 缓存与 `ResizeObserver`、preview
   缓存及 math/diagram/html preview、完整 info string 与首词 language、实际 grammar setter。
-- `getHighlightHtml` 仍兼容三参数调用；代码块的四参数路径先切片再高亮，并用 trailing
-  wrapper 表示尾空行，移除了使用全局 start/end 判断局部片段的旧末尾分支。
+- `getHighlightHtml` 移除代码块原四参数末行分支；三参数路径按 highlight 边界切片，
+  trailing wrapper 单独表示尾空行。
 - unchanged guard 只包围两处正文 `innerHTML` 赋值；line numbers、preview、grammar 和
   search highlight/clear 仍按原路径执行，合法文本、语法与搜索变化继续更新。
 
@@ -80,7 +80,8 @@ Electron 期间使用临时物理 overlay：普通依赖与 `.bin` 复用主仓�
   code identity。
 - `pnpm --filter @muyajs/core lint:types`：通过。
 - `pnpm --filter marktext typecheck`：通过；desktop 的 `@muyajs/core` 指向当前工作树。
-- 全部改动 source/unit 按 Muya 配置定向 ESLint 通过；四个新增或修改 E2E 文件用根配置
+- 全部改动 source/unit 按 Muya 配置定向 ESLint 通过，报告一项既有
+  `Content.arrowHandler` complexity warning；四个新增或修改 E2E 文件用根配置
   `--no-ignore` 检查为 0 error。报告 17 个 non-null assertion warning 和根
   `MODULE_TYPELESS_PACKAGE_JSON` 提示，均为既有规则 warning。
 - `pnpm build` 在最终 source 和隔离 overlay 上通过：main `503 modules`、preload
