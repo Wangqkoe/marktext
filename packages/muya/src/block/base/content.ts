@@ -308,12 +308,18 @@ function lineBreakAutoPair(
         && start.offset === text.length
         && (event.inputType === 'insertText' || event.type === 'compositionend')
     ) {
-        text = blockText + event.data;
-        // I don't know why firefox don't need to offset++
-        // For more info: https://github.com/marktext/muya/issues/130
-        if (!isFirefox) {
-            start.offset++;
-            end.offset++;
+        const appendedText = blockText + event.data;
+        // The trailing-break wrapper lets Chromium retain the newline. Keep
+        // the native offset in that case; this compatibility path is only for
+        // engines that collapse the newline while inserting the new text.
+        if (text !== appendedText) {
+            text = appendedText;
+            // I don't know why firefox don't need to offset++
+            // For more info: https://github.com/marktext/muya/issues/130
+            if (!isFirefox) {
+                start.offset++;
+                end.offset++;
+            }
         }
     }
     else if (

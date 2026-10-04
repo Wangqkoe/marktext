@@ -50,7 +50,16 @@ function getIndentSpace(text: string, offset: number) {
  * this cost.
  */
 function replaceIfChanged(domNode: HTMLElement, html: string) {
-    if (domNode.innerHTML !== html)
+    const currentHtml = domNode.innerHTML;
+    if (currentHtml === html)
+        return;
+
+    // Plain code is escaped before it reaches this helper, while innerHTML
+    // serializes quotes in text nodes without their entities. Compare the
+    // browser-normalized form before replacing otherwise identical nodes.
+    const wrapper = domNode.ownerDocument.createElement('div');
+    wrapper.innerHTML = html;
+    if (currentHtml !== wrapper.innerHTML)
         domNode.innerHTML = html;
 }
 

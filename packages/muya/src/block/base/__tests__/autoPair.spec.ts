@@ -55,16 +55,19 @@ function invokeAutoPair(
     // structural fakeThis doesn't satisfy the full Content surface. The
     // cursor params are `{ offset }`-shaped; the production type accepts
     // `INodeOffset | null` so the structural object lines up if cast to it.
-    return Content.prototype.autoPair.call(
+    const start = { offset: cursorOffset };
+    const end = { offset: cursorOffset };
+    const result = Content.prototype.autoPair.call(
         fakeThis as unknown as Content,
         event,
         newText,
-        { offset: cursorOffset },
-        { offset: cursorOffset },
+        start,
+        end,
         flags.isInInlineMath ?? false,
         flags.isInInlineCode ?? false,
         flags.type ?? 'format',
     );
+    return { ...result, startOffset: start.offset, endOffset: end.offset };
 }
 
 // ── marktext 358fa83d "Update auto pair quote logic" (#2960) ──────────────
@@ -201,9 +204,21 @@ describe('autoPair — 701fb9ae soft-line preservation (in-block branches)', () 
         // Without this branch the browser may collapse the trailing
         // soft-line and leave textContent='ax'. autoPair should restore
         // the `\n` and place the caret after the new char.
-        const { text } = invokeAutoPair(fakeThis, event, 'ax', 2);
+        const { text, startOffset, endOffset } = invokeAutoPair(fakeThis, event, 'ax', 2);
 
         expect(text).toBe('a\nx');
+        expect(startOffset).toBe(3);
+        expect(endOffset).toBe(3);
+    });
+
+    it('keeps the native offset when the browser retained the trailing soft-line', () => {
+        const fakeThis = makeFakeThis('a\n', 2);
+        const event = makeInputEvent('insertText', 'x');
+        const { text, startOffset, endOffset } = invokeAutoPair(fakeThis, event, 'a\nx', 3);
+
+        expect(text).toBe('a\nx');
+        expect(startOffset).toBe(3);
+        expect(endOffset).toBe(3);
     });
 });
 

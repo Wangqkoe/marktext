@@ -75,6 +75,16 @@ describe('codeBlockContent render idempotence', () => {
         expect(content.domNode!.firstChild).toBe(before);
     });
 
+    it('keeps a plain text node whose HTML serialization differs from escaped source', () => {
+        const content = codeContent(bootMuya('```\necho "<x>" & \'y\'\n```\n'));
+        const before = content.domNode!.firstChild;
+
+        content.update();
+
+        expect(content.domNode!.textContent).toBe('echo "<x>" & \'y\'');
+        expect(content.domNode!.firstChild).toBe(before);
+    });
+
     it('still replaces the DOM when the text changed', () => {
         const content = codeContent(bootMuya('```\nて\n```\n'));
         const before = content.domNode!.firstChild;
