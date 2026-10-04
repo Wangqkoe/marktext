@@ -72,7 +72,14 @@ function topLevelNames(muya: Muya): string[] {
     return names;
 }
 
-function cut(muya: Muya, anchor: Content, anchorOffset: number, focus: Content, focusOffset: number): void {
+function select(
+    muya: Muya,
+    anchor: Content,
+    anchorOffset: number,
+    focus: Content,
+    focusOffset: number,
+    direction = SelectionDirection.FORWARD,
+): void {
     const anchorPath = anchor.path;
     const focusPath = focus.path;
     muya.editor.selection.getSelection = () => ({
@@ -80,9 +87,20 @@ function cut(muya: Muya, anchor: Content, anchorOffset: number, focus: Content, 
         focus: { offset: focusOffset, block: focus, path: focusPath },
         isCollapsed: false,
         isSelectionInSameBlock: false,
-        direction: SelectionDirection.FORWARD,
+        direction,
         type: SelectionCaretType.RANGE,
     });
+}
+
+function cut(
+    muya: Muya,
+    anchor: Content,
+    anchorOffset: number,
+    focus: Content,
+    focusOffset: number,
+    direction = SelectionDirection.FORWARD,
+): void {
+    select(muya, anchor, anchorOffset, focus, focusOffset, direction);
     muya.editor.clipboard.cutHandler();
 }
 
@@ -95,6 +113,32 @@ function expectNoDrift(muya: Muya): void {
 }
 
 describe('cross-block cut ending in a table', () => {
+    it('serializes a quote-nested table endpoint before cutting', () => {
+        const muya = bootMuya('alpha\n\n> before\n>\n> | h |\n> | --- |\n> | 12 |\n>\n> quote tail\n\nafter\n');
+
+        select(muya, findContent(muya, 'alpha'), 2, findContent(muya, '12'), 1);
+
+        const { text } = muya.editor.clipboard.getClipboardData();
+        expect(text).toContain('pha');
+        expect(text).toContain('| h');
+        expect(text).toContain('| 12');
+        expect(text).not.toContain('quote tail');
+    });
+
+    it('serializes an ordinary text selection inside a quote-nested table', () => {
+        const muya = bootMuya('> before\n>\n> | h1 | h2 |\n> | --- | --- |\n> | a1 | b1 |\n>\n> quote tail\n\nafter\n');
+
+        select(muya, findContent(muya, 'a1'), 1, findContent(muya, 'b1'), 1);
+
+        const { text } = muya.editor.clipboard.getClipboardData();
+        expect(text).toContain('| h1');
+        expect(text).toContain('| a1');
+        expect(text).toContain('b1');
+        expect(text).not.toContain('before');
+        expect(text).not.toContain('quote tail');
+        expect(text).not.toContain('after');
+    });
+
     it('keeps the blocks after the list the table is nested in (#5400)', () => {
         const muya = bootMuya('- a\n\n  | h |\n  | --- |\n  | 1 |\n\nafter\n\nmore\n');
 
@@ -189,6 +233,42 @@ describe('cross-block cut ending in a table', () => {
 
         expect(topLevelNames(muya)).toEqual(['bullet-list']);
         expect(outline(muya)).toEqual(['paragraph.content:aail']);
+        expectNoDrift(muya);
+    });
+
+    it('keeps a nested table tail and later blocks for a reverse selection', () => {
+        const muya = bootMuya('intro\n\n> before\n>\n> | h |\n> | --- |\n> | 12 |\n>\n> quote tail\n\nafter\n');
+        const start = findContent(muya, 'intro');
+        const end = findContent(muya, '12');
+
+        cut(muya, end, 1, start, 2, SelectionDirection.BACKWARD);
+
+        expect(outline(muya)).toEqual([
+            'paragraph.content:in',
+            'table.cell.content:',
+            'table.cell.content:2',
+            'paragraph.content:quote tail',
+            'paragraph.content:after',
+        ]);
+        expectNoDrift(muya);
+    });
+
+    it('cuts from code into a nested table without removing later content', () => {
+        const muya = bootMuya('```js\ncode\n```\n\n> before\n>\n> | h |\n> | --- |\n> | 12 |\n>\n> quote tail\n\n| x |\n| --- |\n| y |\n\nafter\n');
+
+        cut(muya, findContent(muya, 'code'), 2, findContent(muya, '12'), 1);
+
+        expect(topLevelNames(muya)).toEqual(['code-block', 'block-quote', 'table', 'paragraph']);
+        expect(outline(muya)).toEqual([
+            'language-input:js',
+            'codeblock.content:co',
+            'table.cell.content:',
+            'table.cell.content:2',
+            'paragraph.content:quote tail',
+            'table.cell.content:x',
+            'table.cell.content:y',
+            'paragraph.content:after',
+        ]);
         expectNoDrift(muya);
     });
 });

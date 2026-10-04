@@ -136,6 +136,14 @@ function buildPartialContainerState(
     position: 'start' | 'end',
 ): TState {
     const fullState = container.getState() as TState & { children?: TState[] };
+
+    // Table.getState() flattens its runtime TableInner wrapper into row
+    // states, so the generic runtime-child recursion below cannot map its
+    // children by index. Tables are atomic for ordinary text selections; a
+    // frozen rectangular selection is handled separately above.
+    if (container.blockName === 'table')
+        return fullState;
+
     const childStates = fullState.children;
     if (childStates == null)
         return truncateLeafState(fullState, leaf, offset, position);
@@ -174,6 +182,10 @@ function buildRangeContainerState(
     endOffset: number,
 ): TState {
     const fullState = container.getState() as TState & { children?: TState[] };
+
+    if (container.blockName === 'table')
+        return fullState;
+
     const childStates = fullState.children;
     if (childStates == null) {
         // A leaf-text block with both boundaries in the same content leaf:
