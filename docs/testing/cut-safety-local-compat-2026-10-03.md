@@ -135,3 +135,82 @@ copy blocker 修复后第一次 Electron 启动仍使用修复前的旧 renderer
   无 listener，本票临时服务、Electron/Chrome 进程与配置均无残留。
 
 本轮实现和独立关键静态复审没有留下阻断问题。
+
+## 2026-10-04 提交分离映射与后续验证
+
+2026-10-03 的提交、验收 HEAD、命令与工作树路径保留为当时的真实记录。仓库随后将
+upstream updates 与 performance experiments 分离；下表只旁注同一 patch 在最终
+`codex/upstream-updates` 历史中的提交号，不改写原记录：
+
+| 分离前本地提交 | 最终 updates 提交 |
+| --- | --- |
+| `1adf6c77` | `80acba4d` |
+| `34eb4464` | `74124bdd` |
+| `d3ba78b0` | `a661890f` |
+| `bdd1c20c` | `29a6feac` |
+
+原基线 `35623bc3` 属于后来排除在 updates 之外的历史 performance 基线，因此没有
+patch-equivalent 的 updates 新编号；这里继续保留它作为当时复现环境。`0e156b0a`、
+`00f15b23` 等仍是上游 source SHA。
+
+### #5368 与 #5371 来源说明
+
+- `collapseLanguageInputCut` 的 `getAnchor()` 效果是在最终 `74124bdd` 的冲突解决中吸收，
+  行为来源为上游 `555f3a72`（#5368）。这是部分行为吸收，不表示 `74124bdd` 与
+  `555f3a72` patch 等价，也不是一次独立的 `cherry-pick`。
+- 2026-10-04 以 `cherry-pick -x` 移植上游 `e5422625`（#5371），最终本地提交为
+  `40b23b6b`。修复前临时加入上游四个官方单元用例，执行
+  `pnpm --filter @muyajs/core test -- src/clipboard/__tests__/cutIntoLanguageInput5371.spec.ts --reporter=verbose`，
+  得到 `1 file failed / 4 tests failed`：语言尾文被并入起始块，语言 meta 未截短；
+  终点代码正文仍在，因此不把问题记成整块正文丢失。修复后同一文件扩展为 7 个用例，
+  结果 `1 file passed / 7 tests passed`。
+- 本地兼容把 `tail`、`lastRemoved` 与 `endsWholeTable` 合并处理，新增覆盖“段落 → 整表
+  → 语言行”“语言行 → 整表 → 另一语言行”和“表内起点 → 语言行”。前两种删除完整选中
+  的表并保留终点 code/language 及后续正文；后一种只清空选中的表格部分并保留起点表。
+
+### 2026-10-04 最终验证
+
+- cut 相关单元回归：`4 files / 49 tests passed`；包含 #5371、table 终点、容器起点及
+  既有 leaf/table cut 行为。实际命令为：
+
+  ```powershell
+  pnpm --filter '@muyajs/core' test -- src/clipboard/__tests__/cutIntoLanguageInput5371.spec.ts src/clipboard/__tests__/cutIntoTable5400.spec.ts src/clipboard/__tests__/cutRestOfContainer5385.spec.ts src/clipboard/__tests__/trackCCut.spec.ts src/clipboard/__tests__/languageInputCodeSelection.spec.ts --reporter=verbose
+  ```
+
+- system Chrome 使用独立端口 `5197`、`1 worker`，通过真实 `Backspace` 走共享 cut
+  路径；#5371 官方 E2E 与“整表 → 语言行”组合为 `2 passed`，连同 table、container、
+  language 原有回归为 `12 passed`。`/main.ts` 实际解析到
+  `E:/Program Files/Marktext/packages/muya/src/index.ts`。12 条回归在工作目录
+  `packages/muya/e2e` 中执行，实际命令为：
+
+  ```powershell
+  pnpm --filter muya-e2e exec playwright test tests/editing/cut-into-language-input-5371.spec.ts tests/editing/cut-into-table-5400.spec.ts tests/editing/cut-rest-of-container-5385.spec.ts tests/editing/language-input-code-selection-4903.spec.ts --project=chromium --config=playwright.review-fixes.config.ts
+  ```
+
+  临时 config 固定 `workers: 1`、端口 `5197`、system Chrome 且禁止复用已有服务，
+  验收后已删除。
+- `pnpm --filter @muyajs/core test -- --maxWorkers=2`：`232 files passed / 1621 tests passed`。
+- `pnpm --filter @muyajs/core lint:types`：通过；#5371 source/unit/E2E 用 Muya 配置和
+  `--no-ignore` 定向 ESLint：`0 errors`。
+- 7 个既有 Muya E2E 文件先保存外部快照，再用包内配置恢复 4 空格和分号；最终定向
+  检查的真实命令为：
+
+  ```powershell
+  pnpm exec eslint --no-ignore --config ./eslint.config.mjs e2e/tests/blocks/codeblock-language-change-5515.spec.ts e2e/tests/blocks/codeblock-trailing-newline-5114.spec.ts e2e/tests/blocks/math-tag-overflow-4339.spec.ts e2e/tests/editing/search-replace.spec.ts e2e/tests/editing/unicode-search.spec.ts e2e/tests/typing/codeblock-node-identity.spec.ts e2e/tests/typing/trailing-line-local-compat.spec.ts
+  ```
+
+  同一配置检查修前快照为 `983 errors`，格式修复并恢复原有 regex/import 逻辑后为
+  `9 errors / exit 1`；9 项与修前基线逐项相同（6 项 `max-statements-per-line`、2 项
+  `no-super-linear-backtracking`、1 项 `sort-imports`），没有新增错误，也没有为旧错误
+  修改断言、helper 或输入。
+- 7 个格式文件以去除位置、注释及 trailing-comma 元数据的规范化 TypeScript AST
+  比较，结果 `7/7` 相等；完整 diff 只包含布局、分号及 trailing comma。
+- `pnpm run test`：desktop Vitest `82 files passed / 1077 passed / 1 skipped`；该命令
+  不是 Electron E2E。
+- `pnpm run typecheck`：通过。
+- `pnpm run build`：通过，main `503 modules`、preload `3 modules`、renderer
+  `5886 modules`；只报告四条既有 CodeMirror dynamic/static import 分块 warning。
+
+没有运行 Firefox、WebKit 或 Electron E2E，也没有下载浏览器、打包安装器或启动用户应用。
+所有临时 Vite/Chrome 进程和端口均已关闭；测试日志保存在仓库外
+`E:/Program Files/Marktext-performance-evidence/2026-10-04-upstream-review-fixes`。

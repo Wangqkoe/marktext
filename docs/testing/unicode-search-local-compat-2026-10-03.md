@@ -89,3 +89,24 @@
 - 根 ESLint 的 ESM package-type 提示、E2E non-null assertion warning、Muya 既有正则量词 warning 和 build 的 CodeMirror 分块 warning 均无可观察产品风险，记录后不扩大本票。
 
 本轮实现与独立静态复审均未留下阻断问题。
+
+## 2026-10-04 提交分离映射
+
+原提交号继续表示 2026-10-03 的真实实现和验收状态；右栏只旁注仓库分离后同一 patch
+在最终 `codex/upstream-updates` 历史中的提交号：
+
+| 分离前本地提交 | 最终 updates 提交 |
+| --- | --- |
+| `828cdc99` | `338fadc7` |
+| `dc28ee89` | `ee68acf0` |
+| `4281eb4c` | `94cd7dbe` |
+| `0eb90753` | `5f7aa6cc` |
+| `1abd05c6` | `c219abbc` |
+| `6cf08aab` | `aee71fcd` |
+| `df5d4354` | `3fe4c16c` |
+| `d2f09285` | `04ab3480` |
+| `f53d2adc` | `92771a52` |
+| `aeba514c` | `a5846add` |
+
+`911dd453`、`2631d90c`、`10f43293`、`edd24288`、`571d1877` 仍是上游 source SHA，
+没有被这次本地提交号映射改写。

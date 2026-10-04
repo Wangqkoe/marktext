@@ -45,3 +45,22 @@ C:\Users\1407\.codex\worktrees\verify-upstream-first-six\Marktext\packages\muya\
 - 新增 Windows clipboard handler 测试与现有真实 SFC 编译测试定向运行：`2 files passed, 14 tests passed`，且随后包含在 desktop 全 unit 中再次通过。
 
 未运行全部 Electron E2E 矩阵，也未下载 Firefox/WebKit；本次只运行验收要求的 Windows Chrome/Chromium 和 Electron 覆盖。未发布、未打包安装器、未推送远端。
+
+## 2026-10-04 提交分离映射
+
+本记录中的上游 source SHA 保持不变。下表补充各项当时的本地中间提交在最终
+`codex/upstream-updates` 历史中的 patch-equivalent 提交号：
+
+| 分离前本地提交 | 最终 updates 提交 |
+| --- | --- |
+| `ea728eba` | `90b97021` |
+| `a3d2fd30` | `90c2420e` |
+| `1af09a0d` | `1e435bf4` |
+| `ac81f2b9` | `a46dd6cb` |
+| `48cb31c5` | `fb4b88c2` |
+| `de578fa9` | `7f03e2f8` |
+| `cb2d870e` | `175ac52f` |
+| `7419bccf` | `0d54b23d` |
+
+原产品基线 `f919b086` 是后来排除在 updates 之外的历史 performance 基线；它在这里
+只表示当时的复现起点，没有 patch-equivalent 的 updates 新编号。

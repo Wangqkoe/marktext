@@ -57,3 +57,20 @@
 未运行全部 Muya 单元测试、全部 Electron E2E 或跨浏览器矩阵；没有下载 Chromium、Firefox 或 WebKit。额外尝试的 Muya E2E 全 tsconfig 检查暴露了该目录大量既有类型错误，且在隔离前显示会解析主仓 Muya，因此不计作验收；正式 E2E、desktop build 和 Electron 验证均在上述 worktree realpath 核验后执行。
 
 测试结束后已删除本轮 Electron 临时 profile；未发现 `marktext-e2e-2423-*.pdf`、现有 export-pdf 临时文件或当前工作树 Electron 进程残留。
+
+## 2026-10-04 提交分离映射
+
+原提交号继续表示当时的真实实现、适配与验收状态；右栏只旁注仓库分离后同一 patch
+在最终 `codex/upstream-updates` 历史中的提交号：
+
+| 分离前本地提交 | 最终 updates 提交 |
+| --- | --- |
+| `7419bccf` | `0d54b23d` |
+| `c01cd7fb` | `23f49ad1` |
+| `b493a11d` | `888c87e8` |
+| `31916722` | `0caced72` |
+| `4f7e56be` | `4e1a1142` |
+| `caee9f93` | `14496a6b` |
+| `c04432d7` | `5a1ad530` |
+
+`2930c666`、`16e986fb`、`63b9509e` 仍是上游 source SHA。

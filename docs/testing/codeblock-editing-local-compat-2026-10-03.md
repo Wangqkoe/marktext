@@ -134,3 +134,20 @@ error 都为 0；dirty 清理由 `closeDiscardingChanges` 完成。
   `6228`，并恢复 desktop 原 Junction；完成状态以最终提交和工作树核验为准。
 
 本轮实现和独立关键静态复审没有留下阻断问题。
+
+## 2026-10-04 提交分离映射
+
+2026-10-03 的提交、验收 HEAD、命令与工作树路径保留为当时的真实记录。仓库随后将
+upstream updates 与 performance experiments 分离；下表只旁注同一 patch 在最终
+`codex/upstream-updates` 历史中的提交号，不改写原记录：
+
+| 分离前本地提交 | 最终 updates 提交 |
+| --- | --- |
+| `bdd1c20c` | `29a6feac` |
+| `1762181c` | `7026f927` |
+| `14cdf4f4` | `aec9bf0c` |
+| `0e552479` | `948c1a57` |
+| `9c35d412` | `983f4a72` |
+| `12aa8e1e` | `3d4ba2e3` |
+
+`19faab16`、`876f8592` 仍是上游 source SHA，不属于这次本地提交号重写。
