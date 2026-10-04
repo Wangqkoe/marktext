@@ -101,7 +101,7 @@ describe('codeBlockContent trailing newline', () => {
         content.composeHandler(new CompositionEvent('compositionstart', { data: '' }));
 
         const lineBreak = trailingBreak(content)!;
-        expect(content.isComposed).toBe(true);
+        expect((content as unknown as { isComposed: boolean }).isComposed).toBe(true);
         expect(content.domNode!.lastChild).toBe(lineBreak);
         expect(content.domNode!.textContent).toBe('hello\n\n');
         expect([...content.domNode!.childNodes]).toEqual(before);
