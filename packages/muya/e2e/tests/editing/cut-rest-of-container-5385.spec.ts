@@ -54,4 +54,20 @@ test.describe('cut starting inside a list or quote (#5385)', () => {
         await expect.poll(() => getMarkdown(page)).toBe('> aXil\n');
         expect(errors).toEqual([]);
     });
+
+    test('Delete handles a reverse selection and undo/redo restores both states', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        const original = '- a\n- b\n- c\n\ntail\n';
+        await loadMarkdown(page, original);
+
+        await selectFromTo(page, 'tail', 1, 'a', 1);
+        await page.keyboard.press('Delete');
+        await expect.poll(() => getMarkdown(page)).toBe('- aail\n');
+
+        await page.evaluate(() => window.muya!.undo());
+        await expect.poll(() => getMarkdown(page)).toBe(original);
+        await page.evaluate(() => window.muya!.redo());
+        await expect.poll(() => getMarkdown(page)).toBe('- aail\n');
+        expect(errors).toEqual([]);
+    });
 });

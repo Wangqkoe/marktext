@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from '../fixtures/muya';
 import { getMarkdown } from '../helpers/api';
-import { loadMarkdown } from '../helpers/keyboard';
+import { loadMarkdown, metaKey } from '../helpers/keyboard';
 import { editor } from '../helpers/selectors';
 
 // A cross-block cut that ends inside a table: #5400 removed the blocks after
@@ -73,6 +73,42 @@ test.describe('cut ending in a table', () => {
 
         await expect.poll(() => getMarkdown(page)).not.toContain('- b');
         await expect.poll(() => cellTexts(page)).toEqual(['', '2', '34']);
+        expect(errors).toEqual([]);
+    });
+
+    test('Cmd/Ctrl+X keeps the cell tail and supports undo/redo', async ({ browserName, context, page }) => {
+        test.skip(browserName !== 'chromium', 'clipboard is unreliable on Firefox/WebKit headless');
+        await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+        const errors = collectPageErrors(page);
+        const original = '- a\n- b\n\n| h |\n| --- |\n| 12 |\n| 34 |\n';
+        await loadMarkdown(page, original);
+
+        await selectFromTo(page, 'a', 1, '12', 1);
+        await page.keyboard.press(`${metaKey()}+x`);
+        await expect.poll(() => cellTexts(page)).toEqual(['', '2', '34']);
+        await expect.poll(() => getMarkdown(page)).not.toContain('- b');
+
+        await page.evaluate(() => window.muya!.undo());
+        await expect.poll(() => cellTexts(page)).toEqual(['h', '12', '34']);
+        await expect.poll(() => getMarkdown(page)).toContain('- b');
+        await page.evaluate(() => window.muya!.redo());
+        await expect.poll(() => cellTexts(page)).toEqual(['', '2', '34']);
+        await expect.poll(() => getMarkdown(page)).not.toContain('- b');
+        expect(errors).toEqual([]);
+    });
+
+    test('typing over a reverse selection preserves a quote-nested table and later text', async ({ page }) => {
+        const errors = collectPageErrors(page);
+        await loadMarkdown(page, 'intro\n\n> before\n>\n> | h |\n> | --- |\n> | 12 |\n>\n> quote tail\n\nafter\n');
+
+        await selectFromTo(page, '12', 1, 'intro', 2);
+        await page.keyboard.type('X');
+
+        await expect.poll(() => cellTexts(page)).toEqual(['', '2']);
+        await expect.poll(() => getMarkdown(page)).toContain('inX');
+        expect(await getMarkdown(page)).toContain('quote tail');
+        expect(await getMarkdown(page)).toContain('after');
+        expect(await getMarkdown(page)).not.toContain('before');
         expect(errors).toEqual([]);
     });
 });
