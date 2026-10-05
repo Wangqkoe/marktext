@@ -473,7 +473,7 @@
         "hideScrollbars": "隱藏捲軸",
         "openFilesInNewWindow": "在新視窗中開啟檔案",
         "openFoldersInNewWindow": "在新視窗中開啟資料夾",
-        "zoom": "縮放"
+        "zoom": "視窗縮放（Zoom）"
       },
       "startup": {
         "title": "啟動",
@@ -947,6 +947,15 @@
   "notifications": {
     "defaultMessage": "預設訊息",
     "defaultTitle": "通知"
+  },
+  "statusBar": {
+    "documentZoom": {
+      "label": "文件",
+      "decrease": "縮小文件",
+      "increase": "放大文件",
+      "sliderLabel": "文件縮放",
+      "reset": "將文件縮放重設為 100%"
+    }
   },
   "store": {
     "editor": {

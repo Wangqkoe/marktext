@@ -19,7 +19,12 @@ const desktopNavigationKeys = [
   'sideBar.inlineSearch.filesNoResults',
   'sideBar.inlineSearch.outlineNoResults',
   'sideBar.inlineSearch.filesInputLabel',
-  'sideBar.inlineSearch.outlineInputLabel'
+  'sideBar.inlineSearch.outlineInputLabel',
+  'statusBar.documentZoom.label',
+  'statusBar.documentZoom.decrease',
+  'statusBar.documentZoom.increase',
+  'statusBar.documentZoom.sliderLabel',
+  'statusBar.documentZoom.reset'
 ] as const
 
 const getMessage = (messages: Record<string, unknown>, key: string): unknown => {

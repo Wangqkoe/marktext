@@ -473,7 +473,7 @@
         "hideScrollbars": "Kaydırma çubuklarını gizle",
         "openFilesInNewWindow": "Dosyaları yeni pencerede aç",
         "openFoldersInNewWindow": "Klasörleri yeni pencerede aç",
-        "zoom": "Yakınlaştırma"
+        "zoom": "Window zoom (Zoom)"
       },
       "startup": {
         "title": "Başlangıç Seçenekleri",
@@ -947,6 +947,15 @@
   "notifications": {
     "defaultMessage": "Varsayılan mesaj",
     "defaultTitle": "Bildirim"
+  },
+  "statusBar": {
+    "documentZoom": {
+      "label": "Document",
+      "decrease": "Zoom document out",
+      "increase": "Zoom document in",
+      "sliderLabel": "Document zoom",
+      "reset": "Reset document zoom to 100%"
+    }
   },
   "store": {
     "editor": {

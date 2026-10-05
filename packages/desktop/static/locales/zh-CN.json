@@ -473,7 +473,7 @@
         "hideScrollbars": "隐藏滚动条",
         "openFilesInNewWindow": "在新窗口中打开文件",
         "openFoldersInNewWindow": "在新窗口中打开文件夹",
-        "zoom": "缩放"
+        "zoom": "窗口缩放（Zoom）"
       },
       "startup": {
         "title": "启动",
@@ -947,6 +947,15 @@
   "notifications": {
     "defaultMessage": "默认消息",
     "defaultTitle": "通知"
+  },
+  "statusBar": {
+    "documentZoom": {
+      "label": "文档",
+      "decrease": "缩小文档",
+      "increase": "放大文档",
+      "sliderLabel": "文档缩放",
+      "reset": "将文档缩放重置为 100%"
+    }
   },
   "store": {
     "editor": {

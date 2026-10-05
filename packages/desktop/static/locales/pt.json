@@ -473,7 +473,7 @@
         "hideScrollbars": "Ocultar barras de rolagem",
         "openFilesInNewWindow": "Abrir arquivos em nova janela",
         "openFoldersInNewWindow": "Abrir pastas em nova janela",
-        "zoom": "Zoom"
+        "zoom": "Window zoom (Zoom)"
       },
       "startup": {
         "title": "Inicialização",
@@ -947,6 +947,15 @@
   "notifications": {
     "defaultMessage": "Mensagem padrão",
     "defaultTitle": "Notificação"
+  },
+  "statusBar": {
+    "documentZoom": {
+      "label": "Document",
+      "decrease": "Zoom document out",
+      "increase": "Zoom document in",
+      "sliderLabel": "Document zoom",
+      "reset": "Reset document zoom to 100%"
+    }
   },
   "store": {
     "editor": {

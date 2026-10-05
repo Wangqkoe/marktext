@@ -473,7 +473,7 @@
         "hideScrollbars": "스크롤바 숨기기",
         "openFilesInNewWindow": "새 창에서 파일 열기",
         "openFoldersInNewWindow": "새 창에서 폴더 열기",
-        "zoom": "확대/축소"
+        "zoom": "Window zoom (Zoom)"
       },
       "startup": {
         "title": "시작",
@@ -947,6 +947,15 @@
   "notifications": {
     "defaultMessage": "기본 메시지",
     "defaultTitle": "알림"
+  },
+  "statusBar": {
+    "documentZoom": {
+      "label": "Document",
+      "decrease": "Zoom document out",
+      "increase": "Zoom document in",
+      "sliderLabel": "Document zoom",
+      "reset": "Reset document zoom to 100%"
+    }
   },
   "store": {
     "editor": {

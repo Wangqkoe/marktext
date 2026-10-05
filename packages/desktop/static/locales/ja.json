@@ -473,7 +473,7 @@
         "hideScrollbars": "スクロールバーを隠す",
         "openFilesInNewWindow": "新しいウィンドウでファイルを開く",
         "openFoldersInNewWindow": "新しいウィンドウでフォルダを開く",
-        "zoom": "ズーム"
+        "zoom": "Window zoom (Zoom)"
       },
       "startup": {
         "title": "起動",
@@ -947,6 +947,15 @@
   "notifications": {
     "defaultMessage": "デフォルトメッセージ",
     "defaultTitle": "通知"
+  },
+  "statusBar": {
+    "documentZoom": {
+      "label": "Document",
+      "decrease": "Zoom document out",
+      "increase": "Zoom document in",
+      "sliderLabel": "Document zoom",
+      "reset": "Reset document zoom to 100%"
+    }
   },
   "store": {
     "editor": {

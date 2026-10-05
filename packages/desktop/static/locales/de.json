@@ -473,7 +473,7 @@
         "hideScrollbars": "Bildlaufleisten ausblenden",
         "openFilesInNewWindow": "Dateien in neuem Fenster öffnen",
         "openFoldersInNewWindow": "Ordner in neuem Fenster öffnen",
-        "zoom": "Zoom"
+        "zoom": "Window zoom (Zoom)"
       },
       "startup": {
         "title": "Start",
@@ -947,6 +947,15 @@
   "notifications": {
     "defaultMessage": "Standardnachricht",
     "defaultTitle": "Benachrichtigung"
+  },
+  "statusBar": {
+    "documentZoom": {
+      "label": "Document",
+      "decrease": "Zoom document out",
+      "increase": "Zoom document in",
+      "sliderLabel": "Document zoom",
+      "reset": "Reset document zoom to 100%"
+    }
   },
   "store": {
     "editor": {
