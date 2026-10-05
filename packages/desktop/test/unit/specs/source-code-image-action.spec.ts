@@ -103,6 +103,7 @@ const makeDeps = (over: Record<string, unknown> = {}) => ({
   findMarkdownHeadingLine: () => -1,
   scrollSourceEditorToLine: () => {},
   workspaceStatusFromCounts: () => ({}),
+  captureScrollAnchor: () => () => {},
   ...over
 })
 

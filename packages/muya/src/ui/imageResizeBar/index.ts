@@ -4,7 +4,7 @@ import type { ImageToken } from '../../inlineRenderer/types';
 import { autoUpdate } from '@floating-ui/dom';
 
 import { isHTMLElement, isMouseEvent } from '../../utils';
-import { findScrollContainer } from '../../utils/dom';
+import { findScrollContainer, getRenderedScale } from '../../utils/dom';
 import './index.css';
 
 const VERTICAL_BAR = ['left', 'right'];
@@ -156,7 +156,7 @@ export class ImageResizeBar {
 
         event.preventDefault();
         const { clientX } = event;
-        let width: number | string = '';
+        let renderedWidth = 0;
         let relativeAnchor: HTMLDivElement;
         const image = this._reference!.querySelector('img');
         if (!image)
@@ -165,24 +165,22 @@ export class ImageResizeBar {
         switch (this._movingAnchor) {
             case 'left':
                 relativeAnchor = this._container.querySelector('.right')!;
-                width = Math.max(
-                    relativeAnchor.getBoundingClientRect().left + CIRCLE_RADIO - clientX,
-                    50,
-                );
+                renderedWidth = relativeAnchor.getBoundingClientRect().left + CIRCLE_RADIO - clientX;
                 break;
 
             case 'right':
                 relativeAnchor = this._container.querySelector('.left')!;
-                width = Math.max(
-                    clientX - relativeAnchor.getBoundingClientRect().left - CIRCLE_RADIO,
-                    50,
-                );
+                renderedWidth = clientX - relativeAnchor.getBoundingClientRect().left - CIRCLE_RADIO;
                 break;
         }
+        const width = Math.max(
+            renderedWidth / getRenderedScale(this._reference!, 'x'),
+            50,
+        );
         // Image width/height attribute must be an integer.
-        width = Number.parseInt(String(width));
-        this._width = width;
-        image.setAttribute('width', String(width));
+        const integerWidth = Number.parseInt(String(width));
+        this._width = integerWidth;
+        image.setAttribute('width', String(integerWidth));
         this._update();
     };
 

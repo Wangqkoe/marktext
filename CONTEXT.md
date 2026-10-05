@@ -59,3 +59,11 @@ _Avoid_: Parenthesis formula
 **Display math delimiter**:
 The `\[...\]` form, denoting a mathematical expression presented as display math, whether its delimiters occur on one line or separate lines.
 _Avoid_: Square-bracket formula, block bracket
+
+**Window Zoom**:
+The Electron window scale applied to the whole application, including the shell, editing content and controls.
+_Avoid_: Document Zoom, editor font size
+
+**Document Zoom**:
+The persisted scale applied only to document editing content, shared by all Views and panes in a window and excluded from export and print output.
+_Avoid_: Window Zoom, editor font size

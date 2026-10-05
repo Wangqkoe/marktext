@@ -12,6 +12,7 @@ export interface IUserPreferences {
   titleBarStyle?: 'custom' | 'native'
   openFilesInNewWindow?: boolean
   openFolderInNewWindow?: boolean
+  documentZoom?: number
   hideScrollbar?: boolean
   sidebarColumn?: number
   fileSortBy?: string

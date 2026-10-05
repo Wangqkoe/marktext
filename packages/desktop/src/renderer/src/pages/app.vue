@@ -30,6 +30,7 @@
         :tab-bar-visible="tabBarVisible"
         :text-direction="textDirection"
         :platform="platform"
+        :document-zoom="documentZoom"
         @caret-position="handleCaretPosition"
       />
 
@@ -41,9 +42,12 @@
           :source-disabled="!hasCurrentFile"
           :caret-position="caretPosition"
           :word-count="wordCount"
+          :document-zoom="documentZoom"
+          :document-zoom-disabled="!hasCurrentFile"
           :toggle-label="t('menu.view.toggleSidebar')"
           @toggle-sidebar="layoutStore.toggleSidebar()"
           @toggle-source-mode="toggleSourceMode"
+          @set-document-zoom="setDocumentZoom"
         />
       </template>
     </application-shell>
@@ -101,7 +105,7 @@ const timer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 const { windowActive, platform, init } = storeToRefs(mainStore)
 const { tabBarVisible, sidebarVisible, sidebarView } = storeToRefs(layoutStore)
-const { sourceCode, theme, customCss, textDirection, zoom, titleBarStyle } =
+const { sourceCode, theme, customCss, textDirection, zoom, documentZoom, titleBarStyle } =
   storeToRefs(preferencesStore)
 const { projectTree } = storeToRefs(projectStore)
 const { currentFile } = storeToRefs(editorStore)
@@ -142,6 +146,10 @@ const statusContext = computed(() => {
 
 const toggleSourceMode = (): void => {
   bus.emit('view:toggle-view-entry', 'sourceCode')
+}
+
+const setDocumentZoom = (factor: number): void => {
+  preferencesStore.SET_SINGLE_PREFERENCE({ type: 'documentZoom', value: factor })
 }
 
 const handleCaretPosition = (update: CaretPositionUpdate): void => {

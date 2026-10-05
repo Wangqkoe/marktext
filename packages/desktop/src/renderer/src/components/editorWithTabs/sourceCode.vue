@@ -2,6 +2,7 @@
   <div
     ref="sourceCodeContainer"
     class="source-code"
+    :style="sourceZoomStyle"
   />
 </template>
 
@@ -18,6 +19,7 @@ import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
 import { toCaretPosition } from '@/util/caretPosition'
 import { workspaceStatusFromCounts } from '@/util/documentStatus'
+import { captureScrollAnchor } from '@/util/documentZoom'
 import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
 import type { PaneEditorComposition, PaneEditorEventScope } from '@/workspace'
 import type { IFileState } from '@shared/types/files'
@@ -40,6 +42,7 @@ const props = defineProps<{
   composition: PaneEditorComposition
   activeFile?: IFileState
   focused?: boolean
+  documentZoom: number
 }>()
 
 const emit = defineEmits<{
@@ -70,9 +73,29 @@ const offFocused = (event: string): void => {
   focusedBusHandlers.delete(event)
 }
 
-const { theme, sourceCode } = storeToRefs(preferencesStore)
+const { theme, sourceCode, codeFontSize, editorLineWidth } = storeToRefs(preferencesStore)
 const { currentFile: legacyCurrentTab } = storeToRefs(editorStore)
 const currentTab = computed(() => props.activeFile ?? legacyCurrentTab.value)
+const sourceZoomStyle = computed(() => {
+  const factor = props.documentZoom
+  const padding = 14 * factor
+  const configuredWidth = editorLineWidth.value
+  let columnWidth: string
+  const pixelWidth = /^(\d+)px$/.exec(configuredWidth)
+  if (pixelWidth) {
+    columnWidth = `${Number(pixelWidth[1]) * factor + padding * 2}px`
+  } else if (/^\d+(?:ch|%)$/.test(configuredWidth)) {
+    columnWidth = `calc(${configuredWidth} + ${padding * 2}px)`
+  } else {
+    columnWidth = `${736 * factor}px`
+  }
+  return {
+    '--source-zoom-font-size': `${codeFontSize.value * factor}px`,
+    '--source-zoom-column-width': columnWidth,
+    '--source-zoom-top-inset': `${38 * factor}px`,
+    '--source-zoom-inline-padding': `${padding}px`
+  }
+})
 
 const reportCaretPosition = (cm: CMInstance, session: CaretSession): void => {
   emit('caret-position', {
@@ -100,6 +123,17 @@ watch(
   (session) => {
     nextTick(() => {
       if (editor.value) reportCaretPosition(editor.value, session)
+    })
+  }
+)
+
+watch(
+  () => props.documentZoom,
+  () => {
+    const restore = captureScrollAnchor(sourceCodeContainer.value, '.CodeMirror-line')
+    nextTick(() => {
+      editor.value?.refresh()
+      requestAnimationFrame(restore)
     })
   }
 )
@@ -534,12 +568,13 @@ onBeforeUnmount(() => {
 }
 .source-code .CodeMirror {
   height: auto;
-  max-width: var(--appShellEditorLineWidth);
-  margin: var(--appShellEditorTopInset) auto;
-  padding-right: var(--appShellPaperMinInlinePadding);
-  padding-left: var(--appShellPaperMinInlinePadding);
+  max-width: var(--source-zoom-column-width, var(--appShellEditorLineWidth));
+  margin: var(--source-zoom-top-inset, var(--appShellEditorTopInset)) auto;
+  padding-right: var(--source-zoom-inline-padding, var(--appShellPaperMinInlinePadding));
+  padding-left: var(--source-zoom-inline-padding, var(--appShellPaperMinInlinePadding));
   box-sizing: border-box;
   background: transparent;
+  font-size: var(--source-zoom-font-size);
 }
 .source-code .CodeMirror-gutters {
   border-right: none;

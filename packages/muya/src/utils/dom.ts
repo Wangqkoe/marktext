@@ -45,6 +45,20 @@ export function findScrollContainer(node: HTMLElement): HTMLElement {
     return node;
 }
 
+/**
+ * Ratio between an element's rendered size and its layout size. CSS `zoom`
+ * changes client rects while offset dimensions stay in document CSS units;
+ * geometry written back to Markdown must cross that boundary explicitly.
+ */
+export function getRenderedScale(element: HTMLElement, axis: 'x' | 'y'): number {
+    const rect = element.getBoundingClientRect();
+    const layoutSize = axis === 'x' ? element.offsetWidth : element.offsetHeight;
+    const renderedSize = axis === 'x' ? rect.width : rect.height;
+    const scale = layoutSize > 0 ? renderedSize / layoutSize : 1;
+
+    return Number.isFinite(scale) && scale > 0 ? scale : 1;
+}
+
 // Read the Muya block stamped onto a DOM element. `BLOCK_DOM_PROPERTY` is a
 // string property attached by `TreeNode.attachDOMNode`; centralising the
 // cast here means callsites never need to reach into `element[KEY]` with

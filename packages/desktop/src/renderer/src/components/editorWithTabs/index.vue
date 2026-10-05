@@ -17,6 +17,7 @@
       :tab-bar-visible="tabBarVisible"
       :text-direction="textDirection"
       :platform="platform"
+      :document-zoom="documentZoom"
       @caret-position="$emit('caret-position', $event)"
       @tab-drag="handleTabDrag"
       @tab-press="handleTabPress(pane.paneId, $event)"
@@ -50,7 +51,7 @@ import { useProjectStore } from '@/store/project'
 import PaneEditor from './pane.vue'
 import { registerWorkspaceTreeUnmount } from './workspaceTreeLifecycle'
 
-const props = defineProps<{ markdown: string; cursor: unknown; muyaIndexCursor?: unknown; caretSession: CaretSession; sourceCode: boolean; tabBarVisible: boolean; textDirection: string; platform: string }>()
+const props = defineProps<{ markdown: string; cursor: unknown; muyaIndexCursor?: unknown; caretSession: CaretSession; sourceCode: boolean; tabBarVisible: boolean; textDirection: string; platform: string; documentZoom: number }>()
 defineEmits<{ 'caret-position': [update: CaretPositionUpdate] }>()
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()

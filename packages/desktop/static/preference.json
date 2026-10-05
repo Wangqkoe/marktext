@@ -5,6 +5,7 @@
   "openFilesInNewWindow": false,
   "openFolderInNewWindow": false,
   "zoom": 1.0,
+  "documentZoom": 1.0,
   "hideScrollbar": false,
   "wordWrapInToc": false,
   "fileSortBy": "created",

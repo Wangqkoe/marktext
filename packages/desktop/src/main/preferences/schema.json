@@ -32,6 +32,13 @@
     "maximum": 2.0,
     "default": 1.0
   },
+  "documentZoom": {
+    "description": "General--The document content zoom factor. Between 0.5 and 2.0 inclusive.",
+    "type": "number",
+    "minimum": 0.5,
+    "maximum": 2.0,
+    "default": 1.0
+  },
   "hideScrollbar": {
     "description": "General--Whether to hide scrollbars.",
     "type": "boolean",

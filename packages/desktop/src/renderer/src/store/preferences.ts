@@ -3,6 +3,7 @@ import bus from '../bus'
 import { setLanguage } from '../i18n'
 import { isViewMode } from '@shared/viewMode'
 import type { ViewMode, ViewModeState } from '@shared/types/viewMode'
+import { normalizeDocumentZoom } from '@/util/documentZoom'
 
 // Finite-value unions where the runtime currently constrains the field.
 // We keep these as plain strings everywhere else to avoid forcing prematurely
@@ -29,6 +30,7 @@ export interface PreferencesState {
   openFilesInNewWindow: boolean
   openFolderInNewWindow: boolean
   zoom: number
+  documentZoom: number
   hideScrollbar: boolean
   wordWrapInToc: boolean
   fileSortBy: FileSortBy | string
@@ -149,6 +151,7 @@ export const usePreferencesStore = defineStore('preferences', {
     openFilesInNewWindow: false,
     openFolderInNewWindow: false,
     zoom: 1.0,
+    documentZoom: 1.0,
     hideScrollbar: false,
     wordWrapInToc: false,
     fileSortBy: 'created',
@@ -298,6 +301,7 @@ export const usePreferencesStore = defineStore('preferences', {
     },
 
     SET_SINGLE_PREFERENCE({ type, value }: SingleSetPreferencePayload): void {
+      if (type === 'documentZoom') value = normalizeDocumentZoom(value)
       // Update local state
       ;(this as unknown as Record<string, unknown>)[type as string] = value
 

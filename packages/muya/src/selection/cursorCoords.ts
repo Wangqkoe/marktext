@@ -1,4 +1,5 @@
 import { isElement } from '../utils';
+import { getRenderedScale } from '../utils/dom';
 
 export function getCursorCoords(preferEnd = false): DOMRect | null {
     const sel = document.getSelection();
@@ -40,7 +41,9 @@ export function getCursorYOffset(paragraph: HTMLElement): { topOffset: number; b
 
     const { y } = coords;
     const { height, top } = paragraph.getBoundingClientRect();
-    const lineHeight = Number.parseFloat(getComputedStyle(paragraph).lineHeight);
+    const lineHeight
+        = Number.parseFloat(getComputedStyle(paragraph).lineHeight)
+            * getRenderedScale(paragraph, 'y');
     const topOffset = Math.floor((y - top) / lineHeight);
     const bottomOffset = Math.round((top + height - lineHeight - y) / lineHeight);
 

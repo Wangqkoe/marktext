@@ -28,6 +28,7 @@
         :pane-tabs="paneFiles"
         :focused="focused"
         :source-mode="activeMode === 'source'"
+        :document-zoom="documentZoom"
         @caret-position="$emit('caret-position', $event)"
       />
       <source-code
@@ -40,6 +41,7 @@
         :composition="composition"
         :active-file="activeFile"
         :focused="focused"
+        :document-zoom="documentZoom"
         @caret-position="$emit('caret-position', $event)"
       />
     </div>
@@ -71,6 +73,7 @@ const props = defineProps<{
   tabBarVisible: boolean
   textDirection: string
   platform: string
+  documentZoom: number
 }>()
 defineEmits<{
   'caret-position': [update: CaretPositionUpdate]

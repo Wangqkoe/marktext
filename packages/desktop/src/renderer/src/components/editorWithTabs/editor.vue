@@ -2,6 +2,7 @@
   <div
     class="editor-wrapper"
     :class="[{ typewriter: typewriter, focus: focus, source: props.sourceMode }]"
+    :style="{ '--document-zoom': String(props.documentZoom) }"
     :dir="textDirection"
   >
     <div
@@ -135,6 +136,7 @@ import { getCssForOptions, getHtmlToc, type PdfCssOptions, type HtmlTocOptions }
 import { resolveTocHeadingElement } from '@/util/tocNavigation'
 import { addCommonStyle, setEditorWidth } from '@/util/theme'
 import { createScrollReportGate, type ScrollReportGate } from '@/util/scrollReportGate'
+import { captureScrollAnchor } from '@/util/documentZoom'
 import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
 import { useProjectStore } from '@/store/project'
@@ -221,6 +223,7 @@ const props = defineProps<{
   paneTabs?: readonly IFileState[]
   focused?: boolean
   sourceMode?: boolean
+  documentZoom: number
 }>()
 
 const emit = defineEmits<{
@@ -794,6 +797,14 @@ watch(editorLineWidth, (value, oldValue) => {
     setEditorWidth(value)
   }
 })
+
+watch(
+  () => props.documentZoom,
+  () => {
+    const restore = captureScrollAnchor(getScrollContainer(), '.mu-container > *')
+    nextTick(restore)
+  }
+)
 
 watch(wrapCodeBlocks, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
@@ -2590,6 +2601,7 @@ onBeforeUnmount(() => {
 
 .editor-component .mu-container {
   padding: var(--appShellEditorTopInset) var(--appShellPaperMinInlinePadding) 100vh;
+  zoom: var(--document-zoom, 1);
 }
 
 .typewriter .editor-component {
