@@ -96,4 +96,69 @@ describe('footnote post-processing in MarkdownToHtml export', () => {
         expect(items[0].textContent).toContain('[^2]: two');
         expect(container.querySelector('div.footnote-block')).toBeNull();
     });
+
+    it('exports escaped, code and nested-body references literally while numbering every real occurrence', async () => {
+        const out = await renderExport([
+            'Escaped \\[^1]. Real[^1], again[^1], and third[^1]. Math $x^2$.',
+            '',
+            'Inline code `[^1]`.',
+            '',
+            '```text',
+            '[^1]',
+            '```',
+            '',
+            '[^1]: body with nested[^2]',
+            '',
+            '[^2]: orphan body',
+        ].join('\n'));
+        const container = document.createElement('div');
+        container.innerHTML = out;
+
+        expect(container.textContent).toContain('Escaped [^1].');
+        expect(container.querySelector('code:not([class])')?.textContent).toBe('[^1]');
+        expect(container.querySelector('code.language-text')?.textContent).toContain('[^1]');
+        expect(container.querySelector('.katex')).not.toBeNull();
+
+        const refs = [...container.querySelectorAll('sup.footnote-ref > a')];
+        expect(refs.map(ref => ({
+            href: ref.getAttribute('href'),
+            id: ref.id,
+            text: ref.textContent,
+        }))).toEqual([
+            { href: '#fn-1', id: 'fnref-1', text: '1' },
+            { href: '#fn-1', id: 'fnref-1-2', text: '1' },
+            { href: '#fn-1', id: 'fnref-1-3', text: '1' },
+        ]);
+
+        const items = [...container.querySelectorAll('section.footnotes > ol > li')];
+        expect(items).toHaveLength(1);
+        expect(items[0].textContent).toContain('body with nested[^2]');
+        expect([...items[0].querySelectorAll('a.footnote-backref')].map(link => ({
+            href: link.getAttribute('href'),
+            text: link.textContent,
+        }))).toEqual([
+            { href: '#fnref-1', text: '↩' },
+            { href: '#fnref-1-2', text: '↩2' },
+            { href: '#fnref-1-3', text: '↩3' },
+        ]);
+
+        expect(out).not.toContain('data-identifier');
+        expect(out).not.toContain('<div class="footnote-block"');
+        expect(out).not.toMatch(/<span class="footnote-ref"/);
+    });
+
+    it('keeps footnotes disabled and safely restores an orphan special identifier', async () => {
+        const disabled = await new MarkdownToHtml(
+            'Real[^1].\n\n[^1]: body',
+            { options: { math: true, footnote: false } } as unknown as ConstructorParameters<typeof MarkdownToHtml>[1],
+        ).renderHtml();
+        const special = await renderExport('Special[^<img>].');
+
+        expect(disabled).toContain('<a href="body">^1</a>');
+        expect(disabled).not.toContain('class="footnote-ref"');
+        expect(disabled).not.toContain('section class="footnotes"');
+        expect(special).toContain('[^&lt;img&gt;]');
+        expect(special).not.toContain('<img>');
+        expect(special).not.toContain('data-identifier');
+    });
 });
