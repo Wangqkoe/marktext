@@ -108,15 +108,56 @@ describe('renderToStaticHTML — footnote backref list (PR-8c)', () => {
     it('gives every definition its own <li> when they are packed one per line', () => {
         const md = 'a[^1] b[^2] c[^3]\n\n[^1]: one\n[^2]: two\n[^3]: three\n';
         const html = renderToStaticHTML(md, PROFILE);
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        const items = [...container.querySelectorAll('section.footnotes > ol > li')];
+        expect(items.map(item => ({
+            id: item.id,
+            body: item.querySelector('p')?.textContent?.replace('↩', '').trim(),
+        }))).toEqual([
+            { id: 'fn-1', body: 'one' },
+            { id: 'fn-2', body: 'two' },
+            { id: 'fn-3', body: 'three' },
+        ]);
+        expect([...container.querySelectorAll('sup.footnote-ref > a')].map(ref => ({
+            href: ref.getAttribute('href'),
+            id: ref.id,
+            text: ref.textContent,
+        }))).toEqual([
+            { href: '#fn-1', id: 'fnref-1', text: '1' },
+            { href: '#fn-2', id: 'fnref-2', text: '2' },
+            { href: '#fn-3', id: 'fnref-3', text: '3' },
+        ]);
+        expect(container.querySelector('div.footnote-block')).toBeNull();
+    });
 
-        for (const n of [1, 2, 3]) {
-            expect(html).toContain(`<li id="fn-${n}">`);
-            expect(html).toMatch(
-                new RegExp(`<sup class="footnote-ref"><a href="#fn-${n}" id="fnref-${n}">${n}</a></sup>`),
-            );
-        }
-        // A swallowed definition would survive as its raw extension output
-        // nested inside the preceding <li>.
-        expect(html).not.toMatch(/<div class="footnote-block"/);
+    it('keeps an indented definition after a body blank line as literal note text', () => {
+        const html = renderToStaticHTML(
+            'a[^1]\n\n[^1]: intro\n\n    [^2]: two',
+            PROFILE,
+        );
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        const items = [...container.querySelectorAll('section.footnotes > ol > li')];
+
+        expect(items).toHaveLength(1);
+        expect(items[0].id).toBe('fn-1');
+        expect(items[0].textContent).toContain('intro');
+        expect(items[0].textContent).toContain('[^2]: two');
+        expect(container.querySelector('div.footnote-block')).toBeNull();
+    });
+
+    it('still resolves an ordinary reference definition inside a footnote body', () => {
+        const html = renderToStaticHTML(
+            'a[^1]\n\n[^1]: visit [site][ref]\n\n    [ref]: https://example.com',
+            PROFILE,
+        );
+        const container = document.createElement('div');
+        container.innerHTML = html;
+        const item = container.querySelector('section.footnotes > ol > li');
+
+        expect(item?.querySelector('a[href="https://example.com"]')?.textContent)
+            .toBe('site');
+        expect(item?.textContent).not.toContain('[ref]:');
     });
 });

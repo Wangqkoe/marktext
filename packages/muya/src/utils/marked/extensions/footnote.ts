@@ -45,6 +45,16 @@ export default function footnoteExtension(): MarkedExtension {
     let inFootnoteBody = false;
 
     return {
+        tokenizer: {
+            def(src: string) {
+                if (inFootnoteBody && /^\[\^[^^[\]\s]+(?<!\\)\]:/.test(src))
+                    return;
+                // Marked's override protocol uses false to delegate to the
+                // built-in tokenizer. Keep ordinary reference definitions,
+                // top-level input, and footnote-disabled parsing unchanged.
+                return false;
+            },
+        },
         extensions: [
             {
                 name: 'footnote',

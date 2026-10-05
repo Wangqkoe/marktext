@@ -386,13 +386,15 @@ Trailing paragraph that does NOT belong to the footnote.`);
 [^2]: two
 [^3]: three`);
 
-        expect(tokens.filter(t => t.type === 'footnote').map(t => t.identifier)).toEqual([
-            '1',
-            '2',
-            '3',
+        const footnotes = tokens.filter(t => t.type === 'footnote');
+        expect(footnotes.map(t => ({
+            identifier: t.identifier,
+            children: t.children?.map(c => ({ type: c.type, text: c.text })),
+        }))).toEqual([
+            { identifier: '1', children: [{ type: 'paragraph', text: 'one' }] },
+            { identifier: '2', children: [{ type: 'paragraph', text: 'two' }] },
+            { identifier: '3', children: [{ type: 'paragraph', text: 'three' }] },
         ]);
-        for (const footnote of tokens.filter(t => t.type === 'footnote'))
-            expect(footnote.children?.map(c => c.type)).toEqual(['paragraph']);
     });
 
     it('keeps a 4-space indented definition as literal text in the enclosing body', () => {
@@ -408,6 +410,19 @@ Trailing paragraph that does NOT belong to the footnote.`);
         expect(footnotes.map(t => t.identifier)).toEqual(['1']);
         const children = footnotes[0].children ?? [];
         expect(children.map(c => c.type)).not.toContain('footnote');
-        expect(JSON.stringify(children)).toContain('[^2]: two');
+        expect(children.map(c => c.text)).toEqual(['one\n[^2]: two']);
+    });
+
+    it('keeps an indented definition after a body blank line inside the enclosing note', () => {
+        const tokens = parse(`a[^1]
+
+[^1]: intro
+
+    [^2]: two`);
+        const footnotes = tokens.filter(t => t.type === 'footnote');
+
+        expect(footnotes.map(t => t.identifier)).toEqual(['1']);
+        expect(footnotes[0].children?.map(c => c.type)).not.toContain('footnote');
+        expect(JSON.stringify(footnotes[0].children)).toContain('[^2]: two');
     });
 });
