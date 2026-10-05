@@ -1,5 +1,5 @@
-import { expect, test } from '../fixtures/muya';
 import type { Page } from '@playwright/test';
+import { expect, test } from '../fixtures/muya';
 import { getMarkdown } from '../helpers/api';
 
 const FAMILY = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}';

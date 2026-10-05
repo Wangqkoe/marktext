@@ -23,7 +23,9 @@ async function setLanguage(page: Page, next: string): Promise<void> {
         }): unknown => {
             let hit: unknown = null;
             const visit = (b: typeof block) => {
-                if (b.constructor.blockName === 'language-input') { hit ??= b; }
+                if (b.constructor.blockName === 'language-input') {
+                    hit ??= b;
+                }
                 b.children?.forEach(c => visit(c as typeof block));
             };
             visit(block);

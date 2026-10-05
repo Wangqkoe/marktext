@@ -56,7 +56,9 @@ async function caretLine(page: Page): Promise<number | null> {
             return rows.length ? (rows[0] + rows[rows.length - 1]) / 2 : null;
         }, png.toString('base64'));
 
-        if (caretY != null) { return Math.floor((clip.y + caretY - top) / lineHeight) + 1; }
+        if (caretY != null) {
+            return Math.floor((clip.y + caretY - top) / lineHeight) + 1;
+        }
         await page.waitForTimeout(100);
     }
 
@@ -199,7 +201,7 @@ test.describe('code block arrow keys on empty lines', () => {
         await page.keyboard.press('ArrowUp');
         await slowType(page, 'X');
 
-        await expect.poll(() => codeText(page)).toMatch(/^hello\n[^\n]*X[^\n]*\n$/);
+        await expect.poll(() => codeText(page)).toMatch(/^hello\n[^\nX]*X[^\n]*\n$/);
     });
 
     test('ArrowDown from an empty line moves to the line below', async ({ page }) => {
@@ -214,7 +216,7 @@ test.describe('code block arrow keys on empty lines', () => {
         await page.keyboard.press('ArrowDown');
         await slowType(page, 'Y');
 
-        await expect.poll(() => codeText(page)).toMatch(/^hello\n\n[^\n]*Y[^\n]*$/);
+        await expect.poll(() => codeText(page)).toMatch(/^hello\n\n[^\nY]*Y[^\n]*$/);
     });
 
     test('ArrowUp on the first line still leaves the code block', async ({ page }) => {
@@ -252,7 +254,9 @@ test.describe('code block IME composition on the empty last line', () => {
             const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
             for (let node = walker.nextNode(); node; node = walker.nextNode()) {
                 const index = node.textContent!.indexOf('ni');
-                if (index === -1) { continue; }
+                if (index === -1) {
+                    continue;
+                }
                 const range = document.createRange();
                 range.setStart(node, index);
                 range.setEnd(node, index + 2);

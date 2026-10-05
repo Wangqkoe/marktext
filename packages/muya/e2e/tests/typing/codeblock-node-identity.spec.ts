@@ -30,14 +30,20 @@ async function traceContentNodes(page: Page): Promise<void> {
         };
         const noteFirstChild = () => {
             const first = content.firstChild;
-            if (first == null) { return; }
+            if (first == null) {
+                return;
+            }
             const id = idOf(first);
-            if (firstChildIds.at(-1) !== id) { firstChildIds.push(id); }
+            if (firstChildIds.at(-1) !== id) {
+                firstChildIds.push(id);
+            }
         };
         noteFirstChild();
         new MutationObserver((records) => {
             for (const record of records) {
-                if (record.type !== 'childList') { continue; }
+                if (record.type !== 'childList') {
+                    continue;
+                }
                 rebuilds++;
                 noteFirstChild();
             }
