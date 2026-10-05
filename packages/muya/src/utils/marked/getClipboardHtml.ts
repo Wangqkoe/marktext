@@ -10,6 +10,16 @@ import fm, { frontMatterRender } from './frontMatter';
 import { DEFAULT_OPTIONS } from './options';
 import walkTokens from './walkTokens';
 
+const FOOTNOTE_REF_MARKER_RE = /<span class="footnote-ref" data-identifier="([^"]*)"><\/span>/g;
+
+function restoreFootnoteReferences(html: string): string {
+    // Clipboard HTML keeps definition blocks in their existing inline shape;
+    // only undo the export-only reference marker so copy-as-rich / HTML does
+    // not silently drop the visible `[^id]` text. The captured identifier is
+    // already attribute-escaped, so re-emitting it as text stays safe.
+    return html.replace(FOOTNOTE_REF_MARKER_RE, (_, identifier: string) => `[^${identifier}]`);
+}
+
 export function getClipBoardHtml(src: string, options: ILexOption = {}) {
     options = Object.assign({}, DEFAULT_OPTIONS, options);
     const {
@@ -61,7 +71,8 @@ export function getClipBoardHtml(src: string, options: ILexOption = {}) {
         }
     }
 
-    html += marked.parse(src);
+    const rendered = marked.parse(src, { async: false });
+    html += footnote ? restoreFootnoteReferences(rendered) : rendered;
 
     return html;
 }

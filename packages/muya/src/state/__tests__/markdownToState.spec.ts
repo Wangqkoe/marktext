@@ -298,6 +298,29 @@ describe('markdownToState — task list nesting (marktext 23435ce6)', () => {
         expect(out).toContain('[^1]: definition');
     });
 
+    it('round-trips escaped, repeated and code-literal references without losing source text', () => {
+        const markdown = [
+            'Escaped \\[^1]. Real[^1], again[^1], and third[^1]. Code `[^code]`.',
+            '',
+            '```text',
+            '[^code]',
+            '```',
+            '',
+            '[^1]: body',
+            '',
+        ].join('\n');
+        const states = generate(markdown, { footnote: true });
+        const saved = new ExportMarkdown({ listIndentation: 1 }).generate(
+            states as unknown as Parameters<ExportMarkdown['generate']>[0],
+        );
+        const reparsed = generate(saved, { footnote: true });
+
+        expect(saved).toBe(markdown);
+        expect(reparsed).toEqual(states);
+        expect(states.filter(state => state.name === 'footnote')).toHaveLength(1);
+        expect(states.find(state => state.name === 'paragraph')?.text).toContain('\\[^1]');
+    });
+
     it('keeps definitions packed one per line as siblings', () => {
         const markdown = `a[^1] b[^2] c[^3]
 
