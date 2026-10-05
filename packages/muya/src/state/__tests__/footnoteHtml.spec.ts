@@ -160,4 +160,27 @@ describe('renderToStaticHTML — footnote backref list (PR-8c)', () => {
             .toBe('site');
         expect(item?.textContent).not.toContain('[ref]:');
     });
+
+    it('leaves a backslash-escaped `\\[^x]` as literal text', () => {
+        const html = renderToStaticHTML('foo \\[^1] bar.\n\n[^1]: the note', PROFILE);
+
+        expect(html).toContain('[^1]');
+        expect(html).not.toMatch(/<sup class="footnote-ref"/);
+        expect(html).not.toMatch(/<section class="footnotes">/);
+    });
+
+    it('does not transform a literal `[^x]` that sits inside a code span', () => {
+        const html = renderToStaticHTML('foo `[^1]` bar.\n\n[^1]: the note', PROFILE);
+
+        expect(html).toMatch(/<code>\[\^1\]<\/code>/);
+        expect(html).not.toMatch(/<sup class="footnote-ref"/);
+    });
+
+    it('keeps a `[^x]` written inside a definition body as literal text', () => {
+        const html = renderToStaticHTML('a[^1]\n\n[^1]: see also[^2]\n\n[^2]: second', PROFILE);
+
+        const section = html.match(/<section class="footnotes">[\s\S]*<\/section>/)![0];
+        expect(section).toContain('see also[^2]');
+        expect(section.match(/<li id="fn-\d+">/g)).toEqual(['<li id="fn-1">']);
+    });
 });
