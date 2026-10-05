@@ -53,4 +53,47 @@ describe('footnote post-processing in MarkdownToHtml export', () => {
         // The raw footnote-block wrapper must not leak into the output.
         expect(out).not.toContain('footnote-block');
     });
+
+    it('exports packed definitions as separate list items with complete bodies', async () => {
+        const out = await renderExport(
+            'a[^1] b[^2] c[^3]\n\n[^1]: one\n[^2]: two\n[^3]: three\n',
+        );
+        const container = document.createElement('div');
+        container.innerHTML = out;
+        const items = [...container.querySelectorAll('section.footnotes > ol > li')];
+
+        expect(items.map(item => ({
+            id: item.id,
+            body: item.querySelector('p')?.textContent?.replace('↩', '').trim(),
+        }))).toEqual([
+            { id: 'fn-1', body: 'one' },
+            { id: 'fn-2', body: 'two' },
+            { id: 'fn-3', body: 'three' },
+        ]);
+        expect([...container.querySelectorAll('sup.footnote-ref > a')].map(ref => ({
+            href: ref.getAttribute('href'),
+            id: ref.id,
+            text: ref.textContent,
+        }))).toEqual([
+            { href: '#fn-1', id: 'fnref-1', text: '1' },
+            { href: '#fn-2', id: 'fnref-2', text: '2' },
+            { href: '#fn-3', id: 'fnref-3', text: '3' },
+        ]);
+        expect(container.querySelector('div.footnote-block')).toBeNull();
+    });
+
+    it('keeps an indented definition after a body blank line as literal note text', async () => {
+        const out = await renderExport(
+            'a[^1]\n\n[^1]: intro\n\n    [^2]: two',
+        );
+        const container = document.createElement('div');
+        container.innerHTML = out;
+        const items = [...container.querySelectorAll('section.footnotes > ol > li')];
+
+        expect(items).toHaveLength(1);
+        expect(items[0].id).toBe('fn-1');
+        expect(items[0].textContent).toContain('intro');
+        expect(items[0].textContent).toContain('[^2]: two');
+        expect(container.querySelector('div.footnote-block')).toBeNull();
+    });
 });

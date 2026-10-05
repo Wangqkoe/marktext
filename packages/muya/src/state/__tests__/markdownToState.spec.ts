@@ -298,6 +298,81 @@ describe('markdownToState — task list nesting (marktext 23435ce6)', () => {
         expect(out).toContain('[^1]: definition');
     });
 
+    it('keeps definitions packed one per line as siblings', () => {
+        const markdown = `a[^1] b[^2] c[^3]
+
+[^1]: one
+[^2]: two
+[^3]: three`;
+        const states = generate(markdown, { footnote: true });
+        const footnotes = states.filter(s => s.name === 'footnote');
+        expect(footnotes.map(f => ({
+            identifier: f.meta!.identifier,
+            children: f.children!.map(c => ({ name: c.name, text: c.text })),
+        }))).toEqual([
+            { identifier: '1', children: [{ name: 'paragraph', text: 'one' }] },
+            { identifier: '2', children: [{ name: 'paragraph', text: 'two' }] },
+            { identifier: '3', children: [{ name: 'paragraph', text: 'three' }] },
+        ]);
+
+        const saved = new ExportMarkdown({ listIndentation: 1 }).generate(
+            states as unknown as Parameters<ExportMarkdown['generate']>[0],
+        );
+        expect(saved).toBe(
+            'a[^1] b[^2] c[^3]\n\n[^1]: one\n\n[^2]: two\n\n[^3]: three\n',
+        );
+        const reparsed = generate(saved, { footnote: true })
+            .filter(s => s.name === 'footnote');
+        expect(reparsed.map(f => ({
+            identifier: f.meta!.identifier,
+            children: f.children!.map(c => ({ name: c.name, text: c.text })),
+        }))).toEqual([
+            { identifier: '1', children: [{ name: 'paragraph', text: 'one' }] },
+            { identifier: '2', children: [{ name: 'paragraph', text: 'two' }] },
+            { identifier: '3', children: [{ name: 'paragraph', text: 'three' }] },
+        ]);
+    });
+
+    it('leaves adjacent definition syntax as paragraphs when footnotes are disabled', () => {
+        const states = generate(
+            'a[^1]\n\n[^1]: one\n[^2]: two',
+            { footnote: false },
+        );
+
+        expect(states.map(s => ({ name: s.name, text: s.text }))).toEqual([
+            { name: 'paragraph', text: 'a[^1]' },
+            { name: 'paragraph', text: '[^1]: one' },
+            { name: 'paragraph', text: '[^2]: two' },
+        ]);
+    });
+
+    it('round-trips an indented definition after a footnote body blank line', () => {
+        const markdown = 'a[^1]\n\n[^1]: intro\n\n    [^2]: two';
+        const states = generate(markdown, { footnote: true });
+        const footnotes = states.filter(s => s.name === 'footnote');
+
+        expect(footnotes.map(f => ({
+            identifier: f.meta!.identifier,
+            children: f.children!.map(c => ({ name: c.name, text: c.text })),
+        }))).toEqual([{
+            identifier: '1',
+            children: [
+                { name: 'paragraph', text: 'intro' },
+                { name: 'paragraph', text: '[^2]: two' },
+            ],
+        }]);
+
+        const saved = new ExportMarkdown({ listIndentation: 1 }).generate(
+            states as unknown as Parameters<ExportMarkdown['generate']>[0],
+        );
+        expect(saved).toBe('a[^1]\n\n[^1]: intro\n\n    [^2]: two\n');
+        const reparsed = generate(saved, { footnote: true })
+            .filter(s => s.name === 'footnote');
+        expect(reparsed.map(f => f.children!.map(c => c.text))).toEqual([
+            ['intro', '[^2]: two'],
+        ]);
+    });
+
     it('keeps tight (no blank lines) nested task lists nested', () => {
         const md = `- [ ] task1
   - [ ] task1_1
