@@ -374,6 +374,10 @@ const cycleWordCount = (): void => {
 }
 
 @media (max-width: 300px) {
+  .status-caret-position {
+    display: none;
+  }
+
   .document-zoom-step {
     width: 22px;
     min-width: 22px;
