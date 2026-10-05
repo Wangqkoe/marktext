@@ -71,7 +71,7 @@ export function getClipBoardHtml(src: string, options: ILexOption = {}) {
         }
     }
 
-    const rendered = marked.parse(src);
+    const rendered = marked.parse(src, { async: false });
     html += footnote ? restoreFootnoteReferences(rendered) : rendered;
 
     return html;
