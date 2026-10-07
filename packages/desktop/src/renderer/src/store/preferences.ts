@@ -87,6 +87,7 @@ export interface PreferencesState {
   texMathGfm: boolean
   texMathSingleBackslash: boolean
   texMathDoubleBackslash: boolean
+  highlightSyntax: boolean
   isHtmlEnabled: boolean
   sequenceTheme: SequenceTheme | string
   plantumlServer: string
@@ -209,6 +210,7 @@ export const usePreferencesStore = defineStore('preferences', {
     texMathGfm: false,
     texMathSingleBackslash: false,
     texMathDoubleBackslash: false,
+    highlightSyntax: false,
     isHtmlEnabled: true,
     sequenceTheme: 'hand',
     plantumlServer: 'https://www.plantuml.com/plantuml',

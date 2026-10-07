@@ -49,6 +49,7 @@ interface ILexState {
     texMathGfm: boolean;
     texMathSingleBackslash: boolean;
     texMathDoubleBackslash: boolean;
+    highlightSyntax: boolean;
 }
 
 function pushPending(state: ILexState) {
@@ -264,17 +265,19 @@ function tryStrongEm(state: ILexState): boolean {
     return true;
 }
 
-// emoji | inline_code | del | inline_math
+// emoji | inline_code | del | mark | inline_math
 // `inline_math_gfm` goes first: both math forms open on `$`, and the dollar
 // rule would otherwise swallow `` $`e=mc^2`$ `` whole, backticks and all.
 // It carries its own marker shape but produces an ordinary `inline_math` token.
 function tryChunks(state: ILexState): boolean {
-    const chunks = ['inline_math_gfm', 'inline_code', 'del', 'emoji', 'inline_math'] as const;
+    const chunks = ['inline_math_gfm', 'inline_code', 'del', 'mark', 'emoji', 'inline_math'] as const;
 
     for (const rule of chunks) {
         if (rule === 'inline_math' && !state.texMathDollars)
             continue;
         if (rule === 'inline_math_gfm' && !state.texMathGfm)
+            continue;
+        if (rule === 'mark' && !state.highlightSyntax)
             continue;
 
         const to = state.inlineRules[rule].exec(state.src);
@@ -806,7 +809,7 @@ const INLINE_HANDLERS: ReadonlyArray<(state: ILexState) => boolean> = [
 ];
 
 function tokenizerFac(src: string, beginRules: BeginRules | null, inlineRules: InlineRules, pos = 0, top: boolean, labels: Labels, options: ITokenizerFacOptions, emphasisSpans: Map<number, IEmphasisSpan> | null = null) {
-    const { superSubScript, footnote, texMathDollars, texMathGfm, texMathSingleBackslash, texMathDoubleBackslash } = options;
+    const { superSubScript, footnote, texMathDollars, texMathGfm, texMathSingleBackslash, texMathDoubleBackslash, highlightSyntax } = options;
     const state: ILexState = {
         originSrc: src,
         src,
@@ -826,6 +829,7 @@ function tokenizerFac(src: string, beginRules: BeginRules | null, inlineRules: I
         texMathGfm,
         texMathSingleBackslash,
         texMathDoubleBackslash,
+        highlightSyntax,
     };
 
     if (beginRules && state.pos === 0)
@@ -865,6 +869,7 @@ export function tokenizer(src: string, {
         texMathGfm: false,
         texMathSingleBackslash: false,
         texMathDoubleBackslash: false,
+        highlightSyntax: false,
     },
 }: ITokenizerOptions = {} as ITokenizerOptions) {
     const tokens = tokenizerFac(
@@ -909,7 +914,8 @@ function rebuildWrapperToken(token: Token): string {
         case 'strong':
         case 'em':
         case 'del':
-            return token.marker + generator(token.children, true) + token.marker;
+        case 'mark':
+            return token.marker + generator(token.children, true) + token.backlash + token.marker;
 
         case 'html_tag':
             if (token.openTag != null && token.closeTag != null && token.children != null)
@@ -960,6 +966,7 @@ export function tokensToPlainText(tokens: Token[]): string {
             case 'strong':
             case 'em':
             case 'del':
+            case 'mark':
             case 'link':
             case 'reference_link':
                 result += tokensToPlainText(token.children);
@@ -1058,6 +1065,7 @@ export function tokensToInlineHtml(tokens: Token[]): string {
             case 'strong':
             case 'em':
             case 'del':
+            case 'mark':
                 result += `<${token.type}>${tokensToInlineHtml(token.children)}</${token.type}>`;
                 break;
 

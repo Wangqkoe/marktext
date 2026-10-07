@@ -122,6 +122,8 @@ function getOffset(offset: number, token: Token) {
 
         case 'inline_code':
 
+        case 'mark':
+
         case 'inline_math': {
             const markerLen = token.marker.length;
             return markeredOffset(dis, len, markerLen, markerLen);
@@ -155,6 +157,26 @@ function clearFormat(token: Token, cursor: IContentCursor) {
         case 'del':
 
         case 'em':
+
+        case 'mark': {
+            const { parent, children, backlash } = token;
+            const index = parent.indexOf(token);
+            const replacement: Token[] = [...(children as Token[])];
+
+            if (backlash) {
+                replacement.push({
+                    type: 'text',
+                    raw: backlash,
+                    content: backlash,
+                    parent,
+                    range: token.range,
+                });
+            }
+
+            parent.splice(index, 1, ...replacement);
+
+            break;
+        }
 
         case 'link':
 
@@ -1412,11 +1434,11 @@ class Format extends Content {
 
         // fix: #897 in marktext repo
         const { text } = this;
-        const { footnote, superSubScript, texMathDollars, texMathGfm, texMathSingleBackslash, texMathDoubleBackslash } = this.muya.options;
+        const { footnote, superSubScript, texMathDollars, texMathGfm, texMathSingleBackslash, texMathDoubleBackslash, highlightSyntax } = this.muya.options;
         const { labels } = this.inlineRenderer;
         const tokens = tokenizer(text, {
             labels,
-            options: { footnote, superSubScript, texMathDollars, texMathGfm, texMathSingleBackslash, texMathDoubleBackslash },
+            options: { footnote, superSubScript, texMathDollars, texMathGfm, texMathSingleBackslash, texMathDoubleBackslash, highlightSyntax },
         });
         // The caret offset is unreliable when it is parked on a
         // `contenteditable=false` inline image; resolve the real offset from the

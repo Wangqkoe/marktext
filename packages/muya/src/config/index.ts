@@ -62,6 +62,7 @@ export const FORMAT_TYPES = [
     'strong',
     'em',
     'del',
+    'mark',
     'inline_code',
     'link',
     'image',
@@ -360,6 +361,7 @@ export const MUYA_DEFAULT_OPTIONS = {
     // extension: the two openers cannot collide, `\\(` carrying a backslash where
     // `\(` carries the parenthesis.
     texMathDoubleBackslash: false,
+    highlightSyntax: false,
     // Move checked task list item to the end of task list.
     autoMoveCheckedToEnd: false,
     // Whether HTML rendering is disabled or not.

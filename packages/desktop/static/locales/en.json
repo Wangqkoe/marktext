@@ -431,6 +431,7 @@
         "texMathGfm": "Enable pandoc's markdown extension tex_math_gfm",
         "texMathSingleBackslash": "Enable pandoc's markdown extension tex_math_single_backslash",
         "texMathDoubleBackslash": "Enable pandoc's markdown extension tex_math_double_backslash",
+        "highlightSyntax": "Enable the non-standard ==text== highlight syntax",
         "isHtmlEnabled": "Enable HTML rendering",
         "sequenceTheme": "Sequence diagram theme",
         "plantumlServer": "PlantUML server URL",
@@ -665,6 +666,7 @@
         "texMathGfm": "GitHub TeX math ($`…`$ and ```math)",
         "texMathSingleBackslash": "TeX math with single-backslash delimiters",
         "texMathDoubleBackslash": "TeX math with double-backslash delimiters",
+        "highlightSyntax": "Highlight (==text==)",
         "frontmatterType": {
           "jsonBrace": "JSON with Braces",
           "jsonSemicolon": "JSON with Semicolon",

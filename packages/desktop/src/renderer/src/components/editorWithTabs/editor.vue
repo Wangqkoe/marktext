@@ -260,6 +260,7 @@ const {
   texMathGfm,
   texMathSingleBackslash,
   texMathDoubleBackslash,
+  highlightSyntax,
   isHtmlEnabled,
   lineHeight,
   fontSize,
@@ -828,6 +829,10 @@ watch(texMathSingleBackslash, (value, oldValue) => {
 
 watch(texMathDoubleBackslash, (value, oldValue) => {
   if (value !== oldValue) applyOutlineAffectingOption({ texMathDoubleBackslash: value })
+})
+
+watch(highlightSyntax, (value, oldValue) => {
+  if (value !== oldValue) applyOutlineAffectingOption({ highlightSyntax: value })
 })
 
 watch(hideQuickInsertHint, (value, oldValue) => {
@@ -2123,6 +2128,7 @@ onMounted(() => {
     texMathGfm: texMathGfm.value,
     texMathSingleBackslash: texMathSingleBackslash.value,
     texMathDoubleBackslash: texMathDoubleBackslash.value,
+    highlightSyntax: highlightSyntax.value,
     disableHtml: !isHtmlEnabled.value,
     hideQuickInsertHint: hideQuickInsertHint.value,
     hideLinkPopup: hideLinkPopup.value,

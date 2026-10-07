@@ -121,6 +121,22 @@ describe('muya.getTOC()', () => {
         expect(toc[0].content).toBe('hi under red');
     });
 
+    it('renders ==highlight== in `contentHtml` when highlightSyntax is on', () => {
+        const host = document.createElement('div');
+        document.body.appendChild(host);
+        const muya = new Muya(host, {
+            markdown: '## ==hi==',
+            highlightSyntax: true,
+        } as ConstructorParameters<typeof Muya>[1]);
+        muya.init();
+        bootedHosts.push(muya.domNode);
+        expect(muya.getTOC()[0].contentHtml).toBe('<mark>hi</mark>');
+    });
+
+    it('keeps ==highlight== literal in the outline while highlightSyntax is off', () => {
+        expect(bootMuya('## ==hi==').getTOC()[0].contentHtml).toBe('==hi==');
+    });
+
     it.each([
         ['a span styled with more than colour', '<span style="color:red;font-size:40px">big</span>', 'big'],
         ['a colour value outside the safe forms', '<span style="color:url(x)">odd</span>', 'odd'],
