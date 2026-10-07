@@ -37,6 +37,8 @@ declare module '@muyajs/core' {
 
   export interface ITocItem {
     content: string
+    /** Inline HTML of the heading for the outline; sanitize before rendering. */
+    contentHtml: string
     lvl: number
     slug: string
     githubSlug: string

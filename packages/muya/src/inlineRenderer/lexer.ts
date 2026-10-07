@@ -1,13 +1,16 @@
 import type { IEmphasisSpan } from './emphasis';
 import type { BeginRules, InlineRules } from './rules';
 import type {
+    CodeEmojiMathToken,
     ITokenizerFacOptions,
     ITokenizerOptions,
     Labels,
     Token,
 } from './types';
 import escapeCharactersMap from '../config/escapeCharacter';
-import { isLengthEven, union } from '../utils';
+import { escapeHTML, isLengthEven, union } from '../utils';
+import { isColorStyleEmpty, parseColorStyle, serializeColorStyle } from '../utils/colorSpan';
+import { validEmoji } from '../utils/emoji';
 import { scanEmphasisSpans } from './emphasis';
 import { parseSrcAndTitle } from './linkDestination';
 import { BACKSLASH_MATH_RULES, beginRules, emojiValidateRules, inlineRules, linkValidateRules } from './rules';
@@ -934,10 +937,13 @@ export function tokensToPlainText(tokens: Token[]): string {
             case 'text':
             case 'inline_code':
             case 'inline_math':
-            case 'emoji':
             case 'super_sub_script':
             case 'footnote_identifier':
                 result += token.content;
+                break;
+
+            case 'emoji':
+                result += emojiDisplayText(token);
                 break;
 
             case 'strong':
@@ -987,6 +993,122 @@ export function tokensToPlainText(tokens: Token[]): string {
             // header / hr / code_fence / multiple_math begin markers, the
             // reference_definition line, and an atx heading's tail `#`s carry no
             // reader-facing text.
+            default:
+                break;
+        }
+    }
+
+    return result;
+}
+
+// Unknown shortcodes fall back to the raw `:code:`, matching the editor.
+function emojiDisplayText(token: CodeEmojiMathToken): string {
+    return validEmoji(token.content)?.emoji ?? token.raw;
+}
+
+// A colour value as the colour picker writes it, or a CSS colour keyword.
+const SAFE_COLOR_VALUE = /^(?:#[0-9a-f]{3,8}|[a-z]+|(?:rgb|hsl)a?\([\d\s.,%/]+\))$/;
+
+// The inline formats the toolbar writes as HTML — highlight, underline and the
+// text / background colour span — keep their look in the outline; any other
+// tag is flattened to its text. Attributes are rebuilt rather than copied, so
+// a pasted span with other styles stays plain text.
+function keptFormatOpenTag(token: Extract<Token, { type: 'html_tag' }>): string | null {
+    const tag = token.tag.toLowerCase();
+    if (tag === 'mark' || tag === 'u')
+        return `<${tag}>`;
+
+    if (tag !== 'span')
+        return null;
+
+    const style = parseColorStyle(token.attrs.style);
+    if (!style || isColorStyleEmpty(style))
+        return null;
+
+    const values = [style.color, style.backgroundColor].filter(value => value !== null);
+    if (!values.every(value => SAFE_COLOR_VALUE.test(value)))
+        return null;
+
+    return `<span style="${escapeHTML(serializeColorStyle(style))}">`;
+}
+
+// HTML twin of `tokensToPlainText`, for the outline. Must keep the same text
+// content as its plain counterpart so the shown heading and its slug stay in
+// step, which is why links, images and math stay flattened to text.
+export function tokensToInlineHtml(tokens: Token[]): string {
+    let result = '';
+
+    for (const token of tokens) {
+        switch (token.type) {
+            case 'text':
+                result += escapeHTML(token.content);
+                break;
+
+            case 'strong':
+            case 'em':
+            case 'del':
+                result += `<${token.type}>${tokensToInlineHtml(token.children)}</${token.type}>`;
+                break;
+
+            case 'inline_code':
+                result += `<code>${escapeHTML(token.content)}</code>`;
+                break;
+
+            case 'emoji':
+                result += escapeHTML(emojiDisplayText(token));
+                break;
+
+            case 'super_sub_script': {
+                const tag = token.marker === '^' ? 'sup' : 'sub';
+                result += `<${tag}>${escapeHTML(token.content)}</${tag}>`;
+                break;
+            }
+
+            case 'inline_math':
+            case 'footnote_identifier':
+                result += escapeHTML(token.content);
+                break;
+
+            case 'link':
+            case 'reference_link':
+                result += tokensToInlineHtml(token.children);
+                break;
+
+            case 'image':
+            case 'reference_image':
+                result += escapeHTML(token.alt);
+                break;
+
+            case 'html_tag': {
+                const inner = token.children
+                    ? tokensToInlineHtml(token.children)
+                    : escapeHTML(token.content ?? '');
+                const openTag = keptFormatOpenTag(token);
+                result += openTag ? `${openTag}${inner}</${token.tag.toLowerCase()}>` : inner;
+                break;
+            }
+
+            case 'backlash':
+                result += escapeHTML(token.raw.replace(/^\\/, ''));
+                break;
+
+            case 'html_escape':
+                result += escapeHTML(escapeCharactersMap[token.escapeCharacter] ?? token.raw);
+                break;
+
+            case 'auto_link':
+                result += escapeHTML(token.raw.replace(/^<|>$/g, ''));
+                break;
+
+            case 'auto_link_extension':
+                result += escapeHTML(token.raw);
+                break;
+
+            case 'soft_line_break':
+            case 'hard_line_break':
+                result += ' ';
+                break;
+
             default:
                 break;
         }

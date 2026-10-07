@@ -2,6 +2,7 @@
   <div
     class="side-bar-toc"
     :class="[{ 'side-bar-toc-overflow': !wordWrapInToc, 'side-bar-toc-wordwrap': wordWrapInToc }]"
+    :style="{ '--mark-highlight-color': highlightColor }"
   >
     <el-tree
       v-if="filteredToc.nodes.length"
@@ -19,7 +20,20 @@
       @node-click="handleClick"
       @node-expand="onExpand"
       @node-collapse="onCollapse"
-    />
+    >
+      <!-- Element Plus escapes `data.label`, so showing the heading HTML needs a
+           scoped slot; re-add the label wrapper the default renderer would have
+           made so the outline CSS keeps applying. -->
+      <template #default="{ data }">
+        <!-- eslint-disable vue/no-v-html -- sanitized by labelHtmlOf -->
+        <span
+          class="el-tree-node__label"
+          :title="plainLabel(data)"
+          v-html="labelHtmlOf(data)"
+        />
+        <!-- eslint-enable vue/no-v-html -->
+      </template>
+    </el-tree>
     <div
       v-else-if="filteredToc.active"
       class="toc-filter-no-results"
@@ -34,6 +48,7 @@ import { computed, ref, watch } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { deriveKeyedToc, type KeyedTocNode } from '@/util/tocKeys'
+import { sanitize, TOC_DOMPURIFY_CONFIG } from '@/util/dompurify'
 import bus from '../../bus'
 import { storeToRefs } from 'pinia'
 import { ArrowRight } from '@element-plus/icons-vue'
@@ -54,8 +69,24 @@ const defaultProps = {
   label: 'label'
 }
 
+interface TocNodeData {
+  label?: unknown
+  labelHtml?: unknown
+}
+
+const plainLabel = (data: TocNodeData): string =>
+  typeof data.label === 'string' ? data.label : ''
+
+const escapeHtml = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+const labelHtmlOf = (data: TocNodeData): string => {
+  const html = typeof data.labelHtml === 'string' ? data.labelHtml : ''
+  return html ? sanitize(html, TOC_DOMPURIFY_CONFIG) : escapeHtml(plainLabel(data))
+}
+
 const { toc } = storeToRefs(editorStore)
-const { wordWrapInToc } = storeToRefs(preferencesStore)
+const { wordWrapInToc, highlightColor } = storeToRefs(preferencesStore)
 
 // Stable per-node key so el-tree preserves the user's expand/collapse state
 // across content edits (#3028) and tab switches (#3791). See deriveKeyedToc.
@@ -164,6 +195,26 @@ const handleClick = (data: { slug?: unknown }): void => {
 .side-bar-toc .el-tree {
   background: transparent;
   color: var(--sideBarColor);
+  flex: 1;
+  min-height: 0;
+}
+
+/* The scoped slot replaced Element Plus's `<el-text truncated>` label, so its
+   truncation is re-declared here. `color: inherit` overrides the gray that
+   `el-text` imposed, which beat the themed color from `.el-tree` (#5094). */
+.side-bar-toc .el-tree-node__label {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  color: inherit;
+  align-self: center;
+  overflow-wrap: break-word;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.side-bar-toc .el-tree-node__expand-icon {
+  color: var(--sideBarIconColor);
 }
 
 .side-bar-toc .el-tree-node:focus > .el-tree-node__content {
@@ -214,7 +265,7 @@ const handleClick = (data: { slug?: unknown }): void => {
   min-height: 26px;
 }
 
-.side-bar-toc-wordwrap .el-tree-node__label {
+.side-bar-toc-wordwrap .el-tree-node__content .el-tree-node__label {
   min-width: 0;
   flex: 1;
   padding: 3px 0;
@@ -227,5 +278,42 @@ const handleClick = (data: { slug?: unknown }): void => {
   padding: 28px 12px;
   color: var(--sideBarTextColor);
   text-align: center;
+}
+
+.side-bar-toc .el-tree-node__label strong {
+  font-weight: 700;
+}
+
+.side-bar-toc .el-tree-node__label em {
+  font-style: italic;
+}
+
+.side-bar-toc .el-tree-node__label del {
+  opacity: 0.65;
+  text-decoration: line-through;
+}
+
+/* Same colour as `<mark>` in the editor: the "default highlight colour"
+   preference, which `--mark-highlight-color` carries on the outline root. */
+.side-bar-toc .el-tree-node__label mark {
+  padding: 0 2px;
+  color: inherit;
+  background-color: var(--mark-highlight-color, #ffff00);
+  border-radius: 2px;
+}
+
+.side-bar-toc .el-tree-node__label code {
+  padding: 0 3px;
+  font-family: 'DejaVu Sans Mono', 'Source Code Pro', 'Droid Sans Mono', Consolas, monospace;
+  font-size: 0.9em;
+  color: var(--codeBlockColor);
+  background: var(--codeBgColor);
+  border-radius: 3px;
+}
+
+.side-bar-toc .el-tree-node__label sup,
+.side-bar-toc .el-tree-node__label sub {
+  /* Keeps a raised superscript from growing the row. */
+  line-height: 0;
 }
 </style>

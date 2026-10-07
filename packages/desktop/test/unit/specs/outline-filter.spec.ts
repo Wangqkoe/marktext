@@ -7,12 +7,13 @@ const toc: KeyedTocNode[] = [
     key: 'intro',
     label: 'Intro',
     slug: 'slug-intro',
+    labelHtml: undefined,
     children: [
-      { key: 'details', label: 'Details', slug: 'slug-details', children: [] },
-      { key: 'details-1', label: 'DETAILS', slug: 'slug-details-2', children: [] }
+      { key: 'details', label: 'Details', slug: 'slug-details', labelHtml: undefined, children: [] },
+      { key: 'details-1', label: 'DETAILS', slug: 'slug-details-2', labelHtml: undefined, children: [] }
     ]
   },
-  { key: 'other', label: 'Other', slug: 'slug-other', children: [] }
+  { key: 'other', label: 'Other', slug: 'slug-other', labelHtml: undefined, children: [] }
 ]
 
 describe('Outline sidebar filtering', () => {

@@ -784,22 +784,29 @@ watch(frontmatterType, (value, oldValue) => {
   }
 })
 
+// `setOptions(..., true)` re-renders headings in place without emitting
+// `json-change`, so nothing else refreshes the outline after a toggle. In a
+// workspace the outline comes from the controller's snapshot, so the pane
+// reports it there rather than writing the store.
+const applyOutlineAffectingOption = (options: Record<string, unknown>): void => {
+  const muya = editor.value
+  if (!muya) return
+  muya.setOptions(options, true)
+  const toc = muya.getTOC()
+  if (paneScope) paneScope.report({ toc: workspaceTocFrom(toc) })
+  else editorStore.REFRESH_TOC(toc)
+}
+
 watch(superSubScript, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ superSubScript: value }, true)
-  }
+  if (value !== oldValue) applyOutlineAffectingOption({ superSubScript: value })
 })
 
 watch(footnote, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ footnote: value }, true)
-  }
+  if (value !== oldValue) applyOutlineAffectingOption({ footnote: value })
 })
 
 watch(texMathDollars, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ texMathDollars: value }, true)
-  }
+  if (value !== oldValue) applyOutlineAffectingOption({ texMathDollars: value })
 })
 
 watch(isHtmlEnabled, (value, oldValue) => {
@@ -809,21 +816,15 @@ watch(isHtmlEnabled, (value, oldValue) => {
 })
 
 watch(texMathGfm, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ texMathGfm: value }, true)
-  }
+  if (value !== oldValue) applyOutlineAffectingOption({ texMathGfm: value })
 })
 
 watch(texMathSingleBackslash, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ texMathSingleBackslash: value }, true)
-  }
+  if (value !== oldValue) applyOutlineAffectingOption({ texMathSingleBackslash: value })
 })
 
 watch(texMathDoubleBackslash, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ texMathDoubleBackslash: value }, true)
-  }
+  if (value !== oldValue) applyOutlineAffectingOption({ texMathDoubleBackslash: value })
 })
 
 watch(hideQuickInsertHint, (value, oldValue) => {
@@ -1752,13 +1753,14 @@ const engineHistoryFrom = (history: PortableHistory): unknown | undefined => {
 
 // listen for `open-single-file` event, it will call this method only when open a new file.
 const workspaceTocFrom = (
-  items: ReadonlyArray<{ slug?: string; githubSlug?: string; content?: string; lvl?: number }>
+  items: ReadonlyArray<{ slug?: string; githubSlug?: string; content?: string; contentHtml?: string; lvl?: number }>
 ): WorkspaceTocItem[] =>
   items.map((item) => ({
     id: item.slug ?? item.content ?? '',
     title: item.content ?? '',
     level: item.lvl ?? 0,
-    ...(item.githubSlug ? { anchor: item.githubSlug } : {})
+    ...(item.githubSlug ? { anchor: item.githubSlug } : {}),
+    ...(item.contentHtml !== undefined ? { titleHtml: item.contentHtml } : {})
   }))
 
 // Document the WYSIWYG engine currently holds, set whenever a workspace refresh

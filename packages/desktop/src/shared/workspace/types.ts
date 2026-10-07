@@ -60,6 +60,11 @@ export interface WorkspaceTocItem {
    * state). Optional because TOC data persisted before it existed lacks it.
    */
   readonly anchor?: string
+  /**
+   * Sanitizable inline HTML of the title (`getTOC().contentHtml`). Optional:
+   * TOC data persisted before it existed shows the plain title.
+   */
+  readonly titleHtml?: string
 }
 
 /** JSON-only editor status; calculations remain owned by the editor adapter. */

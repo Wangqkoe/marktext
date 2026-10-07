@@ -50,6 +50,7 @@ interface TocItem extends ListItem {
   slug?: string
   githubSlug?: string
   content?: string
+  contentHtml?: string
   lvl: number | null
 }
 
@@ -442,9 +443,20 @@ export const useEditorStore = defineStore('editor', {
         slug: item.id,
         githubSlug: item.anchor ?? item.id,
         content: item.title,
+        ...(item.titleHtml !== undefined ? { contentHtml: item.titleHtml } : {}),
         lvl: item.level
       }))
       if (!equal(nextListToc, this.listToc)) {
+        // A render-option toggle rebuilds every heading block, so the same
+        // headings come back under new slugs; keep the highlight on the same
+        // position. An edit keeps slugs stable and never reaches the fallback.
+        const activeSlug = this.activeHeadingSlug
+        if (activeSlug && !nextListToc.some((item) => item.slug === activeSlug)) {
+          const activeIndex = this.listToc.findIndex((item) => item.slug === activeSlug)
+          this.activeHeadingSlug = nextListToc.length === this.listToc.length && activeIndex >= 0
+            ? (nextListToc[activeIndex]?.slug ?? null)
+            : null
+        }
         this.listToc = freezeFacadeValue(nextListToc) as unknown as TocItem[]
         this.toc = freezeFacadeValue(listToTree<TocItem>([...this.listToc])) as unknown as TocTreeNode[]
       }
@@ -1826,6 +1838,25 @@ export const useEditorStore = defineStore('editor', {
       this.toc = listToTree<TocItem>(toc ?? [])
       // Every caller replaces the whole document, so the old slug is gone.
       this.activeHeadingSlug = null
+    },
+
+    /**
+     * Re-seeds the table of contents after a preference change. `setOptions` on
+     * a render-affecting option re-renders in place without emitting
+     * `json-change`, so nothing else would refresh the outline.
+     *
+     * `setOptions` also rebuilds every block, so each heading gets a fresh
+     * per-instance `slug`; the highlighted one is remapped by document position
+     * (a preference toggle does not reorder or drop headings).
+     */
+    REFRESH_TOC(toc: TocItem[]): void {
+      const activeIndex = this.activeHeadingSlug
+        ? this.listToc.findIndex((item) => item.slug === this.activeHeadingSlug)
+        : -1
+      const nextToc = toc ?? []
+      this.listToc = nextToc
+      this.toc = listToTree<TocItem>(nextToc)
+      this.activeHeadingSlug = activeIndex >= 0 ? (nextToc[activeIndex]?.slug ?? null) : null
     },
 
     SET_ACTIVE_HEADING(slug: string | null): void {
