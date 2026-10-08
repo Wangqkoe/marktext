@@ -28,6 +28,7 @@ import htmlTag from './htmlTag';
 import image from './image';
 import inlineCode from './inlineCode';
 import inlineMath from './inlineMath';
+import lineBreakHighlights from './lineBreakHighlights';
 import link from './link';
 import loadImageAsync from './loadImageAsync';
 import multipleMath from './multipleMath';
@@ -51,6 +52,7 @@ const inlineSyntaxRenderer = {
     tailHeader,
     hardLineBreak,
     softLineBreak,
+    lineBreakHighlights,
     codeFence,
     inlineMath,
     autoLink,
