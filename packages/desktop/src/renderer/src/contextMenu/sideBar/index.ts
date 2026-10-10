@@ -8,6 +8,7 @@ import {
   getPASTE,
   getRENAME,
   getDELETE,
+  getCopyPath,
   getShowInFolder
 } from './menuItems'
 import { popupContextMenu, type ContextMenuItem } from '../popupMenu'
@@ -30,6 +31,7 @@ export const createSidebarContextMenuItems = (
     getRENAME(),
     getDELETE(),
     SEPARATOR,
+    getCopyPath(),
     getShowInFolder()
   ]
 

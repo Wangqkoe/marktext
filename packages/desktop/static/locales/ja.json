@@ -202,6 +202,7 @@
       "paste": "貼り付け",
       "rename": "名前を変更",
       "moveToTrash": "ゴミ箱に移動",
+      "copyPath": "パスをコピー",
       "showInFolder": "フォルダで表示"
     },
     "tabs": {
