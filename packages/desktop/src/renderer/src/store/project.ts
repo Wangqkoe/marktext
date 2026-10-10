@@ -11,6 +11,7 @@ import {
 import { usePreferencesStore } from './preferences'
 import bus from '../bus'
 import { create, paste, rename, type FileCreateType, type PasteOptions } from '../util/fileSystem'
+import { isSamePath } from '../util'
 import { PATH_SEPARATOR } from '../config'
 import notice from '../services/notification'
 import { getFileStateFromData } from './help'
@@ -246,7 +247,7 @@ export const useProjectStore = defineStore('project', () => {
           String(preferencesStore.fileSortBy),
           String(preferencesStore.fileSortOrder)
         )
-        if (isMarkdown && newFileNameCache.value && pathname === newFileNameCache.value) {
+        if (isMarkdown && newFileNameCache.value && isSamePath(pathname, newFileNameCache.value)) {
           const fileState = getFileStateFromData(data as Record<string, unknown>)
           editorStore.UPDATE_CURRENT_FILE(fileState)
           newFileNameCache.value = ''

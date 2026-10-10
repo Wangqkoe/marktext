@@ -1,6 +1,6 @@
 import equal from 'deep-equal'
 import bus from '../bus'
-import { getUniqueId, deepClone } from '../util'
+import { getUniqueId, deepClone, isSamePath } from '../util'
 import listToTree, { type ListItem, type TreeNode } from '../util/listToTree'
 import { createDocumentState, getOptionsFromState, getBlankFileState } from './help'
 import notice from '../services/notification'
@@ -672,7 +672,7 @@ export const useEditorStore = defineStore('editor', {
       }
 
       // Reload the editor if the tab is currently opened.
-      if (currentFile && pathname === currentFile.pathname) {
+      if (currentFile && isSamePath(pathname, currentFile.pathname)) {
         // save current state first
         this.currentFile = tab
         const { id, cursor, history, scrollTop, muyaIndexCursor } = tab // Should not use blocks history as this is loaded from disk
@@ -1142,7 +1142,7 @@ export const useEditorStore = defineStore('editor', {
      */
     RENAME_IF_NEEDED({ src, dest }: { src: string; dest: string }): void {
       this.tabs.forEach((tab) => {
-        if (tab.pathname === src) {
+        if (isSamePath(tab.pathname, src)) {
           tab.pathname = dest
           tab.filename = window.path.basename(dest)
         }
@@ -1150,7 +1150,7 @@ export const useEditorStore = defineStore('editor', {
       // Keep DIRNAME in sync when the active tab is the one being renamed,
       // so link resolution / dirname-based lookups don't keep using the old
       // folder until the user switches tabs.
-      if (this.currentFile != null && this.currentFile.pathname === dest) {
+      if (this.currentFile != null && isSamePath(this.currentFile.pathname, dest)) {
         window.DIRNAME = window.path.dirname(dest)
       }
       debouncedSendBufferedState()
@@ -1624,7 +1624,7 @@ export const useEditorStore = defineStore('editor', {
 
       const { tabs } = this
 
-      const nextTabIndex = tabs.findIndex((t) => t.pathname === filePath)
+      const nextTabIndex = tabs.findIndex((t) => isSamePath(t.pathname, filePath))
       if (nextTabIndex === -1) {
         console.error('Cannot find tab with pathname:', filePath)
         return
@@ -1811,7 +1811,7 @@ export const useEditorStore = defineStore('editor', {
     SET_SAVE_STATUS_WHEN_REMOVE({ pathname }: { pathname: string }): void {
       let didUpdateSaveStatus = false
       this.tabs.forEach((f) => {
-        if (f.pathname === pathname) {
+        if (isSamePath(f.pathname, pathname)) {
           f.isSaved = false
           didUpdateSaveStatus = true
         }
