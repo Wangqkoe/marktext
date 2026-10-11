@@ -132,6 +132,7 @@ import { minimizePath, restorePath, maximizePath, closePath } from '../../assets
 import { PATH_SEPARATOR } from '../../config'
 import { isOsx as isOsxPlatform } from '@/util'
 import { shouldShowInAppTitleBar } from './visibility'
+import { pathBreadcrumb } from './pathBreadcrumb'
 import { useEditorStore } from '@/store/editor'
 import { useI18n } from 'vue-i18n'
 import {
@@ -205,11 +206,7 @@ const isFramelessEditor = computed(() => {
   return !isOsx && (titleBarStyle.value === 'custom' || titleBarStyle.value === 'concise')
 })
 
-const paths = computed(() => {
-  if (!props.pathname) return []
-  const pathnameToken = props.pathname.split(PATH_SEPARATOR).filter((i) => i)
-  return pathnameToken.slice(0, pathnameToken.length - 1).slice(-3)
-})
+const paths = computed(() => pathBreadcrumb(props.pathname ?? '', PATH_SEPARATOR))
 
 const fullTitle = computed(() => {
   if (!props.filename) return 'MarkText'
