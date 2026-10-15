@@ -1,16 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-// `printService` imports `resolveLocalImageSrc`, which reads `window.path` /
-// `window.DIRNAME` for its relative-resolve branch. Stub those preload
-// surfaces before the hoisted import runs (mirrors printService-image.spec.ts).
-vi.hoisted(() => {
-  const w = globalThis as unknown as {
-    window?: { path?: { sep: string }; DIRNAME?: string }
-  }
-  w.window ??= {}
-  w.window.path ??= { sep: '/' }
-  w.window.DIRNAME = '/docs'
-})
+import { afterEach, describe, expect, it } from 'vitest'
 
 import MarkdownPrint from '@/services/printService'
 
@@ -27,25 +15,25 @@ describe('MarkdownPrint — text direction on the print container', () => {
   const article = '<article class="markdown-body"><p>سلام</p></article>'
 
   it('sets dir="rtl" on the print container for an RTL export', () => {
-    new MarkdownPrint().renderMarkdown(article, true, 'rtl')
+    new MarkdownPrint().renderMarkdown(article, 'rtl')
     const container = document.body.querySelector('article.print-container')
     expect(container?.getAttribute('dir')).toBe('rtl')
   })
 
   it('sets dir="auto" on the print container for an auto export', () => {
-    new MarkdownPrint().renderMarkdown(article, true, 'auto')
+    new MarkdownPrint().renderMarkdown(article, 'auto')
     const container = document.body.querySelector('article.print-container')
     expect(container?.getAttribute('dir')).toBe('auto')
   })
 
   it('leaves the container without a dir attribute for LTR (unchanged default)', () => {
-    new MarkdownPrint().renderMarkdown(article, true, 'ltr')
+    new MarkdownPrint().renderMarkdown(article, 'ltr')
     const container = document.body.querySelector('article.print-container')
     expect(container?.hasAttribute('dir')).toBe(false)
   })
 
   it('leaves the container without a dir attribute when no direction is passed', () => {
-    new MarkdownPrint().renderMarkdown(article, true)
+    new MarkdownPrint().renderMarkdown(article)
     const container = document.body.querySelector('article.print-container')
     expect(container?.hasAttribute('dir')).toBe(false)
   })
