@@ -55,9 +55,11 @@ const sourceState = (page: Page) => page.evaluate(() => {
   type CM = { getValue(): string; getOption(name: string): unknown; lineCount(): number }
   const cm = (document.querySelector('.source-code .CodeMirror') as
     | (Element & { CodeMirror?: CM }) | null)?.CodeMirror
-  const snapshot = (window as typeof window & { __mtWorkspaceSnapshot?: () => {
-    documents: Array<{ markdown: string }>
-  } }).__mtWorkspaceSnapshot?.()
+  const snapshot = (window as typeof window & {
+    __mtWorkspaceSnapshot?: () => {
+      documents: Array<{ markdown: string }>
+    }
+  }).__mtWorkspaceSnapshot?.()
   if (!cm || !snapshot || snapshot.documents.length !== 1) throw new Error('Source state unavailable')
   return {
     cmMarkdown: cm.getValue(),
@@ -73,8 +75,10 @@ const sourceState = (page: Page) => page.evaluate(() => {
 const armKey = (page: Page, action: Action): Promise<void> => page.evaluate((selectedAction) => {
   type Cursor = { line: number; ch: number }
   type CM = {
-    focus(): void; setCursor(position: Cursor): void
-    getCursor(which?: string): Cursor; getLine(line: number): string
+    focus(): void;
+    setCursor(position: Cursor): void
+    getCursor(which?: string): Cursor;
+    getLine(line: number): string
   }
   const cm = (document.querySelector('.source-code .CodeMirror') as
     | (Element & { CodeMirror?: CM }) | null)?.CodeMirror
@@ -192,8 +196,10 @@ test.describe('Source light configuration timing', () => {
             expect(inserted.cmMarkdown).toBe(inserted.workspaceMarkdown)
             expect(inserted.cmMarkdown.length).toBe(markdown.length + 1)
             await page.evaluate(() => {
-              type CM = { getCursor(): { line: number; ch: number };
-                replaceRange(text: string, from: unknown, to: unknown): void }
+              type CM = {
+                getCursor(): { line: number; ch: number };
+                replaceRange(text: string, from: unknown, to: unknown): void
+              }
               const cm = (document.querySelector('.source-code .CodeMirror') as
                 Element & { CodeMirror: CM }).CodeMirror
               const head = cm.getCursor()
@@ -207,8 +213,14 @@ test.describe('Source light configuration timing', () => {
       expect(afterKeys.cmMarkdown).toBe(markdown)
       expect(afterKeys.workspaceMarkdown).toBe(markdown)
 
-      const wheelSamples: Array<{ repetition: number; latencyMs: number | null;
-        before: number; after: number; scrollHeight: number; clientHeight: number }> = []
+      const wheelSamples: Array<{
+        repetition: number;
+        latencyMs: number | null;
+        before: number;
+        after: number;
+        scrollHeight: number;
+        clientHeight: number
+      }> = []
       const source = page.locator('.source-code')
       await source.hover()
       for (let repetition = 1 - warmups; repetition <= repetitions; repetition += 1) {
@@ -226,24 +238,39 @@ test.describe('Source light configuration timing', () => {
                   if (after > before) {
                     clearTimeout(timeout)
                     source.removeEventListener('wheel', listener, true)
-                    resolve({ latencyMs: performance.now() - startedAt, before, after,
-                      scrollHeight: source.scrollHeight, clientHeight: source.clientHeight })
+                    resolve({
+                      latencyMs: performance.now() - startedAt,
+                      before,
+                      after,
+                      scrollHeight: source.scrollHeight,
+                      clientHeight: source.clientHeight
+                    })
                   } else requestAnimationFrame(poll)
                 }
                 requestAnimationFrame(poll)
               }
               const timeout = setTimeout(() => {
                 source.removeEventListener('wheel', listener, true)
-                resolve({ latencyMs: null, before: source.scrollTop, after: source.scrollTop,
-                  scrollHeight: source.scrollHeight, clientHeight: source.clientHeight })
+                resolve({
+                  latencyMs: null,
+                  before: source.scrollTop,
+                  after: source.scrollTop,
+                  scrollHeight: source.scrollHeight,
+                  clientHeight: source.clientHeight
+                })
               }, 2000)
               source.addEventListener('wheel', listener, true)
             })
         })
         await page.mouse.wheel(0, 500)
         const result = await page.evaluate(() => (window as typeof window & {
-          __MT_SOURCE_LIGHT_WHEEL__: Promise<{ latencyMs: number | null; before: number;
-            after: number; scrollHeight: number; clientHeight: number }>
+          __MT_SOURCE_LIGHT_WHEEL__: Promise<{
+            latencyMs: number | null;
+            before: number;
+            after: number;
+            scrollHeight: number;
+            clientHeight: number
+          }>
         }).__MT_SOURCE_LIGHT_WHEEL__)
         if (repetition > 0) wheelSamples.push({ repetition, ...result })
         if (result.latencyMs === null) break
@@ -253,11 +280,21 @@ test.describe('Source light configuration timing', () => {
       expect(final.workspaceMarkdown).toBe(markdown)
       fs.mkdirSync(path.dirname(outputPath), { recursive: true })
       fs.writeFileSync(outputPath, JSON.stringify({
-        recordedAt: new Date().toISOString(), variant, bytes: Buffer.byteLength(markdown),
-        lineCount: initial.lineCount, warmups, repetitions, enterMs,
-        options: { lineNumbers: initial.lineNumbers, lineWrapping: initial.lineWrapping,
-          styleActiveLine: initial.styleActiveLine, mode: initial.mode },
-        keySamples: samples, wheelSamples
+        recordedAt: new Date().toISOString(),
+        variant,
+        bytes: Buffer.byteLength(markdown),
+        lineCount: initial.lineCount,
+        warmups,
+        repetitions,
+        enterMs,
+        options: {
+          lineNumbers: initial.lineNumbers,
+          lineWrapping: initial.lineWrapping,
+          styleActiveLine: initial.styleActiveLine,
+          mode: initial.mode
+        },
+        keySamples: samples,
+        wheelSamples
       }, null, 2) + '\n')
     } finally {
       if (app) await closeDiscardingChanges(app)

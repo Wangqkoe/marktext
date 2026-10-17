@@ -90,8 +90,12 @@ describe('DocumentIO Electron adapter', () => {
 
   const bind = async(adapter: DocumentIoElectronAdapter, sender: FakeWebContents, requestId = 'bind') => {
     const ack = await adapter.handle(sender, {
-      kind: 'bind', requestId, documentId: 'document', documentRevision: 3,
-      pathname: 'C:/workspace/document.md', dirty: true,
+      kind: 'bind',
+      requestId,
+      documentId: 'document',
+      documentRevision: 3,
+      pathname: 'C:/workspace/document.md',
+      dirty: true,
       windowId: sender.id === 1 ? 2 : 1
     })
     if (ack.status !== 'bound') throw new Error(`unexpected ${ack.status}`)
@@ -104,13 +108,23 @@ describe('DocumentIO Electron adapter', () => {
     storage.files.set(canonical, Buffer.from('baseline'))
     const bound = await bind(adapter, first)
     await expect(adapter.handle(second, {
-      kind: 'save', requestId: 'forged', documentId: 'document', documentRevision: 3,
-      ownerFence: bound.ownerFence, markdown: 'forged', options, windowId: 1
+      kind: 'save',
+      requestId: 'forged',
+      documentId: 'document',
+      documentRevision: 3,
+      ownerFence: bound.ownerFence,
+      markdown: 'forged',
+      options,
+      windowId: 1
     })).resolves.toMatchObject({ status: 'rejected' })
     first.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
     await expect(adapter.handle(first, {
-      kind: 'sync', requestId: 'after-navigation', documentId: 'document', documentRevision: 3,
-      ownerFence: bound.ownerFence, dirty: true
+      kind: 'sync',
+      requestId: 'after-navigation',
+      documentId: 'document',
+      documentRevision: 3,
+      ownerFence: bound.ownerFence,
+      dirty: true
     })).resolves.toMatchObject({ status: 'rejected' })
     expect(watchers.activeWatchers.size).toBe(0)
     first.emit('destroyed')
@@ -169,19 +183,34 @@ describe('DocumentIO Electron adapter', () => {
     const observed: DocumentIoObservation[] = []
     const renderer = new RendererDocumentIoAdapter(port, (value) => observed.push(value))
     const bound = await renderer.bind({
-      kind: 'bind', requestId: 'bind:renderer', documentId: 'document', documentRevision: 3,
-      pathname: 'C:/workspace/document.md', dirty: true
+      kind: 'bind',
+      requestId: 'bind:renderer',
+      documentId: 'document',
+      documentRevision: 3,
+      pathname: 'C:/workspace/document.md',
+      dirty: true
     })
     if (bound.status !== 'bound') throw new Error('bind failed')
-    const request = { kind: 'save' as const, requestId: 'save:renderer', documentId: 'document', documentRevision: 3,
-      ownerFence: bound.ownerFence, markdown: 'saved', options }
+    const request = {
+      kind: 'save' as const,
+      requestId: 'save:renderer',
+      documentId: 'document',
+      documentRevision: 3,
+      ownerFence: bound.ownerFence,
+      markdown: 'saved',
+      options
+    }
     const firstAck = await renderer.save(request)
     const duplicate = await renderer.save(request)
     expect(firstAck).toEqual(duplicate)
     expect(renderer.getBinding(bound.ownerFence)).toMatchObject({ dirty: false })
     const rebound = await renderer.bind({
-      kind: 'bind', requestId: 'rebind:renderer', documentId: 'document', documentRevision: 4,
-      pathname: 'C:/workspace/document.md', dirty: true
+      kind: 'bind',
+      requestId: 'rebind:renderer',
+      documentId: 'document',
+      documentRevision: 4,
+      pathname: 'C:/workspace/document.md',
+      dirty: true
     })
     if (rebound.status !== 'bound') throw new Error('rebind failed')
     await expect(renderer.save(request)).resolves.toMatchObject({ status: 'rejected' })
@@ -199,18 +228,31 @@ describe('DocumentIO Electron adapter', () => {
     storage.files.set(canonical, Buffer.from('baseline'))
     const writer = await bind(adapter, first, 'writer')
     const clean = await adapter.handle(second, {
-      kind: 'bind', requestId: 'clean', documentId: 'clean-peer', documentRevision: 1,
-      pathname: 'C:/workspace/document.md', dirty: false
+      kind: 'bind',
+      requestId: 'clean',
+      documentId: 'clean-peer',
+      documentRevision: 1,
+      pathname: 'C:/workspace/document.md',
+      dirty: false
     })
     const dirty = await adapter.handle(second, {
-      kind: 'bind', requestId: 'dirty', documentId: 'dirty-peer', documentRevision: 1,
-      pathname: 'C:/workspace/document.md', dirty: true
+      kind: 'bind',
+      requestId: 'dirty',
+      documentId: 'dirty-peer',
+      documentRevision: 1,
+      pathname: 'C:/workspace/document.md',
+      dirty: true
     })
     expect(clean.status).toBe('bound')
     expect(dirty.status).toBe('bound')
     await expect(adapter.handle(first, {
-      kind: 'save', requestId: 'peer-save', documentId: 'document', documentRevision: 3,
-      ownerFence: writer.ownerFence, markdown: 'changed', options
+      kind: 'save',
+      requestId: 'peer-save',
+      documentId: 'document',
+      documentRevision: 3,
+      ownerFence: writer.ownerFence,
+      markdown: 'changed',
+      options
     })).resolves.toMatchObject({ status: 'durable-success' })
     expect(second.sent.map(({ kind }) => kind).sort()).toEqual(['conflict', 'reload'])
   })
@@ -237,8 +279,12 @@ describe('DocumentIO Electron adapter', () => {
     }
     const lateBind = new RendererDocumentIoAdapter(port, () => {})
     const pendingBind = lateBind.bind({
-      kind: 'bind', requestId: 'late-bind', documentId: 'late', documentRevision: 1,
-      pathname: 'C:/workspace/late.md', dirty: true
+      kind: 'bind',
+      requestId: 'late-bind',
+      documentId: 'late',
+      documentRevision: 1,
+      pathname: 'C:/workspace/late.md',
+      dirty: true
     })
     await lateBind.dispose()
     resolveBind({ status: 'bound', requestId: 'late-bind', documentId: 'late', ownerFence: 'late-fence' })
@@ -248,17 +294,29 @@ describe('DocumentIO Electron adapter', () => {
 
     const lateSave = new RendererDocumentIoAdapter(port, () => {})
     const bound = await lateSave.bind({
-      kind: 'bind', requestId: 'bind-now', documentId: 'document', documentRevision: 1,
-      pathname: 'C:/workspace/document.md', dirty: true
+      kind: 'bind',
+      requestId: 'bind-now',
+      documentId: 'document',
+      documentRevision: 1,
+      pathname: 'C:/workspace/document.md',
+      dirty: true
     })
     if (bound.status !== 'bound') throw new Error('bind failed')
     const pendingSave = lateSave.save({
-      kind: 'save', requestId: 'late-save', documentId: 'document', documentRevision: 1,
-      ownerFence: bound.ownerFence, markdown: 'saved', options
+      kind: 'save',
+      requestId: 'late-save',
+      documentId: 'document',
+      documentRevision: 1,
+      ownerFence: bound.ownerFence,
+      markdown: 'saved',
+      options
     })
     await lateSave.dispose()
     resolveSave({
-      status: 'durable-success', requestId: 'late-save', documentId: 'document', documentRevision: 1,
+      status: 'durable-success',
+      requestId: 'late-save',
+      documentId: 'document',
+      documentRevision: 1,
       ownerFence: bound.ownerFence
     })
     await pendingSave
@@ -266,12 +324,20 @@ describe('DocumentIO Electron adapter', () => {
 
     const lateUnboundSave = new RendererDocumentIoAdapter(port, () => {})
     const pendingUnboundSave = lateUnboundSave.save({
-      kind: 'save-as', requestId: 'late-unbound-save', documentId: 'untitled', documentRevision: 1,
-      markdown: 'saved', options, targetPathname: 'C:/workspace/untitled.md'
+      kind: 'save-as',
+      requestId: 'late-unbound-save',
+      documentId: 'untitled',
+      documentRevision: 1,
+      markdown: 'saved',
+      options,
+      targetPathname: 'C:/workspace/untitled.md'
     })
     await lateUnboundSave.dispose()
     resolveSave({
-      status: 'durable-success', requestId: 'late-unbound-save', documentId: 'untitled', documentRevision: 1,
+      status: 'durable-success',
+      requestId: 'late-unbound-save',
+      documentId: 'untitled',
+      documentRevision: 1,
       ownerFence: 'late-unbound-fence'
     })
     await expect(pendingUnboundSave).resolves.toMatchObject({ status: 'rejected' })
@@ -295,8 +361,12 @@ describe('DocumentIO Electron adapter', () => {
     const sender = new FakeWebContents(9)
     attachEditorDocumentIo(adapter, sender)
     const pending = adapter.handle(sender, {
-      kind: 'bind', requestId: 'bind:navigation', documentId: 'document', documentRevision: 1,
-      pathname: 'C:/workspace/document.md', dirty: true
+      kind: 'bind',
+      requestId: 'bind:navigation',
+      documentId: 'document',
+      documentRevision: 1,
+      pathname: 'C:/workspace/document.md',
+      dirty: true
     })
     await Promise.resolve()
     sender.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false })
@@ -325,8 +395,12 @@ describe('DocumentIO Electron adapter', () => {
         return subscribe(subscriber)
       }
       const pending = adapter.handle(sender, {
-        kind: 'bind', requestId: `bind:${lifecycle}`, documentId: 'document', documentRevision: 1,
-        pathname: 'C:/workspace/document.md', dirty: true
+        kind: 'bind',
+        requestId: `bind:${lifecycle}`,
+        documentId: 'document',
+        documentRevision: 1,
+        pathname: 'C:/workspace/document.md',
+        dirty: true
       })
       await vi.waitFor(() => expect(reached).toHaveBeenCalledOnce())
       if (lifecycle === 'destroyed') sender.emit('destroyed')

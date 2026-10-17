@@ -29,8 +29,13 @@ describe('DocumentIOCoordinator', () => {
 
   const bind = async(coordinator: DocumentIOCoordinator, documentId = 'document') => {
     const request: DocumentIoBindingRequest = {
-      kind: 'bind', requestId: `bind:${documentId}`, documentId, documentRevision: 2, pathname: file,
-      dirty: true, windowId: 999
+      kind: 'bind',
+      requestId: `bind:${documentId}`,
+      documentId,
+      documentRevision: 2,
+      pathname: file,
+      dirty: true,
+      windowId: 999
     }
     const ack = await coordinator.request('sender-a', request)
     if (ack.status !== 'bound') throw new Error(`bind failed: ${ack.status}`)
@@ -38,8 +43,14 @@ describe('DocumentIOCoordinator', () => {
   }
 
   const save = (ownerFence: string, requestId = 'save:1', documentRevision = 2): DocumentIoSaveRequest => ({
-    kind: 'save', requestId, documentId: 'document', documentRevision, ownerFence,
-    markdown: 'updated\n', options, windowId: -1
+    kind: 'save',
+    requestId,
+    documentId: 'document',
+    documentRevision,
+    ownerFence,
+    markdown: 'updated\n',
+    options,
+    windowId: -1
   })
 
   const read = (ownerFence: string, requestId = 'read:1'): DocumentIoReadRequest => ({
@@ -139,15 +150,23 @@ describe('DocumentIOCoordinator', () => {
       status: 'conflict'
     })
     const synced = await coordinator.request('sender-a', {
-      kind: 'sync', requestId: 'sync:external', documentId: 'document', documentRevision: 2,
-      ownerFence: bound.ownerFence, dirty: true
+      kind: 'sync',
+      requestId: 'sync:external',
+      documentId: 'document',
+      documentRevision: 2,
+      ownerFence: bound.ownerFence,
+      dirty: true
     })
     expect(synced.status).toBe('bound')
     const replacement = await coordinator.request('sender-a', save(bound.ownerFence, 'save:durable'))
     // CAS remains intentionally strict: a dirty peer must resolve the external change first.
     expect(replacement.status).toBe('conflict')
     const rebound = await coordinator.request('sender-a', {
-      kind: 'bind', requestId: 'rebind', documentId: 'document', documentRevision: 3, pathname: file,
+      kind: 'bind',
+      requestId: 'rebind',
+      documentId: 'document',
+      documentRevision: 3,
+      pathname: file,
       dirty: true
     })
     if (rebound.status !== 'bound') throw new Error('rebind failed')
@@ -185,8 +204,13 @@ describe('DocumentIOCoordinator', () => {
     const target = 'C:/workspace/untitled.md'
     const targetKey = await hub.canonicalFileKey(target)
     const unbound = (requestId: string): DocumentIoSaveRequest => ({
-      kind: 'save-as', requestId, documentId: 'untitled', documentRevision: 0,
-      markdown: 'draft', options, targetPathname: target
+      kind: 'save-as',
+      requestId,
+      documentId: 'untitled',
+      documentRevision: 0,
+      markdown: 'draft',
+      options,
+      targetPathname: target
     })
     storage.onWrite = () => { throw new Error('disk full') }
     const failed = await coordinator.request('sender-a', unbound('untitled:failed'))
@@ -235,16 +259,24 @@ describe('DocumentIOCoordinator', () => {
     const oldSave = coordinator.request('sender-a', save(bound.ownerFence, 'save:old', 2))
     await Promise.resolve()
     const advanced = coordinator.request('sender-a', {
-      kind: 'sync', requestId: 'sync:new', documentId: 'document', documentRevision: 3,
-      ownerFence: bound.ownerFence, dirty: true
+      kind: 'sync',
+      requestId: 'sync:new',
+      documentId: 'document',
+      documentRevision: 3,
+      ownerFence: bound.ownerFence,
+      dirty: true
     })
     release()
     await expect(oldSave).resolves.toMatchObject({ status: 'not-durable' })
     await expect(advanced).resolves.toMatchObject({ status: 'bound' })
     expect((await storage.read(canonical))?.toString()).toBe('baseline')
     await expect(coordinator.request('sender-a', {
-      kind: 'bind', requestId: 'bind:old', documentId: 'document', documentRevision: 2,
-      pathname: file, dirty: true
+      kind: 'bind',
+      requestId: 'bind:old',
+      documentId: 'document',
+      documentRevision: 2,
+      pathname: file,
+      dirty: true
     })).resolves.toMatchObject({ status: 'rejected', reason: 'stale document revision' })
     await expect(coordinator.request('sender-a', save(bound.ownerFence, 'save:new', 3))).resolves.toMatchObject({
       status: 'durable-success'
@@ -257,8 +289,12 @@ describe('DocumentIOCoordinator', () => {
     storage.files.set(canonical, Buffer.from('baseline'))
     const old = await bind(coordinator)
     const rebound = await coordinator.request('sender-a', {
-      kind: 'bind', requestId: 'bind:new-owner', documentId: 'document', documentRevision: 3,
-      pathname: file, dirty: true
+      kind: 'bind',
+      requestId: 'bind:new-owner',
+      documentId: 'document',
+      documentRevision: 3,
+      pathname: file,
+      dirty: true
     })
     if (rebound.status !== 'bound') throw new Error('rebind failed')
     await expect(coordinator.request('sender-a', save(old.ownerFence, 'old-owner', 2))).resolves.toMatchObject({
@@ -288,8 +324,12 @@ describe('DocumentIOCoordinator', () => {
       return canonicalize(pathname)
     }
     const higher = coordinator.request('sender-a', {
-      kind: 'bind', requestId: 'bind:pending', documentId: 'document', documentRevision: 3,
-      pathname: file, dirty: true
+      kind: 'bind',
+      requestId: 'bind:pending',
+      documentId: 'document',
+      documentRevision: 3,
+      pathname: file,
+      dirty: true
     })
     await Promise.resolve()
     await expect(coordinator.request('sender-a', save(bound.ownerFence, 'save:old-pending', 2))).resolves.toMatchObject({

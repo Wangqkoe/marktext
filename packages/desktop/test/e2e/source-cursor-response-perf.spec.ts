@@ -92,10 +92,12 @@ const armOperation = async(page: Page, action: Action): Promise<void> => {
         const onKeyDown = (event: KeyboardEvent) => {
           if (!event.isTrusted || event.key !== expectedKey) return
           const startedAt = performance.now()
-          const probe = (window as typeof window & { __MT_UI_CLONE_PROBE__?: {
-            active: boolean
-            spans: Array<{ label: string; ms: number }>
-          } }).__MT_UI_CLONE_PROBE__
+          const probe = (window as typeof window & {
+            __MT_UI_CLONE_PROBE__?: {
+              active: boolean
+              spans: Array<{ label: string; ms: number }>
+            }
+          }).__MT_UI_CLONE_PROBE__
           if (probe && selectedAction === 'insert') {
             probe.spans = []
             probe.active = true
@@ -224,10 +226,12 @@ const readSourceState = (page: Page) => page.evaluate(() => {
   type CM = { getValue(): string }
   const cm = (document.querySelector('.source-code .CodeMirror') as
     | (Element & { CodeMirror?: CM }) | null)?.CodeMirror
-  const facade = (window as typeof window & { __mtWorkspaceSnapshot?: () => {
-    documents: Array<{ markdown: string; portableHistory: unknown; documentRevision: number }>
-    projection: { panes: Array<{ tabs: unknown[] }> }
-  } }).__mtWorkspaceSnapshot?.()
+  const facade = (window as typeof window & {
+    __mtWorkspaceSnapshot?: () => {
+      documents: Array<{ markdown: string; portableHistory: unknown; documentRevision: number }>
+      projection: { panes: Array<{ tabs: unknown[] }> }
+    }
+  }).__mtWorkspaceSnapshot?.()
   if (!cm || !facade || facade.documents.length !== 1) throw new Error('Source facade is unavailable')
   const workspaceDocument = facade.documents[0]
   return {
@@ -271,17 +275,23 @@ test.describe('Source UI clone timing', () => {
           spans: []
         }
       })
-      const samples: Array<{ repetition: number; latencyMs: number; frames: number;
-        spans: Array<{ label: string; ms: number }> }> = []
+      const samples: Array<{
+        repetition: number;
+        latencyMs: number;
+        frames: number;
+        spans: Array<{ label: string; ms: number }>
+      }> = []
       let previousRevision = initial.revision
       for (let repetition = 1 - warmups; repetition <= repetitions; repetition += 1) {
         await armOperation(page, 'insert')
         await page.keyboard.press('x')
         const response = await readOperation(page)
         const spans = await page.evaluate(() => {
-          const probe = (window as typeof window & { __MT_UI_CLONE_PROBE__?: {
-            spans: Array<{ label: string; ms: number }>
-          } }).__MT_UI_CLONE_PROBE__
+          const probe = (window as typeof window & {
+            __MT_UI_CLONE_PROBE__?: {
+              spans: Array<{ label: string; ms: number }>
+            }
+          }).__MT_UI_CLONE_PROBE__
           if (!probe) throw new Error('timing probe is unavailable')
           return probe.spans
         })
@@ -310,10 +320,18 @@ test.describe('Source UI clone timing', () => {
         lineCount: markdown.split('\n').length,
         warmups,
         repetitions,
-        initial: { documentCount: initial.documentCount, tabCount: initial.tabCount,
-          historyBytes: initial.historyBytes, markdownBytes: initial.markdownBytes },
-        final: { documentCount: final.documentCount, tabCount: final.tabCount,
-          historyBytes: final.historyBytes, markdownBytes: final.markdownBytes },
+        initial: {
+          documentCount: initial.documentCount,
+          tabCount: initial.tabCount,
+          historyBytes: initial.historyBytes,
+          markdownBytes: initial.markdownBytes
+        },
+        final: {
+          documentCount: final.documentCount,
+          tabCount: final.tabCount,
+          historyBytes: final.historyBytes,
+          markdownBytes: final.markdownBytes
+        },
         samples
       }, null, 2) + '\n')
     } finally {

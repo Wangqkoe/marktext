@@ -33,7 +33,6 @@ for (const [key, value] of Object.entries(expectedRaw)) {
   if (actual !== value) throw new Error(`Unexpected raw ${key}: expected ${value}, received ${actual}`)
 }
 
-const count = predicate => entries.filter(predicate).length
 const records = type => entries.filter(entry => entry.type === type)
 const native = records('native-event').filter(entry => entry.nativeEvent)
 const nativeByType = type => native.filter(entry => entry.nativeEvent.type === type)

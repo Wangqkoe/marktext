@@ -41,20 +41,29 @@ const state = (page: Page): Promise<State> => page.evaluate(() => {
   const cm = (document.querySelector('.source-code .CodeMirror') as Element & {
     CodeMirror: { getValue(): string }
   }).CodeMirror
-  const snapshot = (window as typeof window & { __mtWorkspaceSnapshot: () => {
-    documents: Array<{ markdown: string; documentRevision: number }>
-  } }).__mtWorkspaceSnapshot()
+  const snapshot = (window as typeof window & {
+    __mtWorkspaceSnapshot: () => {
+      documents: Array<{ markdown: string; documentRevision: number }>
+    }
+  }).__mtWorkspaceSnapshot()
   if (snapshot.documents.length !== 1) throw new Error('Expected exactly one document')
-  return { cm: cm.getValue(), workspace: snapshot.documents[0].markdown,
-    revision: snapshot.documents[0].documentRevision }
+  return {
+    cm: cm.getValue(),
+    workspace: snapshot.documents[0].markdown,
+    revision: snapshot.documents[0].documentRevision
+  }
 })
 
 const arm = (page: Page, variant: Variant, action: Action): Promise<void> => page.evaluate(
   ({ variant, action }) => {
     type Position = { line: number; ch: number }
     type CM = {
-      focus(): void; setCursor(pos: Position): void; setSelection(a: Position, b: Position): void
-      getValue(): string; getLine(line: number): string; on(event: string, handler: () => void): void
+      focus(): void;
+      setCursor(pos: Position): void;
+      setSelection(a: Position, b: Position): void
+      getValue(): string;
+      getLine(line: number): string;
+      on(event: string, handler: () => void): void
     }
     const cm = (document.querySelector('.source-code .CodeMirror') as Element & { CodeMirror: CM }).CodeMirror
     cm.focus()
@@ -64,12 +73,26 @@ const arm = (page: Page, variant: Variant, action: Action): Promise<void> => pag
     const beforeFirstLine = cm.getLine(2)
     const renderedLine = () => document.querySelector('.CodeMirror-code')?.children[2]?.textContent
     const beforeRendered = renderedLine()
-    const probe = (window as typeof window & { __MT_SOURCE_BATCH_PROBE__?: {
-      active: boolean; variant: Variant; changeCount: number; changesCount: number;
-      saveCount: number; saveMs: number; reportCount: number; reportMs: number
-    } }).__MT_SOURCE_BATCH_PROBE__ ?? {
-      active: false, variant, changeCount: 0, changesCount: 0,
-      saveCount: 0, saveMs: 0, reportCount: 0, reportMs: 0
+    const probe = (window as typeof window & {
+      __MT_SOURCE_BATCH_PROBE__?: {
+        active: boolean;
+        variant: Variant;
+        changeCount: number;
+        changesCount: number;
+        saveCount: number;
+        saveMs: number;
+        reportCount: number;
+        reportMs: number
+      }
+    }).__MT_SOURCE_BATCH_PROBE__ ?? {
+      active: false,
+      variant,
+      changeCount: 0,
+      changesCount: 0,
+      saveCount: 0,
+      saveMs: 0,
+      reportCount: 0,
+      reportMs: 0
     }
     ;(window as typeof window & { __MT_SOURCE_BATCH_PROBE__?: typeof probe }).__MT_SOURCE_BATCH_PROBE__ = probe
     if (!(probe as typeof probe & { listenersInstalled?: boolean }).listenersInstalled) {
@@ -77,8 +100,16 @@ const arm = (page: Page, variant: Variant, action: Action): Promise<void> => pag
       cm.on('changes', () => { if (probe.active) probe.changesCount += 1 })
       ;(probe as typeof probe & { listenersInstalled?: boolean }).listenersInstalled = true
     }
-    Object.assign(probe, { active: false, variant, changeCount: 0, changesCount: 0,
-      saveCount: 0, saveMs: 0, reportCount: 0, reportMs: 0 })
+    Object.assign(probe, {
+      active: false,
+      variant,
+      changeCount: 0,
+      changesCount: 0,
+      saveCount: 0,
+      saveMs: 0,
+      reportCount: 0,
+      reportMs: 0
+    })
     ;(window as typeof window & { __MT_SOURCE_BATCH_RESULT__?: Promise<unknown> })
       .__MT_SOURCE_BATCH_RESULT__ = new Promise((resolve, reject) => {
         const key = action === 'insert' ? 'x' : 'Tab'
@@ -99,11 +130,18 @@ const arm = (page: Page, variant: Variant, action: Action): Promise<void> => pag
               const latencyMs = performance.now() - startedAt
               probe.active = false
               window.clearTimeout(timeout)
-              resolve({ latencyMs, changed: cm.getValue(), counts: {
-                change: probe.changeCount, changes: probe.changesCount,
-                saveContent: probe.saveCount, reportSource: probe.reportCount,
-                saveMs: probe.saveMs, reportMs: probe.reportMs
-              } })
+              resolve({
+                latencyMs,
+                changed: cm.getValue(),
+                counts: {
+                  change: probe.changeCount,
+                  changes: probe.changesCount,
+                  saveContent: probe.saveCount,
+                  reportSource: probe.reportCount,
+                  saveMs: probe.saveMs,
+                  reportMs: probe.reportMs
+                }
+              })
             } else requestAnimationFrame(poll)
           }
           requestAnimationFrame(poll)
@@ -165,16 +203,27 @@ test('Source operation batching: trusted-key A/B timing and correctness', async(
           const restored = await state(page)
           expect(restored.cm).toBe(markdown)
           expect(restored.workspace).toBe(markdown)
-          if (repetition > 0) samples.push({ variant, action, repetition, ...result,
-            committedRevisions: changed.revision - beforeAction.revision })
+          if (repetition > 0) {
+            samples.push({
+              variant,
+              action,
+              repetition,
+              ...result,
+              committedRevisions: changed.revision - beforeAction.revision
+            })
+          }
         }
       }
     }
     fs.mkdirSync(path.dirname(outputPath), { recursive: true })
     fs.writeFileSync(outputPath, JSON.stringify({
-      recordedAt: new Date().toISOString(), baseCommit: '1dde81b11f1f84d4d848f5138e9b7b954e792e6f',
-      bytes: Buffer.byteLength(markdown), lineCount: markdown.split('\n').length,
-      warmups: 2, repetitions: 5, samples
+      recordedAt: new Date().toISOString(),
+      baseCommit: '1dde81b11f1f84d4d848f5138e9b7b954e792e6f',
+      bytes: Buffer.byteLength(markdown),
+      lineCount: markdown.split('\n').length,
+      warmups: 2,
+      repetitions: 5,
+      samples
     }, null, 2) + '\n')
   } finally {
     if (app) await closeDiscardingChanges(app)
