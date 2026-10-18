@@ -1,0 +1,2 @@
+# Round-trip specs compare output byte-for-byte; keep LF even with core.autocrlf=true.
+* text eol=lf
