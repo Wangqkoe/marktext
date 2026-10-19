@@ -62,6 +62,8 @@ export interface LaunchOptions {
   // should opt in — otherwise existing specs would silently ignore renderer
   // exceptions that previously surfaced as a dialog (a hidden regression risk).
   suppressErrorDialog?: boolean
+  // Variables that override the inherited environment of the app process.
+  env?: Record<string, string>
   /** T06 production-assembly fault, accepted only by the test-mode main process. */
   transferFault?: 'target-create-once' | 'hold-source-release'
   userDataDir?: string
@@ -94,6 +96,7 @@ export const launchElectron = async(
   env.PERF_TESTING = 'true'
   if (options.suppressErrorDialog) env.MARKTEXT_ERROR_INTERACTION = '1'
   if (options.transferFault) env.MARKTEXT_T06_TRANSFER_FAULT = options.transferFault
+  Object.assign(env, options.env)
   const app = await _electron.launch({
     executablePath,
     args,
