@@ -17,6 +17,8 @@ import {
     isKeyboardEvent,
     isMouseEvent,
 } from '../../utils';
+import { isFoldableHeading } from '../commonMark/atxHeading/foldSection';
+import { revealBlock } from '../folding';
 
 // import logger from './utils/logger'
 
@@ -463,6 +465,11 @@ class Content extends TreeNode {
     // Do nothing.
     }
 
+    /** Return true to consume a block shortcut before the default key routing. */
+    beforeKeydown(_event: KeyboardEvent): boolean {
+        return false;
+    }
+
     enterHandler(_event: Event): void {
     // Do nothing.
     }
@@ -475,19 +482,33 @@ class Content extends TreeNode {
             event.preventDefault();
     }
 
+    private _revealArrowSelectionTarget(event: KeyboardEvent, start: number, end: number): void {
+        const rtl = this.domNode?.closest('[dir]')?.getAttribute('dir') === 'rtl';
+        const backwards = event.key === EVENT_KEYS.ArrowUp || event.key === (rtl ? EVENT_KEYS.ArrowRight : EVENT_KEYS.ArrowLeft);
+        if (backwards ? start !== 0 : end !== this.text.length)
+            return;
+        const target = backwards ? this.previousContentInContext() : this.nextContentInContext();
+        if (target)
+            revealBlock(target);
+    }
+
     arrowHandler(event: Event) {
         if (!isKeyboardEvent(event))
             return;
 
-        const previousContentBlock = this.previousContentInContext();
-        const nextContentBlock = this.nextContentInContext();
+        // Arrow keys step over the contents of folded sections.
+        const previousContentBlock = this.previousContentInContext(true);
+        const nextContentBlock = this.nextContentInContext(true);
         const { start, end } = this.getCursor()!;
         const { topOffset, bottomOffset } = Selection.getCursorYOffset(
             this.domNode!,
         );
 
-        // Just do nothing if the cursor is not collapsed or `shiftKey` pressed
-        if (start.offset !== end.offset || event.shiftKey)
+        if (event.shiftKey) {
+            this._revealArrowSelectionTarget(event, start.offset, end.offset);
+            return;
+        }
+        if (start.offset !== end.offset)
             return;
 
         if (
@@ -539,8 +560,9 @@ class Content extends TreeNode {
             }
             // Only append a trailing paragraph when the last block has content.
             // Otherwise ArrowDown in an already-empty last paragraph would keep
-            // creating empty paragraphs on every keypress (#3520).
-            else if (this.text.length > 0) {
+            // creating empty paragraphs on every keypress (#3520). A folded
+            // heading's hidden section is not the end of the document.
+            else if (this.text.length > 0 && !(isFoldableHeading(this.parent) && this.parent.folded)) {
                 const newNodeState = {
                     name: 'paragraph',
                     text: '',
@@ -844,6 +866,9 @@ class Content extends TreeNode {
 
     keydownHandler = (event: Event) => {
         if (!isKeyboardEvent(event))
+            return;
+
+        if (this.beforeKeydown(event))
             return;
 
         if (this.muya.ui.handleContentKeydown(event))
