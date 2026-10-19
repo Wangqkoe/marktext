@@ -3,8 +3,15 @@
 import type Content from '../../../base/content';
 import type Parent from '../../../base/parent';
 import type LangInputContent from '../index';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Muya } from '../../../../muya';
+
+// These specs only check block conversion and caret placement. Loading the
+// real renderer pulls in mermaid / vega, which takes seconds and times out
+// under a full parallel run, so the preview is left pending instead.
+vi.mock('../../../../utils/diagram', () => ({
+    default: () => new Promise(() => {}),
+}));
 
 // #5060: leaving a code block's language input commits the language. A diagram
 // language turns the block into a diagram block — what loading its ```lang
