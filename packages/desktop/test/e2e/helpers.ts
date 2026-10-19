@@ -64,6 +64,9 @@ export interface LaunchOptions {
   suppressErrorDialog?: boolean
   // Variables that override the inherited environment of the app process.
   env?: Record<string, string>
+  // Preferences seeded into the user data directory before launch.
+  // Preference.init() fills in every key that is left out.
+  preferences?: Record<string, unknown>
   /** T06 production-assembly fault, accepted only by the test-mode main process. */
   transferFault?: 'target-create-once' | 'hold-source-release'
   userDataDir?: string
@@ -90,6 +93,14 @@ export const launchElectron = async(
   // Passing out/main/index.js directly bypasses package.json and breaks __static path resolution.
   const userDataDir = options.userDataDir ?? getTempPath()
   if ((options.userDataDirOwnership ?? 'launcher') === 'launcher') trackTempDir(userDataDir)
+  if (options.preferences) {
+    fs.mkdirSync(userDataDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(userDataDir, 'preferences.json'),
+      JSON.stringify(options.preferences, null, 2),
+      'utf-8'
+    )
+  }
   const args = [projectRoot, '--user-data-dir', userDataDir].concat(userArgs)
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
