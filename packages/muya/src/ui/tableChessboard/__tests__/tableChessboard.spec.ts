@@ -3,6 +3,10 @@ import type { Muya } from '../../../muya';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TableChessboard from '..';
 import EventCenter from '../../../event';
+// Loading the whole package entrypoint takes several seconds on a cold
+// transform cache; a top-level import pays that during collection instead of
+// inside a test's 5s timeout.
+import * as pkg from '../../../index';
 
 // The `TableChessboard` (table grid dimension picker) is a real, working
 // muyajs feature whose trigger was dropped in the @muyajs/core TS rewrite and
@@ -66,8 +70,7 @@ async function nextTick() {
 }
 
 describe('tableChessboard — plugin shape (restored, revert #4435)', () => {
-    it('is exported from the package entrypoint', async () => {
-        const pkg = await import('../../../index');
+    it('is exported from the package entrypoint', () => {
         expect('TableChessboard' in pkg).toBe(true);
         expect(pkg.TableChessboard).toBe(TableChessboard);
     });
