@@ -212,6 +212,74 @@ describe('useEditorStore cross-file anchor links (#5292)', () => {
     expect(emitSpy).toHaveBeenLastCalledWith('scroll-to-header', 'uid-9')
     expect(store.currentFile).not.toHaveProperty('anchor')
   })
+
+  // In workspace mode the controller publishes the target's TOC before an
+  // applied command resolves; the fake mirrors that ordering.
+  const attachWorkspace = (
+    store: ReturnType<typeof useEditorStore>,
+    status: 'applied' | 'rejected'
+  ) => {
+    const execute = vi.fn(async() => {
+      if (status === 'rejected') return { status, reason: 'test' }
+      store.listToc = targetToc
+      return { status, workspaceRevision: 1 }
+    })
+    store.ATTACH_WORKSPACE_COMPOSITION({
+      execute,
+      getController: () => ({
+        getFacadeSnapshot: () => ({
+          projection: {
+            panes: [{ tabs: [{ fileKey: '/docs/other.md', documentId: 'doc-2' }] }]
+          }
+        })
+      })
+    } as unknown as Parameters<typeof store.ATTACH_WORKSPACE_COMPOSITION>[0])
+    return execute
+  }
+
+  it('scrolls to the anchor after the workspace activates an already-open document', async() => {
+    const store = useEditorStore()
+    const execute = attachWorkspace(store, 'applied')
+    const emitSpy = vi.spyOn(bus, 'emit')
+
+    store.SWITCH_TAB_BY_FILEPATH('/docs/other.md', { anchor: 'english-section' })
+    await vi.waitFor(() => expect(emitSpy).toHaveBeenCalledWith('scroll-to-header', 'uid-9'))
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'open-existing-document', documentId: 'doc-2' })
+    )
+  })
+
+  it('does not scroll when the workspace rejects the activation', async() => {
+    const store = useEditorStore()
+    const execute = attachWorkspace(store, 'rejected')
+    const emitSpy = vi.spyOn(bus, 'emit')
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    store.SWITCH_TAB_BY_FILEPATH('/docs/other.md', { anchor: 'english-section' })
+    await vi.waitFor(() => expect(execute).toHaveBeenCalled())
+    await Promise.resolve()
+
+    expect(emitSpy).not.toHaveBeenCalledWith('scroll-to-header', expect.anything())
+  })
+
+  it('scrolls to the anchor after the workspace opens a new document', async() => {
+    const store = useEditorStore()
+    attachWorkspace(store, 'applied')
+    const emitSpy = vi.spyOn(bus, 'emit')
+
+    store.NEW_TAB_WITH_CONTENT({
+      markdownDocument: {
+        markdown: '# Other',
+        filename: 'other.md',
+        pathname: '/docs/other.md'
+      } as unknown as Parameters<typeof store.NEW_TAB_WITH_CONTENT>[0]['markdownDocument'],
+      options: { anchor: 'english-section' },
+      selected: true
+    })
+
+    await vi.waitFor(() => expect(emitSpy).toHaveBeenCalledWith('scroll-to-header', 'uid-9'))
+  })
 })
 
 describe('useEditorStore copyGithubSlug', () => {

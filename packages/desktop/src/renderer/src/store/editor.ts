@@ -1578,7 +1578,11 @@ export const useEditorStore = defineStore('editor', {
         workspace.execute({ kind: 'open-existing-document', documentId: tab.documentId, fileKey: filePath }).then((result) => {
           if (result.status !== 'applied') {
             console.error('Failed to activate workspace tab:', 'reason' in result ? result.reason : result)
+            return
           }
+          // An applied command has already published the activated document's
+          // TOC, so the anchor resolves against the target, not the source.
+          if (options.anchor) this.SCROLL_TO_ANCHOR(options.anchor)
         }).catch((error) => {
           console.error('Failed to activate workspace tab:', error)
         })
@@ -1693,6 +1697,7 @@ export const useEditorStore = defineStore('editor', {
           replacePristineBlank: true
         }).then((result) => {
           if (result.status !== 'applied') throw new Error('reason' in result ? result.reason : 'workspace open was rejected')
+          if (selected && options.anchor) this.SCROLL_TO_ANCHOR(options.anchor)
         }).catch((error) => {
           console.error('Failed to open workspace document:', error)
           notice.notify({
