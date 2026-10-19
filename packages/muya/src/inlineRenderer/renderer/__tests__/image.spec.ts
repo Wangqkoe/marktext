@@ -208,7 +208,7 @@ describe('image renderer — uses the cache-busted url for local files', () => {
         );
 
         expect(renderer.loadImageAsync).toHaveBeenCalledWith(
-            { src: 'file://C:/documents/second/assets/image.png', isUnknownType: false },
+            { src: 'file:///C:/documents/second/assets/image.png', isUnknownType: false },
             token.attrs,
         );
     });
