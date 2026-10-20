@@ -197,8 +197,9 @@
 - 证据：在真实应用里加日志，看到主进程返回 `read`，渲染进程报 `binding changed during read`。新增 2 条单测（同一 binding 被 sync 后 read 仍有效 / 换了 fence 后 read 被拒绝），撤掉修复时第 1 条失败。修复后 `external-reload-undo` 7 条全部通过；`audit-document-integrity:146` 越过冲突那一步，接着卡在旧的 `file://C:/` 期望，已改成 `file:///C:/`。desktop 单测 1139 条通过、6 条跳过，`typecheck` 通过。`audit-document-integrity:247` 带修复跑 13 次失败 1 次（失败信息没抓到），不带修复跑 4 次全部通过，最近 12 次连续通过。
 - 补上 `c9b0a7ab`（#3652）在工作区分支的行为（2026-10-19 决定采用）：干净文档被外部修改时直接静默重载，不再看是否开着自动保存；有未保存修改时仍然先询问。`c9b0a7ab` 当初只改了旧标签页分支，而应用里实际走的是工作区分支。
   - 测试：`HANDLE_WORKSPACE_DISK_CHANGE` 新增 2 条单测（关着自动保存时干净文档静默重载 / 有修改时先询问），撤掉修复时第 1 条失败。本地 `external-reload-undo:70` 原来断言"先询问"，改为静默重载。`issue-1861` 当初合并冲突时保留了本地版本，它的正向对照还断言"弹警告"，按上游 `445912a4` 改为断言新内容进入编辑器。desktop 单测 1141 条通过、6 条跳过，`typecheck` 通过。
-  - e2e：`external-reload-undo` 7 条、`issue-1861`、`issue-3652:25`、`audit-document-integrity` 4 条通过。`external-reload-undo:108`（确认冲突后重载再保存）改动后跑 10 次失败 1 次：重载后输入的 `SAVED` 没写进文件，像是输入早于重载完成。
-- 仍然失败：`issue-3652:40` 和 `issue-5394` 3 条（含 reload-no-auto-save，现在已越过重载那一步）都在 `app.close()` 时超时，很可能是文档还没保存，被保存确认框挡住了（未验证），属于"关闭应用超时"那一类。
+  - e2e：`external-reload-undo` 7 条、`issue-1861`、`issue-3652:25`、`audit-document-integrity` 4 条通过。`external-reload-undo:108`（确认冲突后重载再保存）改动后跑 10 次失败 1 次：重载后输入的 `SAVED` 没写进文件。
+  - 排查：在主进程记录 DocumentIO 请求，编辑器显示重载内容后约 3ms 主进程就接受了这次读取，保存请求则要晚几百毫秒，所以"保存早于接受读取"的猜测不成立。更可能是重载后输入丢了，文档没变脏，保存时也就没有新内容。用例前半段输入后会等"变脏"，后半段没有，已补上同样的等待。调试版连跑 12 次、补上等待后连跑 10 次都没复现；原来的失败率就很低，这只能说明改动无害，不能证明问题已经根除。
+- 关闭应用超时：`issue-3652`、`issue-5394`、`issue-5344`、`source-mode-flush` 结束时文档还没保存，直接 `app.close()` 会弹出原生的"是否保存"对话框，无头测试没法回答，于是一直卡到 30 秒超时。把 `issue-3652:40` 换成 `closeDiscardingChanges` 后就通过了，由此确认了原因；4 个 spec 都已改用它，共 7 条全部通过（`issue-5394` 3 条的主体断言也都通过）。
 
 ### 待处理清单
 
