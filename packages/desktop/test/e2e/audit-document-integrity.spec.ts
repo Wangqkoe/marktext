@@ -175,8 +175,11 @@ test.describe('Ticket 02 W3 — F3 path, CRLF, image, auto-save and external cha
         })
         .toBeGreaterThanOrEqual(1)
       const imageSource = (await image.getAttribute('src'))?.split('?')[0] ?? ''
+      // Drive paths gain the third slash (`file:///C:/`); the engine leaves
+      // spaces and CJK unencoded, so pathToFileURL would not match.
+      const rootUrlPath = run.fixtures.F3.rootDir.replace(/\\/g, '/')
       expect(imageSource).toBe(
-        `file://${run.fixtures.F3.rootDir.replace(/\\/g, '/')}/assets/audit-image.png`
+        `file://${rootUrlPath.startsWith('/') ? '' : '/'}${rootUrlPath}/assets/audit-image.png`
       )
 
       await sendIpcToRenderer(app, 'mt::user-preference', {
