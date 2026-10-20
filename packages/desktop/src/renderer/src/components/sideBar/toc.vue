@@ -175,9 +175,14 @@ const handleClick = (data: { slug?: unknown }): void => {
 }
 
 /* Element Plus paints `.is-current` from a selector carrying
-   `.el-tree--highlight-current`, so overriding it needs that class too. */
+   `.el-tree--highlight-current`, so overriding it needs that class too. The
+   label is an `.el-text`, which sets its own color instead of inheriting. */
 .side-bar-toc .el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content {
   background-color: var(--sideBarItemHoverBgColor);
+  color: var(--themeColor);
+}
+
+.side-bar-toc .el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content .el-tree-node__label {
   color: var(--themeColor);
 }
 

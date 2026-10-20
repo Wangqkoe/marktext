@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { launchWithMarkdown, clickMenuById, waitForEditor } from './helpers'
+import { launchWithMarkdown, clickMenuById, closeDiscardingChanges, waitForEditor } from './helpers'
 
 // Nested headings, and enough height that the caret has to travel.
 const DOC = [
@@ -96,7 +96,8 @@ test.describe('TOC active heading highlight', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    // The last test leaves the document dirty.
+    if (app) await closeDiscardingChanges(app)
   })
 
   test('clicking a heading in the editor highlights the corresponding TOC entry', async() => {
