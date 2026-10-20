@@ -124,6 +124,7 @@ test.describe('External disk changes', () => {
     // The reloaded version is now the observed one, so saving is allowed again.
     await placeCaretInEditor(page)
     await page.keyboard.type(' SAVED', { delay: 0 })
+    await expect.poll(() => isUnsaved(page)).toBe(true)
     await sendIpcToRenderer(app, 'mt::editor-ask-file-save')
     await expect.poll(() => fs.readFileSync(filePath, 'utf-8'), { timeout: 5000 }).toContain('SAVED')
     await closeApp(app)
