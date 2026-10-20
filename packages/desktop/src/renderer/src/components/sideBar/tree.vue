@@ -584,8 +584,9 @@ const handleDocumentKeydown = (event: KeyboardEvent): void => {
     // Stop the event so the WYSIWYG engine does not also act on this Delete.
     event.stopPropagation()
     // The store drops the selection once the item is really trashed, so a
-    // cancelled dialog leaves the target in place for a retry.
-    bus.emit('SIDEBAR::remove')
+    // cancelled dialog leaves the target in place for a retry. Auto-repeat
+    // from a held key must not queue more confirmations.
+    if (!event.repeat) bus.emit('SIDEBAR::remove')
     return
   }
 

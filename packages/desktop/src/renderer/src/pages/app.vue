@@ -260,6 +260,8 @@ const setupDragDropHandler = (): void => {
     false
   )
 }
+let stopSidebarContextMenu: (() => void) | undefined
+
 onMounted(async () => {
   document.addEventListener('keydown', cycleShellFocus)
   if (window.marktext?.initialState) {
@@ -275,7 +277,7 @@ onMounted(async () => {
   listenForMainStore.LISTEN_FOR_PARAGRAPH_INLINE_STYLE()
   projectStore.LISTEN_FOR_UPDATE_PROJECT()
   projectStore.LISTEN_FOR_LOAD_PROJECT()
-  projectStore.LISTEN_FOR_SIDEBAR_CONTEXT_MENU()
+  stopSidebarContextMenu = projectStore.LISTEN_FOR_SIDEBAR_CONTEXT_MENU()
   autoUpdateStore.LISTEN_FOR_UPDATE()
   preferencesStore.ASK_FOR_USER_PREFERENCE()
   preferencesStore.LISTEN_TOGGLE_VIEW()
@@ -323,6 +325,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  stopSidebarContextMenu?.()
   document.removeEventListener('keydown', cycleShellFocus)
 })
 </script>
