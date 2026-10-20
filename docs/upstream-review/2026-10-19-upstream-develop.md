@@ -229,6 +229,14 @@
 - 证据：修复后按 80 次下方向键滚到 2119；打字机模式下连按下方向键，光标稳定在 320px。新增 e2e `typewriter-caret.spec.ts`。`scroll-up-arrow`、`tab-switch-cursor`、大纲和锚点跳转相关 spec 都通过，`list-indent` 2 条也通过；desktop 单测 1144 条通过、6 条跳过，`typecheck` 通过。
 - 全量 e2e：429 条通过，7 条失败。除 `issue-5292` 的 3 条外，`highlight-color-preference`、`issue-5394`、`last-tab-window-close`、`split-workspace:147` 单独重跑都通过（后 3 个又各重复 3 次，共 30 条全部通过）。`split-workspace` 失败时编辑器里出现了拼音输入法的组合文字 `ang'qi`，`issue-5394` 的图片宽度变成 839，都像是运行期间机器上的真实键盘或鼠标干扰。
 
+### 后续处理：挑入 `33777a7a`（D 组，#5153）
+
+2026-10-20 决定挑入，让跳到标题时标题停在编辑区顶部，与上游一致。
+
+- `22dd00cb`：`cherry-pick -x 33777a7a`，干净应用。点大纲、点 `#标题` 链接、跨文档跳到标题时，标题停在编辑区可见范围顶端往下 24px（`TOC_HEADING_TOP_GAP`），位置相对滚动容器计算，不受标签栏显示与否影响。以前是离窗口顶部约 320px（`STANDAR_Y`）。搜索高亮、非标题锚点仍沿用原来的 `scrollElementIntoView`。
+- `3855ee44`：上游在这里直接调用 `animatedScrollTo`，本地改成 `programmaticScrollTo`。本地的程序滚动都走这个包装：动画结束前不上报滚动位置，用户操作可以打断滚动。
+- 证据：`issue-5292-anchor-links` 3 条通过（之前一直卡在这一步）；`toc-scroll`、`anchor-link-scroll`、`source-toc-scroll`、`copy-anchor-link`、`tab-switch-cursor`、`scroll-up-arrow`、`typewriter-caret`、`split-workspace` 都通过，共 34 条。desktop 单测 1146 条通过、6 条跳过（含上游新增的 `toc-navigation` 单测），`typecheck` 通过。
+
 ### 待处理清单
 
 | 上游提交                                                                                    | 原因                                                                                                                                                                                                                                                              | 计划                                  |
