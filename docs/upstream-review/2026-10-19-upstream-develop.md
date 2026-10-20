@@ -195,7 +195,10 @@
 - 原因：有未保存修改的文档收到 `conflict` 通知后，渲染进程会登记一条磁盘冲突警告。这次提交触发 `syncDocumentIo` → `RendererDocumentIoAdapter.sync()`，而 `sync()` 会在同一个 ownerFence 下换一个新的 binding 对象。同时进行中的 `read()` 用对象是否相同来判断"binding 是否变了"，于是返回 `binding changed during read`，`HANDLE_WORKSPACE_DISK_CHANGE` 直接 return：既不提示也不重载。用户继续编辑、保存时会被主进程拒绝，但始终看不到原因。
 - 修复：`read()` 只在 ownerFence 已失效或换了文档时拒绝。是否过期仍由主进程在接受 read 时校验 readToken。
 - 证据：在真实应用里加日志，看到主进程返回 `read`，渲染进程报 `binding changed during read`。新增 2 条单测（同一 binding 被 sync 后 read 仍有效 / 换了 fence 后 read 被拒绝），撤掉修复时第 1 条失败。修复后 `external-reload-undo` 7 条全部通过；`audit-document-integrity:146` 越过冲突那一步，接着卡在旧的 `file://C:/` 期望，已改成 `file:///C:/`。desktop 单测 1139 条通过、6 条跳过，`typecheck` 通过。`audit-document-integrity:247` 带修复跑 13 次失败 1 次（失败信息没抓到），不带修复跑 4 次全部通过，最近 12 次连续通过。
-- 仍然失败：`issue-3652-auto-reload:25` 和 `issue-5394:reload-no-auto-save` 要求干净文档在关闭自动保存时也静默重载（`c9b0a7ab` 的行为），但工作区分支仍然要求开着自动保存，而本地的 `external-reload-undo:70` 断言的是"先询问"，需要决定采用哪种行为。`issue-3652:40` 和 `issue-5394` 另外两条在 `app.close()` 时超时，很可能是文档还没保存，被保存确认框挡住了（未验证）。
+- 补上 `c9b0a7ab`（#3652）在工作区分支的行为（2026-10-19 决定采用）：干净文档被外部修改时直接静默重载，不再看是否开着自动保存；有未保存修改时仍然先询问。`c9b0a7ab` 当初只改了旧标签页分支，而应用里实际走的是工作区分支。
+  - 测试：`HANDLE_WORKSPACE_DISK_CHANGE` 新增 2 条单测（关着自动保存时干净文档静默重载 / 有修改时先询问），撤掉修复时第 1 条失败。本地 `external-reload-undo:70` 原来断言"先询问"，改为静默重载。`issue-1861` 当初合并冲突时保留了本地版本，它的正向对照还断言"弹警告"，按上游 `445912a4` 改为断言新内容进入编辑器。desktop 单测 1141 条通过、6 条跳过，`typecheck` 通过。
+  - e2e：`external-reload-undo` 7 条、`issue-1861`、`issue-3652:25`、`audit-document-integrity` 4 条通过。`external-reload-undo:108`（确认冲突后重载再保存）改动后跑 10 次失败 1 次：重载后输入的 `SAVED` 没写进文件，像是输入早于重载完成。
+- 仍然失败：`issue-3652:40` 和 `issue-5394` 3 条（含 reload-no-auto-save，现在已越过重载那一步）都在 `app.close()` 时超时，很可能是文档还没保存，被保存确认框挡住了（未验证），属于"关闭应用超时"那一类。
 
 ### 待处理清单
 
