@@ -44,7 +44,7 @@ import {
 import { matchesFolderRootIdentity } from '@/contextMenu/tabs/folderTarget'
 import type { TransferAck, TransferCommand, TransferRecoveryPayload, TransferRecoveryMessage } from 'main_renderer/tabTransfer'
 import type { CrashDraftRecoveryPayload, PortableHistory } from '@shared/workspace'
-import { useEditorStore, workspaceDocumentInputFromFileState } from '@/store/editor'
+import { useEditorStore, workspaceSeedFromLegacyTabs } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { usePreferencesStore } from '@/store/preferences'
 import { useProjectStore } from '@/store/project'
@@ -57,13 +57,13 @@ const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
 const preferencesStore = usePreferencesStore()
 const projectStore = useProjectStore()
-const seed = editorStore.currentFile
+const seed = workspaceSeedFromLegacyTabs(editorStore.tabs, editorStore.currentFile)
 // The window menu is built from the saved Source mode preference, so the first
 // view must open in that mode; otherwise syncLegacySourceMode would reset the
 // preference to the view's default WYSIWYG mode and leave the menu checked.
 const initialView = { mode: preferencesStore.sourceCode ? 'source' as const : 'wysiwyg' as const }
-const controller = createWorkspaceRuntime(seed
-  ? [{ ...workspaceDocumentInputFromFileState(seed), view: initialView }]
+const controller = createWorkspaceRuntime(seed.length
+  ? seed.map(input => ({ ...input, view: initialView }))
   : [{ markdown: props.markdown, title: 'New Tab', view: initialView }])
 const left = createPaneEditorComposition({ paneId: 'left', controller })
 const right = createPaneEditorComposition({ paneId: 'right', controller })

@@ -118,6 +118,22 @@ export const workspaceDocumentInputFromFileState = (file: IFileState) => ({
   )
 })
 
+/**
+ * Every legacy tab opened before the workspace mounted, as controller seed
+ * input. Main can deliver several startup files before the composition
+ * attaches; seeding only the current one silently dropped the rest. The
+ * controller activates the last input, so the current file goes last.
+ */
+export const workspaceSeedFromLegacyTabs = (
+  tabs: readonly IFileState[],
+  currentFile: IFileState | null
+) => {
+  if (!currentFile) return []
+  return [...tabs.filter((tab) => tab.id !== currentFile.id), currentFile].map(
+    workspaceDocumentInputFromFileState
+  )
+}
+
 interface PushTabNotificationPayload {
   tabId: string
   msg: string
