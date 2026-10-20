@@ -330,6 +330,10 @@ let cancelProgrammaticScroll: (() => void) | undefined
 let programmaticScrollGeneration = 0
 let programmaticScrollActive = false
 let completedProgrammaticScrollTop: number | undefined
+// Open while a document delivery restores its caret and scroll position: the
+// restored caret's selection-change must not pull the view to it before the
+// saved scrollTop lands (`scrollToCords` applies it on the next frame).
+let caretFollowSuspensions = 0
 let paneScope: PaneEditorEventScope | undefined
 let paneSurface: PaneEditorSurface | undefined
 let rebindPaneGeneration: ((scope: PaneEditorEventScope | undefined) => void) | undefined
@@ -1737,6 +1741,10 @@ interface FileChangePayload {
 // listen for markdown change form source mode or change tabs etc
 const handleFileChange = (payload: unknown) => {
   if (!(payload as FileChangePayload)?.workspaceRefresh) return
+  caretFollowSuspensions += 1
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    caretFollowSuspensions -= 1
+  }))
   const {
     id,
     markdown: newMarkdown,
@@ -2244,7 +2252,9 @@ onMounted(() => {
   container.addEventListener('wheel', handleNativeScrollIntent, { passive: true })
   container.addEventListener('touchstart', handleNativeScrollIntent, { passive: true })
   container.addEventListener('pointerdown', handleNativeScrollIntent, { passive: true })
-  container.addEventListener('keydown', handleNativeScrollIntent)
+  // Capture phase: Muya moves the caret in its own keydown handler and the
+  // caret-follow scroll starts there; a later listener would cancel it.
+  container.addEventListener('keydown', handleNativeScrollIntent, { capture: true })
 
   // Listen for language changes and update the engine locale.
   onFocused('language-changed', handleLanguageChanged)
@@ -2293,6 +2303,31 @@ onMounted(() => {
   onFocused('switch-spellchecker-language', switchSpellcheckLanguage)
   onFocused('open-command-spellchecker-switch-language', openSpellcheckerLanguageCommand)
   onFocused('replace-misspelling', replaceMisspelling)
+
+  // Keeps the caret in view as it moves: typewriter mode pins it at
+  // STANDAR_Y, otherwise the view follows once it is within 100px of the
+  // bottom (#628) or top (#3329) edge. `y` is the caret's viewport offset.
+  const followCaret = (y: number | null) => {
+    if (y == null || caretFollowSuspensions > 0) return
+    if (typewriter.value) {
+      const startPosition = container.scrollTop
+      const toPosition = startPosition + y - STANDAR_Y
+      // Prevent micro shakes and unnecessary scrolling.
+      if (Math.abs(startPosition - toPosition) > 2) {
+        programmaticScrollTo(container, toPosition, 100)
+      }
+      // A later programmatic scroll cancels this one, and a pinned caret
+      // never nears either edge.
+      return
+    }
+    if (container.clientHeight - y < 100) {
+      // The lowest caret offset the editor allows before it scrolls.
+      const editableHeight = container.clientHeight - 100
+      programmaticScrollTo(container, container.scrollTop + (y - editableHeight), 0)
+    } else if (y < 100) {
+      programmaticScrollTo(container, container.scrollTop + (y - 100), 0)
+    }
+  }
 
   const installGenerationCallbacks = (scope: PaneEditorEventScope | undefined) => {
     if (!editor.value) return
@@ -2361,6 +2396,7 @@ onMounted(() => {
           .status !== 'applied'
       ) { return }
       editorStore.PERSIST_CURSOR(scope.documentId, cursor)
+      followCaret((changes.cursorCoords?.y ?? null) as number | null)
       selectionChange.value = changes
       if (!sourceCode.value) caretReporter.request(props.caretSession)
       pushSelectionMenuState(changes)
@@ -2502,7 +2538,7 @@ onBeforeUnmount(() => {
   container?.removeEventListener('wheel', handleNativeScrollIntent)
   container?.removeEventListener('touchstart', handleNativeScrollIntent)
   container?.removeEventListener('pointerdown', handleNativeScrollIntent)
-  container?.removeEventListener('keydown', handleNativeScrollIntent)
+  container?.removeEventListener('keydown', handleNativeScrollIntent, { capture: true })
   scrollHandler = null
   scrollReportGate?.flush()
   const finalScrollTop = scrollReportGate?.dispose()
