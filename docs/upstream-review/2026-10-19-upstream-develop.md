@@ -236,6 +236,11 @@
 - `22dd00cb`：`cherry-pick -x 33777a7a`，干净应用。点大纲、点 `#标题` 链接、跨文档跳到标题时，标题停在编辑区可见范围顶端往下 24px（`TOC_HEADING_TOP_GAP`），位置相对滚动容器计算，不受标签栏显示与否影响。以前是离窗口顶部约 320px（`STANDAR_Y`）。搜索高亮、非标题锚点仍沿用原来的 `scrollElementIntoView`。
 - `3855ee44`：上游在这里直接调用 `animatedScrollTo`，本地改成 `programmaticScrollTo`。本地的程序滚动都走这个包装：动画结束前不上报滚动位置，用户操作可以打断滚动。
 - 证据：`issue-5292-anchor-links` 3 条通过（之前一直卡在这一步）；`toc-scroll`、`anchor-link-scroll`、`source-toc-scroll`、`copy-anchor-link`、`tab-switch-cursor`、`scroll-up-arrow`、`typewriter-caret`、`split-workspace` 都通过，共 34 条。desktop 单测 1146 条通过、6 条跳过（含上游新增的 `toc-navigation` 单测），`typecheck` 通过。
+- 全量 e2e（`d830b140`）：435 条通过，1 条失败，11 条跳过（26.9 分钟）。失败的是 `audit-document-integrity:303`，测试超时，之后 worker 收尾也超时。单独连跑 5 次全部通过。接着整份 spec 连跑时，又先后有 `:61`、`:146`、`:247` 各失败一次，这几次运行每次约 2 分钟，正常约 30 秒。重新构建后在本提交上连跑 6 次、在挑入前的 `a81970c5` 上连跑 4 次，全部通过。失败都集中在自动保存和外部修改检测，本次挑入没有改这部分，按运行期间机器负载或干扰造成的偶发失败处理，没有进一步查明原因。
+
+### 主线分支
+
+2026-10-20 决定用 `main` 作为本地长期主线：从 `codex/upstream-updates` 的位置创建，快进到本分支。以后每批工作从 `main` 切分支，验证后合回 `main`；`develop` 继续保持为上游镜像。上游的发布分支叫 `master`，不会和 `main` 混淆。
 
 ### 待处理清单
 
