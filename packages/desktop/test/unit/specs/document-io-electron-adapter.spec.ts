@@ -345,6 +345,69 @@ describe('DocumentIO Electron adapter', () => {
     expect(calls.at(-1)).toMatchObject({ kind: 'unbind', ownerFence: 'late-unbound-fence' })
   })
 
+  describe('a read in flight', () => {
+    const setup = async() => {
+      let resolveRead!: () => void
+      let fence = 'fence-1'
+      const port: DocumentIoPort = {
+        request: (request) => {
+          if (request.kind === 'bind') {
+            return Promise.resolve({ status: 'bound', requestId: request.requestId, documentId: request.documentId, ownerFence: fence })
+          }
+          return Promise.resolve({ status: 'bound', requestId: request.requestId, documentId: request.documentId, ownerFence: (request as { ownerFence: string }).ownerFence })
+        },
+        read: (request) => new Promise((resolve) => {
+          resolveRead = () => resolve({
+            status: 'read',
+            requestId: request.requestId,
+            documentId: request.documentId,
+            ownerFence: request.ownerFence,
+            readToken: 'token',
+            document: { markdown: 'external\n', ...options, trimTrailingNewline: 2 }
+          } as unknown as Awaited<ReturnType<NonNullable<DocumentIoPort['read']>>>)
+        }),
+        subscribe: () => () => {}
+      }
+      const adapter = new RendererDocumentIoAdapter(port, () => {})
+      const bind = (requestId: string) => adapter.bind({
+        kind: 'bind',
+        requestId,
+        documentId: 'document',
+        documentRevision: 1,
+        pathname: 'C:/workspace/document.md',
+        dirty: true
+      })
+      await bind('bind-1')
+      const pending = adapter.read('document', { preferredEol: 'lf', autoGuessEncoding: false, trimTrailingNewline: 2, autoNormalizeLineEndings: false })
+      return {
+        adapter,
+        pending,
+        bind,
+        resolveRead: () => resolveRead(),
+        useFence: (next: string) => { fence = next }
+      }
+    }
+
+    // A dirty document's disk conflict commits a warning, which syncs the
+    // binding while the conflict's own read is still pending.
+    it('survives a sync of the same binding', async() => {
+      const { adapter, pending, resolveRead } = await setup()
+      await adapter.sync({ kind: 'sync', requestId: 'sync-2', documentId: 'document', documentRevision: 2, ownerFence: 'fence-1', dirty: true })
+      resolveRead()
+
+      await expect(pending).resolves.toMatchObject({ status: 'read', readToken: 'token' })
+    })
+
+    it('is rejected once the document is rebound under a new fence', async() => {
+      const { pending, bind, resolveRead, useFence } = await setup()
+      useFence('fence-2')
+      await bind('bind-2')
+      resolveRead()
+
+      await expect(pending).resolves.toMatchObject({ status: 'rejected', reason: 'binding changed during read' })
+    })
+  })
+
   it('does not publish a bind when navigation interrupts deferred canonicalization', async() => {
     const storage = new MemoryFileObservationStorage()
     const canonicalize = storage.canonicalize.bind(storage)

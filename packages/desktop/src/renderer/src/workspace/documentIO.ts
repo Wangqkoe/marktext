@@ -190,7 +190,10 @@ export class RendererDocumentIoAdapter {
       return { status: 'rejected', requestId, documentId, reason: 'no current file binding' }
     }
     const result = await this.port.read({ kind: 'read', requestId, documentId, ownerFence: binding.ownerFence, options })
-    if (this.disposed || this.bindings.get(binding.ownerFence) !== binding) {
+    // `sync` replaces the binding object under the same fence to record a new
+    // revision or dirty flag (e.g. when a conflict warning is committed while
+    // this read is in flight); only a released or rebound fence makes it stale.
+    if (this.disposed || this.bindings.get(binding.ownerFence)?.documentId !== documentId) {
       return { status: 'rejected', requestId, documentId, reason: 'binding changed during read' }
     }
     return result
