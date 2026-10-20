@@ -463,7 +463,9 @@ test.describe('Find bar — Escape clears highlights and restores the cursor (it
     await openFind(app, page)
     await page.locator(FIND_INPUT).fill('needleAlpha')
     await expect.poll(() => counterText(page)).toContain('1 / 1')
-    await expect.poll(() => page.locator('.mu-highlight').count()).toBe(1)
+    // Opening Find prefills the whole selected paragraph, which is also a
+    // single "1 / 1" match; wait for the debounced query to replace it.
+    await expect.poll(() => page.locator('.mu-highlight').allInnerTexts()).toEqual(['needleAlpha'])
 
     await page.keyboard.press('Escape')
     await expect(page.locator(SEARCH_BAR)).toBeHidden({ timeout: 5000 })
