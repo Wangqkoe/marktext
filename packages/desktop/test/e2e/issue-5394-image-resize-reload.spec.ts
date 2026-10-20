@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import {
+  closeDiscardingChanges,
   launchElectron,
   waitForEditor,
   waitForMenuReady,
@@ -86,7 +87,7 @@ for (const scenario of ['reload-auto-save', 'reload-no-auto-save', 'undo'] as co
       await expect.poll(() => getMarkdownContent(page, app)).toContain('width="360"')
       await expectNoRendererErrors(app)
     } finally {
-      await app.close()
+      await closeDiscardingChanges(app)
       fs.rmSync(dir, { recursive: true, force: true })
     }
   })

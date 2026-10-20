@@ -5,6 +5,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import {
   clickMenuById,
+  closeDiscardingChanges,
   getMarkdownContent,
   launchWithMarkdown,
   placeCaretInEditor,
@@ -68,7 +69,7 @@ test.describe('Copy image to the relative assets folder', () => {
   })
 
   test.afterAll(async() => {
-    if (app) await app.close()
+    if (app) await closeDiscardingChanges(app)
     fs.rmSync(sourceDir, { recursive: true, force: true })
   })
 

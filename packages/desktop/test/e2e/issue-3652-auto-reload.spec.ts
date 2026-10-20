@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import fs from 'fs'
 import path from 'path'
-import { launchWithMarkdown, typeIntoEditor } from './helpers'
+import { closeDiscardingChanges, launchWithMarkdown, typeIntoEditor } from './helpers'
 
 // #3652 — MarkText open beside another editor. A tab the user never edited
 // discards nothing when it reloads, so it reloads silently; a tab holding
@@ -34,7 +34,7 @@ test.describe('Issue #3652 — reloading a file changed on disk', () => {
     expect(await isDirty(page)).toBe(false)
     expect(await reloadBannerText(page)).toBe('')
 
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 
   test('a tab with unsaved edits asks before discarding them', async() => {
@@ -52,6 +52,6 @@ test.describe('Issue #3652 — reloading a file changed on disk', () => {
 
     expect(await editorText(page)).toContain('edited here')
 
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 })

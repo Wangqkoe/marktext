@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
 import {
+  closeDiscardingChanges,
   launchWithMarkdown,
   waitForMenuReady,
   getMarkdownContent,
@@ -34,7 +35,7 @@ test.describe('source mode entry flushes same-frame edits', () => {
   })
 
   test.afterAll(async() => {
-    await app.close()
+    await closeDiscardingChanges(app)
   })
 
   test('a checkbox click immediately followed by source mode is not lost', async() => {
