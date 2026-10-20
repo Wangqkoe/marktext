@@ -188,6 +188,15 @@
 | 已修正的测试              | `image-relative-path` 3 条                                                                             | `1e5ccd7e` 把盘符路径改成标准的 `file:///C:/` 格式（单测已在 `209ba2b7` 同步），e2e 期望改用 `pathToFileURL` / `fileURLToPath`                                                                              |
 | 偶发，与挑入无关          | `workspace-transfer-target-window-close`                                                               | 单独连跑 8 次全部通过，去掉 `0a4dd316` 后也通过；两次失败都发生在紧跟着关闭超时的 `source-mode-flush` 之后                                                                                                  |
 
+### 后续处理：有未保存修改时，外部修改不提示
+
+上表"基线上同样失败"里的外部修改问题，查明是本地工作区代码的缺陷，挑入前就存在：
+
+- 原因：有未保存修改的文档收到 `conflict` 通知后，渲染进程会登记一条磁盘冲突警告。这次提交触发 `syncDocumentIo` → `RendererDocumentIoAdapter.sync()`，而 `sync()` 会在同一个 ownerFence 下换一个新的 binding 对象。同时进行中的 `read()` 用对象是否相同来判断"binding 是否变了"，于是返回 `binding changed during read`，`HANDLE_WORKSPACE_DISK_CHANGE` 直接 return：既不提示也不重载。用户继续编辑、保存时会被主进程拒绝，但始终看不到原因。
+- 修复：`read()` 只在 ownerFence 已失效或换了文档时拒绝。是否过期仍由主进程在接受 read 时校验 readToken。
+- 证据：在真实应用里加日志，看到主进程返回 `read`，渲染进程报 `binding changed during read`。新增 2 条单测（同一 binding 被 sync 后 read 仍有效 / 换了 fence 后 read 被拒绝），撤掉修复时第 1 条失败。修复后 `external-reload-undo` 7 条全部通过；`audit-document-integrity:146` 越过冲突那一步，接着卡在旧的 `file://C:/` 期望，已改成 `file:///C:/`。desktop 单测 1139 条通过、6 条跳过，`typecheck` 通过。`audit-document-integrity:247` 带修复跑 13 次失败 1 次（失败信息没抓到），不带修复跑 4 次全部通过，最近 12 次连续通过。
+- 仍然失败：`issue-3652-auto-reload:25` 和 `issue-5394:reload-no-auto-save` 要求干净文档在关闭自动保存时也静默重载（`c9b0a7ab` 的行为），但工作区分支仍然要求开着自动保存，而本地的 `external-reload-undo:70` 断言的是"先询问"，需要决定采用哪种行为。`issue-3652:40` 和 `issue-5394` 另外两条在 `app.close()` 时超时，很可能是文档还没保存，被保存确认框挡住了（未验证）。
+
 ### 待处理清单
 
 | 上游提交                                                                                    | 原因                                                                                                                                                                                                                                                              | 计划                                  |
