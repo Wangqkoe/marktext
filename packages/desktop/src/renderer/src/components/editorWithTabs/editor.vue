@@ -1424,7 +1424,7 @@ const scrollToHeader = (slug: unknown) => {
   if (!container) return
   const heading = resolveTocHeadingElement(container, editorStore.listToc, slug)
   if (!heading) return
-  animatedScrollTo(container, getTocHeadingScrollTop(container, heading), 300)
+  programmaticScrollTo(container, getTocHeadingScrollTop(container, heading), 300)
 }
 
 // Scrolls to a non-heading in-document anchor target (e.g. a custom
