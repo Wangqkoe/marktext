@@ -6,9 +6,7 @@ import { launchWithMarkdown, waitForMenuReady } from './helpers'
 // #1861 — rewriting the open file on disk with byte-identical content (e.g. a
 // git checkout that left it unchanged) fires a watcher 'change', but must NOT
 // mark the tab unsaved or show the "file changed on disk" banner. A genuinely
-// different on-disk content must still warn. Without autoSave the warning asks
-// before reloading; the tab stays clean because a save would be rejected as a
-// conflict until the change is reloaded.
+// different on-disk content must still reach the editor.
 //
 // This drives the REAL watcher: it writes the actual file and lets the
 // main-process chokidar watcher -> loadMarkdownFile -> renderer handler run,
@@ -25,7 +23,7 @@ const notificationText = (page: Page) =>
 const WATCH_SETTLE = 2500
 
 test.describe('Issue #1861 — content-identical file change', () => {
-  test('an identical on-disk rewrite stays clean; a real change warns', async() => {
+  test('an identical on-disk rewrite stays clean; a real change gets through', async() => {
     const { app, page, filePath } = await launchWithMarkdown('hello\nworld\n')
     await waitForMenuReady(app)
     await page.waitForTimeout(500)
@@ -37,11 +35,13 @@ test.describe('Issue #1861 — content-identical file change', () => {
     expect(await isDirty(page)).toBe(false)
     expect(await notificationText(page)).toBeNull()
 
-    // A genuine content change warns without replacing the editor content.
+    // Positive control: the guard must only swallow no-op changes, so a genuine
+    // one still reaches the editor. The tab has no local edits, so it reloads
+    // without asking (#3652).
     fs.writeFileSync(filePath, 'hello\nworld\nchanged\n', 'utf-8')
-    await expect.poll(() => notificationText(page), { timeout: 8000 }).toContain('changed on disk')
+    await expect(page.locator('.editor-component')).toContainText('changed', { timeout: 8000 })
     expect(await isDirty(page)).toBe(false)
-    await expect(page.locator('.editor-component')).not.toContainText('changed')
+    expect(await notificationText(page)).toBeNull()
 
     await app.close()
   })

@@ -67,19 +67,18 @@ test.describe('External disk changes', () => {
     await closeApp(app)
   })
 
-  test('a clean document without autoSave asks before reloading', async() => {
+  // #3652: reloading an unedited document discards nothing, so autoSave does
+  // not gate it.
+  test('a clean document without autoSave also reloads without asking', async() => {
     const { app, page, filePath } = await launchWithMarkdown('old content here\n')
     await waitForMenuReady(app)
     await setAutoSave(app, page, false)
     await settle(page)
 
     fs.writeFileSync(filePath, 'new content here\n', 'utf-8')
-    await expect.poll(() => notificationText(page), { timeout: 10000 }).toContain('changed on disk')
-    expect(await editorText(page)).toBe('old content here')
-
-    await confirmNotification(page)
-    await expect.poll(() => editorText(page)).toBe('new content here')
+    await expect.poll(() => editorText(page), { timeout: 10000 }).toBe('new content here')
     expect(await isUnsaved(page)).toBe(false)
+    expect(await notificationText(page)).toBeNull()
     await closeApp(app)
   })
 

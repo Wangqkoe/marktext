@@ -2195,7 +2195,9 @@ export const useEditorStore = defineStore('editor', {
           await composition.adoptDiskRead(read)
           return
         }
-        if (!document.dirty && preferencesStore.autoSave) {
+        // An unedited document loses nothing by reloading, so it reloads
+        // silently whatever the autoSave preference (#3652).
+        if (!document.dirty) {
           await reloadFrom(read)
           return
         }
