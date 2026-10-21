@@ -264,6 +264,8 @@
 
 2026-10-21 查明：上游也有。在上游 `develop`（`1c088ff0`）的 muya e2e 环境里重复 3 次，3 次都删段。原因在 muya `clipboard/index.ts` 的 `shouldCrossBlockCut`：选区跨段时，keydown 把除 Alt / Meta / Shift / CapsLock / 方向键以外的所有键都当成"输入替换选区"，先剪掉选中内容。实测（跨段选区，本地 muya）：End、Shift+End、Shift+Home、Shift+PageUp、F2、Insert、NumLock、ScrollLock、Pause、ContextMenu、Tab 都会删内容；Home、PageDown、Escape、Shift+← 没删（Home / PageDown / Escape 为什么没删还没查）。上游这段代码和本地相同，没有对应的修复。
 
+2026-10-21 本地已修：`shouldCrossBlockCut` 从排除法改成白名单，只有单个字符、Backspace、Delete、Enter 和输入法相关的 `Process` / `Dead` / `Unidentified` 会先删跨段选区；Ctrl / Meta 组合键照旧不删。Tab 不再删跨段选区。证据：新 muya e2e `cross-block-navigation-keys` 10 条在修复前 8 条失败、修复后全过；muya 单测 1930 条、`tsc --noEmit`、`check-circular` 通过；muya e2e `tests/editing` + `tests/typing` 181 条通过、1 条跳过；desktop e2e `status-selection-word-count`、`editor-input`、`caret-status` 17 条通过。未覆盖：输入法和死键没有真实按键测试，只有单测；没有报给上游。
+
 ### 待处理清单
 
 | 上游提交                                                                                    | 原因                                                                                                                                                                                                                                                              | 计划                                  |
