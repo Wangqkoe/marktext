@@ -251,12 +251,16 @@
 | `a28beb56` 源码模式每行编号 + 行号偏好 | 挑入为 `6e875685` | `sourceCode.vue` 冲突：保留本地的工作区、缩放、`markdown-math` 模式和撤销键，只换上 `sourceCodeLineNumbers` 偏好并去掉"每 10 行编号"的格式化函数；`ja.json` 保留本地译文，加新键；`nl.json` 本地没有，不带 |
 | `410733e1` 大纲高亮光标所在标题 | 挑入为 `5d5f2697`，本地补丁 `22ebfb18` | 上游在 `selection-change` 里加的调用被自动合并进本地已注释掉的旧监听，等于没生效；改为接到现在的监听里、放在 `followCaret` 之前。只有获得焦点的窗格更新高亮，窗格获得焦点时重新配对标题，因为大纲显示的是焦点窗格的文档。`toc.vue` 保留本地的大纲筛选。上游 `issue-5094-toc-theming` 本地已删除，不带。补丁：本地装的 Element Plus 把标签渲染成 `.el-text`，它自带颜色，高亮色要单独加到标签上；该 spec 最后一条留下未保存修改，关闭时改用 `closeDiscardingChanges` |
 | `fa265e10` 行内工具栏文字 / 背景色 | 挑入为 `250e4d9e` | 只有 `format.ts` 导入行冲突：上游那一侧的 `isKeyboardEvent` 来自没挑的提交，本地不用，不带；`nl.ts`、`ru.ts` 本地没有，不带 |
-| `ba5d71df` 选中文本字数 | 没挑，见待处理清单 | |
+| `ba5d71df` 选中文本字数 | 移植为 `1688e4d2` | 2026-10-20 定显示方式为"选中 12 / 全文 345"。muya 一侧原样套用。桌面一侧不用上游的标题栏和 store 字段，改为让选中字数跟着现有的光标位置上报：只有焦点窗格带上选区字数，其他窗格不带、不会把它清掉；切换文档或模式时开始新会话，和光标位置一起清零。状态栏显示 `W Selected 12 / Total 345`（中文界面"选中 12 / 全文 345"），提示框每项也显示这一对数。顺带把提示框里写死的 "All characters" 换成翻译键（译文取自上游）；`nl.json` 本地没有，不带 |
 | `67ea037f` 大纲渲染行内 markdown | 没挑，见待处理清单 | |
 
 证据：desktop 单测 1153 条通过、6 条跳过，`typecheck` 通过；muya 单测 1895 条通过，`tsc --noEmit` 通过；改动过的 desktop 文件 eslint 无 error。desktop e2e：`toc-active-heading`、`toc-scroll`、`source-toc-scroll` 等大纲 spec 16 条，`source-code-line-numbers`、`split-workspace`、`scroll-up-arrow`、`typewriter-caret` 等共 26 条，`highlight-color-preference`、`inline-format` 10 条，都通过。muya e2e（Chromium）`format-color`、`format-toolbar` 14 条通过。
 
 未覆盖：没有跑全量 e2e；没有在真实应用里手工试颜色按钮和分屏下的大纲高亮（分屏只靠 `split-workspace` 回归，没有专门的用例）。
+
+选中文本字数的证据：muya `selectedText.spec.ts` 19 条通过，muya eslint 无 error；desktop 单测 1153 条通过、6 条跳过，`typecheck` 通过，改动过的文件 eslint 无 error；新加的 e2e `status-selection-word-count` 3 条（WYSIWYG 选中后取消、Shift+↓ 跨段、源码模式）和 `caret-status`、`document-zoom`、`shell-foundation`、`editor-input`、`issue-2372-source-selection-color` 等共 33 条通过。未覆盖：分屏下的选区字数没有专门的用例；没有跑 muya e2e 的 `selected-text.spec.ts`。
+
+顺带发现的已有 bug（与本次移植无关）：段首按 Shift+↓ 选到下一段开头后再按 Shift+End，第一段会被删掉。在不含本次改动的版本上重复 6 次，6 次都复现。还没查原因，也没查上游有没有。
 
 ### 待处理清单
 
@@ -268,7 +272,6 @@
 | `ad1e1cfd` 全量重渲染后保留搜索高亮                                                         | 冲突在 `editor.vue`、搜索栏 `index.vue`（点击搜索栏时是否清空、上一个的接口叫 `prev` 还是 `previous`）、muya `search/index.ts`、`.vscode/settings.json`                                                                                                           | 单独研究                              |
 | `34ea9931`、`127c5bb3`、`d0428e90` Windows 路径分隔符 / 原生路径桥接 / 导出中的盘符图片路径 | 依赖没挑的 E 组 `0d8dba02`（Delete 键移到回收站），三者之间也互相依赖；`127c5bb3` 还改了 `package.json` 和锁文件                                                                                                                                                  | 和侧边栏功能一起决定                  |
 | `b6a88236` macOS ⌘↑/⌘↓ 文档导航                                                             | 和本地 `content.ts` 的方向键处理冲突；只影响 macOS，在 Windows 上价值低                                                                                                                                                                                           | 暂不处理                              |
-| `ba5d71df` 选中文本字数（#4457） | 本地已把字数从标题栏移到底部状态栏，并改成多窗格工作区；上游改的是标题栏和单编辑器的 store（4 个桌面文件冲突）。muya 一侧的 `getSelectedText()` 可以直接用，桌面一侧要在状态栏重做，还要定显示方式（例如"选中 / 全文"）、只统计焦点窗格、切换文档或窗格时清零 | 先定状态栏的显示方式，再移植 |
 | `67ea037f` 大纲渲染行内 markdown（#3110） | muya 一侧夹带没挑的 E 组代码：pandoc 数学选项、`==高亮==` 的 `mark` 记号、CommonMark 强调符 / 链接目标解析（`emphasis.ts`、`linkDestination.ts`）；本地 `collectReferenceDefinitions` 有按修订号缓存，要保留。桌面一侧本地的大纲数据来自工作区控制器，`contentHtml` 要接进这条路径，`REFRESH_TOC` 也要改成工作区版本 | 只取本提交自己的改动来移植；数学偏好和 `==高亮==` 决定后会更容易 |
 
 ## 方法与证据边界
