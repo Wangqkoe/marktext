@@ -10,6 +10,7 @@ import { getSupportedLanguages, isLanguageSupported } from 'common/i18n'
 import { TypedEmitter } from '@shared/types/typedEmitter'
 import type { IUserPreferences } from '@shared/types/preferences'
 import schema from './schema.json'
+import { carryOverRenamedPreferences } from './renamedKeys'
 
 const PREFERENCES_FILE_NAME = 'preferences'
 
@@ -93,6 +94,11 @@ class Preference extends TypedEmitter<PreferenceEvents> {
       // Because `this.getAll()` will return a plainObject, so we can not use `hasOwnProperty` method
       // const plainObject = () => Object.create(null)
       const userSetting = this.getAll() as Record<string, unknown>
+      const carried = carryOverRenamedPreferences(userSetting)
+      if (Object.keys(carried).length) {
+        Object.assign(userSetting, carried)
+        this.store.set(carried)
+      }
       // Update outdated settings
       const requiresUpdate = !hasSameKeys(defaultSettings, userSetting)
       const userSettingKeys = Object.keys(userSetting)
