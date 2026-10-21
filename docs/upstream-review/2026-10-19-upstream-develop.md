@@ -260,7 +260,9 @@
 
 选中文本字数的证据：muya `selectedText.spec.ts` 19 条通过，muya eslint 无 error；desktop 单测 1153 条通过、6 条跳过，`typecheck` 通过，改动过的文件 eslint 无 error；新加的 e2e `status-selection-word-count` 3 条（WYSIWYG 选中后取消、Shift+↓ 跨段、源码模式）和 `caret-status`、`document-zoom`、`shell-foundation`、`editor-input`、`issue-2372-source-selection-color` 等共 33 条通过。未覆盖：分屏下的选区字数没有专门的用例；没有跑 muya e2e 的 `selected-text.spec.ts`。
 
-顺带发现的已有 bug（与本次移植无关）：段首按 Shift+↓ 选到下一段开头后再按 Shift+End，第一段会被删掉。在不含本次改动的版本上重复 6 次，6 次都复现。还没查原因，也没查上游有没有。
+顺带发现的已有 bug（与本次移植无关）：段首按 Shift+↓ 选到下一段开头后再按 Shift+End，第一段会被删掉。在不含本次改动的版本上重复 6 次，6 次都复现。
+
+2026-10-21 查明：上游也有。在上游 `develop`（`1c088ff0`）的 muya e2e 环境里重复 3 次，3 次都删段。原因在 muya `clipboard/index.ts` 的 `shouldCrossBlockCut`：选区跨段时，keydown 把除 Alt / Meta / Shift / CapsLock / 方向键以外的所有键都当成"输入替换选区"，先剪掉选中内容。实测（跨段选区，本地 muya）：End、Shift+End、Shift+Home、Shift+PageUp、F2、Insert、NumLock、ScrollLock、Pause、ContextMenu、Tab 都会删内容；Home、PageDown、Escape、Shift+← 没删（Home / PageDown / Escape 为什么没删还没查）。上游这段代码和本地相同，没有对应的修复。
 
 ### 待处理清单
 
