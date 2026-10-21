@@ -7,8 +7,10 @@ export const RENAMED_PREFERENCE_KEYS: Readonly<Record<string, string>> = {
 }
 
 /**
- * The new-key values to write for a user's stored settings. A setting already
- * stored under its new key wins over the old one.
+ * The new-key values to write for a user's stored settings. The old value
+ * wins even when the new key is present: electron-store fills the new key
+ * with its schema default before the loader runs, and the loader deletes the
+ * old key once this has run, so an old key is only ever seen once.
  */
 export const carryOverRenamedPreferences = (
   userSetting: Record<string, unknown>,
@@ -16,7 +18,7 @@ export const carryOverRenamedPreferences = (
 ): Record<string, unknown> => {
   const carried: Record<string, unknown> = {}
   for (const [oldKey, newKey] of Object.entries(renamed)) {
-    if (oldKey in userSetting && !(newKey in userSetting)) {
+    if (oldKey in userSetting) {
       carried[newKey] = userSetting[oldKey]
     }
   }

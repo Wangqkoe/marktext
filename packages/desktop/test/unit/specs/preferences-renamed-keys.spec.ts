@@ -13,10 +13,11 @@ describe('renamed preferences', () => {
     ).toEqual({ texMathSingleBackslash: false, texMathGfm: false })
   })
 
-  it('keeps a value already stored under the new key', () => {
+  // electron-store has already filled the new key with its schema default.
+  it('overrides the default the new key was filled with', () => {
     expect(
       carryOverRenamedPreferences({ latexMathDelimiters: true, texMathSingleBackslash: false })
-    ).toEqual({})
+    ).toEqual({ texMathSingleBackslash: true })
   })
 
   it('writes nothing for a settings file without the old keys', () => {
