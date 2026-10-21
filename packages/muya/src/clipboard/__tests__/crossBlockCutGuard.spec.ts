@@ -47,4 +47,27 @@ describe('shouldCrossBlockCut (#3491)', () => {
         expect(shouldCrossBlockCut('ArrowDown', false, false)).toBe(false);
         expect(shouldCrossBlockCut('Shift', false, false)).toBe(false);
     });
+
+    // Shift+End after Shift+ArrowDown deleted the first paragraph: every key
+    // outside the old deny-list cut the selection.
+    it.each(['End', 'Home', 'PageUp', 'PageDown', 'Tab', 'Escape', 'F2', 'Insert', 'NumLock', 'ScrollLock', 'Pause', 'ContextMenu', 'Control', 'AltGraph'])(
+        'does NOT cut on %s',
+        (key) => {
+            expect(shouldCrossBlockCut(key, false, false)).toBe(false);
+        },
+    );
+
+    it('cuts on Enter, a space and non-ASCII characters', () => {
+        expect(shouldCrossBlockCut('Enter', false, false)).toBe(true);
+        expect(shouldCrossBlockCut(' ', false, false)).toBe(true);
+        expect(shouldCrossBlockCut('é', false, false)).toBe(true);
+        expect(shouldCrossBlockCut('中', false, false)).toBe(true);
+        expect(shouldCrossBlockCut('😀', false, false)).toBe(true);
+    });
+
+    it('cuts on IME, dead-key and Android keystrokes, which go on to insert text', () => {
+        expect(shouldCrossBlockCut('Process', false, false)).toBe(true);
+        expect(shouldCrossBlockCut('Dead', false, false)).toBe(true);
+        expect(shouldCrossBlockCut('Unidentified', false, false)).toBe(true);
+    });
 });

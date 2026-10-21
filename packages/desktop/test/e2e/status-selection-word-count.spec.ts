@@ -62,7 +62,6 @@ test.describe('Status bar selection word count', () => {
   test('counts a selection grown across paragraphs with the keyboard', async() => {
     await page.locator('span.mu-paragraph-content').first().click()
     await page.keyboard.press('Home')
-    // Shift+End after this deletes the first paragraph, with or without the count.
     await page.keyboard.press('Shift+ArrowDown')
     await expect(wordCount(page)).toHaveText('W Selected 2 / Total 5')
 

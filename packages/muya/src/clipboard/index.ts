@@ -10,19 +10,20 @@ import { pastePlainText, pasteSelection } from './paste';
 import { pasteImageSrc } from './pasteImage';
 import { CopyType, PasteType } from './types';
 
-// After the table/same-block guards, decide whether a keydown over a
-// cross-block selection should cut (replace) the selected text. Non-editing
-// keys and any modifier combo must NOT cut — in particular Ctrl+<key> (e.g.
-// Ctrl+C copy on Windows/Linux), which was previously not excluded and
-// silently deleted the selection (#3491). Mirrors the macOS metaKey guard.
-export function shouldCrossBlockCut(key: string, metaKey: boolean, ctrlKey: boolean): boolean {
-    if (/Alt|Option|Meta|Shift|CapsLock|ArrowUp|ArrowDown|ArrowLeft|ArrowRight/.test(key))
-        return false;
+// IME (`Process`), dead-key and Android (`Unidentified`) keystrokes go on to
+// insert text, so the selection has to go first like for a printable key.
+const CROSS_BLOCK_EDIT_KEYS = new Set(['Backspace', 'Delete', 'Enter', 'Process', 'Dead', 'Unidentified']);
 
+// After the table/same-block guards, decide whether a keydown over a
+// cross-block selection should cut (replace) the selected text. Only keys that
+// edit may cut: a deny-list let End, Tab, F2 and the like delete the
+// selection. Modifier combos never cut — Ctrl+C on Windows/Linux used to
+// (#3491).
+export function shouldCrossBlockCut(key: string, metaKey: boolean, ctrlKey: boolean): boolean {
     if (metaKey || ctrlKey)
         return false;
 
-    return true;
+    return CROSS_BLOCK_EDIT_KEYS.has(key) || [...key].length === 1;
 }
 
 const FOREIGN_INPUT_TYPES = new Set([
