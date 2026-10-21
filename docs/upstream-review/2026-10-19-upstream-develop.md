@@ -268,11 +268,41 @@
 
 2026-10-21 合回 `main`：快进到 `faf8bc13`（`main` 此前没有新提交）。合并前复核：desktop 单测 1153 条通过、6 条跳过，`typecheck` 通过；muya 单测 1930 条通过，`tsc --noEmit` 通过。没有推送到 `origin`。
 
+## pandoc 数学偏好（分支 `codex/upstream-pandoc-math`，从 `main` 切出）
+
+2026-10-21 决定按方案 C 做：采用上游的四个开关 `texMathDollars`、`texMathGfm`、`texMathSingleBackslash`、`texMathDoubleBackslash` 和它们的解析规则；保留本地"`\[…\]` 单独成行是数学块"的行为，改由 `texMathSingleBackslash` 控制；旧设置迁移过去；不挑 `93c6ce79`（Pandoc 导出的 reader 选择，本地没有 Pandoc 导出）。挑 `7f8de798` 时发现它依赖没挑的 `bec5f476`（同行块级公式），征得同意后作为前置一起挑入。
+
+| 上游提交 | 结果 | 处理 |
+| --- | --- | --- |
+| `bec5f476` 同行块级公式（#4904、#5364、#5365） | 挑入为 `b56cd7f1` | 4 个文件冲突，都是本地 LaTeX 分隔符代码和上游改动挨在一起：样式两条规则都保留；`paragraphContent` 用上游的 `MATH_BLOCK_REG`，保留本地 `\[` 两个正则；`math.ts` 的 token 同时带上游的 `marker` 和本地的 `delimiterStyle`；测试两边的用例都保留 |
+| `7f8de798` `$…$` 采用 pandoc 规则 | 挑入为 `510435e8` | `math.ts` 冲突：用上游的 `inlineRule` 和逐个候选的 `start`，本地 `\(` 候选暂时保留（到 `681ac649` 换掉） |
+| `3e9e91c2` `texMathDollars` 开关，替换 `math` 选项 | 挑入为 `f964da3e` | 35 个文件冲突，基本是上游把 `math` 换成 `texMathDollars`、本地在同一处有 `latexMathDelimiters`：两者并存，到 `681ac649` 再去掉后者。`ja.json` 和 `PREFERENCES.md` 上游顺带改了排版和别的条目，保留本地内容只加新键；`nl.json` 本地没有，不带。本地测试里的 `math:` 改成 `texMathDollars:` |
+| `75bd0093` `texMathGfm`，替换 `isGitlabCompatibilityEnabled` | 挑入为 `5ab9fc8f` | 上游那一侧混有未挑提交的 `softNewlineAsSpace`（软换行当空格），不带。`mathStyle` 的 `'gitlab'` 改为 `'gfm'`，本地 `stateToMarkdown` 跟着改；类型保留本地的 `'latex'` / `'latex-inline'` |
+| `681ac649` 单 / 双反斜杠分隔符 | 挑入为 `33c8c532` | 方案 C 的主体在这里做：行内 `\(…\)` 改用上游实现，删掉本地 `latexMathDelimiters`（muya 选项、桌面偏好、界面、10 个语言文件）；本地 `\[…\]` 数学块的解析移进 `singleBackslashMathExtension`，Enter 转换和编辑器的 `multiple_math` 起始规则改由 `texMathSingleBackslash` 控制，`texMathSingleBackslash` 加入需要重新解析的选项。顺带修了本地实现的三个问题：`\[a\] \[b\]` 被读成一个内容为 `a\] \[b` 的数学块；`\[ x \]` 和带缩进的公式存盘时丢空白；段落里紧挨着的 `\[` 会把段落拆开、存盘时插入空行（现在只有前后有空行的 `\[…\]` 才是数学块，段落里的按上游当公式）。上游测试里 `\[…\]` 永远不是数学块的用例，改成方案 C 的预期并在测试里注明 |
+| `7d862bf7` 两个反斜杠开关的界面文字 | 挑入为 `6fa385fc` | 10 个语言文件干净应用；上游给 `locale-validation.spec.ts` 加的"语言文件里不能有反斜杠"检查没带：这个测试文件本地没有，是上游另一个未挑提交加的 |
+| `93c6ce79` Pandoc 导出跟随数学开关 | 不挑 | 本地没有 Pandoc 导出 |
+
+本地补丁：`791bf080` 和 `d33692db` 加了旧设置迁移（`latexMathDelimiters` → `texMathSingleBackslash`，`isGitlabCompatibilityEnabled` → `texMathGfm`）。上游选择直接丢掉旧键；本地正在用 `latexMathDelimiters`，所以迁移。第一版因为 electron-store 先用 schema 默认值补齐新键而没生效，`d33692db` 修正，并加 e2e `math-preferences-migration`。
+
+对使用的影响：
+- `$13B to $24B` 这类金额不再被当成公式；`$x$` 紧挨中文标点时，导出也能渲染（以前导出要求结尾 `$` 后面是空格或英文标点）。
+- 一行里的 `$$x$$`：段落里只有公式时居中显示，和文字在一起时按行内显示（以前导出时一律居中）。
+- 设置里"GitLab 兼容"那一项没了，改为"GitHub 的 TeX 数学公式"；"LaTeX 数学分隔符"改为"使用单反斜杠分隔符的 TeX 数学公式"，另有一个双反斜杠开关。
+- 只有前后有空行的 `\[…\]` 才是数学块。以前文字下一行直接写 `\[` 也会变成数学块，并在存盘时插入空行；现在按段落里的公式显示，存盘不改内容。
+
+证据：
+- 单元测试：desktop 1157 条通过、6 条跳过；`typecheck` 通过；muya 2135 条通过；`tsc --noEmit`、`check-circular` 通过；muya eslint 和 desktop eslint 都没有 error（`main` 上本地 LaTeX 代码原有的 5 个 muya lint error 已随代码替换清掉）。
+- muya e2e（Chromium，4 并发）：461 条中 456 通过、1 跳过、4 失败。其中 3 条单线程重跑通过；`table-long-content-layout` 在 `main` 上同样失败（宽度精度断言），与本次无关。
+- desktop e2e：`source-math`、`preference-switch-contrast`、`editor-input`、`status-selection-word-count`、`caret-status` 共 21 条，新加的 `math-preferences-migration` 3 条，都通过。
+- 本机文档核对（只读）：`D:\Work\ai research\Literature\Readers`、`D:\dev\test-vault`、`D:\dev\test-vault.old-20261016`、`Documents\Claude日志` 下 170 个 `.md`，按实际设置（`$` 开、单反斜杠开、GitHub 写法关）解析再序列化，新旧代码的输出逐个文件哈希一致。导出渲染的公式数从 2244 个变为 3722 个（24 个文件有变化），抽查新增的都是紧挨中文标点的 `$…$`；3 个文件里与文字同段的 `$$…$$` 从居中变为行内。
+
+未覆盖：没有跑 desktop 全量 e2e；没有在装好的 MarkText 里手工点设置界面；输入法在 `\[` 后输入没有专门测。
+
 ### 待处理清单
 
 | 上游提交                                                                                    | 原因                                                                                                                                                                                                                                                              | 计划                                  |
 | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `18c724f9`、`660a8de1` CommonMark 强调符 / 链接目标解析                                     | `lexer.ts` 和本地的 `latexMathDelimiters` 实现大面积冲突；上游代码已经接入 E 组的 pandoc 数学偏好                                                                                                                                                                 | 决定 E 组 pandoc 数学偏好链时一起处理 |
+| `18c724f9`、`660a8de1` CommonMark 强调符 / 链接目标解析                                     | `lexer.ts` 和本地的 `latexMathDelimiters` 实现大面积冲突；上游代码已经接入 E 组的 pandoc 数学偏好                                                                                                                                                                 | pandoc 数学偏好链已在 `codex/upstream-pandoc-math` 挑入，可以开始 |
 | `bee2839a` 升级后保留 `.md` 关联（#4966）                                                   | NSIS 安装脚本冲突。试合方案：保留本地的 include 保护和环境恢复，关联改成无条件执行，上游的宏移进保护块；上游的 `windows-file-association.spec.ts` 断言 customInstall 里没有任何 MessageBox，要收窄到"关联弹窗"，因为本地的环境恢复失败分支本来就有一个 MessageBox | 配合打包、安装、再升级一次来验证      |
 | `14eab778` 软换行尾行的方向键导航（#3203）                                                  | 和本地 RTL、#3520、#3193 三处方向键修复冲突；还依赖 E 组没挑的 `b8f5e0fb`（跨块保持光标列）                                                                                                                                                                       | 决定 `b8f5e0fb` 时一起处理            |
 | `ad1e1cfd` 全量重渲染后保留搜索高亮                                                         | 冲突在 `editor.vue`、搜索栏 `index.vue`（点击搜索栏时是否清空、上一个的接口叫 `prev` 还是 `previous`）、muya `search/index.ts`、`.vscode/settings.json`                                                                                                           | 单独研究                              |
