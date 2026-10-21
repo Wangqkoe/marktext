@@ -266,6 +266,8 @@
 
 2026-10-21 本地已修：`shouldCrossBlockCut` 从排除法改成白名单，只有单个字符、Backspace、Delete、Enter 和输入法相关的 `Process` / `Dead` / `Unidentified` 会先删跨段选区；Ctrl / Meta 组合键照旧不删。Tab 不再删跨段选区。证据：新 muya e2e `cross-block-navigation-keys` 10 条在修复前 8 条失败、修复后全过；muya 单测 1930 条、`tsc --noEmit`、`check-circular` 通过；muya e2e `tests/editing` + `tests/typing` 181 条通过、1 条跳过；desktop e2e `status-selection-word-count`、`editor-input`、`caret-status` 17 条通过。未覆盖：输入法和死键没有真实按键测试，只有单测；没有报给上游。
 
+2026-10-21 合回 `main`：快进到 `faf8bc13`（`main` 此前没有新提交）。合并前复核：desktop 单测 1153 条通过、6 条跳过，`typecheck` 通过；muya 单测 1930 条通过，`tsc --noEmit` 通过。没有推送到 `origin`。
+
 ### 待处理清单
 
 | 上游提交                                                                                    | 原因                                                                                                                                                                                                                                                              | 计划                                  |
