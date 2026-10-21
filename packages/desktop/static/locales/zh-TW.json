@@ -3,7 +3,8 @@
     "counter": {
       "words": "字數",
       "characters": "字元數",
-      "paragraphs": "段落數"
+      "paragraphs": "段落數",
+      "allCharacters": "總字元數"
     },
     "file": {
       "file": "檔案",
@@ -957,6 +958,9 @@
       "increase": "放大文件",
       "sliderLabel": "文件縮放",
       "reset": "將文件縮放重設為 100%"
+    },
+    "wordCount": {
+      "selection": "選取 {selected} / 全文 {total}"
     }
   },
   "store": {

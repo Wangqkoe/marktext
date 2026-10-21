@@ -61,16 +61,16 @@
     >
       <template #content>
         <div class="status-count-detail">
-          <span>{{ t('menu.counter.words') }}:</span><span>{{ wordCount.word }}</span>
+          <span>{{ t('menu.counter.words') }}:</span><span>{{ formatCount('word') }}</span>
         </div>
         <div class="status-count-detail">
-          <span>{{ t('menu.counter.characters') }}:</span><span>{{ wordCount.character }}</span>
+          <span>{{ t('menu.counter.characters') }}:</span><span>{{ formatCount('character') }}</span>
         </div>
         <div class="status-count-detail">
-          <span>{{ t('menu.counter.paragraphs') }}:</span><span>{{ wordCount.paragraph }}</span>
+          <span>{{ t('menu.counter.paragraphs') }}:</span><span>{{ formatCount('paragraph') }}</span>
         </div>
         <div class="status-count-detail">
-          <span>All characters:</span><span>{{ wordCount.all }}</span>
+          <span>{{ t('menu.counter.allCharacters') }}:</span><span>{{ formatCount('all') }}</span>
         </div>
       </template>
       <button
@@ -80,7 +80,7 @@
         @keydown.enter.space.prevent.stop="cycleWordCount"
       >
         <span class="text-center-vertical">{{
-          `${countLabels[displayedCountMode]} ${wordCount[displayedCountMode]}`
+          `${countLabels[displayedCountMode]} ${formatCount(displayedCountMode)}`
         }}</span>
       </button>
     </el-tooltip>
@@ -155,6 +155,7 @@ const props = withDefaults(defineProps<{
   sourceDisabled: boolean
   caretPosition?: CaretPosition | null
   wordCount?: FileWordCount | null
+  selectionWordCount?: FileWordCount | null
   toggleLabel: string
   documentZoom?: number
   documentZoomDisabled?: boolean
@@ -179,6 +180,11 @@ const countLabels: Record<(typeof countModes)[number], string> = {
   all: 'A'
 }
 const displayedCountMode = ref<(typeof countModes)[number]>('word')
+const formatCount = (mode: (typeof countModes)[number]): string => {
+  const total = props.wordCount?.[mode] ?? 0
+  const selected = props.selectionWordCount?.[mode]
+  return selected == null ? `${total}` : t('statusBar.wordCount.selection', { selected, total })
+}
 const documentZoomPercent = computed(() => {
   const percent = Number.isFinite(props.documentZoom) ? Math.round(props.documentZoom * 100) : 100
   return Math.min(200, Math.max(50, percent))

@@ -20,9 +20,9 @@ import { oneDarkThemes, railscastsThemes } from '@/config'
 import { toCaretPosition } from '@/util/caretPosition'
 import { workspaceStatusFromCounts } from '@/util/documentStatus'
 import { captureScrollAnchor } from '@/util/documentZoom'
-import type { CaretPositionUpdate, CaretSession } from '@/util/caretPosition'
+import type { CaretPositionUpdate, CaretSession, ZeroBasedEditorPoint } from '@/util/caretPosition'
 import type { PaneEditorComposition, PaneEditorEventScope } from '@/workspace'
-import type { IFileState } from '@shared/types/files'
+import type { FileWordCount, IFileState } from '@shared/types/files'
 
 // CodeMirror 5 ships no first-party types; the wrapper in src/renderer/src/
 // codeMirror/index.ts also keeps the surface intentionally loose.
@@ -97,11 +97,29 @@ const sourceZoomStyle = computed(() => {
   }
 })
 
+// `cursorActivity` fires per drag step, so key the recount on the ranges rather
+// than on `getSelection()`, which copies the whole selection.
+let lastSelectionKey = ''
+let lastSelectionCount: FileWordCount | null = null
+
+const selectionCount = (cm: CMInstance): FileWordCount | null => {
+  const key = (cm.listSelections() as { anchor: ZeroBasedEditorPoint; head: ZeroBasedEditorPoint }[])
+    .map(({ anchor, head }) => `${anchor.line}:${anchor.ch}-${head.line}:${head.ch}`)
+    .join(',')
+  if (key !== lastSelectionKey) {
+    lastSelectionKey = key
+    const selectedText: string = cm.getSelection('\n')
+    lastSelectionCount = selectedText.trim() ? getWordCount(selectedText) : null
+  }
+  return lastSelectionCount
+}
+
 const reportCaretPosition = (cm: CMInstance, session: CaretSession): void => {
-  emit('caret-position', {
-    session,
-    position: toCaretPosition(cm.getCursor('head'))
-  })
+  const position = toCaretPosition(cm.getCursor('head'))
+  emit(
+    'caret-position',
+    props.focused === false ? { session, position } : { session, position, selection: selectionCount(cm) }
+  )
 }
 
 const isValidMuyaIndexCursor = (cursor: unknown): cursor is MuyaIndexCursorLike => {

@@ -1,3 +1,5 @@
+import type { FileWordCount } from '@shared/types/files'
+
 /** A one-based Markdown position suitable for display in the status bar. */
 export interface CaretPosition {
   line: number
@@ -25,6 +27,8 @@ export type CaretSession = number & { readonly [caretSessionBrand]: true }
 export interface CaretPositionUpdate {
   session: CaretSession
   position: CaretPosition | null
+  /** Counts of the selected text, `null` for a caret; omitted by a report that cannot see the selection. */
+  selection?: FileWordCount | null
 }
 
 /** Convert an editor point to one-based display units, or reject an invalid point. */
@@ -56,10 +60,10 @@ export const formatCaretPosition = (position: CaretPosition | null): string | nu
  * Owns the generation boundary for transient caret reports. Starting a new
  * session clears the displayed value and permanently invalidates older tokens.
  */
-export class CaretUpdateGate {
+export class CaretUpdateGate<T = CaretPosition> {
   private session = 0
 
-  constructor(private readonly publish: (position: CaretPosition | null) => void) {}
+  constructor(private readonly publish: (report: T | null) => void) {}
 
   /** Clear the consumer and return the only token accepted for subsequent reports. */
   begin(): CaretSession {
@@ -69,9 +73,9 @@ export class CaretUpdateGate {
   }
 
   /** Publish a current-session report, returning whether the report was accepted. */
-  accept(session: CaretSession, position: CaretPosition | null): boolean {
+  accept(session: CaretSession, report: T | null): boolean {
     if (session !== this.session) return false
-    this.publish(position)
+    this.publish(report)
     return true
   }
 }

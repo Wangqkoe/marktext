@@ -42,6 +42,7 @@
           :source-disabled="!hasCurrentFile"
           :caret-position="caretPosition"
           :word-count="wordCount"
+          :selection-word-count="selectionWordCount"
           :document-zoom="documentZoom"
           :document-zoom-disabled="!hasCurrentFile"
           :toggle-label="t('menu.view.toggleSidebar')"
@@ -89,6 +90,7 @@ import { useI18n } from 'vue-i18n'
 import { isOsx } from '@/util'
 import { shouldShowInAppTitleBar } from '@/components/titleBar/visibility'
 import { CaretUpdateGate, type CaretPosition, type CaretPositionUpdate } from '@/util/caretPosition'
+import type { FileWordCount } from '@shared/types/files'
 
 const mainStore = useMainStore()
 const editorStore = useEditorStore()
@@ -111,8 +113,11 @@ const { projectTree } = storeToRefs(projectStore)
 const { currentFile } = storeToRefs(editorStore)
 
 const caretPosition = ref<CaretPosition | null>(null)
-const caretGate = new CaretUpdateGate((position) => {
-  caretPosition.value = position
+const selectionWordCount = ref<FileWordCount | null>(null)
+const caretGate = new CaretUpdateGate<CaretPositionUpdate>((update) => {
+  caretPosition.value = update?.position ?? null
+  if (!update) selectionWordCount.value = null
+  else if (update.selection !== undefined) selectionWordCount.value = update.selection
 })
 const caretSession = ref(caretGate.begin())
 
@@ -155,7 +160,7 @@ const setDocumentZoom = (factor: number): void => {
 const handleCaretPosition = (update: CaretPositionUpdate): void => {
   // Let the cleared state render before a replacement editor's first report.
   nextTick(() => {
-    caretGate.accept(update.session, update.position)
+    caretGate.accept(update.session, update)
   })
 }
 

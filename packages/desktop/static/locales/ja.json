@@ -3,7 +3,8 @@
     "counter": {
       "words": "単語数",
       "characters": "文字数",
-      "paragraphs": "段落数"
+      "paragraphs": "段落数",
+      "allCharacters": "すべての文字数"
     },
     "file": {
       "file": "ファイル",
@@ -957,6 +958,9 @@
       "increase": "Zoom document in",
       "sliderLabel": "Document zoom",
       "reset": "Reset document zoom to 100%"
+    },
+    "wordCount": {
+      "selection": "選択 {selected} / 全体 {total}"
     }
   },
   "store": {

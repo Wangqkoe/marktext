@@ -3,7 +3,8 @@
     "counter": {
       "words": "단어 수",
       "characters": "글자 수",
-      "paragraphs": "단락 수"
+      "paragraphs": "단락 수",
+      "allCharacters": "전체 글자 수"
     },
     "file": {
       "file": "파일",
@@ -957,6 +958,9 @@
       "increase": "Zoom document in",
       "sliderLabel": "Document zoom",
       "reset": "Reset document zoom to 100%"
+    },
+    "wordCount": {
+      "selection": "선택 {selected} / 전체 {total}"
     }
   },
   "store": {

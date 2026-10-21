@@ -3,7 +3,8 @@
     "counter": {
       "words": "Sözcükler",
       "characters": "Karakterler",
-      "paragraphs": "Paragraflar"
+      "paragraphs": "Paragraflar",
+      "allCharacters": "Tüm karakterler"
     },
     "file": {
       "file": "Dosya",
@@ -957,6 +958,9 @@
       "increase": "Zoom document in",
       "sliderLabel": "Document zoom",
       "reset": "Reset document zoom to 100%"
+    },
+    "wordCount": {
+      "selection": "Seçili {selected} / Toplam {total}"
     }
   },
   "store": {

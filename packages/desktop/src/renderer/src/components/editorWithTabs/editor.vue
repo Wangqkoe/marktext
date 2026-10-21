@@ -320,7 +320,14 @@ const rowInput = ref<InputNumberInstance | null>(null)
 
 const caretReporter = createAnimationFrameCoalescer((session: CaretSession) => {
   const position = caretPositionFromIndexCursor(editor.value?.getCursorOffset())
-  emit('caret-position', { session, position })
+  // Every pane reports its caret; only the focused one owns the selection.
+  if (props.focused === false) {
+    emit('caret-position', { session, position })
+    return
+  }
+  const selectedText = editor.value?.getSelectedText() ?? ''
+  const selection = selectedText.trim() ? muyaWordCount(selectedText) : null
+  emit('caret-position', { session, position, selection })
 })
 
 // Non-reactive variables
@@ -1165,9 +1172,26 @@ const imagePathPicker = () => {
   return editorStore.ASK_FOR_IMAGE_PATH()
 }
 
+// Growing a selection across blocks fires no `selection-change`.
+// TODO(Selection): drop this and its `keyup` branch once the engine reports it.
+const SELECTION_KEYS = new Set([
+  'Shift',
+  'ArrowLeft',
+  'ArrowRight',
+  'ArrowUp',
+  'ArrowDown',
+  'Home',
+  'End',
+  'PageUp',
+  'PageDown'
+])
+
 const keyup = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     setImageViewerVisible(false)
+  }
+  if (!sourceCode.value && props.focused !== false && SELECTION_KEYS.has(event.key)) {
+    caretReporter.request(props.caretSession)
   }
 }
 

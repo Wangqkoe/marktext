@@ -3,7 +3,8 @@
     "counter": {
       "words": "Mots",
       "characters": "Caractères",
-      "paragraphs": "Paragraphes"
+      "paragraphs": "Paragraphes",
+      "allCharacters": "Tous les caractères"
     },
     "file": {
       "file": "Fichier",
@@ -957,6 +958,9 @@
       "increase": "Zoom document in",
       "sliderLabel": "Document zoom",
       "reset": "Reset document zoom to 100%"
+    },
+    "wordCount": {
+      "selection": "Sélection {selected} / Total {total}"
     }
   },
   "store": {
