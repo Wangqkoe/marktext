@@ -302,11 +302,27 @@
 
 合回 `main`：快进到 `c9e67207`（`main` 此前没有新提交）。合并前分支上的单测和 typecheck 已在上面的证据里跑过，之后只有文档提交。没有推送到 `origin`。
 
+## CommonMark 强调符 / 链接目标解析（分支 `codex/upstream-commonmark-parse`，从 `main` 切出）
+
+2026-10-21 挑入待处理清单第 1 项。pandoc 数学偏好链合入后，它和本地 `latexMathDelimiters` 的冲突已经不存在。
+
+| 上游提交 | 结果 | 处理 |
+| --- | --- | --- |
+| `18c724f9` 强调符按 CommonMark 规则配对（#2086） | 挑入为 `230dc862` | 无冲突 |
+| `660a8de1` 链接目标按 CommonMark 规则解析（#2377） | 挑入为 `0a2eb858` | `inlineRenderer/utils.ts` 冲突：本地 `1e681990` 曾自己修过尖括号链接目标（`<…>` 里的括号不当作链接结束），上游把 `parseSrcAndTitle` 移到新文件 `linkDestination.ts` 并重写了 `correctUrl`。取上游实现；本地那次修复的 7 条单测（`commonmarkExamples.spec.ts` 的 angle-bracket destinations）在上游实现下全部通过，所以本地实现不再保留 |
+
+证据：
+- muya：单测 2360 条通过，`tsc --noEmit`、eslint、`check-circular` 通过。
+- `test:spec`：挑入前后都是 CommonMark 574/652（预期失败 78 个）、GFM 582/672（预期失败 90 个），`expected-failures.json` 没有变化。这个 suite 发现预期失败的例子变成通过、或未列入的例子失败时都会报错，所以符合率既没下降也没上升。
+- desktop：单测 1157 条通过、6 条跳过，`typecheck` 通过。
+- muya e2e（Chromium）`tests/inline`、`tests/typing`、`tests/editing`：217 条通过、1 条跳过、5 条失败（单线程 8 条）。失败的全是 `format-color` 和 `format-toolbar`：点击工具栏后马上读取 Markdown，读到的是改动前的内容。截图显示格式已经生效；在 `main` 的 muya 代码上同样失败；读取前加 500 毫秒等待后 14 条全部通过。所以是测试读取太早，不是本次改动的问题。E 组第一批时这两个文件是通过的，这次可能是机器较忙。测试文件没有改。
+
+未覆盖：没有跑 muya 全量 e2e 和 desktop e2e；没有在应用里手工试链接和加粗。
+
 ### 待处理清单
 
 | 上游提交                                                                                    | 原因                                                                                                                                                                                                                                                              | 计划                                  |
 | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `18c724f9`、`660a8de1` CommonMark 强调符 / 链接目标解析                                     | `lexer.ts` 和本地的 `latexMathDelimiters` 实现大面积冲突；上游代码已经接入 E 组的 pandoc 数学偏好                                                                                                                                                                 | pandoc 数学偏好链已在 `codex/upstream-pandoc-math` 挑入，可以开始 |
 | `bee2839a` 升级后保留 `.md` 关联（#4966）                                                   | NSIS 安装脚本冲突。试合方案：保留本地的 include 保护和环境恢复，关联改成无条件执行，上游的宏移进保护块；上游的 `windows-file-association.spec.ts` 断言 customInstall 里没有任何 MessageBox，要收窄到"关联弹窗"，因为本地的环境恢复失败分支本来就有一个 MessageBox | 配合打包、安装、再升级一次来验证      |
 | `14eab778` 软换行尾行的方向键导航（#3203）                                                  | 和本地 RTL、#3520、#3193 三处方向键修复冲突；还依赖 E 组没挑的 `b8f5e0fb`（跨块保持光标列）                                                                                                                                                                       | 决定 `b8f5e0fb` 时一起处理            |
 | `ad1e1cfd` 全量重渲染后保留搜索高亮                                                         | 冲突在 `editor.vue`、搜索栏 `index.vue`（点击搜索栏时是否清空、上一个的接口叫 `prev` 还是 `previous`）、muya `search/index.ts`、`.vscode/settings.json`                                                                                                           | 单独研究                              |
