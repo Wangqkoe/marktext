@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { _electron, type ElectronApplication, type Page } from 'playwright'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -400,6 +400,31 @@ export const closeDiscardingChanges = async(app: ElectronApplication): Promise<v
     ;(dialog as unknown as { showMessageBox: typeof answer }).showMessageBox = answer
   })
   await app.close()
+}
+
+/**
+ * On some Windows machines the system clipboard is intermittently unopenable
+ * from the e2e app: writes are dropped and reads return ''. A spec that needs
+ * the real clipboard calls this first, so that state is reported as a skipped
+ * environment check instead of a product failure.
+ */
+export const skipUnlessClipboardAvailable = async(
+  app: ElectronApplication,
+  attempts = 5
+): Promise<void> => {
+  const available = await app.evaluate(async({ clipboard }, attempts) => {
+    for (let i = 0; i < attempts; i++) {
+      const sentinel = `marktext-e2e-clipboard-probe-${Date.now()}-${i}`
+      clipboard.writeText(sentinel)
+      if (clipboard.readText() === sentinel) return true
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
+    return false
+  }, attempts)
+  test.skip(
+    !available,
+    `environment: system clipboard unavailable (sentinel not read back after ${attempts} attempts)`
+  )
 }
 
 export const sendIpcToRenderer = async(

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Page } from 'playwright'
-import { launchWithMarkdown, expectNoRendererErrors } from './helpers'
+import { launchWithMarkdown, expectNoRendererErrors, skipUnlessClipboardAvailable } from './helpers'
 
 // ---------------------------------------------------------------------------
 // Coverage backfill (checklist item 241). The hover-to-copy heading affordance
@@ -86,6 +86,7 @@ test.describe('Heading hover-to-copy anchor affordance (item 241)', () => {
   })
 
   test('hovering the heading then clicking the affordance copies "#<githubSlug>"', async() => {
+    await skipUnlessClipboardAvailable(app)
     // Clear the clipboard to a known sentinel so we can prove the write came
     // from this interaction and not a stale value.
     await writeClipboard(app, 'sentinel-before-copy')
@@ -104,6 +105,7 @@ test.describe('Heading hover-to-copy anchor affordance (item 241)', () => {
   })
 
   test('the copied anchor starts with "#" and matches the heading github slug', async() => {
+    await skipUnlessClipboardAvailable(app)
     await writeClipboard(app, '')
     await expect.poll(() => readClipboard(app)).toBe('')
 
@@ -123,6 +125,7 @@ test.describe('Heading hover-to-copy anchor affordance (item 241)', () => {
   })
 
   test('activating the affordance via keyboard (Enter) also copies the anchor', async() => {
+    await skipUnlessClipboardAvailable(app)
     await writeClipboard(app, 'keyboard-sentinel')
     await expect.poll(() => readClipboard(app)).toBe('keyboard-sentinel')
 

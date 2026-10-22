@@ -6,6 +6,7 @@ import {
   expectNoRendererErrors,
   launchWithMarkdown,
   placeCaretInEditor,
+  skipUnlessClipboardAvailable,
   waitForRendererError
 } from './helpers'
 
@@ -32,6 +33,7 @@ test.describe('Emoji deletion (#4926)', () => {
   })
 
   const pasteText = async(text: string) => {
+    await skipUnlessClipboardAvailable(app)
     await app.evaluate(({ clipboard }, value) => clipboard.writeText(value), text)
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+V' : 'Control+V')
     const paragraph = page.locator('.editor-component span.mu-paragraph-content').first()
