@@ -327,7 +327,7 @@
 2026-10-21 移植 `67ea037f`（#3110），挑入为 `80f49274`。讨论后定的做法：
 - 只取本提交自己的改动。夹带的 `==高亮==` 代码（`getTOC` 传 `highlightSyntax`、`tokensToInlineHtml` 的 `case 'mark'`）去掉；上游测试里 `==高亮==` 那条换成本地格式的测试。`editor.vue` 冲突里上游一侧只有未挑的 `highlightSyntax`、`softNewlineAsSpace` 两个 watcher，不带。
 - 工作区：`WorkspaceTocItem` 加可选字段 `titleHtml`，`workspaceTocFrom` 写入，store 映射回 `contentHtml`。字段可选，旧会话恢复的大纲照常显示纯文字。上游的 `REFRESH_TOC`（切换上标、数学等设置后刷新大纲）在工作区模式下改为 `paneScope.report({ toc })` 交给控制器；没有工作区时仍走 `REFRESH_TOC`。切换设置会让标题换新 slug，store 在快照映射时发现当前标题的 slug 消失、且标题数不变，就按位置找回当前标题高亮（上游 `REFRESH_TOC` 的做法）。
-- 本地扩展：上游大纲把 HTML 标签一律压成文字；本地工具栏写的 `<mark>`、`<u>` 和颜色 span 在大纲里保留。`<mark>`、`<u>` 去掉所有属性；span 必须能被 `parseColorStyle` 识别且颜色值是十六进制、颜色名或 rgb/hsl 形式，再用 `serializeColorStyle` 重新生成；其他标签照上游压成文字。大纲里 `<mark>` 用"默认高亮色"设置（`toc.vue` 在根元素设 `--mark-highlight-color`），上游原来用的是主题的 `--highlightColor`。DOMPurify 的大纲白名单加 `u` 和 `style` 属性。以后挑入 `==高亮==` 时，它在编辑器里同样渲染成 `<mark>`，样式自动一致。
+- 本地扩展：上游大纲把 HTML 标签一律压成文字；本地工具栏写的 `<mark>`、`<u>` 和颜色 span 在大纲里保留。`<mark>`、`<u>` 去掉所有属性；span 必须能被 `parseColorStyle` 识别且颜色值是十六进制、颜色名或 rgb/hsl 形式，再用 `serializeColorStyle` 重新生成；其他标签照上游压成文字。大纲里 `<mark>` 用"默认高亮色"设置（`toc.vue` 在根元素设 `--mark-highlight-color`），上游原来用的是主题的 `--highlightColor`。DOMPurify 的大纲白名单加 `u` 和 `style` 属性。以后挑入 `==高亮==`（`b3179016`）时，它在编辑器里同样渲染成 `<mark>`，颜色会跟着同一个设置；但本次删掉的两处要加回来，见待处理清单。
 - 其他冲突：`inlineRenderer/index.ts` 保留本地按 `jsonState.revision` 缓存引用定义，同时按上游改为公开的 `collectReferenceDefinitions()` 并返回结果；`toc.vue` 合并上游的 HTML 标签插槽和本地的大纲筛选（无结果提示）、自动换行样式。上游从 `@muyajs/core` 引入的 `IMuyaOptions` 本地类型声明里没有，参数改用 `Record<string, unknown>`；本地 `muya-core.d.ts` 的 `ITocItem` 补 `contentHtml`；本地 `outline-filter.spec.ts` 的测试数据补上游新增的 `labelHtml` 字段。
 
 本地补充：`88335cf0` 加 e2e `toc-inline-format-kept`（大纲 `<mark>` 背景色等于编辑器、等于设置值；`<u>`、颜色 span 保留；带其他样式的 span 压成文字）。
@@ -349,6 +349,7 @@
 | `ad1e1cfd` 全量重渲染后保留搜索高亮                                                         | 冲突在 `editor.vue`、搜索栏 `index.vue`（点击搜索栏时是否清空、上一个的接口叫 `prev` 还是 `previous`）、muya `search/index.ts`、`.vscode/settings.json`                                                                                                           | 单独研究                              |
 | `34ea9931`、`127c5bb3`、`d0428e90` Windows 路径分隔符 / 原生路径桥接 / 导出中的盘符图片路径 | 依赖没挑的 E 组 `0d8dba02`（Delete 键移到回收站），三者之间也互相依赖；`127c5bb3` 还改了 `package.json` 和锁文件                                                                                                                                                  | 和侧边栏功能一起决定                  |
 | `b6a88236` macOS ⌘↑/⌘↓ 文档导航                                                             | 和本地 `content.ts` 的方向键处理冲突；只影响 macOS，在 Windows 上价值低                                                                                                                                                                                           | 暂不处理                              |
+| `b3179016` `==高亮==` 语法（#2552） | 49 个文件，单独套用冲突 36 个文件；带默认关闭的 `highlightSyntax` 开关。本地的高亮按钮写 `<mark>`，不受影响。移植 `67ea037f`（大纲渲染行内 markdown）时删掉了它依赖 `==高亮==` 的两处，挑入时要加回：`state/getTOC.ts` 把 `highlightSyntax` 传给 `tokenizer` 的 `options`；`inlineRenderer/lexer.ts` 的 `tokensToInlineHtml` 里 `strong` / `em` / `del` 那一组加回 `case 'mark'`。上游 `getTOC.spec.ts` 里对应的测试（`renders ==highlight== in contentHtml when highlightSyntax is on`）也一起加回 | 2026-10-21 决定以后单独一批做：从 `main` 切新分支 |
 
 ## 方法与证据边界
 
