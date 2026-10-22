@@ -253,7 +253,7 @@
 | `410733e1` 大纲高亮光标所在标题 | 挑入为 `5d5f2697`，本地补丁 `22ebfb18` | 上游在 `selection-change` 里加的调用被自动合并进本地已注释掉的旧监听，等于没生效；改为接到现在的监听里、放在 `followCaret` 之前。只有获得焦点的窗格更新高亮，窗格获得焦点时重新配对标题，因为大纲显示的是焦点窗格的文档。`toc.vue` 保留本地的大纲筛选。上游 `issue-5094-toc-theming` 本地已删除，不带。补丁：本地装的 Element Plus 把标签渲染成 `.el-text`，它自带颜色，高亮色要单独加到标签上；该 spec 最后一条留下未保存修改，关闭时改用 `closeDiscardingChanges` |
 | `fa265e10` 行内工具栏文字 / 背景色 | 挑入为 `250e4d9e` | 只有 `format.ts` 导入行冲突：上游那一侧的 `isKeyboardEvent` 来自没挑的提交，本地不用，不带；`nl.ts`、`ru.ts` 本地没有，不带 |
 | `ba5d71df` 选中文本字数 | 移植为 `1688e4d2` | 2026-10-20 定显示方式为"选中 12 / 全文 345"。muya 一侧原样套用。桌面一侧不用上游的标题栏和 store 字段，改为让选中字数跟着现有的光标位置上报：只有焦点窗格带上选区字数，其他窗格不带、不会把它清掉；切换文档或模式时开始新会话，和光标位置一起清零。状态栏显示 `W Selected 12 / Total 345`（中文界面"选中 12 / 全文 345"），提示框每项也显示这一对数。顺带把提示框里写死的 "All characters" 换成翻译键（译文取自上游）；`nl.json` 本地没有，不带 |
-| `67ea037f` 大纲渲染行内 markdown | 没挑，见待处理清单 | |
+| `67ea037f` 大纲渲染行内 markdown | 移植为 `80f49274` | 见下方"大纲渲染行内 markdown"一节 |
 
 证据：desktop 单测 1153 条通过、6 条跳过，`typecheck` 通过；muya 单测 1895 条通过，`tsc --noEmit` 通过；改动过的 desktop 文件 eslint 无 error。desktop e2e：`toc-active-heading`、`toc-scroll`、`source-toc-scroll` 等大纲 spec 16 条，`source-code-line-numbers`、`split-workspace`、`scroll-up-arrow`、`typewriter-caret` 等共 26 条，`highlight-color-preference`、`inline-format` 10 条，都通过。muya e2e（Chromium）`format-color`、`format-toolbar` 14 条通过。
 
@@ -322,6 +322,24 @@
 
 合回 `main`：快进到 `9882dae0`（`main` 此前没有新提交）。合并前的测试见上面的证据，之后只有文档提交。没有推送到 `origin`。
 
+## 大纲渲染行内 markdown（分支 `codex/upstream-toc-inline`，从 `main` 切出）
+
+2026-10-21 移植 `67ea037f`（#3110），挑入为 `80f49274`。讨论后定的做法：
+- 只取本提交自己的改动。夹带的 `==高亮==` 代码（`getTOC` 传 `highlightSyntax`、`tokensToInlineHtml` 的 `case 'mark'`）去掉；上游测试里 `==高亮==` 那条换成本地格式的测试。`editor.vue` 冲突里上游一侧只有未挑的 `highlightSyntax`、`softNewlineAsSpace` 两个 watcher，不带。
+- 工作区：`WorkspaceTocItem` 加可选字段 `titleHtml`，`workspaceTocFrom` 写入，store 映射回 `contentHtml`。字段可选，旧会话恢复的大纲照常显示纯文字。上游的 `REFRESH_TOC`（切换上标、数学等设置后刷新大纲）在工作区模式下改为 `paneScope.report({ toc })` 交给控制器；没有工作区时仍走 `REFRESH_TOC`。切换设置会让标题换新 slug，store 在快照映射时发现当前标题的 slug 消失、且标题数不变，就按位置找回当前标题高亮（上游 `REFRESH_TOC` 的做法）。
+- 本地扩展：上游大纲把 HTML 标签一律压成文字；本地工具栏写的 `<mark>`、`<u>` 和颜色 span 在大纲里保留。`<mark>`、`<u>` 去掉所有属性；span 必须能被 `parseColorStyle` 识别且颜色值是十六进制、颜色名或 rgb/hsl 形式，再用 `serializeColorStyle` 重新生成；其他标签照上游压成文字。大纲里 `<mark>` 用"默认高亮色"设置（`toc.vue` 在根元素设 `--mark-highlight-color`），上游原来用的是主题的 `--highlightColor`。DOMPurify 的大纲白名单加 `u` 和 `style` 属性。以后挑入 `==高亮==` 时，它在编辑器里同样渲染成 `<mark>`，样式自动一致。
+- 其他冲突：`inlineRenderer/index.ts` 保留本地按 `jsonState.revision` 缓存引用定义，同时按上游改为公开的 `collectReferenceDefinitions()` 并返回结果；`toc.vue` 合并上游的 HTML 标签插槽和本地的大纲筛选（无结果提示）、自动换行样式。上游从 `@muyajs/core` 引入的 `IMuyaOptions` 本地类型声明里没有，参数改用 `Record<string, unknown>`；本地 `muya-core.d.ts` 的 `ITocItem` 补 `contentHtml`；本地 `outline-filter.spec.ts` 的测试数据补上游新增的 `labelHtml` 字段。
+
+本地补充：`88335cf0` 加 e2e `toc-inline-format-kept`（大纲 `<mark>` 背景色等于编辑器、等于设置值；`<u>`、颜色 span 保留；带其他样式的 span 压成文字）。
+
+证据：
+- muya：单测 2371 条通过（`getTOC.spec` 23 条，含本地格式的 5 条），`tsc --noEmit`、eslint 通过。
+- desktop：单测 1159 条通过、6 条跳过，`typecheck` 通过，eslint 无 error。
+- desktop e2e：大纲相关 9 个文件（含上游新加的 `toc-markdown-render`、`toc-preference-live-update`）和 `split-workspace` 共 37 条，加新写的 2 条，都通过。
+- 截图核对（构建好的应用，自定义高亮色 `#7fd1ff`）：大纲里加粗、斜体、行内代码、emoji、高亮、下划线、颜色都正确显示，高亮色与编辑器一致；粘贴来的带 `font-size` 的 span 显示为纯文字；光标所在标题的行底色和主题绿文字与高亮色叠加，都可见。
+
+未覆盖：没有跑 muya e2e（本次 muya 改动只涉及 `getTOC` 用的函数和引用定义收集）；没有测导出 HTML 里的 `[TOC]` 显示；分屏下切换设置的刷新只靠 `split-workspace` 和 `toc-preference-live-update` 回归，没有专门用例。
+
 ### 待处理清单
 
 | 上游提交                                                                                    | 原因                                                                                                                                                                                                                                                              | 计划                                  |
@@ -331,7 +349,6 @@
 | `ad1e1cfd` 全量重渲染后保留搜索高亮                                                         | 冲突在 `editor.vue`、搜索栏 `index.vue`（点击搜索栏时是否清空、上一个的接口叫 `prev` 还是 `previous`）、muya `search/index.ts`、`.vscode/settings.json`                                                                                                           | 单独研究                              |
 | `34ea9931`、`127c5bb3`、`d0428e90` Windows 路径分隔符 / 原生路径桥接 / 导出中的盘符图片路径 | 依赖没挑的 E 组 `0d8dba02`（Delete 键移到回收站），三者之间也互相依赖；`127c5bb3` 还改了 `package.json` 和锁文件                                                                                                                                                  | 和侧边栏功能一起决定                  |
 | `b6a88236` macOS ⌘↑/⌘↓ 文档导航                                                             | 和本地 `content.ts` 的方向键处理冲突；只影响 macOS，在 Windows 上价值低                                                                                                                                                                                           | 暂不处理                              |
-| `67ea037f` 大纲渲染行内 markdown（#3110） | muya 一侧夹带没挑的 E 组代码：pandoc 数学选项、`==高亮==` 的 `mark` 记号、CommonMark 强调符 / 链接目标解析（`emphasis.ts`、`linkDestination.ts`）；本地 `collectReferenceDefinitions` 有按修订号缓存，要保留。桌面一侧本地的大纲数据来自工作区控制器，`contentHtml` 要接进这条路径，`REFRESH_TOC` 也要改成工作区版本 | 只取本提交自己的改动来移植；数学偏好和 `==高亮==` 决定后会更容易 |
 
 ## 方法与证据边界
 
