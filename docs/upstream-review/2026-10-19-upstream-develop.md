@@ -342,11 +342,31 @@
 
 合回 `main`：合并时 `main` 上已有 `13967d96`、`6aee6b3c`（e2e 窗口改为屏幕外、不抢焦点），分支变基到其上（无冲突，挑入提交变为 `1f26d99d`）后快进到 `2b49b2ac`。变基后复核：desktop 单测 1159 条、muya 单测 2371 条通过，`typecheck` 通过；大纲 e2e 和 `split-workspace` 共 39 条中 38 条通过，`split-workspace` 的 "Split Right inherits the final live position" 失败 1 次，单独重跑 2 次都通过，属于偶发。没有推送到 `origin`。
 
+## 升级后保留 `.md` 关联（分支 `codex/upstream-file-association`，从 `main` 切出）
+
+2026-10-22 挑入待处理清单里的 `bee2839a`（#4966），挑入为 `de3f0d65`。`installer.nsh` 两处冲突按原先的试合方案处理：
+- `customInstall` 保留本地 `10432195` 的环境恢复（失败就弹窗退出），去掉"是否关联"弹窗，改为无条件执行上游的 `mtAssociateExtension`。
+- 上游的 `MT_PROGID` 和两个宏放进本地的 `MARKTEXT_INSTALLER_NSH_INCLUDED` 保护块；结尾保留本地的 `!endif`。
+- 上游 `windows-file-association.spec.ts` 的"customInstall 里没有 MessageBox"收窄为"没有 `MB_YESNO` / `MB_ICONQUESTION` 提问框"，环境恢复失败的报错框不算。
+- 跟着上游带进来的变化：注册表从固定的 `HKCU` 改为 `SHELL_CONTEXT`，选"为所有用户安装"时写到 `HKLM`。
+
+证据：
+- desktop：单测 1166 条通过、6 条跳过（`windows-file-association.spec` 7 条），`typecheck` 通过。
+- `build:win` 打出新版安装包，NSIS 编译通过；同时从 `main`（`b3bde16b`）打出不带修复的旧版安装包。两个版本号都是 `0.20.0-rc.1`。
+- Windows 沙盒验证（每步用 `reg query` 核对）：
+  - 旧版 → 旧版：手动安装旧版并在弹窗选"是"，在"设置 → 默认应用"把 `.md` 设为 MarkText，`UserChoiceLatest` 的 ProgId 为 `MarkText.Document`；再用 `/S` 静默安装旧版，`MarkText.Document` 被删除。但 `Invoke-Item` 和资源管理器双击 `t.md` 都还能打开：Windows 退回到 `.md` 默认值指向的 electron-builder ProgId `Markdown`。也就是说，在这台机器的 Windows 11 版本上，#4966 描述的"双击没反应"没有复现。
+  - 旧版 → 新版（`/S`）：`.md` 指向 `MarkText.Document`，`OpenWithProgids` 有 `MarkText.Document`；`MarkText.Document` 和 `Markdown` 的打开命令路径都带引号，electron-builder 没有在 `customInstall` 之后把后者改回不带引号。
+  - 新版 → 新版（`/S`）后关联仍在。在 `.md\OpenWithProgids` 手动加一个 `Other.Editor` 后用 `/S` 卸载：程序目录、`MarkText.Document` 都删除，`.md` 键和 `Other.Editor` 保留。
+  - 新版 `/S /allusers /D=C:\Program Files\Mark Text Test`：关联写在 `HKLM`，两条打开命令指向该目录且带引号；打开 `t.md` 启动的是这个目录里的 `marktext.exe`。
+
+未覆盖：没有复现出 #4966 本身，所以只验证了新版的安装、升级、卸载行为正确，没有验证"修复前坏、修复后好"；没有试手动安装（非静默）时的升级；没有在装好的应用里手工试 `18c724f9` / `660a8de1` 的加粗和链接，第一批挑入的手工验证也还没做。
+
+合回 `main`：合并时 `main` 上已有 `21430295`、`fe6bef0d`、`b5845a12`（另一会话的 DocumentIO 测试和剪贴板用例），分支变基到其上（无冲突，挑入提交从 `ff7365a7` 变为 `de3f0d65`）后快进。沙盒里用的安装包是变基前打的，变基只带进了测试和文档改动。没有推送到 `origin`。
+
 ### 待处理清单
 
 | 上游提交                                                                                    | 原因                                                                                                                                                                                                                                                              | 计划                                  |
 | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `bee2839a` 升级后保留 `.md` 关联（#4966）                                                   | NSIS 安装脚本冲突。试合方案：保留本地的 include 保护和环境恢复，关联改成无条件执行，上游的宏移进保护块；上游的 `windows-file-association.spec.ts` 断言 customInstall 里没有任何 MessageBox，要收窄到"关联弹窗"，因为本地的环境恢复失败分支本来就有一个 MessageBox | 配合打包、安装、再升级一次来验证      |
 | `14eab778` 软换行尾行的方向键导航（#3203）                                                  | 和本地 RTL、#3520、#3193 三处方向键修复冲突；还依赖 E 组没挑的 `b8f5e0fb`（跨块保持光标列）                                                                                                                                                                       | 决定 `b8f5e0fb` 时一起处理            |
 | `ad1e1cfd` 全量重渲染后保留搜索高亮                                                         | 冲突在 `editor.vue`、搜索栏 `index.vue`（点击搜索栏时是否清空、上一个的接口叫 `prev` 还是 `previous`）、muya `search/index.ts`、`.vscode/settings.json`                                                                                                           | 单独研究                              |
 | `34ea9931`、`127c5bb3`、`d0428e90` Windows 路径分隔符 / 原生路径桥接 / 导出中的盘符图片路径 | 依赖没挑的 E 组 `0d8dba02`（Delete 键移到回收站），三者之间也互相依赖；`127c5bb3` 还改了 `package.json` 和锁文件                                                                                                                                                  | 和侧边栏功能一起决定                  |
