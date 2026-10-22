@@ -449,6 +449,75 @@ describe('WorkspaceRuntime', () => {
     }
   })
 
+  it('does not mark a newer unsaved edit saved when its checkpoint lands after a save', async() => {
+    const testWindow = window as unknown as {
+      electron?: {
+        ipcRenderer?: {
+          invoke?: (...args: unknown[]) => Promise<unknown>
+          send?: (...args: unknown[]) => void
+        }
+      }
+    }
+    const originalElectron = testWindow.electron
+    const crashRequests: Array<{ kind: string; receipt?: string; checkpoint?: { documentRevision: number } }> = []
+    let releaseFirstCheckpoint = (): void => undefined
+    const firstCheckpointGate = new Promise<void>((resolve) => { releaseFirstCheckpoint = resolve })
+    const invoke = vi.fn(async(_channel: unknown, request: unknown) => {
+      const typed = request as (typeof crashRequests)[number]
+      crashRequests.push(typed)
+      switch (typed.kind) {
+        case 'checkpoint':
+          if (crashRequests.filter((entry) => entry.kind === 'checkpoint').length === 1) await firstCheckpointGate
+          return { durable: true, receipt: `receipt-${typed.checkpoint?.documentRevision}` }
+        case 'saved':
+        case 'mark-clean': return { durable: true }
+        default: throw new Error(`unexpected crash-draft request: ${JSON.stringify(request)}`)
+      }
+    })
+    testWindow.electron = {
+      ...originalElectron,
+      ipcRenderer: { ...originalElectron?.ipcRenderer, invoke, send: vi.fn() }
+    }
+    const port = new RecordingDocumentIoPort()
+    const checkpoints = () => crashRequests.filter((request) => request.kind === 'checkpoint')
+
+    try {
+      // A file-backed checkpoint needs the bytes DocumentIO observed on disk.
+      const workspace = createWorkspaceRuntime([
+        { documentId: 'note', fileKey: '/note.md', markdown: 'one', title: 'note.md', observedDiskRevision: 'disk-a' }
+      ])
+      const composition = createPaneEditorComposition({ paneId: 'left', controller: workspace, documentIoPort: port })
+      await composition.mount(new MemoryPaneSurface(), { id: 'note', fileKey: '/note.md', markdown: 'one', title: 'note.md' })
+      await vi.waitFor(() => expect(port.requests.some((request) => request.kind === 'bind')).toBe(true))
+      const scope = expectDefined(composition.getScope())
+
+      // The first checkpoint is held, so a second crash-draft sync is still
+      // queued when the save is acknowledged. That sync reads whichever
+      // revision is current once it runs.
+      await vi.waitFor(() => expect(scope.report({ markdown: 'edit A' }).status).toBe('applied'))
+      const firstSync = composition.checkpointCrashDraft()
+      const queuedSync = composition.checkpointCrashDraft()
+      await vi.waitFor(() => expect(checkpoints()).toHaveLength(1))
+
+      const saving = composition.execute({ kind: 'save' })
+      await vi.waitFor(() => expect(workspace.getProjection().panes[0]?.tabs[0]?.dirty).toBe(false))
+      await vi.waitFor(() => expect(scope.report({ markdown: 'edit B' }).status).toBe('applied'))
+
+      releaseFirstCheckpoint()
+      await Promise.all([firstSync, queuedSync])
+      expect(checkpoints()).toHaveLength(2)
+      const newerReceipt = `receipt-${expectDefined(checkpoints()[1]?.checkpoint).documentRevision}`
+      expect((await saving).status).toBe('applied')
+      expect(crashRequests).not.toContainEqual(expect.objectContaining({ kind: 'saved', receipt: newerReceipt }))
+
+      // The newer draft is still resolved by the save that does cover it.
+      expect((await composition.execute({ kind: 'save' })).status).toBe('applied')
+      expect(crashRequests).toContainEqual(expect.objectContaining({ kind: 'saved', receipt: newerReceipt }))
+    } finally {
+      testWindow.electron = originalElectron
+    }
+  })
+
   it('reports an applied file-backed legacy tab close once but not a cancelled close', async() => {
     const testWindow = window as unknown as {
       electron?: { ipcRenderer?: { send?: (...args: unknown[]) => void } }

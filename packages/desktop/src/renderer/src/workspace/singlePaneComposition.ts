@@ -786,7 +786,7 @@ export class PaneEditorComposition {
     if (applied.status === 'applied' && ack.status === 'durable-success') {
       this.persistence.boundDocumentFences.set(ack.documentId, ack.ownerFence)
       const recovered = this.persistence.crashDraftLineage.has(ack.documentId)
-      const resolved = await this.resolveCrashDraft(ack.documentId)
+      const resolved = await this.resolveCrashDraft(ack.documentId, 'saved', ack.documentRevision)
       if (recovered && !resolved) {
         return { status: 'failed', reason: 'recovered draft disposition was not durable' }
       }
@@ -837,9 +837,18 @@ export class PaneEditorComposition {
     return next
   }
 
-  private async resolveCrashDraft(documentId: string, action: 'saved' | 'discard' = 'saved'): Promise<boolean> {
+  private async resolveCrashDraft(
+    documentId: string,
+    action: 'saved' | 'discard' = 'saved',
+    savedRevision?: number
+  ): Promise<boolean> {
     await this.persistence.crashDraftTail
-    const receipt = this.persistence.crashReceipts.get(documentId)?.receipt
+    const current = this.persistence.crashReceipts.get(documentId)
+    // A checkpoint queued before the save can run after it and record an edit
+    // the save did not include. That draft must stay recoverable until a save
+    // of its own revision resolves it.
+    if (savedRevision !== undefined && current && current.revision > savedRevision) return true
+    const receipt = current?.receipt
     if (!receipt) return false
     if (this.persistence.crashDraftDispositions.get(documentId) !== receipt) {
       const response = await this.crashDraft.request({ kind: action, receipt })
