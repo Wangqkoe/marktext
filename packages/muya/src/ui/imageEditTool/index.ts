@@ -5,9 +5,9 @@ import type { ImageToken } from '../../inlineRenderer/types';
 import type { IImagePathSuggestion } from '../imagePicker';
 import type { IBaseOptions } from '../types';
 import { EVENT_KEYS, isWin, URL_REG } from '../../config';
+import { findContentDOM } from '../../selection/dom';
 import { getUniqueId, isHTMLInputElement, isKeyboardEvent } from '../../utils';
-
-import { query } from '../../utils/dom';
+import { getBlock, query } from '../../utils/dom';
 import { getImageInfo, getImageSrc } from '../../utils/image';
 import { h, patch } from '../../utils/snabbdom';
 import BaseFloat from '../baseFloat';
@@ -419,9 +419,13 @@ export class ImageEditTool extends BaseFloat {
             this.muya.domNode,
         );
 
+        // Resolve the block from the placeholder rather than reusing
+        // `this._block`: the document may have been rebuilt (e.g. a source-mode
+        // round trip) or the tool reopened on another image while waiting.
         if (imageWrapper) {
             const imageInfo = getImageInfo(imageWrapper);
-            this._block!.replaceImage(imageInfo, {
+            const block = getBlock(findContentDOM(imageWrapper)) as Format | undefined;
+            block?.replaceImage(imageInfo, {
                 alt,
                 src: uploadedSrc,
                 title,
