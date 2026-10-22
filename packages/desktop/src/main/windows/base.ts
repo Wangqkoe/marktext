@@ -3,6 +3,7 @@ import type { BrowserWindow } from 'electron'
 import { TypedEmitter } from '@shared/types/typedEmitter'
 import type Accessor from '../app/accessor'
 import { getThemeBackgroundColor } from '../../common/theme'
+import { isE2eBackground, revealInBackground } from '../e2eBackground'
 
 /**
  * A MarkText window.
@@ -83,6 +84,10 @@ class BaseWindow extends TypedEmitter<BaseWindowEvents> {
   bringToFront(): void {
     const { browserWindow: win } = this
     if (!win) return
+    if (isE2eBackground()) {
+      revealInBackground(win)
+      return
+    }
     if (win.isMinimized()) win.restore()
     if (!win.isVisible()) win.show()
     win.focus()

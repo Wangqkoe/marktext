@@ -29,6 +29,7 @@ import { getNativeThemeSource, isDarkApplicationTheme } from './nativeTheme'
 import { clampNativeExternalReleasePoint } from '../nativeGesture/placement'
 import type Accessor from './accessor'
 import type WindowManager from './windowManager'
+import { isE2eBackground } from '../e2eBackground'
 
 const consumeTransferTestFault = (fault: 'target-create-once'): boolean => {
   if (process.env.PERF_TESTING !== 'true' || process.env.MARKTEXT_T06_TRANSFER_FAULT !== fault) return false
@@ -685,7 +686,9 @@ class App {
       // A setting window is already created
       const browserSettingWindow = settingWins[0].win.browserWindow!
       browserSettingWindow.webContents.send('settings::change-tab', category)
-      if (isLinux) {
+      if (isE2eBackground()) {
+        // Leave the developer's foreground window alone during local E2E runs.
+      } else if (isLinux) {
         browserSettingWindow.focus()
       } else {
         browserSettingWindow.moveTop()

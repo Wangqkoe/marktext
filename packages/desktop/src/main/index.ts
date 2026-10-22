@@ -13,6 +13,7 @@ import Accessor from './app/accessor'
 import App from './app'
 import { t } from './i18n'
 import { registerSandboxIpcHandlers } from './ipc'
+import { configureE2eBackground } from './e2eBackground'
 
 // Set version strings into global and process.versions
 process.env.MARKTEXT_VERSION = MARKTEXT_VERSION
@@ -63,6 +64,8 @@ process.on('uncaughtException', (err: Error) => {
 process.on('unhandledRejection', (reason) => {
   log.error('Main unhandledRejection:', reason)
 })
+
+configureE2eBackground()
 
 // -----------------------------------------------
 // Disable GPU if requested

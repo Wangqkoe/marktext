@@ -7,6 +7,7 @@ import type Accessor from '../app/accessor'
 import { centerWindowOptions } from './utils'
 import { TITLE_BAR_HEIGHT, preferencesWinOptions, isLinux, isOsx } from '../config'
 import log from 'electron-log'
+import { applyBackgroundWindowOptions, isE2eBackground, revealInBackground } from '../e2eBackground'
 
 class SettingWindow extends BaseWindow {
   /**
@@ -54,6 +55,7 @@ class SettingWindow extends BaseWindow {
     }
 
     winOptions.backgroundColor = this._getPreferredBackgroundColor(theme)
+    applyBackgroundWindowOptions(winOptions)
     let win: BrowserWindow | null = (this.browserWindow = new BrowserWindow(winOptions))
 
     win.webContents.on('did-fail-load', (_event, code, desc, url) => {
@@ -69,6 +71,7 @@ class SettingWindow extends BaseWindow {
     appMenu.addSettingMenu(win)
 
     win.once('ready-to-show', () => {
+      if (isE2eBackground()) revealInBackground(win!)
       this.lifecycle = WindowLifecycle.READY
       this.emit('window-ready')
     })

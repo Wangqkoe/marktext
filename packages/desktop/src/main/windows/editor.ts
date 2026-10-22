@@ -18,6 +18,7 @@ import type { FolderRootIdentity } from '@shared/types/ipc'
 import { getCrashDraftAdapter, getDocumentIoAdapter, getTransferAdapter } from '../ipc'
 import { attachEditorDocumentIo } from './documentIO'
 import { isDirectory } from 'common/filesystem'
+import { applyBackgroundWindowOptions } from '../e2eBackground'
 import type { DirectoryWatcherCandidate } from '../filesystem/watcher'
 
 type RawMarkdownDocument = Awaited<ReturnType<typeof loadMarkdownFile>>
@@ -164,6 +165,7 @@ class EditorWindow extends BaseWindow {
     }
 
     winOptions.backgroundColor = this._getPreferredBackgroundColor(theme)
+    applyBackgroundWindowOptions(winOptions)
     if (env.disableSpellcheck) {
       // winOptions.webPreferences is set by editorWinOptions spread above
       ;(winOptions.webPreferences as { spellcheck: boolean }).spellcheck = false

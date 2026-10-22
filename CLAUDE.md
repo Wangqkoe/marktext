@@ -209,6 +209,10 @@ pnpm -C packages/desktop exec playwright test test/e2e/launch.spec.ts
 pnpm -C packages/desktop exec playwright test -g 'partial test name'
 ```
 
+Local E2E runs (outside CI) open app windows off-screen, hidden from the
+taskbar and without taking keyboard focus. Set `MARKTEXT_E2E_BACKGROUND=0`
+to see the windows while debugging a spec.
+
 ## Code Style
 
 Enforced by ESLint + Prettier. Run `pnpm run lint` and `pnpm run typecheck` before committing.
