@@ -25,16 +25,45 @@
 
 - `confirm-document-close` maps "Don't Save" (button 1) to `discard` (`packages/desktop/src/main/ipc/documentIO.ts:133-156`), so both groups received the same decision. The divergence is in the renderer's close handling after that decision.
 - In all 5 runs DocumentIO behaved identically before close: one `durable-success` auto-save, one `conflict` auto-save, then one `conflict` observation about 0.9 s later. None of the DocumentIO assertions failed.
+- The hook did not record crash-draft responses (`durable`, `reason`), only the requests.
 
-## Reproduction and classification
+## Close path in the renderer
 
-- With the hook: 2/5 hung on close.
-- Without the hook: this test passed 10/10, in two `--repeat-each=5` runs before and after the rebase. The close hang was not observed there, which neither confirms nor rules it out.
-- Inference (not verified): when a crash-recovery checkpoint is written for a document already in the DocumentIO conflict state, a later "Don't Save" close writes another checkpoint instead of discarding, and the close never completes. That may be the path `ecf2d2c2` ("preserve dirty document when discard is not durable") added, triggered by a discard that the conflict state makes non-durable. This may also explain the recurring `Worker teardown timeout` entries in full-suite runs, but that link is unverified.
-- Severity: unassigned. If it reproduces without instrumentation, the user-visible effect would be a window that cannot be closed after choosing "Don't Save" on a conflicted document.
+- On "Don't Save", `PaneEditorComposition` calls `syncCrashDraft()` and then `resolveCrashDraft(documentId, 'discard')`. If no crash-draft receipt is held for the document, `resolveCrashDraft` returns `false` and the close returns `failed` without sending `discard` (`packages/desktop/src/renderer/src/workspace/singlePaneComposition.ts:633-638`, `:840-857`). That matches the hung runs' "checkpoint, then nothing", but it does not explain why no receipt was held.
 
-## Next actions (not started)
+## Unhooked probe (2026-10-22 08:58–09:01 -07:00)
 
-1. Reproduce without the hook: force the extra checkpoint deterministically, for example by waiting for the `conflict` observation and for a checkpoint before closing, and check whether "Don't Save" still hangs.
-2. If it reproduces, trace the renderer close path from the `discard` decision through crash-draft discard to `unbind` for a document whose `conflict` flag is set, and decide whether it is a product defect.
-3. Until then, `closeDiscardingChanges` in dirty-conflict e2e tests can hang a worker. A failure that reports only a test timeout plus `Worker teardown timeout` should be checked against this record first.
+- Build: `E:/mt-wt/docio`, `pnpm run build:unpack` after the rebase onto `b3bde16b`; product code equals `main` at `b3bde16b`. No other e2e process ran.
+- Method: a throwaway Playwright spec (not committed) wrapped the main-process `mt::workspace::crash-draft` handler through `ipcMain._invokeHandlers` from `app.evaluate`. It could delay `checkpoint` responses and appended every request and response to a log file. Flow: auto-save at 100 ms, append edit A, wait until A is on disk, raise the auto-save delay to 10 s, append edit B, optionally write an external change and wait 3 s for the conflict observation, then close the window answering "Don't Save" and count windows after 8 s.
+- Results (one run per variant):
+
+| Checkpoint delay | External change | Window closed | `saved` sent after the checkpoint of unsaved edit B? |
+|---|---|---|---|
+| 0 ms | no | yes | no (`saved` followed the rev 3 checkpoint; B was rev 4) |
+| 0 ms | yes | yes | **yes** (rev 4 checkpoint at 427 ms, `saved` at 457 ms) |
+| 1500 ms | no | yes | **yes** (rev 4 checkpoint at 3329 ms, `saved` at 3365 ms) |
+| 1500 ms | yes | yes | **yes** (rev 4 checkpoint at 3355 ms, `saved` at 3390 ms) |
+
+- Every response in all four variants was `durable: true`, except one `mark-clean` that returned `unresolved crash drafts remain`. After the wrongly targeted `saved`, a checkpoint of the same revision (rev 4) was accepted as durable (at 3047 ms and 6055 ms in the external-change variants), and at close a rev 5 checkpoint and `discard` both succeeded.
+
+## Correction to the earlier inference
+
+- This record previously inferred that a checkpoint of an already-tombstoned revision is refused as stale, so the renderer holds no receipt and "Don't Save" cannot complete. The probe refutes that: same-revision checkpoints after the tombstone were durable, and the window closed in every variant. That inference is withdrawn.
+- The close hang seen in the hooked runs remains unexplained and was **not reproduced** without the hook. Untested candidates: close handling while the document's DocumentIO `conflict` flag is set, or timing that the hook's IPC wrapping introduces. Its link to the full-suite `Worker teardown timeout` entries is also unverified.
+
+## Finding: a save can tombstone the crash draft of a newer, unsaved edit
+
+- Mechanism (from code, confirmed by the probe's request order):
+  - After a durable save, `PaneEditorComposition.execute` calls `resolveCrashDraft(documentId)` with the default `saved` action.
+  - `resolveCrashDraft` first awaits the whole crash-draft queue (`crashDraftTail`) and only then reads the document's current receipt (`singlePaneComposition.ts:840-842`).
+  - A checkpoint for a later edit that was queued meanwhile lands first and replaces that receipt. The `saved` disposition is therefore sent for the newer revision, whose content was never saved. The main process tombstones it, because `acknowledgeSave` only checks that the receipt's revision is the latest one on record (`packages/desktop/src/main/crashDraftRecovery/index.ts:138-144`).
+  - The renderer then deletes the document's receipt.
+- Observed frequency: 3 of 4 probe runs, including 1 of 2 runs with no injected delay.
+- Effect (inference): from the wrong `saved` until the next durable checkpoint, the unsaved edit has no live crash draft. In the probe that gap lasted 1.6–2.6 s. It ended at a same-revision checkpoint triggered by the conflict observation, or at the close-time rev 5 checkpoint. In normal use it ends at the next runtime update that triggers a checkpoint, such as the next edit. A crash inside the gap would lose that edit from crash recovery. The document on disk and in the editor is unaffected.
+- Classification: candidate product defect in crash-draft bookkeeping, severity unassigned; narrow window, crash-recovery data only.
+
+## Next actions (not started; each needs the user's decision)
+
+1. Crash-draft race: bind the disposition to the saved revision. Read the receipt for the revision that was saved, or skip the `saved` disposition when the current receipt is newer than the save. Add a renderer unit test that lands a newer checkpoint between a durable save and `resolveCrashDraft`.
+2. Close hang: reproduce without the hook. For example, close while the document is in the DocumentIO conflict state with a checkpoint written after the conflict observation, and trace the close path if it hangs.
+3. Until then, a failure that reports only a test timeout plus `Worker teardown timeout` after closing a dirty document should be checked against this record first.
