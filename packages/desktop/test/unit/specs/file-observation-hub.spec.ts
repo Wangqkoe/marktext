@@ -244,6 +244,55 @@ describe('FileObservationHub', () => {
     expect(writerChanges).toEqual([])
   })
 
+  it('keeps own auto-save events from reaching a writer that holds a newer unsaved edit', async() => {
+    const { hub, storage, watchers } = createHub()
+    const fileKey = raw('queued-own-saves')
+    const canonical = await hub.canonicalFileKey(fileKey)
+    storage.files.set(canonical, Buffer.from('baseline'))
+    let writerState: 'clean' | 'dirty' = 'clean'
+    const writerChanges: DiskChange[] = []
+    const peerChanges: DiskChange[] = []
+    const writer = await hub.subscribe({
+      ...subscriber('writer', fileKey, 'clean', writerChanges),
+      getState: () => writerState
+    })
+    await hub.subscribe(subscriber('peer', fileKey, 'clean', peerChanges))
+    let revision = await hub.getDiskRevision(fileKey)
+    if (!revision) throw new Error('expected baseline')
+
+    const saveAs = async(documentRevision: number, bytes: string): Promise<void> => {
+      await expect(hub.refreshDocumentRevision(writer, documentRevision)).resolves.toBe(true)
+      const result = await hub.save({
+        documentId: 'writer',
+        documentRevision,
+        fileKey,
+        observedDiskRevision: revision,
+        ownerLease: writer,
+        bytes: Buffer.from(bytes)
+      })
+      if (result.status !== 'saved') throw new Error(`expected save ${bytes}`)
+      revision = result.diskRevision
+    }
+
+    await saveAs(1, 'save A')
+    // Chokidar reports a write as soon as its bytes land, which can be before
+    // the save has re-read the file and recorded its revision.
+    storage.onWrite = () => watchers.emit(canonical)
+    await saveAs(2, 'save B')
+    storage.onWrite = undefined
+    writerState = 'dirty'
+    // The coalesced A/B event arrives while edit C is still pending.
+    watchers.emit(canonical)
+    await vi.waitFor(() => expect(peerChanges).toHaveLength(2))
+    await Promise.resolve()
+
+    expect(writerChanges).toEqual([])
+    expect(peerChanges.map((change) => change.diskRevision)).toEqual([
+      expect.any(String),
+      revision
+    ])
+  })
+
   it('expires and bounds pending suppression entries when watcher events are lost', async() => {
     let now = 0
     const { hub, storage } = createHub({

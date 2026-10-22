@@ -39,6 +39,56 @@ const redo = async(app: ElectronApplication): Promise<void> => {
   await sendIpcToRenderer(app, 'mt::editor-edit-action', 'redo')
 }
 
+// Workspace documents decide own save versus external change in DocumentIO, so
+// these tests read its verdicts from the main process instead of the legacy
+// `mt::update-file` watcher, which the renderer ignores for them.
+const recordDocumentIoObservations = async(app: ElectronApplication): Promise<void> => {
+  await app.evaluate(({ BrowserWindow }) => {
+    const state = global as unknown as { __mt_audit_document_io_observations__?: string[] }
+    state.__mt_audit_document_io_observations__ = []
+    const webContents = BrowserWindow.getAllWindows()[0]?.webContents
+    if (!webContents) throw new Error('Editor webContents is unavailable')
+    const send = webContents.send.bind(webContents)
+    webContents.send = ((channel: string, ...args: unknown[]) => {
+      if (channel === 'mt::workspace::document-io-observation') {
+        const observation = args[0] as { kind?: string } | undefined
+        state.__mt_audit_document_io_observations__?.push(String(observation?.kind))
+      }
+      send(channel, ...args)
+    }) as typeof webContents.send
+  })
+}
+
+const documentIoObservations = (app: ElectronApplication): Promise<string[]> =>
+  app.evaluate(() => {
+    const state = global as unknown as { __mt_audit_document_io_observations__?: string[] }
+    return [...(state.__mt_audit_document_io_observations__ ?? [])]
+  })
+
+// One renderer-side edit: unlike setSourceMarkdown it cannot overwrite a disk
+// reload that lands between reading the content and writing it back.
+const appendInSourceMode = async(
+  page: Page,
+  app: ElectronApplication,
+  text: string
+): Promise<void> => {
+  await enterSourceMode(page, app)
+  await page.evaluate((value) => {
+    const element = document.querySelector('.source-code .CodeMirror') as
+      | (Element & {
+        CodeMirror?: {
+          getValue(): string
+          posFromIndex(index: number): unknown
+          replaceRange(text: string, from: unknown): void
+        }
+      })
+      | null
+    const cm = element?.CodeMirror
+    if (cm) cm.replaceRange(value, cm.posFromIndex(cm.getValue().length))
+  }, text)
+  await exitSourceMode(page, app)
+}
+
 const assertOnlyCrLf = (bytes: Buffer): void => {
   for (let index = 0; index < bytes.length; index++) {
     if (bytes[index] === 0x0a) expect(bytes[index - 1]).toBe(0x0d)
@@ -244,119 +294,140 @@ test.describe('Ticket 02 W3 — F3 path, CRLF, image, auto-save and external cha
     }
   })
 
-  test('an external edit immediately after auto-save is not overwritten by the next edit', async() => {
-    test.setTimeout(60_000)
+  const launchAutoSavedF3 = async(
+    profileName: string
+  ): Promise<{
+    readonly run: ReturnType<typeof createAuditRun>
+    readonly documentPath: string
+    readonly app: ElectronApplication
+    readonly page: Page
+  }> => {
     const run = createAuditRun()
     const documentPath = run.fixtures.F3.documentPath as string
-    const profile = run.createIsolatedUserDataDir('w3-autosave-external-race')
-    const launchOptions = {
-      ...run.launchOptionsForUserDataDir(profile),
-      suppressErrorDialog: true
-    }
-    let app: ElectronApplication | undefined
-
+    const profile = run.createIsolatedUserDataDir(profileName)
     try {
-      const launched = await launchElectron([documentPath], launchOptions)
-      app = launched.app
-      const page = launched.page
+      const { app, page } = await launchElectron([documentPath], {
+        ...run.launchOptionsForUserDataDir(profile),
+        suppressErrorDialog: true
+      })
       await waitForEditor(page)
       await waitForMenuReady(app)
-
+      await recordDocumentIoObservations(app)
       await sendIpcToRenderer(app, 'mt::user-preference', {
         autoSave: true,
         autoSaveDelay: 100
       })
       await page.waitForTimeout(100)
-      const initial = await getMarkdownContent(page, app)
-      await setSourceMarkdown(page, app, `${initial}\nW3-RACE-AUTOSAVE\n`)
+      return { run, documentPath, app, page }
+    } catch (error) {
+      run.cleanup()
+      throw error
+    }
+  }
+
+  const autoSaveMarker = async(
+    page: Page,
+    app: ElectronApplication,
+    documentPath: string,
+    marker: string
+  ): Promise<void> => {
+    await appendInSourceMode(page, app, `\n${marker}\n`)
+    await expect
+      .poll(() => fs.readFileSync(documentPath, 'utf8'), { timeout: 15_000 })
+      .toContain(marker)
+    await expect.poll(() => isDirty(page), { timeout: 15_000 }).toBe(false)
+  }
+
+  const writeExternalChange = (documentPath: string): void => {
+    const afterAutoSave = fs.readFileSync(documentPath, 'utf8')
+    fs.writeFileSync(documentPath, `${afterAutoSave}\r\nW3-RACE-EXTERNAL-CONTENT\r\n`, 'utf8')
+  }
+
+  test('an external edit observed after auto-save is reloaded before the next edit is saved', async() => {
+    test.setTimeout(60_000)
+    const { run, documentPath, app, page } = await launchAutoSavedF3(
+      'w3-autosave-external-observed'
+    )
+
+    try {
+      await autoSaveMarker(page, app, documentPath, 'W3-RACE-AUTOSAVE')
+      writeExternalChange(documentPath)
+
+      await expect.poll(() => documentIoObservations(app), { timeout: 10_000 }).toContain('reload')
       await expect
-        .poll(() => fs.readFileSync(documentPath, 'utf8'), { timeout: 8000 })
-        .toContain('W3-RACE-AUTOSAVE')
-      await expect.poll(() => isDirty(page), { timeout: 8000 }).toBe(false)
+        .poll(() => getMarkdownContent(page, app), { timeout: 10_000 })
+        .toContain('W3-RACE-EXTERNAL-CONTENT')
 
-      const afterAutoSave = fs.readFileSync(documentPath, 'utf8')
-      const externalContent = `${afterAutoSave}\r\nW3-RACE-EXTERNAL-CONTENT\r\n`
-      fs.writeFileSync(documentPath, externalContent, 'utf8')
-
-      // The file watcher stabilizes writes for one second. Wait beyond that
-      // boundary without toggling editor modes, then make the user's next edit.
-      await page.waitForTimeout(2500)
-      const editorBeforeNextEdit = await getMarkdownContent(page, app)
-      await setSourceMarkdown(
-        page,
-        app,
-        `${editorBeforeNextEdit}\nW3-RACE-USER-NEXT-EDIT\n`
-      )
-      await expect
-        .poll(() => fs.readFileSync(documentPath, 'utf8'), { timeout: 8000 })
-        .toContain('W3-RACE-USER-NEXT-EDIT')
-
-      const finalDisk = fs.readFileSync(documentPath, 'utf8')
-      expect(finalDisk).toContain('W3-RACE-EXTERNAL-CONTENT')
+      await autoSaveMarker(page, app, documentPath, 'W3-RACE-USER-NEXT-EDIT')
+      expect(fs.readFileSync(documentPath, 'utf8')).toContain('W3-RACE-EXTERNAL-CONTENT')
+      expect(await documentIoObservations(app)).not.toContain('conflict')
       await expectNoRendererErrors(app)
     } finally {
-      if (app) await app.close().catch(() => {})
+      await closeDiscardingChanges(app).catch(() => {})
       run.cleanup()
     }
   })
 
-  test('queued own-save events do not interrupt a newer pending auto-save', async() => {
-    test.setTimeout(90_000)
-    const run = createAuditRun()
-    const documentPath = run.fixtures.F3.documentPath as string
-    const profile = run.createIsolatedUserDataDir('w3-queued-own-save-events')
-    const launchOptions = {
-      ...run.launchOptionsForUserDataDir(profile),
-      suppressErrorDialog: true
-    }
-    let app: ElectronApplication | undefined
+  test('an edit made before an external change is observed never overwrites it', async() => {
+    test.setTimeout(60_000)
+    const { run, documentPath, app, page } = await launchAutoSavedF3('w3-autosave-external-race')
 
     try {
-      const launched = await launchElectron([documentPath], launchOptions)
-      app = launched.app
-      const page = launched.page
-      await waitForEditor(page)
-      await waitForMenuReady(app)
+      await autoSaveMarker(page, app, documentPath, 'W3-RACE-AUTOSAVE')
+      writeExternalChange(documentPath)
+      // The watcher holds events for a one-second stability window, so this
+      // edit normally reaches auto-save before DocumentIO observes the change.
+      await appendInSourceMode(page, app, '\nW3-RACE-USER-NEXT-EDIT\n')
 
-      await sendIpcToRenderer(app, 'mt::user-preference', {
-        autoSave: true,
-        autoSaveDelay: 100
-      })
-      await page.waitForTimeout(100)
-
-      const initial = await getMarkdownContent(page, app)
-      const firstSave = `${initial}\nW3-QUEUED-SAVE-A\n`
-      await setSourceMarkdown(page, app, firstSave)
+      // Either outcome is safe: the save is refused as a conflict, or the
+      // change was observed and reloaded first and the edit saved on top of it.
       await expect
-        .poll(() => fs.readFileSync(documentPath, 'utf8'), { timeout: 15_000 })
-        .toContain('W3-QUEUED-SAVE-A')
-      await expect.poll(() => isDirty(page), { timeout: 15_000 }).toBe(false)
+        .poll(
+          async() =>
+            (await documentIoObservations(app)).includes('conflict') ||
+            fs.readFileSync(documentPath, 'utf8').includes('W3-RACE-USER-NEXT-EDIT'),
+          { timeout: 15_000 }
+        )
+        .toBe(true)
 
-      const secondSave = `${firstSave}\nW3-QUEUED-SAVE-B\n`
-      await setSourceMarkdown(page, app, secondSave)
-      await expect
-        .poll(() => fs.readFileSync(documentPath, 'utf8'), { timeout: 15_000 })
-        .toContain('W3-QUEUED-SAVE-B')
-      await expect.poll(() => isDirty(page), { timeout: 15_000 }).toBe(false)
+      const disk = fs.readFileSync(documentPath, 'utf8')
+      expect(disk).toContain('W3-RACE-EXTERNAL-CONTENT')
+      if ((await documentIoObservations(app)).includes('conflict')) {
+        expect(disk).not.toContain('W3-RACE-USER-NEXT-EDIT')
+        await expect(page.locator('.editor-notifications')).toBeVisible({ timeout: 10_000 })
+        expect(await isDirty(page)).toBe(true)
+      }
+      await expectNoRendererErrors(app)
+    } finally {
+      await closeDiscardingChanges(app).catch(() => {})
+      run.cleanup()
+    }
+  })
 
+  test('own auto-saves produce no DocumentIO disk observation while a newer save is pending', async() => {
+    test.setTimeout(90_000)
+    const { run, documentPath, app, page } = await launchAutoSavedF3('w3-queued-own-save-events')
+
+    try {
+      await autoSaveMarker(page, app, documentPath, 'W3-QUEUED-SAVE-A')
+      await autoSaveMarker(page, app, documentPath, 'W3-QUEUED-SAVE-B')
+
+      // C waits longer than the watcher's stability window, so the coalesced
+      // A/B event is handled while C is still unsaved.
       await sendIpcToRenderer(app, 'mt::user-preference', { autoSaveDelay: 3000 })
       await page.waitForTimeout(50)
-      const pendingSave = `${secondSave}\nW3-QUEUED-SAVE-C\n`
-      await setSourceMarkdown(page, app, pendingSave)
+      await appendInSourceMode(page, app, '\nW3-QUEUED-SAVE-C\n')
       await expect.poll(() => isDirty(page)).toBe(true)
 
-      // The coalesced watcher event for A/B arrives before C's longer auto-save
-      // delay. It must be recognized as an own-save event instead of canceling
-      // C's timer and presenting a false external-change conflict.
-      await page.waitForTimeout(1800)
-      await expect(page.locator('.editor-notifications')).not.toBeVisible()
       await expect
         .poll(() => fs.readFileSync(documentPath, 'utf8'), { timeout: 15_000 })
         .toContain('W3-QUEUED-SAVE-C')
       await expect.poll(() => isDirty(page), { timeout: 15_000 }).toBe(false)
+      expect(await documentIoObservations(app)).toEqual([])
+      await expect(page.locator('.editor-notifications')).not.toBeVisible()
       await expectNoRendererErrors(app)
     } finally {
-      if (app) await app.close().catch(() => {})
+      await closeDiscardingChanges(app).catch(() => {})
       run.cleanup()
     }
   })
