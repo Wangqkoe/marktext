@@ -340,6 +340,8 @@
 
 未覆盖：没有跑 muya e2e（本次 muya 改动只涉及 `getTOC` 用的函数和引用定义收集）；没有测导出 HTML 里的 `[TOC]` 显示；分屏下切换设置的刷新只靠 `split-workspace` 和 `toc-preference-live-update` 回归，没有专门用例。
 
+合回 `main`：合并时 `main` 上已有 `13967d96`、`6aee6b3c`（e2e 窗口改为屏幕外、不抢焦点），分支变基到其上（无冲突，挑入提交变为 `1f26d99d`）后快进到 `2b49b2ac`。变基后复核：desktop 单测 1159 条、muya 单测 2371 条通过，`typecheck` 通过；大纲 e2e 和 `split-workspace` 共 39 条中 38 条通过，`split-workspace` 的 "Split Right inherits the final live position" 失败 1 次，单独重跑 2 次都通过，属于偶发。没有推送到 `origin`。
+
 ### 待处理清单
 
 | 上游提交                                                                                    | 原因                                                                                                                                                                                                                                                              | 计划                                  |
