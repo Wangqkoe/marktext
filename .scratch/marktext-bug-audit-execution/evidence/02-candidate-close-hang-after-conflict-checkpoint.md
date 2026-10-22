@@ -62,8 +62,15 @@
 - Effect (inference): from the wrong `saved` until the next durable checkpoint, the unsaved edit has no live crash draft. In the probe that gap lasted 1.6–2.6 s. It ended at a same-revision checkpoint triggered by the conflict observation, or at the close-time rev 5 checkpoint. In normal use it ends at the next runtime update that triggers a checkpoint, such as the next edit. A crash inside the gap would lose that edit from crash recovery. The document on disk and in the editor is unaffected.
 - Classification: candidate product defect in crash-draft bookkeeping, severity unassigned; narrow window, crash-recovery data only.
 
+## Fix (2026-10-22, `b49ae31d` on `fix/crash-draft-saved-revision`)
+
+- Refinement of the mechanism above: an edit made while the save is in flight cannot cause this, because the controller rejects the save acknowledgement once the document revision has moved (`controller.ts`, `applySaveAck`). The race needs a crash-draft sync that was queued before the save but runs after the acknowledgement is applied. That sync checkpoints whatever revision is current when it runs, which can be an edit made after the save.
+- Change: `execute` passes `ack.documentRevision` to `resolveCrashDraft`. When the receipt read after the queue is newer than the saved revision, the `saved` disposition is skipped and the call reports success, so a save of a recovered document is not reported as failed. The newer draft is resolved by the save of its own revision. The `discard` paths are unchanged. Skipping, rather than reading the receipt of the saved revision, because the renderer keeps only the latest receipt per document.
+- Test: `workspace-runtime.spec.ts`, "does not mark a newer unsaved edit saved when its checkpoint lands after a save". It holds the first checkpoint so a second sync stays queued, saves edit A, applies edit B after the acknowledgement, then releases the checkpoint. Without the fix it fails with `saved` sent for `receipt-2` (edit B); with the fix no `saved` goes to edit B, and a second save does send it.
+- Verification: desktop unit tests 1168 passed, 6 skipped; `typecheck` passed. Not run: e2e, and no in-app reproduction.
+
 ## Next actions (not started; each needs the user's decision)
 
-1. Crash-draft race: bind the disposition to the saved revision. Read the receipt for the revision that was saved, or skip the `saved` disposition when the current receipt is newer than the save. Add a renderer unit test that lands a newer checkpoint between a durable save and `resolveCrashDraft`.
+1. Done in `b49ae31d` (see Fix above). Crash-draft race: bind the disposition to the saved revision. Read the receipt for the revision that was saved, or skip the `saved` disposition when the current receipt is newer than the save. Add a renderer unit test that lands a newer checkpoint between a durable save and `resolveCrashDraft`.
 2. Close hang: reproduce without the hook. For example, close while the document is in the DocumentIO conflict state with a checkpoint written after the conflict observation, and trace the close path if it hangs.
 3. Until then, a failure that reports only a test timeout plus `Worker teardown timeout` after closing a dirty document should be checked against this record first.
