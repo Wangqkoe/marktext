@@ -76,4 +76,30 @@ describe('imageEditTool — pending imageAction', () => {
 
         expect(markdownOf(muya).trim()).toBe('first![](assets/hash.png)');
     });
+
+    // The desktop hands source-mode text back with `replaceContent`. Text
+    // taken while the copy was still pending carries the placeholder, so it
+    // must not undo a replacement that already landed.
+    it('re-applies a finished replacement when stale content brings the placeholder back', async () => {
+        const muya = bootMuya('first![](old.png)\n');
+        let finishCopy!: (src: string) => void;
+        const imageAction = vi.fn(() => new Promise<string>((resolve) => {
+            finishCopy = resolve;
+        }));
+        const tool = new ImageEditTool(muya, { imageAction } as never);
+        openToolOnFirstImage(muya);
+
+        const pending = (tool as unknown as {
+            _replaceImageAsync: (state: { alt: string; src: string; title: string }) => Promise<void>;
+        })._replaceImageAsync({ alt: '', src: '/abs/shot.png', title: '' });
+        const staleMarkdown = markdownOf(muya);
+
+        finishCopy('assets/hash.png');
+        await pending;
+        expect(markdownOf(muya).trim()).toBe('first![](assets/hash.png)');
+
+        muya.replaceContent(staleMarkdown);
+
+        expect(markdownOf(muya).trim()).toBe('first![](assets/hash.png)');
+    });
 });

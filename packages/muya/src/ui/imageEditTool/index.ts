@@ -80,6 +80,13 @@ export class ImageEditTool extends BaseFloat {
     /** The block containing the image */
     private _block: Format | null = null;
 
+    /**
+     * Results of finished image actions by placeholder id. Content handed back
+     * from source mode can predate the result and bring the placeholder back,
+     * so each one is re-applied after the document content is replaced.
+     */
+    private _finishedPlaceholders = new Map<string, IState>();
+
     /** Monotonic counter used to drop out-of-order imagePathAutoComplete responses */
     private _autoCompleteSeq = 0;
 
@@ -121,6 +128,10 @@ export class ImageEditTool extends BaseFloat {
     override listen() {
         super.listen();
         const { eventCenter } = this.muya;
+        eventCenter.on('content-replaced', () => {
+            for (const [loadingId, replacement] of this._finishedPlaceholders)
+                this._replacePlaceholder(loadingId, replacement);
+        });
         eventCenter.on('muya-image-selector', ({ block, reference, imageInfo }) => {
             if (!reference) {
                 this.hide();
@@ -413,24 +424,28 @@ export class ImageEditTool extends BaseFloat {
             this.muya.editor.inlineRenderer.renderer.urlMap.set(uploadedSrc, localPath);
         }
 
-        // Find and update the image element
+        const replacement = { alt, src: uploadedSrc, title };
+        this._finishedPlaceholders.set(loadingId, replacement);
+        this._replacePlaceholder(loadingId, replacement);
+    }
+
+    /**
+     * Replace the `loading-<id>` placeholder wherever it is rendered now.
+     * The block is resolved from the placeholder rather than reusing
+     * `this._block`: the document may have been rebuilt (e.g. a source-mode
+     * round trip) or the tool reopened on another image while waiting.
+     */
+    private _replacePlaceholder(loadingId: string, replacement: IState) {
         const imageWrapper = query<HTMLElement>(
             `span[data-id=${loadingId}]`,
             this.muya.domNode,
         );
+        if (!imageWrapper)
+            return;
 
-        // Resolve the block from the placeholder rather than reusing
-        // `this._block`: the document may have been rebuilt (e.g. a source-mode
-        // round trip) or the tool reopened on another image while waiting.
-        if (imageWrapper) {
-            const imageInfo = getImageInfo(imageWrapper);
-            const block = getBlock(findContentDOM(imageWrapper)) as Format | undefined;
-            block?.replaceImage(imageInfo, {
-                alt,
-                src: uploadedSrc,
-                title,
-            });
-        }
+        const imageInfo = getImageInfo(imageWrapper);
+        const block = getBlock(findContentDOM(imageWrapper)) as Format | undefined;
+        block?.replaceImage(imageInfo, replacement);
     }
 
     /**

@@ -284,6 +284,7 @@ export class Muya {
 
     setContent(content: TState[] | string, autoFocus = false) {
         this.editor.setContent(content, autoFocus);
+        this.eventCenter.emit('content-replaced');
     }
 
     /**
@@ -327,6 +328,7 @@ export class Muya {
         history.suppressRecording(() => {
             this.editor.rebuildContents(op, selection, 'api');
         });
+        this.eventCenter.emit('content-replaced');
 
         return true;
     }
