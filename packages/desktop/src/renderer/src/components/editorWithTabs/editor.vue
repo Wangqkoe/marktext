@@ -343,6 +343,9 @@ let scrollReportGate: ScrollReportGate | undefined
 let cancelProgrammaticScroll: (() => void) | undefined
 let programmaticScrollGeneration = 0
 let programmaticScrollActive = false
+// Set while a heading or anchor jump animates. Pointer, wheel and key input
+// already stop it; the caret move from the click that started it must not.
+let navigationScrollActive = false
 let completedProgrammaticScrollTop: number | undefined
 // Open while a document delivery restores its caret and scroll position: the
 // restored caret's selection-change must not pull the view to it before the
@@ -1374,6 +1377,7 @@ const stopProgrammaticScroll = () => {
   cancelProgrammaticScroll?.()
   cancelProgrammaticScroll = undefined
   programmaticScrollActive = false
+  navigationScrollActive = false
   completedProgrammaticScrollTop = undefined
 }
 
@@ -1384,14 +1388,21 @@ const handleNativeScrollIntent = () => {
   if (scrollTop !== undefined && Number.isFinite(scrollTop)) scrollReportGate?.request(scrollTop)
 }
 
-const programmaticScrollTo = (container: HTMLElement, to: number, duration: number) => {
+const programmaticScrollTo = (
+  container: HTMLElement,
+  to: number,
+  duration: number,
+  navigation = false
+) => {
   stopProgrammaticScroll()
   scrollReportGate?.cancelPending()
   const generation = programmaticScrollGeneration
   programmaticScrollActive = true
+  navigationScrollActive = navigation
   cancelProgrammaticScroll = animatedScrollTo(container, to, duration, () => {
     if (generation !== programmaticScrollGeneration) return
     programmaticScrollActive = false
+    navigationScrollActive = false
     completedProgrammaticScrollTop = container.scrollTop
     const gate = scrollReportGate
     if (!gate || !Number.isFinite(container.scrollTop)) return
@@ -1493,11 +1504,15 @@ const scrollToCords = (y: number) => {
 
 // Smoothly scroll the editor so `anchor` sits at the standard caret offset.
 // Shared by search highlights and non-heading in-document anchors.
-const scrollElementIntoView = (anchor: Element | null | undefined, duration = 300) => {
+const scrollElementIntoView = (
+  anchor: Element | null | undefined,
+  duration = 300,
+  navigation = false
+) => {
   const container = getScrollContainer()
   if (!container || !anchor) return
   const { y } = anchor.getBoundingClientRect()
-  programmaticScrollTo(container, container.scrollTop + y - STANDAR_Y, duration)
+  programmaticScrollTo(container, container.scrollTop + y - STANDAR_Y, duration, navigation)
 }
 
 const scrollToHighlight = () => {
@@ -1515,13 +1530,13 @@ const scrollToHeader = (slug: unknown) => {
   if (!container) return
   const heading = resolveTocHeadingElement(container, editorStore.listToc, slug)
   if (!heading) return
-  programmaticScrollTo(container, getTocHeadingScrollTop(container, heading), 300)
+  programmaticScrollTo(container, getTocHeadingScrollTop(container, heading), 300, true)
 }
 
 // Scrolls to a non-heading in-document anchor target (e.g. a custom
 // `<a id="...">`) resolved by `FORMAT_LINK_CLICK` via `getElementById`.
 const scrollToAnchorElement = (element: unknown) => {
-  if (element instanceof Element) scrollElementIntoView(element)
+  if (element instanceof Element) scrollElementIntoView(element, 300, true)
 }
 
 const scrollToElement = (selector: string) => {
@@ -2403,7 +2418,7 @@ onMounted(() => {
   // STANDAR_Y, otherwise the view follows once it is within 100px of the
   // bottom (#628) or top (#3329) edge. `y` is the caret's viewport offset.
   const followCaret = (y: number | null) => {
-    if (y == null || caretFollowSuspensions > 0) return
+    if (y == null || caretFollowSuspensions > 0 || navigationScrollActive) return
     if (typewriter.value) {
       const startPosition = container.scrollTop
       const toPosition = startPosition + y - STANDAR_Y

@@ -88,6 +88,32 @@ test.describe('Anchor links (#5292)', () => {
     await expectNoRendererErrors(app)
   })
 
+  // A real click also moves the caret into the link. On the first line the
+  // caret sits within the editor's 100px follow margin, and following it must
+  // not cancel the jump the same click started.
+  test('a trusted Ctrl+click on a link at the top edge still scrolls to the heading', async() => {
+    const launched = await launchWithMarkdown(
+      `[jump](#中文标题)\n\n${filler}\n\n## 中文标题\n\nThe destination paragraph.\n`,
+      { suppressErrorDialog: true }
+    )
+    app = launched.app
+    const { page } = launched
+    await page.locator('span.mu-paragraph-content').nth(3).click()
+    const box = await page.locator('span.mu-link').first().boundingBox()
+    if (!box) throw new Error('link is not rendered')
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    // Playwright's click `modifiers` do not reach this page as `ctrlKey`, so
+    // send the trusted press and release with the modifier through CDP.
+    const cdp = await page.context().newCDPSession(page)
+    for (const type of ['mousePressed', 'mouseReleased'] as const) {
+      await cdp.send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1, modifiers: 2 })
+    }
+
+    await expectHeadingRevealed(page, '中文标题')
+    await expectNoRendererErrors(app)
+  })
+
   test('an anchor into a document that is not open yet opens it and scrolls to the heading', async() => {
     const launched = await launchWithMarkdown('[cross](other.md#english-section)\n', {
       suppressErrorDialog: true
