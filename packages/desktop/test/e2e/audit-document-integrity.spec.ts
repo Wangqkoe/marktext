@@ -39,9 +39,8 @@ const redo = async(app: ElectronApplication): Promise<void> => {
   await sendIpcToRenderer(app, 'mt::editor-edit-action', 'redo')
 }
 
-// Workspace documents decide own save versus external change in DocumentIO, so
-// these tests read its verdicts from the main process instead of the legacy
-// `mt::update-file` watcher, which the renderer ignores for them.
+// Documents decide own save versus external change in DocumentIO, so these
+// tests read its verdicts from the main process.
 const recordDocumentIoObservations = async(app: ElectronApplication): Promise<void> => {
   await app.evaluate(({ BrowserWindow }) => {
     const state = global as unknown as { __mt_audit_document_io_observations__?: string[] }

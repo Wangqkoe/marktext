@@ -32,11 +32,7 @@ vi.mock('chokidar', () => ({
 // the plain-Node test runner, so stub it to keep this spec import-only.
 vi.mock('ced', () => ({ default: () => 'UTF-8' }))
 
-import Watcher, {
-  WATCHER_STABILITY_THRESHOLD,
-  WATCHER_STABILITY_POLL_INTERVAL,
-  isUncPath
-} from 'main_renderer/filesystem/watcher'
+import Watcher, { isUncPath } from 'main_renderer/filesystem/watcher'
 
 function optionsForLastWatch(): Record<string, unknown> {
   const calls = watchMock.mock.calls
@@ -54,20 +50,12 @@ describe('watcher awaitWriteFinish (#3955)', () => {
   })
 
   it('does not defer directory-tree events with awaitWriteFinish', () => {
-    watcher.watch(win as never, '/project', 'dir')
+    watcher.watch(win as never, '/project')
     expect(optionsForLastWatch().awaitWriteFinish).toBeFalsy()
   })
 
-  it('keeps awaitWriteFinish for the file watcher (GH#1043)', () => {
-    watcher.watch(win as never, '/project/note.md', 'file')
-    expect(optionsForLastWatch().awaitWriteFinish).toEqual({
-      stabilityThreshold: WATCHER_STABILITY_THRESHOLD,
-      pollInterval: WATCHER_STABILITY_POLL_INTERVAL
-    })
-  })
-
   it('forces polling for UNC roots because fs.watch does not enumerate WSL shares reliably', () => {
-    watcher.watch(win as never, '\\\\wsl.localhost\\Ubuntu-24.04\\home\\me\\project', 'dir')
+    watcher.watch(win as never, '\\\\wsl.localhost\\Ubuntu-24.04\\home\\me\\project')
     expect(optionsForLastWatch().usePolling).toBe(true)
   })
 

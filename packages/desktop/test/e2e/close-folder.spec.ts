@@ -163,32 +163,16 @@ test('Close Folder preserves tabs and dirty buffers and rejects the old generati
     await expect(page.locator('.tabs-container li')).toHaveCount(tabCount)
     await expect.poll(() => closeFolderMenuEnabled(app)).toBe(false)
 
-    await app.evaluate(({ BrowserWindow }) => {
-      const state = global as unknown as { __mt_document_watcher_events__?: string[] }
-      state.__mt_document_watcher_events__ = []
-      const webContents = BrowserWindow.getAllWindows()[0]?.webContents
-      if (!webContents) throw new Error('Editor webContents is unavailable')
-      const send = webContents.send.bind(webContents)
-      webContents.send = ((channel: string, ...args: unknown[]) => {
-        if (channel === 'mt::update-file') {
-          const payload = args[0] as { change?: { pathname?: string } } | undefined
-          state.__mt_document_watcher_events__?.push(String(payload?.change?.pathname))
-        }
-        send(channel, ...args)
-      }) as typeof webContents.send
-    })
-    const watchedPath = path.join(oldRoot, 'watched.md')
-    let externalRevision = 0
-    await expect.poll(async() => {
-      fs.writeFileSync(
-        watchedPath,
-        `# Watched source changed outside MarkText ${++externalRevision}\n`
-      )
-      return app.evaluate((_electron, pathname) => {
-        const state = global as unknown as { __mt_document_watcher_events__?: string[] }
-        return state.__mt_document_watcher_events__?.includes(pathname) ?? false
-      }, watchedPath)
-    }, { timeout: 10_000, intervals: [1_500] }).toBe(true)
+    // Closing the Folder must not stop observing open documents: an unedited
+    // tab still reloads silently when its file changes outside MarkText.
+    fs.writeFileSync(
+      path.join(oldRoot, 'watched.md'),
+      '# Watched source changed outside MarkText\n'
+    )
+    await expect(page.locator('.editor-component')).toContainText(
+      'Watched source changed outside MarkText',
+      { timeout: 10_000 }
+    )
 
     await page.locator('.tabs-container li').filter({ hasText: 'dirty.md' }).click()
     await expect(page.locator('.editor-component')).toContainText('CLOSE_FOLDER_DIRTY_MARKER')

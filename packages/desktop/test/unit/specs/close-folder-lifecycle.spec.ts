@@ -152,7 +152,7 @@ describe('directory watcher generation ownership', () => {
     const send = vi.fn()
     const win = { id: 7, webContents: { send } }
     const watcher = new Watcher(watcherPreferences as never)
-    watcher.watch(win as never, '/old-root', 'dir', { pathname: '/old-root', generation: 1 })
+    watcher.watch(win as never, '/old-root', { pathname: '/old-root', generation: 1 })
 
     let releaseStat!: (value: { mtimeMs: number }) => void
     const statGate = new Promise<{ mtimeMs: number }>((resolve) => {
@@ -165,7 +165,7 @@ describe('directory watcher generation ownership', () => {
     change?.('/old-root/late.md')
     await vi.waitFor(() => expect(fsPromises.stat).toHaveBeenCalledOnce())
 
-    watcher.unwatch(win as never, '/old-root', 'dir')
+    watcher.unwatch(win as never, '/old-root')
     releaseStat({ mtimeMs: 42 })
     await Promise.resolve()
     await Promise.resolve()
@@ -178,7 +178,7 @@ describe('directory watcher generation ownership', () => {
     const send = vi.fn()
     const win = { id: 6, webContents: { send } }
     const watcher = new Watcher(watcherPreferences as never)
-    watcher.watch(win as never, '/old-root', 'dir', { pathname: '/old-root', generation: 1 })
+    watcher.watch(win as never, '/old-root', { pathname: '/old-root', generation: 1 })
 
     const candidate = (watcher as unknown as ReadyAwareWatcher).prepareDirectory(
       win,
@@ -205,7 +205,7 @@ describe('directory watcher generation ownership', () => {
     const send = vi.fn()
     const win = { id: 10, webContents: { send } }
     const watcher = new Watcher(watcherPreferences as never)
-    watcher.watch(win as never, '/old-root', 'dir', { pathname: '/old-root', generation: 1 })
+    watcher.watch(win as never, '/old-root', { pathname: '/old-root', generation: 1 })
 
     const candidate = (watcher as unknown as ReadyAwareWatcher).prepareDirectory(
       win,
@@ -250,33 +250,13 @@ describe('directory watcher generation ownership', () => {
     const send = vi.fn()
     const win = { id: 8, webContents: { send } }
     const watcher = new Watcher(watcherPreferences as never)
-    watcher.watch(win as never, '/old-root', 'dir', { pathname: '/old-root', generation: 1 })
-    watcher.watch(win as never, '/new-root', 'dir', { pathname: '/new-root', generation: 2 })
+    watcher.watch(win as never, '/old-root', { pathname: '/old-root', generation: 1 })
+    watcher.watch(win as never, '/new-root', { pathname: '/new-root', generation: 2 })
 
     const oldUnlink = watcherFixtures.instances[0].handlers.get('unlink')
     oldUnlink?.('/old-root/late.md')
 
     expect(send).not.toHaveBeenCalledWith('mt::update-object-tree', expect.anything())
-    watcher.close()
-  })
-
-  it('stops only the directory watcher and preserves document file watchers', () => {
-    const send = vi.fn()
-    const win = { id: 9, webContents: { send } }
-    const watcher = new Watcher(watcherPreferences as never)
-    watcher.watch(win as never, '/root', 'dir', { pathname: '/root', generation: 1 })
-    watcher.watch(win as never, '/root/open.md', 'file')
-
-    watcher.unwatch(win as never, '/root', 'dir')
-
-    expect(watcherFixtures.instances[0].close).toHaveBeenCalledOnce()
-    expect(watcherFixtures.instances[1].close).not.toHaveBeenCalled()
-    expect(Object.values(watcher.watchers).map(({ type }) => type)).toEqual(['file'])
-    watcherFixtures.instances[1].handlers.get('unlink')?.('/root/open.md')
-    expect(send).toHaveBeenCalledWith('mt::update-file', {
-      type: 'unlink',
-      change: { pathname: '/root/open.md' }
-    })
     watcher.close()
   })
 })

@@ -602,20 +602,12 @@ class EditorWindow extends BaseWindow {
     }
   }
 
-  /**
-   * Add a new path to the file list and watch the given path.
-   */
   addToOpenedFiles(filePath: string): void {
-    const { _openedFiles, browserWindow } = this
-    _openedFiles!.push(filePath)
-    ipcMain.emit('watcher-watch-file', browserWindow, filePath)
+    this._openedFiles!.push(filePath)
   }
 
-  /**
-   * Change a path in the opened file list and update the watcher.
-   */
   changeOpenedFilePath(pathname: string, oldPathname: string): void {
-    const { _openedFiles, browserWindow } = this
+    const { _openedFiles } = this
     const index = _openedFiles!.findIndex((p) => p === oldPathname)
     if (index === -1) {
       // The old path was not found but add the new one.
@@ -623,20 +615,14 @@ class EditorWindow extends BaseWindow {
     } else {
       _openedFiles![index] = pathname
     }
-    ipcMain.emit('watcher-unwatch-file', browserWindow, oldPathname)
-    ipcMain.emit('watcher-watch-file', browserWindow, pathname)
   }
 
-  /**
-   * Remove a path from the opened file list and stop watching the path.
-   */
   removeFromOpenedFiles(pathname: string): void {
-    const { _openedFiles, browserWindow } = this
+    const { _openedFiles } = this
     const index = _openedFiles!.findIndex((p) => p === pathname)
     if (index !== -1) {
       _openedFiles!.splice(index, 1)
     }
-    ipcMain.emit('watcher-unwatch-file', browserWindow, pathname)
   }
 
   /**
@@ -719,9 +705,6 @@ class EditorWindow extends BaseWindow {
     const { _accessor, _openedFiles, browserWindow } = this
     const { menu: appMenu } = _accessor
     const { pathname } = rawDocument
-
-    // Listen for file changed.
-    ipcMain.emit('watcher-watch-file', browserWindow, pathname)
 
     appMenu.addRecentlyUsedDocument(pathname)
     _openedFiles!.push(pathname)

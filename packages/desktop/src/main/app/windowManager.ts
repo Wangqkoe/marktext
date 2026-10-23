@@ -2,11 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import type { BrowserWindow as IBrowserWindow } from 'electron'
 import log from 'electron-log'
 import { TypedEmitter } from '@shared/types/typedEmitter'
-import Watcher, {
-  type DirectoryWatcherCandidate,
-  WATCHER_STABILITY_THRESHOLD,
-  WATCHER_STABILITY_POLL_INTERVAL
-} from '../filesystem/watcher'
+import Watcher, { type DirectoryWatcherCandidate } from '../filesystem/watcher'
 import { onInternalChannel } from '../utils/internalIpc'
 import type BaseWindow from '../windows/base'
 import type Preference from '../preferences'
@@ -433,24 +429,18 @@ class WindowManager extends TypedEmitter<WindowManagerEvents> {
     onInternalChannel('watcher-unwatch-all-by-id', (windowId: number) => {
       this._watcher.unwatchByWindowId(windowId)
     })
-    onInternalChannel('watcher-watch-file', (win: IBrowserWindow, filePath: string) => {
-      this._watcher.watch(win, filePath, 'file')
-    })
     onInternalChannel(
       'watcher-watch-directory',
       (win: IBrowserWindow, pathname: string, root: FolderRootIdentity) => {
-        this._watcher.watch(win, pathname, 'dir', root)
+        this._watcher.watch(win, pathname, root)
       }
     )
     onInternalChannel('window-close-folder-by-id', (windowId: number) => {
       const editor = this.get(windowId) as EditorWindow | undefined
       editor?.closeFolder()
     })
-    onInternalChannel('watcher-unwatch-file', (win: IBrowserWindow, filePath: string) => {
-      this._watcher.unwatch(win, filePath, 'file')
-    })
     onInternalChannel('watcher-unwatch-directory', (win: IBrowserWindow, pathname: string) => {
-      this._watcher.unwatch(win, pathname, 'dir')
+      this._watcher.unwatch(win, pathname)
     })
 
     onInternalChannel('window-add-file-path', (windowId: number, filePath: string) => {
@@ -472,12 +462,6 @@ class WindowManager extends TypedEmitter<WindowManagerEvents> {
         editor.changeOpenedFilePath(pathname, oldPathname)
       }
     )
-
-    onInternalChannel('window-file-saved', (windowId: number, pathname: string, contentHash: string) => {
-      // A changed event is emitted earliest after the stability threshold.
-      const duration = WATCHER_STABILITY_THRESHOLD + WATCHER_STABILITY_POLL_INTERVAL * 2
-      this._watcher.ignoreChangedEvent(windowId, pathname, contentHash, duration)
-    })
 
     onInternalChannel('window-close-by-id', (id: number) => {
       this.forceCloseById(id)
