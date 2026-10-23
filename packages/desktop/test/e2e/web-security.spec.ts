@@ -89,16 +89,11 @@ test('local paths and remote images display without CORS headers', async() => {
   await page.screenshot({ path: test.info().outputPath('release-images.png') })
 })
 
-test('PlantUML preview and native export fetch work without CORS headers', async() => {
+// Upstream also fetches the diagram through a `window.diagram` export bridge
+// that this fork does not have; only the preview applies here.
+test('PlantUML preview works without CORS headers', async() => {
   const image = page.locator('.editor-component .mu-diagram-preview img')
   await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(80)
-  const result = await page.evaluate(async(server) => {
-    const image = document.querySelector('.mu-diagram-preview img') as HTMLImageElement
-    const encoded = new URL(image.src).pathname.split('/').pop() ?? ''
-    const result = await window.diagram.fetchPlantuml(server, encoded, 'svg')
-    return result.ok ? { ok: true, text: new TextDecoder().decode(result.data) } : result
-  }, origin)
-  expect(result).toEqual({ ok: true, text: svg })
 })
 
 for (const type of ['styledHtml', 'pdf'] as const) {
