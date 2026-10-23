@@ -80,9 +80,9 @@
     "window": {
       "title": "視窗",
       "minimize": "最小化",
-      "zoomIn": "放大",
-      "zoomOut": "縮小",
-      "resetZoom": "重置縮放",
+      "zoomIn": "放大介面",
+      "zoomOut": "縮小介面",
+      "resetZoom": "重置介面縮放",
       "fullScreen": "全螢幕",
       "bringAllToFront": "將全部移到前面",
       "alwaysOnTop": "總是在最上層"
@@ -868,8 +868,9 @@
     "window": {
       "minimize": "最小化",
       "toggleAlwaysOnTop": "切換總是在最上層",
-      "zoomIn": "放大",
-      "zoomOut": "縮小",
+      "zoomIn": "放大介面",
+      "zoomOut": "縮小介面",
+      "resetZoom": "重置介面縮放",
       "toggleFullScreen": "切換全螢幕",
       "changeTheme": "變更主題",
       "close": "關閉"

@@ -80,9 +80,9 @@
     "window": {
       "title": "Window",
       "minimize": "Minimize",
-      "zoomIn": "Zoom In",
-      "zoomOut": "Zoom Out",
-      "resetZoom": "Reset Zoom",
+      "zoomIn": "Zoom In Interface",
+      "zoomOut": "Zoom Out Interface",
+      "resetZoom": "Reset Interface Zoom",
       "fullScreen": "Full Screen",
       "bringAllToFront": "Bring All to Front",
       "alwaysOnTop": "Always on Top"
@@ -869,8 +869,9 @@
       "minimize": "Minimize",
       "close": "Close",
       "toggleAlwaysOnTop": "Toggle Always on Top",
-      "zoomIn": "Zoom In",
-      "zoomOut": "Zoom Out",
+      "zoomIn": "Zoom In Interface",
+      "zoomOut": "Zoom Out Interface",
+      "resetZoom": "Reset Interface Zoom",
       "toggleFullScreen": "Toggle Full Screen",
       "changeTheme": "Change Theme"
     },

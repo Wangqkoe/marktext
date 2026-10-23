@@ -80,9 +80,9 @@
     "window": {
       "title": "窗口",
       "minimize": "最小化",
-      "zoomIn": "放大",
-      "zoomOut": "缩小",
-      "resetZoom": "重置缩放",
+      "zoomIn": "放大界面",
+      "zoomOut": "缩小界面",
+      "resetZoom": "重置界面缩放",
       "fullScreen": "全屏",
       "bringAllToFront": "将所有窗口置于前台",
       "alwaysOnTop": "总是在最前面"
@@ -869,8 +869,9 @@
       "minimize": "最小化",
       "close": "关闭",
       "toggleAlwaysOnTop": "切换总是在最前面",
-      "zoomIn": "放大",
-      "zoomOut": "缩小",
+      "zoomIn": "放大界面",
+      "zoomOut": "缩小界面",
+      "resetZoom": "重置界面缩放",
       "toggleFullScreen": "切换全屏",
       "changeTheme": "更改主题"
     },
