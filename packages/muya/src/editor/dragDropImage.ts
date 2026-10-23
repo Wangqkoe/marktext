@@ -181,7 +181,7 @@ function handleWebLinkImage(
             = /<img\b/i.test(html)
                 || IMAGE_EXT_REG.test(url)
                 || (await checkImageContentType(url));
-        if (!isImage)
+        if (!isImage || !muya.isBlockInDocument(target.anchor))
             return;
 
         insertImageParagraph(muya, target, `![](${url})`);
