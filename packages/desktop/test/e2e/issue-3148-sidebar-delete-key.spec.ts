@@ -110,7 +110,7 @@ test.describe('Sidebar Delete key (#3148)', () => {
 
     await expect.poll(() => trashCount(app)).toBe(1)
     const dialogs = await trashDialogs(app)
-    expect(String(dialogs[dialogs.length - 1]?.message)).toContain(String(pathname).split('/').pop())
+    expect(String(dialogs[dialogs.length - 1]?.message)).toContain(path.basename(String(pathname)))
   })
 
   test('one Delete opens one confirmation after the editor page remounts', async() => {
@@ -147,7 +147,11 @@ test.describe('Sidebar Delete key (#3148)', () => {
     const pathname = await file.getAttribute('title')
     expect(pathname).toBeTruthy()
 
-    await file.dblclick()
+    // A single click on the row selects and opens the file in this fork's
+    // sidebar; clicking into the document then puts the caret there and ends
+    // the sidebar selection, which is how a user gets to edit the text.
+    await file.click()
+    await page.locator('.editor-component .mu-content').first().click()
     await expect
       .poll(() => page.evaluate(() => !!document.activeElement?.closest('.mu-editor')))
       .toBe(true)
