@@ -45,8 +45,9 @@ test.describe('Editor input and source-mode roundtrip', () => {
     })
     expect(md).toContain('# Hello')
     await exitSourceMode(page, app)
-    const stillThere = await page.locator('.editor-component').isVisible()
-    expect(stillThere).toBe(true)
+    // Leaving Source mode reloads the editor and shows it again once its
+    // scroll position is restored; wait for that rather than sampling once.
+    await expect(page.locator('.editor-component')).toBeVisible()
   })
 
   test('Typing into the editor appends content', async() => {
