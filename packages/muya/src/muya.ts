@@ -334,6 +334,8 @@ export class Muya {
      */
     replaceContent(content: TState[] | string, recordSelection?: Nullable<IHistorySelection>): boolean {
         const { jsonState, history } = this.editor;
+        // Queued edits belong to this document; diff against them, not past them.
+        jsonState.flush();
         const { op, prevState } = jsonState.buildReplaceOp(content);
 
         if (op.length === 0)
@@ -1171,6 +1173,9 @@ export class Muya {
         if (!scrollPage)
             return false;
 
+        // The internal setContent below drops queued edits; apply them first so
+        // a caret-only operation cannot lose an edit made in the same frame.
+        this.flush();
         const cleanMarkdown = this.getMarkdown();
         const sentinelMarkdown = injectSentinels(cleanMarkdown, indexCursor);
         if (sentinelMarkdown == null)

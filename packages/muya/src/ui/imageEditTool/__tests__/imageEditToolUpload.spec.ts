@@ -102,4 +102,29 @@ describe('imageEditTool — pending imageAction', () => {
 
         expect(markdownOf(muya).trim()).toBe('first![](assets/hash.png)');
     });
+
+    // Leaving source mode runs replaceContent and then setCursorByOffset. When
+    // that lands in the same frame as the replacement, the replacement is
+    // still a queued edit and must not be compared away or dropped.
+    it('keeps a replacement that is still queued when stale content arrives in the same frame', async () => {
+        const muya = bootMuya('first![](old.png)\n');
+        let finishCopy!: (src: string) => void;
+        const imageAction = vi.fn(() => new Promise<string>((resolve) => {
+            finishCopy = resolve;
+        }));
+        const tool = new ImageEditTool(muya, { imageAction } as never);
+        openToolOnFirstImage(muya);
+
+        const pending = (tool as unknown as {
+            _replaceImageAsync: (state: { alt: string; src: string; title: string }) => Promise<void>;
+        })._replaceImageAsync({ alt: '', src: '/abs/shot.png', title: '' });
+        const staleMarkdown = markdownOf(muya);
+
+        finishCopy('assets/hash.png');
+        await pending;
+        muya.replaceContent(staleMarkdown);
+        muya.setCursorByOffset({ anchor: { line: 0, ch: 0 }, focus: { line: 0, ch: 0 } });
+
+        expect(markdownOf(muya).trim()).toBe('first![](assets/hash.png)');
+    });
 });
