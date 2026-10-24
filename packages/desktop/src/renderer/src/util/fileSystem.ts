@@ -63,9 +63,11 @@ export const moveImageToFolder = async(
   currentPathname: string | null = null
 ): Promise<string> => {
   await window.fileUtils.ensureDir(outputDir)
+  // The path bridge follows win32 rules on Windows, but a relative reference
+  // is written into markdown and must use `/` to stay portable.
   const toResult = (absolutePath: string) =>
     isRelative && currentPathname
-      ? window.path.relative(window.path.dirname(currentPathname), absolutePath)
+      ? window.path.relative(window.path.dirname(currentPathname), absolutePath).replace(/\\/g, '/')
       : absolutePath
   const isPath = typeof image === 'string'
   if (isPath) {

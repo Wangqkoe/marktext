@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import os from 'os'
 import path from 'pathe'
+import { win32 } from 'node:path'
 import { moveImageToFolder } from '@/util/fileSystem'
 
 // moveImageToFolder relies on the preload contextBridge surface (window.path,
@@ -147,5 +148,19 @@ describe('moveImageToFolder relative-directory persistence', () => {
       expect(copyWithContentHash).not.toHaveBeenCalled()
       expect(result).toBe(path.join('assets', 'Already.PNG'))
     })
+  })
+})
+
+describe('moveImageToFolder with the Windows path bridge', () => {
+  // On Windows the renderer's path bridge follows win32 rules, so relative()
+  // returns backslashes. A markdown link must stay portable.
+  it('returns a forward-slash relative reference', async() => {
+    win.path = win32 as unknown as typeof path
+    copyWithContentHash.mockImplementationOnce((_src: string, outputDir: string) =>
+      Promise.resolve(win32.join(outputDir, 'content-hash.png'))
+    )
+    const doc = String.raw`C:\notes\a.md`
+    const result = await moveImageToFolder(doc, String.raw`D:\pictures\pic.png`, String.raw`C:\notes\assets\images`, true, doc)
+    expect(result).toBe('assets/images/content-hash.png')
   })
 })
