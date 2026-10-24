@@ -34,26 +34,31 @@ import {
 // the first paragraph: collapse the range to the end of the span, fire a
 // selectionchange, then a synthetic keyup on the editor root so the engine
 // updates its `activeContentBlock` (it derives that from click/keyup events).
+//
+// Right after leaving Source mode the editor is briefly visibility:hidden and
+// focus() on it is ignored, which would send the next key to <body>. Place
+// the caret again until the editor really holds focus.
 const placeCaretInContentSpan = async(page: Page, index: number): Promise<void> => {
-  await page.evaluate((idx) => {
+  await expect.poll(() => page.evaluate((idx) => {
     const root = document.querySelector('.editor-component') as HTMLElement | null
-    if (!root) return
+    if (!root) return false
     root.focus()
     const spans = root.querySelectorAll('span.mu-paragraph-content')
     const target = spans[idx]
-    if (!target) return
+    if (!target) return false
     const range = document.createRange()
     range.selectNodeContents(target)
     range.collapse(false)
     const sel = window.getSelection()
-    if (!sel) return
+    if (!sel) return false
     sel.removeAllRanges()
     sel.addRange(range)
     document.dispatchEvent(new Event('selectionchange'))
     root.dispatchEvent(
       new KeyboardEvent('keyup', { key: 'ArrowRight', bubbles: true, cancelable: true })
     )
-  }, index)
+    return document.activeElement === root
+  }, index)).toBe(true)
   await page.waitForTimeout(150)
 }
 
