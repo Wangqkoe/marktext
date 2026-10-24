@@ -279,6 +279,9 @@ test.describe('Split workspace', () => {
     ).join('\n\n')
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, markdown)
     await expect(page.locator(tabSelector)).toHaveCount(3)
+    // Opening the tab ends with a pane flush that commits the live position;
+    // scroll only once the new document is in the editor.
+    await expect(page.locator('.editor-component')).toContainText('Paragraph 299 keeps both')
 
     const sourceBefore = await snapshotOf(page)
     const leftBefore = sourceBefore.projection.panes[0]!
@@ -337,19 +340,17 @@ test.describe('Split workspace', () => {
     ).join('\n\n')
     await sendIpcToRenderer(app, 'mt::new-untitled-tab', true, markdown)
     await expect(page.locator(tabSelector)).toHaveCount(3)
+    await expect(page.locator('.editor-component')).toContainText('Paragraph 299 keeps a moved')
     const viewId = (await snapshotOf(page)).projection.panes[0]!.activeViewId
 
-    const rightPosition = await page.locator('.editor-component').evaluate(element => {
-      element.scrollTop = 700
-      element.dispatchEvent(new Event('scroll'))
-      return element.scrollTop
-    })
+    const rightPosition = await scrollHoldingIdleCommit(page.locator('.editor-component'), 700)
     expect(rightPosition).toBe(700)
     expect((await snapshotOf(page)).documents.find(document => document.viewId === viewId)?.scrollTop).toBe(0)
 
     await tabMenuAction(app, page.locator('.tabs-container > li.active'), 'Move to Right')
     await expect(page.locator('.workspace-pane')).toHaveCount(2)
     let moved = await snapshotOf(page)
+    await releaseHeldScrollCommits(page)
     expect(moved.projection.panes[1]!.activeViewId).toBe(viewId)
     expect(moved.documents.find(document => document.viewId === viewId)?.scrollTop).toBe(rightPosition)
     await expect.poll(() => page.locator('.workspace-pane').nth(1).locator('.editor-component').evaluate(
