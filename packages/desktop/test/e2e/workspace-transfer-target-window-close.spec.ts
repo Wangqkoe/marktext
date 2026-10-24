@@ -29,7 +29,12 @@ const forceTerminate = async(app: ElectronApplication | undefined): Promise<void
   if (child.exitCode !== null) return
   const exited = new Promise<void>(resolve => child.once('exit', resolve))
   const mainPid = await app.evaluate(() => process.pid)
-  execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
+  try {
+    execFileSync('taskkill', ['/PID', String(mainPid), '/T', '/F'])
+  } catch {
+    // taskkill /T also fails when a process in the tree has already exited;
+    // the exit wait below is what decides whether termination worked.
+  }
   await Promise.race([exited, new Promise<void>(resolve => setTimeout(resolve, 5_000))])
 }
 
@@ -110,6 +115,18 @@ test('closes a Move to New Window target through its title-bar close control', a
       { kind: 'mark-clean' }
     ))).resolves.toEqual({ durable: false, reason: 'unresolved crash drafts remain' })
 
+    // The target is visible before the Move transaction completes. Closing it
+    // earlier makes the coordinator recover the document into a new window,
+    // which is not what this test is about.
+    const journalPath = path.join(profile, 'tab-transfer', 'journal.ndjson')
+    await expect.poll(() => {
+      try {
+        const last = fs.readFileSync(journalPath, 'utf8').trim().split('\n').at(-1)
+        const record = last ? JSON.parse(last) as { phase?: string; kind?: string } : undefined
+        return record && { phase: record.phase, kind: record.kind }
+      } catch { return undefined }
+    }, { timeout: 20_000 }).toEqual({ phase: 'completed', kind: 'observed' })
+
     await target.locator('.frameless-titlebar-close').click()
     await expect.poll(async() => {
       const windowCount = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)
@@ -139,6 +156,7 @@ test('closes a Move to New Window target through its title-bar close control', a
     ])
   } finally {
     await forceTerminate(app)
-    fs.rmSync(profile, { recursive: true, force: true })
+    // Child processes can hold profile files for a moment after the app exits.
+    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 50, retryDelay: 200 })
   }
 })
