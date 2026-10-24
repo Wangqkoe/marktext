@@ -65,3 +65,36 @@
 ## Related upstream change
 
 - Upstream `4d5753a8` (#5799, not picked) changes the same function the other way: if the captured block left the document, it returns without replacing. Picking it as-is would make this case leave the placeholder every time. If it is picked, keep this file's resolution by placeholder.
+
+## Follow-up 2026-10-24: residual placeholder traced and fixed; the spec's later 100% failure
+
+Worktree `E:/mt-wt/issue-5344b`, branch `fix/issue-5344-residual` from `main` `91e3788a`. Not pushed, not merged.
+
+### The spec failed every run on `main` since the path-bridge pick
+
+- `issue-5344-image-content-hash.spec.ts` failed 60/60 on `91e3788a` (30 unloaded, 30 under 12 CPU burners). Every failure was the first insert: the image tool stayed open with the path in its input. The full-suite failures recorded as "known intermittent" since step 4 of the 2026-10-23 decisions were this, not the race in this record. That classification was wrong.
+- Logging in `ImageEditTool` showed Enter did confirm, the copy ran and the placeholder was replaced. The returned reference was `assets\<hash>.png`: after `54792796` (renderer path bridge, win32 rules on Windows) `moveImageToFolder` builds the relative path with backslashes, and the spec's pattern expects `assets/`.
+- Fix `001b0bb0`: `moveImageToFolder` writes relative references with `/`. Absolute paths unchanged. New unit test with a win32 path module fails before (`assets\images\content-hash.png`) and passes after. Spec after the fix: 30/30.
+
+### Residual placeholder (mode A): root cause
+
+- Reproduced with the delayed-copy scratch spec (copy delayed 300 ms or 1500 ms, 8 CPU burners): 1 in 8 runs each, and 3 in 10 in a later round.
+- Console logging of `setContent`, `replaceContent` (with the op count), `content-replaced` and `_replacePlaceholder` gave this sequence in a failing run: the copy resolves and `_replacePlaceholder` finds and replaces the placeholder; 9 ms later leaving source mode calls `replaceContent` with CodeMirror text that still holds the placeholder, and the op count is 0; every later round trip also reports 0 ops with the placeholder, and `content-replaced` never fires again. In passing runs the next `replaceContent` came about 90 ms after the replacement.
+- Mechanism (from code, consistent with the log): muya queues edits and applies them to `jsonState` on the next animation frame, and `jsonState.setContent` drops the queue. When leaving source mode lands in the same frame as the replacement:
+  1. `replaceContent` diffs the stale text against state that does not contain the queued replacement yet, finds no change, returns without emitting `content-replaced`, so the follow-up re-apply never runs;
+  2. the desktop then calls `setCursorByOffset`, which rebuilds the document from `getMarkdown()` (same stale state) through `editor.setContent` and drops the queued replacement.
+- Fix `7e7c2628`: `Muya.replaceContent` and `Muya.setCursorByOffset` flush the queue before reading state. `setContent` keeps dropping it (it swaps documents; #2938).
+- New unit test: "keeps a replacement that is still queued when stale content arrives in the same frame". Before: `first![loading-mu-16](/abs/shot.png)`. After: `first![](assets/hash.png)`. The existing "re-applies a finished replacement" test flushes before `replaceContent`, which is why it did not catch this.
+
+| Check (2026-10-24) | Result |
+| --- | --- |
+| delayed-copy spec, 300 ms and 1500 ms, 8 burners, ×10 each, two rounds | 40/40, no placeholder left |
+| original spec ×30 unloaded | 29/30; the 1 failure is mode B |
+| muya unit tests | 2557 passed |
+| desktop unit tests | 1177 passed, 6 skipped |
+| muya `tsc --noEmit`, eslint on the changed files; desktop typecheck and lint | pass (0 errors) |
+
+### Still open
+
+- Mode B (Enter in the image tool not applied on the second insert) still shows up about 1 in 30 runs. Not investigated further in this round.
+- `4d5753a8` was later picked only in part (`1751cf70`: `Muya.isBlockInDocument` and the paste guards); the image tool keeps the resolution by placeholder described above.
