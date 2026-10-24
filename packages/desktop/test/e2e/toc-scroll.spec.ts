@@ -74,6 +74,16 @@ const headingOffsetFromViewportTop = (page: Page, index: number): Promise<number
     )
   }, index)
 
+// The outline jump animates; wait until scrollTop stops changing before
+// asserting where it landed.
+const waitForScrollToSettle = async(page: Page): Promise<void> => {
+  await expect.poll(async() => {
+    const before = await getScrollTop(page)
+    await page.waitForTimeout(300)
+    return before === await getScrollTop(page)
+  }, { timeout: 8000 }).toBe(true)
+}
+
 // Locate a TOC tree node label by its EXACT text. Exact matching avoids the
 // substring trap where "Heading Number 1" also matches "Heading Number 18".
 const tocLabel = (page: Page, text: string) =>
@@ -162,10 +172,10 @@ test.describe('TOC sidebar click scrolls the live editor', () => {
     await expect
       .poll(() => isHeadingInViewport(page, targetIndex), { timeout: 8000 })
       .toBe(true)
-    await expect
-      .poll(() => headingOffsetFromViewportTop(page, targetIndex), { timeout: 8000 })
-      .toBeGreaterThanOrEqual(20)
-    expect(await headingOffsetFromViewportTop(page, targetIndex)).toBeLessThanOrEqual(28)
+    await waitForScrollToSettle(page)
+    const offset = await headingOffsetFromViewportTop(page, targetIndex)
+    expect(offset).toBeGreaterThanOrEqual(20)
+    expect(offset).toBeLessThanOrEqual(28)
   })
 
   test('clicking an earlier heading scrolls back up toward it', async() => {
