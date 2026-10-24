@@ -2276,6 +2276,10 @@ onMounted(() => {
     async flush (snapshot: EditorBindingSnapshot): Promise<EditorReport> {
       const sourceReport = props.composition.sourceReportFor(snapshot)
       if (sourceReport) return sourceReport
+      // CodeMirror reports every edit as it happens, so a Source view without
+      // a pending report is unchanged. The hidden engine's serialization can
+      // differ from the source text and would be taken as a Source edit.
+      if (snapshot.view.mode === 'source') return {}
       if (!editor.value) return {}
       // The engine still holds an earlier document; it has nothing to report.
       if (deferredSnapshot) return {}
