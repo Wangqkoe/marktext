@@ -93,6 +93,10 @@ test.describe('raw HTML details disclosure in the desktop editor', () => {
   test.beforeEach(async() => {
     await setHtmlEnabled(page, true)
     await setSourceMarkdown(page, app, CLOSED)
+    // Leaving Source mode restores the caret to the document start, inside the
+    // HTML block, a few frames later; that switches the block to its source.
+    // Decide whether to restore the preview only after it has happened.
+    await expect(page.locator('.editor-component .mu-html-block')).toHaveClass(/mu-active/)
     await restorePreview(page)
     await expect(disclosure(page)).toBeVisible()
   })
