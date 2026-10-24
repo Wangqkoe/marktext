@@ -12,6 +12,47 @@ const snapshotOf = (page: Page): Promise<WorkspaceFacadeSnapshot> => page.evalua
   (window as unknown as { __mtWorkspaceSnapshot(): WorkspaceFacadeSnapshot }).__mtWorkspaceSnapshot()
 )
 
+type HeldScrollCommits = typeof window & {
+  __mtHeldScrollCommits?: Array<() => void>
+  __mtHeldScrollBlockers?: Array<() => void>
+}
+
+// The editor commits a live scroll position after 150 ms of idle, scheduled
+// synchronously by its scroll listener. Capture that timer so the test can
+// observe the uncommitted position without racing it, then release it. The
+// native scroll event that follows `scrollTop =` would re-arm a real timer, so
+// it is blocked until release.
+const scrollHoldingIdleCommit = (scroller: ReturnType<Page['locator']>, scrollTop: number): Promise<number> =>
+  scroller.evaluate((element, top) => {
+    const target = window as HeldScrollCommits
+    const held = target.__mtHeldScrollCommits ??= []
+    const blockNativeScroll = (event: Event) => {
+      if (event.isTrusted && event.target === element) event.stopImmediatePropagation()
+    }
+    window.addEventListener('scroll', blockNativeScroll, true)
+    ;(target.__mtHeldScrollBlockers ??= []).push(() => window.removeEventListener('scroll', blockNativeScroll, true))
+    const originalSetTimeout = window.setTimeout
+    window.setTimeout = ((handler: TimerHandler, _delay?: number, ...args: unknown[]) => {
+      if (typeof handler === 'function') held.push(() => Reflect.apply(handler, window, args))
+      return -1 - held.length
+    }) as typeof window.setTimeout
+    try {
+      element.scrollTop = top
+      element.dispatchEvent(new Event('scroll'))
+    } finally {
+      window.setTimeout = originalSetTimeout
+    }
+    return element.scrollTop
+  }, scrollTop)
+
+const releaseHeldScrollCommits = (page: Page): Promise<number> => page.evaluate(() => {
+  const target = window as HeldScrollCommits
+  for (const unblock of (target.__mtHeldScrollBlockers ?? []).splice(0)) unblock()
+  const callbacks = (target.__mtHeldScrollCommits ?? []).splice(0)
+  for (const callback of callbacks) callback()
+  return callbacks.length
+})
+
 const tabMenuAction = async(app: ElectronApplication, tab: ReturnType<Page['locator']>, label: string): Promise<void> => {
   await app.evaluate(({ Menu }) => {
     Menu.prototype.popup = function() {
@@ -245,11 +286,7 @@ test.describe('Split workspace', () => {
     const sourceDocument = sourceBefore.documents.find(document => document.viewId === sourceViewId)!
     expect(sourceDocument.scrollTop).toBe(0)
 
-    const sourceLiveScrollTop = await page.locator('.editor-component').evaluate(element => {
-      element.scrollTop = 800
-      element.dispatchEvent(new Event('scroll'))
-      return element.scrollTop
-    })
+    const sourceLiveScrollTop = await scrollHoldingIdleCommit(page.locator('.editor-component'), 800)
     expect(sourceLiveScrollTop).toBe(800)
     expect((await snapshotOf(page)).documents.find(document => document.viewId === sourceViewId)?.scrollTop).toBe(0)
 
@@ -257,6 +294,7 @@ test.describe('Split workspace', () => {
     await expect(page.locator('.workspace-pane')).toHaveCount(2)
 
     const split = await snapshotOf(page)
+    await releaseHeldScrollCommits(page)
     const sharedViews = split.documents.filter(document => document.documentId === sourceDocument.documentId)
     expect(sharedViews).toHaveLength(2)
     expect(sharedViews.map(document => document.scrollTop)).toEqual([
@@ -269,21 +307,16 @@ test.describe('Split workspace', () => {
       elements => elements.map(element => element.scrollTop)
     )).toEqual([sourceLiveScrollTop, sourceLiveScrollTop])
 
-    const rightLiveScrollTop = await page.locator('.workspace-pane').nth(1).locator('.editor-component').evaluate(element => {
-      element.scrollTop = 1200
-      element.dispatchEvent(new Event('scroll'))
-      return element.scrollTop
-    })
+    const rightLiveScrollTop = await scrollHoldingIdleCommit(page.locator('.workspace-pane').nth(1).locator('.editor-component'), 1200)
     expect(rightLiveScrollTop).toBe(1200)
     expect(await page.locator('.workspace-pane').nth(0).locator('.editor-component').evaluate(element => element.scrollTop)).toBe(sourceLiveScrollTop)
     const duringRightScroll = await snapshotOf(page)
     expect(duringRightScroll.documents.find(document => document.viewId === leftViewId)?.scrollTop).toBe(sourceLiveScrollTop)
     expect(duringRightScroll.documents.find(document => document.viewId === rightViewId)?.scrollTop).toBe(sourceLiveScrollTop)
 
-    await page.waitForTimeout(200)
-    const afterRightCommit = await snapshotOf(page)
-    expect(afterRightCommit.documents.find(document => document.viewId === leftViewId)?.scrollTop).toBe(sourceLiveScrollTop)
-    expect(afterRightCommit.documents.find(document => document.viewId === rightViewId)?.scrollTop).toBe(rightLiveScrollTop)
+    expect(await releaseHeldScrollCommits(page)).toBeGreaterThan(0)
+    await expect.poll(async() => (await snapshotOf(page)).documents.find(document => document.viewId === rightViewId)?.scrollTop).toBe(rightLiveScrollTop)
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === leftViewId)?.scrollTop).toBe(sourceLiveScrollTop)
 
     const leftLiveScrollTop = await page.locator('.workspace-pane').nth(0).locator('.editor-component').evaluate(element => {
       element.scrollTop = 400
@@ -293,10 +326,8 @@ test.describe('Split workspace', () => {
     expect(leftLiveScrollTop).toBe(400)
     expect(await page.locator('.workspace-pane').nth(1).locator('.editor-component').evaluate(element => element.scrollTop)).toBe(rightLiveScrollTop)
 
-    await page.waitForTimeout(200)
-    const afterLeftCommit = await snapshotOf(page)
-    expect(afterLeftCommit.documents.find(document => document.viewId === leftViewId)?.scrollTop).toBe(leftLiveScrollTop)
-    expect(afterLeftCommit.documents.find(document => document.viewId === rightViewId)?.scrollTop).toBe(rightLiveScrollTop)
+    await expect.poll(async() => (await snapshotOf(page)).documents.find(document => document.viewId === leftViewId)?.scrollTop).toBe(leftLiveScrollTop)
+    expect((await snapshotOf(page)).documents.find(document => document.viewId === rightViewId)?.scrollTop).toBe(rightLiveScrollTop)
   })
 
   test('Move to Right and Move to Left preserve each command-boundary live position', async() => {

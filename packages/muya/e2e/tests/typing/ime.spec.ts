@@ -163,8 +163,9 @@ test.describe('IME composition', () => {
         expect(after.isComposed).toBe(false);
         expect(after.text.startsWith('hello')).toBe(true);
 
-        const md = await getMarkdown(page);
-        expect(md).toContain('你好');
+        // The block text is committed; the document state applies the
+        // batched operation on the next animation frame, so poll for it.
+        await expect.poll(() => getMarkdown(page)).toContain('你好');
     });
 
     test('CJK pinyin commits text inside a list item', async ({ page }) => {
@@ -241,8 +242,9 @@ test.describe('IME composition', () => {
         const after = await probe(page, 'after');
         expect(after.isComposed).toBe(false);
 
-        const md = await getMarkdown(page);
-        expect(md).toContain('测试');
+        // The block text is committed; the document state applies the
+        // batched operation on the next animation frame, so poll for it.
+        await expect.poll(() => getMarkdown(page)).toContain('测试');
     });
 
     test('CJK pinyin commits text inside a table cell (non-empty cell)', async ({ page }) => {
@@ -324,7 +326,8 @@ test.describe('IME composition', () => {
         expect(after.text).toContain('x');
         expect(after.text).toContain('中文');
 
-        const md = await getMarkdown(page);
-        expect(md).toContain('中文');
+        // The block text is committed; the document state applies the
+        // batched operation on the next animation frame, so poll for it.
+        await expect.poll(() => getMarkdown(page)).toContain('中文');
     });
 });
