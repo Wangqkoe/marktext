@@ -350,9 +350,10 @@ let programmaticScrollActive = false
 let navigationScrollActive = false
 let completedProgrammaticScrollTop: number | undefined
 // Open while a document delivery restores its caret and scroll position: the
-// restored caret's selection-change must not pull the view to it before the
-// saved scrollTop lands (`scrollToCords` applies it on the next frame).
+// restored caret's selection-change arrives after the saved scrollTop is set
+// and must not pull the view back to the caret.
 let caretFollowSuspensions = 0
+let scrollRestorePending = false
 let paneScope: PaneEditorEventScope | undefined
 let paneSurface: PaneEditorSurface | undefined
 let rebindPaneGeneration: ((scope: PaneEditorEventScope | undefined) => void) | undefined
@@ -1475,7 +1476,7 @@ const updateActiveHeading = (viewportY: number): void => {
 const scrollToCursor = (duration = 300) => {
   nextTick(() => {
     const container = getScrollContainer()
-    if (!container) return
+    if (!container || scrollRestorePending) return
     const y = getCursorY()
     if (y == null) return
     programmaticScrollTo(container, container.scrollTop + y - STANDAR_Y, duration)
@@ -1498,12 +1499,15 @@ const scrollToCords = (y: number) => {
       resizeObserverForEditor.observe(editorId)
     }
   }
+  // Set in the same task as the content swap, so the first frame paints the
+  // restored position. Hiding the container until a later frame instead costs
+  // two style recalculations of the whole document, each a large part of a
+  // second on a large one.
+  container.scrollTop = y
+  // The tab-switch caret reveal runs after this; the restored position wins.
+  scrollRestorePending = true
   requestAnimationFrame(() => {
-    if (!container) return
-    // wait for the padding to be applied (if any)
-    container.style.visibility = 'visible'
-    container.style.pointerEvents = 'auto'
-    container.scrollTop = y
+    scrollRestorePending = false
   })
 }
 
@@ -1981,12 +1985,8 @@ const handleFileChange = (payload: unknown) => {
   }
 
   if (typeof scrollTop === 'number') {
-    container.style.visibility = 'hidden'
-    container.style.pointerEvents = 'none'
     scrollToCords(scrollTop)
   } else {
-    container.style.visibility = 'visible'
-    container.style.pointerEvents = 'auto'
     scrollToCursor(0)
   }
 }
@@ -2007,14 +2007,10 @@ const focusEditor = () => {
   editor.value?.focus()
 }
 
-// Focus a freshly opened/created tab's editor. The sibling `file-changed`
-// handler (emitted first, while the store commits the tab switch) hides the
-// editor and queues a `requestAnimationFrame` via `scrollToCords` to restore
-// it, and focus() is a no-op while the container is `visibility:hidden`. Our
-// rAF is registered after that restore rAF, so it runs once the editor is
-// visible; then take DOM focus (the engine's `focus()` only sets the selection
-// range — the contenteditable also needs focus or no caret blinks) and place
-// the caret at the document start.
+// Focus a freshly opened/created tab's editor on the next frame, after the
+// tab switch has loaded it; then take DOM focus (the engine's `focus()` only
+// sets the selection range — the contenteditable also needs focus or no caret
+// blinks) and place the caret at the document start.
 const focusFreshEditor = () => {
   requestAnimationFrame(() => {
     const ed = editor.value
@@ -2294,9 +2290,7 @@ onMounted(() => {
         markdown,
         ...(flushCursor() ? { cursor: flushCursor() } : {}),
         ...(portableEngineHistory() ? { portableHistory: portableEngineHistory() } : {}),
-        scrollTop: scrollContainer?.style.visibility === 'hidden'
-          ? snapshot.view.scrollTop
-          : scrollContainer?.scrollTop ?? 0,
+        scrollTop: scrollContainer?.scrollTop ?? 0,
         toc,
         status: workspaceStatusFromCounts(muyaWordCount(markdown))
       }
