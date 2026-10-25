@@ -804,6 +804,7 @@
       "toggleAutoSave": "切换自动保存",
       "importFile": "导入文件",
       "exportFile": "导出文件",
+      "exportFileHtml": "导出为 HTML",
       "exportFilePdf": "导出为 PDF",
       "zoom": "缩放",
       "checkUpdate": "检查更新",

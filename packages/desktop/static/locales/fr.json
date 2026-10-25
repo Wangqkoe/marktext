@@ -805,6 +805,7 @@
       "toggleAutoSave": "Basculer l'enregistrement automatique",
       "importFile": "Importer un fichier",
       "exportFile": "Exporter un fichier",
+      "exportFileHtml": "Exporter en HTML",
       "exportFilePdf": "Exporter en PDF",
       "zoom": "Zoom",
       "checkUpdate": "Vérifier les mises à jour"

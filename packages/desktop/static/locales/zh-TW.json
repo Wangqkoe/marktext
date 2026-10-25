@@ -805,6 +805,7 @@
       "toggleAutoSave": "切換自動儲存",
       "importFile": "匯入檔案",
       "exportFile": "匯出檔案",
+      "exportFileHtml": "匯出為 HTML",
       "exportFilePdf": "匯出為 PDF",
       "zoom": "縮放",
       "checkUpdate": "檢查更新"

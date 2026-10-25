@@ -805,6 +805,7 @@
       "toggleAutoSave": "자동 저장 토글",
       "importFile": "파일 가져오기",
       "exportFile": "파일 내보내기",
+      "exportFileHtml": "HTML로 내보내기",
       "exportFilePdf": "PDF로 내보내기",
       "zoom": "확대/축소",
       "checkUpdate": "업데이트 확인"

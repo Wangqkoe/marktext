@@ -22,7 +22,8 @@ const COMMAND_KEY_MAP: Record<string, string> = {
   'file.save': 'commands.file.save',
   'file.save-as': 'commands.file.saveAs',
   'file.export-file': 'commands.file.exportFile',
-  'file.export-file.pdf': 'commands.file.exportFilePdf',
+  'file.export-file-html': 'commands.file.exportFileHtml',
+  'file.export-file-pdf': 'commands.file.exportFilePdf',
 
   // File management
   'file.move-file': 'commands.file.moveFile',
@@ -226,9 +227,11 @@ const COMMAND_KEY_MAP: Record<string, string> = {
 /**
  * Gets the internationalized description text for the given command ID
  * @param id - Command ID, in formats such as 'file.save', 'edit.copy', etc.
- * @returns Returns the internationalized command description, or the original ID if no description is found
+ * @param fallback - Text to keep when the ID has no translation, such as a
+ *   subcommand's own label ('125%', 'Left to Right')
+ * @returns The internationalized description, else `fallback`, else the ID
  */
-export default (id: string): string => {
+export default (id: string, fallback?: string): string => {
   // Re-fetch the command description on each call to support dynamic language switching
-  return id in COMMAND_KEY_MAP ? t(COMMAND_KEY_MAP[id]) : id
+  return id in COMMAND_KEY_MAP ? t(COMMAND_KEY_MAP[id]) : fallback || id
 }

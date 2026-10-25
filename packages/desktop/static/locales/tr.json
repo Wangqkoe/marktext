@@ -805,6 +805,7 @@
       "toggleAutoSave": "Otomatik Kaydetmeyi Aç/Kapat",
       "importFile": "Dosya İçe Aktar",
       "exportFile": "Dosya Dışa Aktar",
+      "exportFileHtml": "HTML Olarak Dışa Aktar",
       "exportFilePdf": "PDF Olarak Dışa Aktar",
       "zoom": "Yakınlaştırma",
       "checkUpdate": "Güncellemeleri Denetle"

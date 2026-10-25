@@ -705,9 +705,10 @@ export const getCommandsWithDescriptions = async(): Promise<CommandDescriptor[]>
     for (const item of commandList) {
       const { id } = item
       const subcommands = (item as CommandDescriptor).subcommands
-      // Always update description for commands with ID, regardless of existing description
+      // Re-translate on every call (the language can change); an ID without a
+      // translation keeps its own label instead of showing the raw ID.
       if (id) {
-        item.description = getCommandDescriptionById(id)
+        item.description = getCommandDescriptionById(id, item.description)
       }
 
       // Special handling for theme subcommands

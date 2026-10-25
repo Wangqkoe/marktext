@@ -805,6 +805,7 @@
       "toggleAutoSave": "Automatisches Speichern umschalten",
       "importFile": "Datei importieren",
       "exportFile": "Datei exportieren",
+      "exportFileHtml": "Als HTML exportieren",
       "exportFilePdf": "Als PDF exportieren",
       "zoom": "Zoom",
       "checkUpdate": "Nach Updates suchen"

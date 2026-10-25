@@ -805,6 +805,7 @@
       "toggleAutoSave": "Alternar Salvamento Automático",
       "importFile": "Importar Arquivo",
       "exportFile": "Exportar Arquivo",
+      "exportFileHtml": "Exportar como HTML",
       "exportFilePdf": "Exportar como PDF",
       "zoom": "Zoom",
       "checkUpdate": "Verificar Atualizações"

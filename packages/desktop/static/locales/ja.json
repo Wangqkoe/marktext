@@ -805,6 +805,7 @@
       "toggleAutoSave": "自動保存を切り替え",
       "importFile": "ファイルをインポート",
       "exportFile": "ファイルをエクスポート",
+      "exportFileHtml": "HTMLとしてエクスポート",
       "exportFilePdf": "PDFとしてエクスポート",
       "zoom": "ズーム",
       "checkUpdate": "アップデートを確認"
