@@ -8,6 +8,12 @@ export const useMainStore = defineStore('main', () => {
   // Platform of system: 'darwin' | 'win32' | 'linux'
   const platform = ref<NodeJS.Platform>(window.electron.process.platform)
   const appVersion = ref<string>(window.electron.process.env.MARKTEXT_VERSION_STRING ?? '')
+  // Build date and git commit, e.g. "2026-10-25 · 771d1dd"; empty when neither was injected.
+  const buildInfo = ref<string>(
+    [window.electron.process.env.MARKTEXT_BUILD_DATE, window.electron.process.env.MARKTEXT_BUILD_COMMIT]
+      .filter(Boolean)
+      .join(' · ')
+  )
   // Whether current window is active or focused
   const windowActive = ref(true)
   // Whether MarkText is initialized
@@ -32,6 +38,7 @@ export const useMainStore = defineStore('main', () => {
   return {
     platform,
     appVersion,
+    buildInfo,
     windowActive,
     init,
     SET_WIN_STATUS,

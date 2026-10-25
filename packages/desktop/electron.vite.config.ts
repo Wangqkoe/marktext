@@ -6,9 +6,26 @@ import svgLoader from 'vite-svg-loader'
 import postcssPresetEnv from 'postcss-preset-env'
 import packageJson from './package.json' with { type: 'json' }
 import { fileURLToPath } from 'url'
+import { execFileSync } from 'child_process'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+// Shown in the About window so two packages of the same version can be told
+// apart. A build outside a git checkout reports 'unknown' instead of failing.
+const git = (...args: string[]): string =>
+  execFileSync('git', args, { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+const buildCommit = ((): string => {
+  try {
+    const commit = git('rev-parse', '--short', 'HEAD')
+    if (!commit) return 'unknown'
+    return git('status', '--porcelain', '--untracked-files=no') ? `${commit}-dirty` : commit
+  } catch {
+    return 'unknown'
+  }
+})()
+// Local calendar date (sv-SE formats as YYYY-MM-DD).
+const buildDate = new Date().toLocaleDateString('sv-SE')
 
 export default defineConfig({
   main: {
@@ -29,7 +46,9 @@ export default defineConfig({
     },
     define: {
       MARKTEXT_VERSION: JSON.stringify(packageJson.version),
-      MARKTEXT_VERSION_STRING: JSON.stringify(`v${packageJson.version}`)
+      MARKTEXT_VERSION_STRING: JSON.stringify(`v${packageJson.version}`),
+      MARKTEXT_BUILD_DATE: JSON.stringify(buildDate),
+      MARKTEXT_BUILD_COMMIT: JSON.stringify(buildCommit)
     },
     resolve: {
       alias: {

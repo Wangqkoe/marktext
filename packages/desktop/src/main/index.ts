@@ -18,6 +18,8 @@ import { configureE2eBackground } from './e2eBackground'
 // Set version strings into global and process.versions
 process.env.MARKTEXT_VERSION = MARKTEXT_VERSION
 process.env.MARKTEXT_VERSION_STRING = MARKTEXT_VERSION_STRING
+process.env.MARKTEXT_BUILD_DATE = MARKTEXT_BUILD_DATE
+process.env.MARKTEXT_BUILD_COMMIT = MARKTEXT_BUILD_COMMIT
 
 // -----------------------------------------------
 // Exception handling and logging setup

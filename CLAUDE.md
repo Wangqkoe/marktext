@@ -173,6 +173,8 @@ pnpm run build:linux  # Linux — AppImage, snap, deb, rpm, tar.gz
 
 All platform build scripts automatically run `minify-locales` and `electron-rebuild` before packaging.
 
+Before every packaged build, add the release's entry to the root `CHANGELOG.md` and bump the version by one (keep the root `package.json` and `packages/desktop/package.json` in step); the rules are at the top of `CHANGELOG.md`. The About window shows the build date and short git commit, injected by `electron.vite.config.ts`.
+
 ## Testing
 
 ```bash

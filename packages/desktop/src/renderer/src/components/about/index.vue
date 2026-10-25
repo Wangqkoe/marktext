@@ -22,6 +22,17 @@
             {{ store.appVersion }}
           </div>
         </el-col>
+        <el-col
+          v-if="store.buildInfo"
+          :span="24"
+        >
+          <div
+            class="text build-info"
+            style="min-height: auto"
+          >
+            {{ store.buildInfo }}
+          </div>
+        </el-col>
         <el-col :span="24">
           <div
             class="text"
