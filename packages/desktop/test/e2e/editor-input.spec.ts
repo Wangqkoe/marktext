@@ -45,8 +45,8 @@ test.describe('Editor input and source-mode roundtrip', () => {
     })
     expect(md).toContain('# Hello')
     await exitSourceMode(page, app)
-    // Leaving Source mode reloads the editor and shows it again once its
-    // scroll position is restored; wait for that rather than sampling once.
+    // Leaving Source mode reloads the editor; wait for it to be shown rather
+    // than sampling once.
     await expect(page.locator('.editor-component')).toBeVisible()
   })
 

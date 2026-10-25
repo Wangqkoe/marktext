@@ -35,9 +35,9 @@ import {
 // selectionchange, then a synthetic keyup on the editor root so the engine
 // updates its `activeContentBlock` (it derives that from click/keyup events).
 //
-// Right after leaving Source mode the editor is briefly visibility:hidden and
-// focus() on it is ignored, which would send the next key to <body>. Place
-// the caret again until the editor really holds focus.
+// focus() is ignored while the editor cannot take focus (for example while it
+// is still being reloaded after leaving Source mode), and the next key would
+// then go to <body>. Place the caret again until the editor holds focus.
 const placeCaretInContentSpan = async(page: Page, index: number): Promise<void> => {
   await expect.poll(() => page.evaluate((idx) => {
     const root = document.querySelector('.editor-component') as HTMLElement | null
