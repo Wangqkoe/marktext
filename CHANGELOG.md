@@ -38,6 +38,7 @@
 - **Windows 路径相关**：侧边栏和标签页对同一文件的路径能正确识别为同一个（`5d2dcb55`、`54792796`）；导出时保留 Windows 盘符开头的图片路径（`0bb73c75`）。
 - **导出**：嵌套列表导出时不再多出空行（`649f5acb`）；大纲里的行内代码不再和下一行重叠（`d14bc310`）；图表配色在所有深色主题下都正确（`48447d54`）。
 - **安全**：发布版窗口开启网页安全限制（`9a272657`）。
+- **命令面板子菜单显示内部名字**："Export File"下显示 `file.export-file-html` / `file.export-file-pdf`，"Zoom"下显示 `file.zoom-0` 等，"Text Direction"下显示 `view.text-direction-ltr` 等。现在显示"Export as HTML / Export as PDF"（已翻译成各语言）、"125%"、"Left to Right"这样的正常文字。（`ab77eee3`）
 
 ### 改动
 
@@ -50,7 +51,6 @@
 
 ### 已知问题
 
-- 命令面板里"Export File"的子菜单显示的是 `file.export-file-html` / `file.export-file-pdf` 这样的内部名字，而不是"Export as HTML / PDF"。功能本身正常。
 - 图片工具里输入本地路径后会弹出文件名补全，第一次回车只是选中补全项，要再按一次回车才插入图片。
 - "移到新窗口"后，如果在新窗口刚出现、移动还没完成时就关掉它，文档会在另一个窗口里重新出现（为了不丢文档的保护设计）。
 - 第一次双击 .md 文件时，Windows 可能先弹出"选择打开方式"，选 MarkText 并勾选"始终"后就正常了。
