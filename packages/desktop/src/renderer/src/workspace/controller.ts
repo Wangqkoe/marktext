@@ -1582,7 +1582,9 @@ export class WorkspaceController implements WorkspaceControllerContract {
   }
 
   private makeDocument(input: WorkspaceDocumentInput): DocumentRecord {
-    const id = input.documentId ?? `document-${this.nextId++}`
+    // Crash drafts of every window and launch share one directory keyed by
+    // document id, so a per-controller counter would collide with them.
+    const id = input.documentId ?? `document-${crypto.randomUUID()}`
     if (this.documents.has(id)) throw new Error(`duplicate document id ${id}`)
     return {
       id,

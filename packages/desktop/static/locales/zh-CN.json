@@ -988,7 +988,10 @@
       "exportSuccessTitle": "导出成功",
       "exportSuccessMessage": "已成功导出“{name}”！",
       "fileRemovedOnDisk": "“{name}” 已在磁盘上被删除。",
-      "fileChangedOnDisk": "“{name}” 已在磁盘上发生变更。是否重新加载？"
+      "fileChangedOnDisk": "“{name}” 已在磁盘上发生变更。是否重新加载？",
+      "closeFailedTitle": "无法关闭",
+      "closeFailedMessage": "没能写入“{name}”的崩溃恢复记录，文档仍保留在窗口里。可以先保存或另存为，再关闭。",
+      "windowCloseFailedMessage": "没能写入崩溃恢复记录，窗口仍保持打开。请再试一次关闭。"
     }
   },
   "spellchecker": {

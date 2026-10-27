@@ -37,7 +37,17 @@ export interface PaneEditorCompositionOptions {
   readonly controller?: WorkspaceController
   /** T04b production transport; tests may inject a deterministic port. */
   readonly documentIoPort?: DocumentIoPort
+  /**
+   * Told when a close is refused because its crash-draft record could not be
+   * written, so the user learns why the tab or window stayed open. `title` is
+   * absent when the whole window failed rather than one document. A
+   * cancelled close is not reported.
+   */
+  readonly onCloseFailure?: (title?: string) => void
 }
+
+const CRASH_DRAFT_DISPOSITION_FAILURE = 'crash-draft disposition was not durable'
+const RECOVERED_DRAFT_DISPOSITION_FAILURE = 'recovered draft disposition was not durable'
 
 // Documents outlive mounted panes. Both views share one IO fence, save queue,
 // and crash-draft receipt, including while either view is inactive or unmounted.
@@ -95,12 +105,14 @@ export class PaneEditorComposition {
   private modeTransition: Promise<WorkspaceResult> | undefined
   private readonly crashDraft = createElectronCrashDraftPort()
   private stopCrashDraftSync: (() => void) | undefined
+  private readonly onCloseFailure: ((title?: string) => void) | undefined
 
   constructor(options: PaneEditorCompositionOptions) {
     this.paneId = options.paneId
     this.reporter = new PaneEditorLeaseReporter(options.paneId)
     this.runtime = options.controller
     this.documentIoPort = options.documentIoPort
+    this.onCloseFailure = options.onCloseFailure
   }
 
   async mount(surface: PaneEditorSurface, seed: LegacyPaneSeed): Promise<void> {
@@ -570,6 +582,16 @@ export class PaneEditorComposition {
 
   /** Pane-local tab closure; dirty-save decisions never read ambient currentFile. */
   async closeLegacyTab(documentId: string): Promise<WorkspaceResult> {
+    const title = this.runtime?.getFacadeSnapshot().documents.find(document => document.documentId === documentId)?.title
+    const result = await this.closeLegacyTabUnreported(documentId)
+    if (
+      result.status === 'failed' &&
+      (result.reason === CRASH_DRAFT_DISPOSITION_FAILURE || result.reason === RECOVERED_DRAFT_DISPOSITION_FAILURE)
+    ) this.onCloseFailure?.(title)
+    return result
+  }
+
+  private async closeLegacyTabUnreported(documentId: string): Promise<WorkspaceResult> {
     const runtime = this.runtime
     const pane = runtime?.getProjection().panes.find((candidate) =>
       candidate.paneId === this.paneId && candidate.tabs.some((tab) => tab.documentId === documentId)
@@ -618,7 +640,7 @@ export class PaneEditorComposition {
         }
         await this.syncCrashDraft()
         if (!(await this.resolveCrashDraft(documentId, 'discard'))) {
-          return { status: 'failed', reason: 'recovered draft disposition was not durable' }
+          return { status: 'failed', reason: RECOVERED_DRAFT_DISPOSITION_FAILURE }
         }
       }
       const recoveredClose = await this.execute({ kind: 'close-view', viewId: view.viewId })
@@ -633,7 +655,7 @@ export class PaneEditorComposition {
     if (decision === 'discard') {
       await this.syncCrashDraft()
       if (!(await this.resolveCrashDraft(documentId, 'discard'))) {
-        return { status: 'failed', reason: 'crash-draft disposition was not durable' }
+        return { status: 'failed', reason: CRASH_DRAFT_DISPOSITION_FAILURE }
       }
       return finishClose(await runtime.execute({ kind: 'commit-authorized', capability: close.capability }))
     }
@@ -695,7 +717,9 @@ export class PaneEditorComposition {
     const clean = await this.crashDraft.request({ kind: 'mark-clean' })
     // Another window's unresolved draft must keep the process dirty without
     // preventing this window from closing after its own documents are closed.
-    return clean.durable || clean.reason === 'unresolved crash drafts remain'
+    if (clean.durable || clean.reason === 'unresolved crash drafts remain') return true
+    this.onCloseFailure?.()
+    return false
   }
 
   async cycleTabs(direction: boolean): Promise<WorkspaceResult> {
@@ -788,7 +812,7 @@ export class PaneEditorComposition {
       const recovered = this.persistence.crashDraftLineage.has(ack.documentId)
       const resolved = await this.resolveCrashDraft(ack.documentId, 'saved', ack.documentRevision)
       if (recovered && !resolved) {
-        return { status: 'failed', reason: 'recovered draft disposition was not durable' }
+        return { status: 'failed', reason: RECOVERED_DRAFT_DISPOSITION_FAILURE }
       }
     }
     return applied

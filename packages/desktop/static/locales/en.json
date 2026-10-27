@@ -988,7 +988,10 @@
       "exportSuccessTitle": "Exported successfully",
       "exportSuccessMessage": "Exported \"{name}\" successfully!",
       "fileRemovedOnDisk": "\"{name}\" has been removed on disk.",
-      "fileChangedOnDisk": "\"{name}\" has been changed on disk. Do you want to reload it?"
+      "fileChangedOnDisk": "\"{name}\" has been changed on disk. Do you want to reload it?",
+      "closeFailedTitle": "Could not close",
+      "closeFailedMessage": "\"{name}\" stays open because its crash-recovery record could not be written. Save it or use Save As, then close it again.",
+      "windowCloseFailedMessage": "The window stays open because its crash-recovery record could not be written. Try closing it again."
     }
   },
   "spellchecker": {

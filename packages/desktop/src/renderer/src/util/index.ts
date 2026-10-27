@@ -24,7 +24,6 @@ export const delay = (time: number): CancellablePromise<void> => {
 }
 
 const ID_PREFIX = 'mt-'
-let id = 0
 
 export interface Cursor {
   line: number
@@ -185,8 +184,10 @@ export const animatedScrollTo = function(
   }
 }
 
+// Tab ids seed workspace document ids, which key crash drafts shared by every
+// window and launch; a per-window counter would repeat across them.
 export const getUniqueId = (): string => {
-  return `${ID_PREFIX}${id++}`
+  return `${ID_PREFIX}${crypto.randomUUID()}`
 }
 
 export const hasKeys = (obj: object): boolean => Object.keys(obj).length > 0

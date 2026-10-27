@@ -205,7 +205,7 @@ test('recovers a dirty untitled document with a stable recovery identity after a
       if ((await window.locator('body').innerText()).includes('Untitled before crash')) recoveryWindow = window
     }
     expect(recoveryWindow).toBeTruthy()
-    await expect(recoveryWindow!.locator('.tabs-container li.active')).toHaveAttribute('data-id', 'crash-recovery:mt-0')
+    await expect(recoveryWindow!.locator('.tabs-container li.active')).toHaveAttribute('data-id', /^crash-recovery:mt-[0-9a-f-]{36}$/)
   } finally {
     if (!killed) await forceTerminate(first.app)
     await forceTerminate(restarted)

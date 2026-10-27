@@ -367,15 +367,18 @@ describe('WorkspaceRuntime', () => {
 
     try {
       const workspace = createWorkspaceRuntime([{ documentId: 'saved', fileKey: '/saved.md' }])
+      const onCloseFailure = vi.fn()
       const composition = createPaneEditorComposition({
         paneId: 'left',
         controller: workspace,
-        documentIoPort: new RecordingDocumentIoPort()
+        documentIoPort: new RecordingDocumentIoPort(),
+        onCloseFailure
       })
       const surface = new MemoryPaneSurface()
       await composition.mount(surface, { id: 'saved', fileKey: '/saved.md', markdown: '', title: 'saved.md' })
 
       await expect(composition.closeForWindowExit()).resolves.toBe(false)
+      expect(onCloseFailure).toHaveBeenCalledExactlyOnceWith()
     } finally {
       testWindow.electron = originalElectron
     }
@@ -412,10 +415,12 @@ describe('WorkspaceRuntime', () => {
       }])
       const documentIoPort = new RecordingDocumentIoPort()
       documentIoPort.confirmClose = async() => 'discard'
+      const onCloseFailure = vi.fn()
       const composition = createPaneEditorComposition({
         paneId: 'left',
         controller: workspace,
-        documentIoPort
+        documentIoPort,
+        onCloseFailure
       })
       const surface = new MemoryPaneSurface()
       await composition.mount(surface, {
@@ -427,6 +432,7 @@ describe('WorkspaceRuntime', () => {
       expect(dirtyScope.report({ markdown: 'dirty local edits' }).status).toBe('applied')
 
       await expect(composition.closeForWindowExit()).resolves.toBe(false)
+      expect(onCloseFailure).toHaveBeenCalledExactlyOnceWith('dirty-local')
       expect(workspace.getFacadeSnapshot().documents).toContainEqual(expect.objectContaining({
         documentId: 'dirty-local',
         viewId: dirtyScope.viewId,
@@ -545,10 +551,12 @@ describe('WorkspaceRuntime', () => {
       ])
       const port = new RecordingDocumentIoPort()
       port.confirmClose = async() => 'cancel'
+      const onCloseFailure = vi.fn()
       const cancelledComposition = createPaneEditorComposition({
         paneId: 'left',
         controller: cancelledWorkspace,
-        documentIoPort: port
+        documentIoPort: port,
+        onCloseFailure
       })
       const surface = new MemoryPaneSurface()
       await cancelledComposition.mount(surface, { id: 'saved', fileKey: '/cancelled.md', markdown: 'saved', title: 'saved' })
@@ -556,6 +564,7 @@ describe('WorkspaceRuntime', () => {
 
       const beforeCancel = paneAt(cancelledWorkspace.getProjection(), 0)
       expect((await cancelledComposition.closeLegacyTab('saved')).status).toBe('rejected')
+      expect(onCloseFailure).not.toHaveBeenCalled()
       const afterCancel = paneAt(cancelledWorkspace.getProjection(), 0)
       expect(afterCancel.activeViewId).toBe(beforeCancel.activeViewId)
       expect(afterCancel.tabs.map(tab => tab.viewId)).toEqual(beforeCancel.tabs.map(tab => tab.viewId))

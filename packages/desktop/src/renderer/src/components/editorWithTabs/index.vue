@@ -48,6 +48,8 @@ import { useEditorStore, workspaceSeedFromLegacyTabs } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { usePreferencesStore } from '@/store/preferences'
 import { useProjectStore } from '@/store/project'
+import notice from '@/services/notification'
+import { t } from '@/i18n'
 import PaneEditor from './pane.vue'
 import { registerWorkspaceTreeUnmount } from './workspaceTreeLifecycle'
 
@@ -65,8 +67,18 @@ const initialView = { mode: preferencesStore.sourceCode ? 'source' as const : 'w
 const controller = createWorkspaceRuntime(seed.length
   ? seed.map(input => ({ ...input, view: initialView }))
   : [{ markdown: props.markdown, title: 'New Tab', view: initialView }])
-const left = createPaneEditorComposition({ paneId: 'left', controller })
-const right = createPaneEditorComposition({ paneId: 'right', controller })
+const onCloseFailure = (title?: string): void => {
+  notice.notify({
+    title: t('store.editor.closeFailedTitle'),
+    message: title === undefined
+      ? t('store.editor.windowCloseFailedMessage')
+      : t('store.editor.closeFailedMessage', { name: title }),
+    type: 'error',
+    time: 0
+  }).catch(() => undefined)
+}
+const left = createPaneEditorComposition({ paneId: 'left', controller, onCloseFailure })
+const right = createPaneEditorComposition({ paneId: 'right', controller, onCloseFailure })
 const transfer = createElectronTransferPort()
 const nativeGesture = createElectronNativeGesturePort()
 const moveTabToNewWindow = createMoveTabToNewWindowAction(controller, transfer, {
