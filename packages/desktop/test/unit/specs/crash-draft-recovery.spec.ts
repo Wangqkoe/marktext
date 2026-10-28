@@ -23,7 +23,12 @@ class MemoryStorage implements CrashDraftStorage {
     this.files.delete(from); this.files.set(to, value)
   }
 
-  async unlink(filename: string): Promise<void> { this.files.delete(filename) }
+  unlinkFails = false
+  async unlink(filename: string): Promise<void> {
+    if (this.unlinkFails) throw new Error('unlink refused')
+    this.files.delete(filename)
+  }
+
   async syncFile(_filename: string): Promise<void> {}
   async syncDirectory(_directory: string): Promise<void> {}
 }
@@ -110,5 +115,130 @@ describe('CrashDraftStore', () => {
       await expect(safe.acknowledgeSave(write)).resolves.toEqual({ durable: true })
       await expect(faulty.markCleanShutdown()).resolves.toEqual({ durable: false, reason: point })
     }
+  })
+})
+
+const draftOf = (documentId: string, documentRevision: number) => ({ ...checkpoint(documentRevision), documentId })
+
+// File names carry the base64url document id; decode it so assertions read as
+// `<document id>.<revision>.<kind>`.
+const listing = (storage: MemoryStorage): string[] => [...storage.files.keys()]
+  .map(key => key.split(/[\\/]/).pop() ?? key)
+  .map(name => {
+    const [encoded = '', ...rest] = name.split('.')
+    return rest.length && !name.endsWith('.tmp') && encoded !== 'clean-shutdown'
+      ? [Buffer.from(encoded, 'base64url').toString(), ...rest].join('.')
+      : name
+  })
+  .sort()
+
+describe('CrashDraftStore cleanup', () => {
+  it.each(['discard', 'save'] as const)('deletes every file of a document once a %s resolves it', async resolution => {
+    const storage = new MemoryStorage()
+    const store = new CrashDraftStore('/drafts', storage)
+    for (const revision of [1, 2]) await store.checkpoint(checkpoint(revision))
+    const last = store.beginCheckpoint(checkpoint(3))
+    await expect(store.acknowledge(last)).resolves.toEqual({ durable: true })
+
+    const resolved = resolution === 'discard' ? store.discard('saved-document', 3) : store.acknowledgeSave(last)
+    await expect(resolved).resolves.toEqual({ durable: true })
+
+    expect(listing(storage)).toEqual([])
+    await expect(store.scan()).resolves.toEqual([])
+    await expect(store.markCleanShutdown()).resolves.toEqual({ durable: true })
+  })
+
+  // The previous revision stays as the fallback for a corrupt newest one.
+  it('keeps only the two newest revisions of an unresolved document', async() => {
+    const storage = new MemoryStorage()
+    const store = new CrashDraftStore('/drafts', storage)
+    for (const revision of [1, 2, 3, 4, 5]) await expect(store.checkpoint(checkpoint(revision))).resolves.toEqual({ durable: true })
+
+    expect(listing(storage)).toEqual([
+      'saved-document.4.commit.json',
+      'saved-document.4.draft.json',
+      'saved-document.5.commit.json',
+      'saved-document.5.draft.json'
+    ])
+    const [recovered] = await store.scan()
+    expect(recovered?.draft.markdown).toBe('revision 5')
+  })
+
+  it('drops the saved revisions of a document edited again after saving', async() => {
+    const storage = new MemoryStorage()
+    const store = new CrashDraftStore('/drafts', storage)
+    await store.checkpoint(checkpoint(1))
+    const saved = store.beginCheckpoint(checkpoint(2))
+    await store.acknowledge(saved)
+    await expect(store.acknowledgeSave(saved)).resolves.toEqual({ durable: true })
+    await expect(store.checkpoint(checkpoint(3))).resolves.toEqual({ durable: true })
+
+    expect(listing(storage)).toEqual(['saved-document.3.commit.json', 'saved-document.3.draft.json'])
+    const [recovered] = await store.scan()
+    expect(recovered?.draft.markdown).toBe('revision 3')
+  })
+
+  it('keeps acknowledgements durable and recovery unchanged when files cannot be deleted', async() => {
+    const storage = new MemoryStorage()
+    storage.unlinkFails = true
+    const store = new CrashDraftStore('/drafts', storage)
+    for (const revision of [1, 2, 3]) await expect(store.checkpoint(checkpoint(revision))).resolves.toEqual({ durable: true })
+    const [unresolved] = await store.scan()
+    expect(unresolved?.draft.markdown).toBe('revision 3')
+
+    await expect(store.discard('saved-document', 3)).resolves.toEqual({ durable: true })
+    await expect(store.scan()).resolves.toEqual([])
+    await expect(store.markCleanShutdown()).resolves.toEqual({ durable: true })
+  })
+
+  // Earlier versions never deleted anything, so a profile may hold many
+  // resolved documents, superseded revisions and interrupted temporary files.
+  it('sweeps an earlier backlog without changing what a launch recovers', async() => {
+    const storage = new MemoryStorage()
+    storage.unlinkFails = true
+    const backlog = new CrashDraftStore('/drafts', storage)
+    for (const revision of [1, 2, 3]) await backlog.checkpoint(draftOf('resolved', revision))
+    await backlog.discard('resolved', 3)
+    for (const revision of [1, 2, 3, 4]) await backlog.checkpoint(draftOf('unresolved', revision))
+    await backlog.markCleanShutdown().catch(() => undefined)
+    storage.files.set('\\drafts\\leftover.draft.json.0d5c.tmp', new TextEncoder().encode('{"partial'))
+    storage.unlinkFails = false
+
+    const store = new CrashDraftStore('/drafts', storage)
+    const before = await store.scan()
+    await store.sweep()
+
+    await expect(store.scan()).resolves.toEqual(before)
+    expect(listing(storage)).toEqual([
+      'unresolved.3.commit.json',
+      'unresolved.3.draft.json',
+      'unresolved.4.commit.json',
+      'unresolved.4.draft.json'
+    ])
+  })
+
+  it('keeps an interrupted newest attempt so recovery still warns about it', async() => {
+    const storage = new MemoryStorage()
+    storage.unlinkFails = true
+    const backlog = new CrashDraftStore('/drafts', storage)
+    for (const revision of [1, 2, 3]) await backlog.checkpoint(checkpoint(revision))
+    const interrupted = [...storage.files.keys()].find(name => name.endsWith('.3.draft.json'))
+    if (!interrupted) throw new Error('expected the revision 3 draft')
+    storage.files.set(interrupted.replace('.3.draft.json', '.4.draft.json'), new TextEncoder().encode('{bad'))
+    storage.unlinkFails = false
+
+    const store = new CrashDraftStore('/drafts', storage)
+    const before = await store.scan()
+    expect(before).toEqual([expect.objectContaining({ warning: expect.stringContaining('last valid'), draft: expect.objectContaining({ documentRevision: 3 }) })])
+    await store.sweep()
+
+    await expect(store.scan()).resolves.toEqual(before)
+    expect(listing(storage)).toEqual([
+      'saved-document.2.commit.json',
+      'saved-document.2.draft.json',
+      'saved-document.3.commit.json',
+      'saved-document.3.draft.json',
+      'saved-document.4.draft.json'
+    ])
   })
 })

@@ -312,6 +312,8 @@ class App {
       }) ?? Promise.resolve([]),
       getTransferAdapter()?.recover() ?? Promise.resolve([])
     ])
+    // Not awaited: clearing an old backlog must not delay the first window.
+    crashStore?.sweep().catch(() => undefined)
 
     // DefaultStartupPolicy is intentionally no-restore: StartupIntent comes
     // only from explicit CLI/association targets.  Do not touch legacy normal

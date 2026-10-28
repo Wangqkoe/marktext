@@ -244,9 +244,10 @@ test('discards a recovered untitled draft and exits after closing its last tab',
     const closed = page.waitForEvent('close')
     await recoveredTab.locator('.close-icon').evaluate(button => (button as HTMLElement).click())
     await closed
+    // A resolved draft is deleted together with its tombstone.
     await expect.poll(() => {
-      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json')) } catch { return false }
-    }).toBe(true)
+      try { return fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json')) } catch { return true }
+    }).toBe(false)
 
     await expect.poll(() => child.exitCode, { timeout: 5_000 }).not.toBeNull()
   } finally {
@@ -389,7 +390,7 @@ test("Don't Save disposes a whitespace-only recovered draft and lets the last wi
       new Promise<never>((_resolve, reject) => setTimeout(() => reject(new Error('last recovered-draft window did not exit')), 10_000))
     ])
     second = undefined
-    expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.tombstone.json'))).toBe(true)
+    expect(fs.readdirSync(crashDraftDirectory).some(name => name.endsWith('.draft.json'))).toBe(false)
 
     const restarted = await launchElectron([], { userDataDir, userDataDirOwnership: 'caller' })
     third = restarted.app

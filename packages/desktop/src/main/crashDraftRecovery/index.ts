@@ -77,6 +77,10 @@ export class NodeCrashDraftStorage implements CrashDraftStorage {
 interface PendingWrite extends CrashDraftWrite { readonly envelope: CrashDraftEnvelope }
 interface Tombstone { readonly version: 1; readonly documentId: string; readonly documentRevision: number; readonly disposition: 'saved' | 'discarded'; readonly digest: string }
 interface Commit { readonly version: 1; readonly documentId: string; readonly documentRevision: number; readonly envelopeDigest: string; readonly digest: string }
+interface PrunableDocument {
+  tombstone?: { readonly name: string; readonly revision: number }
+  readonly revisions: Map<number, { readonly files: string[]; envelopeDigest?: string; committedDigest?: string }>
+}
 
 /**
  * Durable emergency-only drafts. Each revision has its own immutable record,
@@ -122,6 +126,7 @@ export class CrashDraftStore implements CrashDraftRecovery {
       const commitBody = { version: 1 as const, documentId: pending.documentId, documentRevision: pending.documentRevision, envelopeDigest: pending.envelope.digest }
       await this.writeDurable(this.commitPath(pending.documentId, pending.documentRevision), encode({ ...commitBody, digest: digestValue(commitBody) }))
       this.pending.delete(write.writeId)
+      await this.prune(pending.documentId)
       return { durable: true }
     } catch (error) {
       // The pending token is consumed: retrying a possibly partially-written
@@ -139,7 +144,9 @@ export class CrashDraftStore implements CrashDraftRecovery {
     return this.serialize(async() => {
       const latest = await this.latestValid(write.documentId)
       if (!latest || latest.documentRevision !== write.documentRevision) return { durable: false, reason: 'stale acknowledgement' }
-      return this.tombstone(write.documentId, write.documentRevision, 'saved')
+      const ack = await this.tombstone(write.documentId, write.documentRevision, 'saved')
+      if (ack.durable) await this.prune(write.documentId)
+      return ack
     })
   }
 
@@ -147,8 +154,15 @@ export class CrashDraftStore implements CrashDraftRecovery {
     return this.serialize(async() => {
       const latest = await this.latestValid(documentId)
       if (!latest || latest.documentRevision !== documentRevision) return { durable: false, reason: 'stale acknowledgement' }
-      return this.tombstone(documentId, documentRevision, 'discarded')
+      const ack = await this.tombstone(documentId, documentRevision, 'discarded')
+      if (ack.durable) await this.prune(documentId)
+      return ack
     })
+  }
+
+  /** Clears what earlier launches left behind; run once recovery has scanned. */
+  async sweep(): Promise<void> {
+    return this.serialize(() => this.prune())
   }
 
   /** A marker is written only after all draft tombstones have crossed their own durable boundary. */
@@ -224,6 +238,77 @@ export class CrashDraftStore implements CrashDraftRecovery {
 
   private async latestValid(documentId: string): Promise<CrashDraftEnvelope | undefined> {
     return (await this.scan()).find(record => record.draft.documentId === documentId)?.draft
+  }
+
+  /**
+   * Deletes only records that cannot change what scan() returns: revisions at
+   * or below the tombstone, and revisions older than the two newest valid ones
+   * (the older of the two is the fallback for a corrupt newest). Interrupted
+   * attempts above the newest valid revision stay so recovery still warns.
+   * Never throws: whatever cannot be deleted is retried by a later prune.
+   */
+  private async prune(onlyDocumentId?: string): Promise<void> {
+    try {
+      const documents = new Map<string, PrunableDocument>()
+      for (const name of await this.storage.readdir(this.directory)) {
+        if (name.endsWith('.tmp')) {
+          // Writes are serialized with prune, so no temporary file is in flight.
+          if (onlyDocumentId === undefined) await this.remove(name)
+          continue
+        }
+        const id = documentIdFromFilename(name)
+        if (!id || (onlyDocumentId !== undefined && id !== onlyDocumentId)) continue
+        const document: PrunableDocument = documents.get(id) ?? { revisions: new Map() }
+        documents.set(id, document)
+        const bytes = (): Promise<Uint8Array> => this.storage.readFile(path.join(this.directory, name))
+        if (name.endsWith('.tombstone.json')) {
+          const tombstone = parseTombstone(await bytes())
+          if (tombstone?.documentId === id) document.tombstone = { name, revision: tombstone.documentRevision }
+          continue
+        }
+        const match = /\.(\d+)\.(draft|commit)\.json$/.exec(name)
+        if (!match) continue
+        const revision = Number(match[1])
+        const entry = document.revisions.get(revision) ?? { files: [] }
+        document.revisions.set(revision, entry)
+        if (match[2] === 'draft') {
+          // A commit left without its draft is ignored by scan(), so the
+          // draft goes first in case deletion stops halfway.
+          entry.files.unshift(name)
+          const envelope = parseEnvelope(await bytes())
+          if (envelope?.documentId === id && envelope.documentRevision === revision) entry.envelopeDigest = envelope.digest
+        } else {
+          entry.files.push(name)
+          const commit = parseCommit(await bytes())
+          if (commit?.documentId === id && commit.documentRevision === revision) entry.committedDigest = commit.envelopeDigest
+        }
+      }
+      for (const { tombstone, revisions } of documents.values()) {
+        const resolvedThrough = tombstone?.revision ?? -1
+        const valid = [...revisions]
+          .filter(([revision, entry]) => revision > resolvedThrough && entry.envelopeDigest !== undefined && entry.envelopeDigest === entry.committedDigest)
+          .map(([revision]) => revision)
+          .sort((a, b) => b - a)
+        const keepFrom = valid[Math.min(1, valid.length - 1)] ?? Infinity
+        let resolvedRemains = false
+        for (const [revision, entry] of revisions) {
+          if (revision >= keepFrom) continue
+          for (const name of entry.files) {
+            if (!await this.remove(name) && revision <= resolvedThrough) resolvedRemains = true
+          }
+        }
+        // The tombstone goes last: while any resolved draft remains, it is
+        // what keeps that draft from being offered for recovery.
+        if (tombstone && !resolvedRemains) await this.remove(tombstone.name)
+      }
+    } catch {}
+  }
+
+  private async remove(name: string): Promise<boolean> {
+    try {
+      await this.storage.unlink(path.join(this.directory, name))
+      return true
+    } catch { return false }
   }
 
   private serialize<T>(work: () => Promise<T>): Promise<T> {
