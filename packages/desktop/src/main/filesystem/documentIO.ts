@@ -223,7 +223,9 @@ export class DocumentIOCoordinator {
       const subscriber: FileObservationSubscriber = {
         documentId: request.documentId,
         documentRevision: request.documentRevision,
-        fileKey,
+        // The hub writes through the pathname it is first given; a lower-cased
+        // key here would rename the file on a case-insensitive volume.
+        fileKey: request.pathname,
         getState: () => (binding.dirty ? 'dirty' : 'clean'),
         onDiskChange: (change) => this.notify(binding, change)
       }
@@ -277,7 +279,7 @@ export class DocumentIOCoordinator {
     if (!target) return rejected(request, 'Save As and rename require a target path')
     const targetKey = await this.hub.canonicalFileKey(target)
     if (targetKey === binding.fileKey) return this.saveBound(binding, request)
-    return this.saveAndRebind(binding, request, targetKey)
+    return this.saveAndRebind(binding, request, targetKey, target)
   }
 
   /**
@@ -301,7 +303,7 @@ export class DocumentIOCoordinator {
       lease = await this.hub.subscribe({
         documentId: provisionalId,
         documentRevision: request.documentRevision,
-        fileKey,
+        fileKey: target,
         getState: () => 'dirty',
         onDiskChange: () => undefined
       })
@@ -332,7 +334,7 @@ export class DocumentIOCoordinator {
       const successor = await this.hub.subscribe({
         documentId: request.documentId,
         documentRevision: request.documentRevision,
-        fileKey,
+        fileKey: target,
         getState: () => (binding.dirty ? 'dirty' : 'clean'),
         onDiskChange: (change) => this.notify(binding, change)
       })
@@ -398,13 +400,14 @@ export class DocumentIOCoordinator {
   private async saveAndRebind(
     binding: Binding,
     request: DocumentIoSaveRequest,
-    targetKey: CanonicalFileKey
+    targetKey: CanonicalFileKey,
+    targetPathname: string
   ): Promise<DocumentSaveAck> {
     const temporaryId = `${binding.documentId}:rebind:${randomUUID()}`
     const temporaryLease = await this.hub.subscribe({
       documentId: temporaryId,
       documentRevision: request.documentRevision,
-      fileKey: targetKey,
+      fileKey: targetPathname,
       getState: () => 'dirty',
       onDiskChange: (change) => this.notify(temporaryBinding, change)
     })
@@ -442,7 +445,7 @@ export class DocumentIOCoordinator {
       const successor = await this.hub.subscribe({
         documentId: binding.documentId,
         documentRevision: request.documentRevision,
-        fileKey: targetKey,
+        fileKey: targetPathname,
         getState: () => (binding.dirty ? 'dirty' : 'clean'),
         onDiskChange: (change) => this.notify(binding, change)
       })

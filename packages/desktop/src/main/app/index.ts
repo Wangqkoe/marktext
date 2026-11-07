@@ -306,8 +306,7 @@ class App {
     const crashStore = getCrashDraftAdapter()?.store
     const [crashDrafts, moveRecovery] = await Promise.all([
       crashStore?.recover(async(fileKey) => {
-        const canonical = await recoveryStorage.canonicalize(fileKey)
-        const bytes = await recoveryStorage.read(canonical)
+        const bytes = await recoveryStorage.read(await recoveryStorage.locate(fileKey))
         return bytes ? createHash('sha256').update(bytes).digest('hex') : null
       }) ?? Promise.resolve([]),
       getTransferAdapter()?.recover() ?? Promise.resolve([])

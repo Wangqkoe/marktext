@@ -69,7 +69,7 @@ describe('DiskRevision guarded saves', () => {
       })
     ])
     expect([first.status, second.status].sort()).toEqual(['conflict', 'saved'])
-    expect((await storage.read(await hub.canonicalFileKey(fileKey)))?.toString()).toBe('first')
+    expect(storage.files.get(await hub.canonicalFileKey(fileKey))?.toString()).toBe('first')
   })
 
   it('rejects an old document revision on the same lease before it can write', async() => {
@@ -86,7 +86,7 @@ describe('DiskRevision guarded saves', () => {
       bytes: Buffer.from('must not write')
     })
     expect(stale).toMatchObject({ status: 'rejected' })
-    expect((await storage.read(await hub.canonicalFileKey(fileKey)))?.toString()).toBe('baseline')
+    expect(storage.files.get(await hub.canonicalFileKey(fileKey))?.toString()).toBe('baseline')
   })
 
   it('binds an ACK to the current owner lease, revision, and one acceptance', async() => {

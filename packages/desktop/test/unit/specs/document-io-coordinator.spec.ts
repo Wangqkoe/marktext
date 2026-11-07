@@ -222,7 +222,7 @@ describe('DocumentIOCoordinator', () => {
     storage.files.delete(targetKey)
     const durable = await coordinator.request('sender-a', unbound('untitled:durable'))
     expect(durable).toMatchObject({ status: 'durable-success', documentId: 'untitled' })
-    expect((await storage.read(targetKey))?.toString()).toBe('draft')
+    expect(storage.files.get(targetKey)?.toString()).toBe('draft')
     expect(watchers.activeWatchers.size).toBe(1)
     if (durable.status !== 'durable-success') throw new Error('expected durable Save As')
     await expect(coordinator.request('sender-a', {
@@ -269,7 +269,7 @@ describe('DocumentIOCoordinator', () => {
     release()
     await expect(oldSave).resolves.toMatchObject({ status: 'not-durable' })
     await expect(advanced).resolves.toMatchObject({ status: 'bound' })
-    expect((await storage.read(canonical))?.toString()).toBe('baseline')
+    expect(storage.files.get(canonical)?.toString()).toBe('baseline')
     await expect(coordinator.request('sender-a', {
       kind: 'bind',
       requestId: 'bind:old',
@@ -335,7 +335,7 @@ describe('DocumentIOCoordinator', () => {
     await expect(coordinator.request('sender-a', save(bound.ownerFence, 'save:old-pending', 2))).resolves.toMatchObject({
       status: 'rejected', reason: 'stale document revision'
     })
-    expect((await storage.read(canonical))?.toString()).toBe('baseline')
+    expect(storage.files.get(canonical)?.toString()).toBe('baseline')
     defer = false
     release()
     await expect(higher).resolves.toMatchObject({ status: 'bound' })

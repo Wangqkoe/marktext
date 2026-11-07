@@ -23,10 +23,22 @@ export type {
   OverwriteToken
 }
 
+/**
+ * A canonical file identity plus the pathname used for disk I/O. On a
+ * case-insensitive volume the key is lower-cased for comparison only; writing
+ * through it would rename the file, so all I/O goes through `pathname`, which
+ * keeps the on-disk spelling (or the caller's spelling for a file not yet created).
+ */
+export interface FileLocation {
+  readonly fileKey: CanonicalFileKey
+  readonly pathname: string
+}
+
 export interface FileObservationStorage {
   canonicalize(pathname: string): Promise<CanonicalFileKey>
-  read(fileKey: CanonicalFileKey): Promise<Buffer | null>
-  write(fileKey: CanonicalFileKey, bytes: Buffer, canWrite?: () => boolean): Promise<void>
+  locate(pathname: string): Promise<FileLocation>
+  read(location: FileLocation): Promise<Buffer | null>
+  write(location: FileLocation, bytes: Buffer, canWrite?: () => boolean): Promise<void>
 }
 
 /** Raw filesystem event; it deliberately carries no claimed write origin. */
@@ -35,7 +47,7 @@ export interface FileObservationEvent {
 }
 
 export interface FileObservationWatchFactory {
-  watch(fileKey: CanonicalFileKey, onChange: (event: FileObservationEvent) => void): () => void
+  watch(location: FileLocation, onChange: (event: FileObservationEvent) => void): () => void
 }
 
 export type PeerDiskState = 'clean' | 'dirty'
@@ -125,6 +137,7 @@ interface DiskNotification {
 }
 
 interface FileEntry {
+  readonly location: FileLocation
   epoch: number
   readonly subscribers: Map<DocumentId, SubscriberSlot>
   readonly closeWatcher: () => void
@@ -187,18 +200,24 @@ export class FileObservationHub {
     readonly bytes: Buffer | null
     readonly diskRevision: DiskRevision | null
   }> {
-    const bytes = await this.storage.read(fileKey)
+    const bytes = await this.storage.read(this.locationOf(fileKey))
     return { bytes, diskRevision: bytes ? sha256(bytes) : null }
   }
 
   async getDiskRevision(pathname: FileKey): Promise<DiskRevision | null> {
-    return this.readRevision(await this.canonicalFileKey(pathname))
+    const location = await this.storage.locate(pathname)
+    return this.readRevision(this.entries.get(location.fileKey)?.location ?? location)
   }
 
+  /**
+   * The first subscriber of a file fixes the pathname its entry writes and
+   * watches, so callers pass the user's pathname here, not the canonical key.
+   */
   async subscribe(subscriber: FileObservationSubscriber): Promise<FileObservationLease> {
-    const fileKey = await this.canonicalFileKey(subscriber.fileKey)
+    const location = await this.storage.locate(subscriber.fileKey)
+    const { fileKey } = location
     const canonicalSubscriber = { ...subscriber, fileKey }
-    const entry = this.entries.get(fileKey) ?? this.createEntry(fileKey)
+    const entry = this.entries.get(fileKey) ?? this.createEntry(location)
     const old = entry.subscribers.get(subscriber.documentId)
     if (old) {
       this.leases.delete(old.lease)
@@ -294,7 +313,8 @@ export class FileObservationHub {
       if (request.canWrite && !request.canWrite()) {
         return { status: 'rejected', reason: 'stale save revision' }
       }
-      const current = await this.readRevision(fileKey)
+      const location = this.locationOf(fileKey)
+      const current = await this.readRevision(location)
       if (!equalRevision(current, request.observedDiskRevision)) {
         if (request.purpose && request.purpose !== 'save') {
           if (!this.consumeValidOverwriteToken(request, fileKey, current)) {
@@ -316,10 +336,10 @@ export class FileObservationHub {
       const writeId = randomUUID()
       const intendedHash = sha256(request.bytes)
       try {
-        await this.storage.write(fileKey, request.bytes, () =>
+        await this.storage.write(location, request.bytes, () =>
           this.matchesOwner(request, fileKey) && (request.canWrite?.() ?? true)
         )
-        const persisted = await this.storage.read(fileKey)
+        const persisted = await this.storage.read(location)
         const landedHash = persisted ? sha256(persisted) : null
         if (landedHash !== intendedHash) {
           return { status: 'conflict', fileKey, observedDiskRevision: landedHash }
@@ -412,12 +432,14 @@ export class FileObservationHub {
     return lease
   }
 
-  private createEntry(fileKey: CanonicalFileKey): FileEntry {
+  private createEntry(location: FileLocation): FileEntry {
+    const { fileKey } = location
     const entry: FileEntry = {
+      location,
       epoch: this.nextEpoch++,
       subscribers: new Map(),
       pendingWriterEvents: new Map(),
-      closeWatcher: this.watchers.watch(fileKey, () => {
+      closeWatcher: this.watchers.watch(location, () => {
         const eventEpoch = entry.epoch
         this.serialize(fileKey, () => this.handleWatchEvent(fileKey, entry, eventEpoch)).catch(
           (error: unknown) => {
@@ -436,7 +458,7 @@ export class FileObservationHub {
     eventEpoch: number
   ): Promise<void> {
     const slots = [...entry.subscribers.values()]
-    const revision = await this.readRevision(fileKey)
+    const revision = await this.readRevision(entry.location)
     // An event that began before a handoff/subscriber generation change is inert.
     if (this.entries.get(fileKey) !== entry || entry.epoch !== eventEpoch) return
     for (const slot of slots) {
@@ -456,9 +478,17 @@ export class FileObservationHub {
     }
   }
 
-  private async readRevision(fileKey: CanonicalFileKey): Promise<DiskRevision | null> {
-    const bytes = await this.storage.read(fileKey)
+  private async readRevision(location: FileLocation): Promise<DiskRevision | null> {
+    const bytes = await this.storage.read(location)
     return bytes ? sha256(bytes) : null
+  }
+
+  /**
+   * Without an entry nothing has recorded the on-disk spelling; the key is then
+   * only used to read, which a case-insensitive volume resolves correctly.
+   */
+  private locationOf(fileKey: CanonicalFileKey): FileLocation {
+    return this.entries.get(fileKey)?.location ?? { fileKey, pathname: fileKey }
   }
 
   private matchesOwner(request: GuardedSaveRequest, fileKey: CanonicalFileKey): boolean {
@@ -677,18 +707,28 @@ export class NodeFileObservationStorage implements FileObservationStorage {
   }
 
   async canonicalize(pathname: string): Promise<CanonicalFileKey> {
+    return (await this.locate(pathname)).fileKey
+  }
+
+  /** realpath also restores the on-disk case of every existing component. */
+  async locate(pathname: string): Promise<FileLocation> {
     const suffix: string[] = []
     let candidate = path.resolve(pathname)
     for (;;) {
       try {
         const resolved = await fsPromises.realpath(candidate)
         const caseSensitive = this.policy.caseSensitive ?? (await this.resolver.resolve(resolved))
-        return normalizePath(path.join(resolved, ...suffix), caseSensitive) as CanonicalFileKey
+        const ioPath = path.join(resolved, ...suffix)
+        return {
+          fileKey: normalizePath(ioPath, caseSensitive) as CanonicalFileKey,
+          pathname: normalizePath(ioPath, true)
+        }
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
         const parent = path.dirname(candidate)
         if (parent === candidate) {
-          return normalizePath(path.resolve(pathname), true) as CanonicalFileKey
+          const ioPath = normalizePath(pathname, true)
+          return { fileKey: ioPath as CanonicalFileKey, pathname: ioPath }
         }
         suffix.unshift(path.basename(candidate))
         candidate = parent
@@ -696,24 +736,24 @@ export class NodeFileObservationStorage implements FileObservationStorage {
     }
   }
 
-  async read(fileKey: CanonicalFileKey): Promise<Buffer | null> {
+  async read(location: FileLocation): Promise<Buffer | null> {
     try {
-      return await fsPromises.readFile(fileKey)
+      return await fsPromises.readFile(location.pathname)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
       throw error
     }
   }
 
-  async write(fileKey: CanonicalFileKey, bytes: Buffer, canWrite?: () => boolean): Promise<void> {
+  async write(location: FileLocation, bytes: Buffer, canWrite?: () => boolean): Promise<void> {
     if (canWrite && !canWrite()) throw new Error('stale save revision')
-    return writeFile(fileKey, bytes, undefined, undefined)
+    return writeFile(location.pathname, bytes, undefined, undefined)
   }
 }
 
 export class ChokidarFileObservationWatchFactory implements FileObservationWatchFactory {
-  watch(fileKey: CanonicalFileKey, onChange: (event: FileObservationEvent) => void): () => void {
-    const watcher: FSWatcher = chokidar.watch(fileKey, {
+  watch(location: FileLocation, onChange: (event: FileObservationEvent) => void): () => void {
+    const watcher: FSWatcher = chokidar.watch(location.pathname, {
       ignoreInitial: true,
       awaitWriteFinish: { stabilityThreshold: 1000, pollInterval: 150 }
     })
@@ -730,6 +770,8 @@ export class ChokidarFileObservationWatchFactory implements FileObservationWatch
 /** Deterministic adapters including virtual case/symlink canonicalization and delayed reads. */
 export class MemoryFileObservationStorage implements FileObservationStorage {
   readonly files = new Map<CanonicalFileKey, Buffer>()
+  /** Pathname of every write in order, so tests can assert the spelling used for I/O. */
+  readonly writtenPathnames: string[] = []
   private readonly parentAliases = new Map<string, string>()
   writeBarrier?: Promise<void>
   readBarrier?: Promise<void>
@@ -753,29 +795,34 @@ export class MemoryFileObservationStorage implements FileObservationStorage {
     return candidate as CanonicalFileKey
   }
 
+  async locate(pathname: string): Promise<FileLocation> {
+    return { fileKey: await this.canonicalize(pathname), pathname: normalizePath(pathname, true) }
+  }
+
   private normalize(pathname: string): string {
     return normalizePath(pathname, this.policy.caseSensitive ?? false)
   }
 
-  async read(fileKey: CanonicalFileKey): Promise<Buffer | null> {
+  async read({ fileKey }: FileLocation): Promise<Buffer | null> {
     this.onRead?.()
     await this.readBarrier
     const bytes = this.files.get(fileKey)
     return bytes ? Buffer.from(bytes) : null
   }
 
-  async write(fileKey: CanonicalFileKey, bytes: Buffer, canWrite?: () => boolean): Promise<void> {
+  async write(location: FileLocation, bytes: Buffer, canWrite?: () => boolean): Promise<void> {
     await this.writeBarrier
     if (canWrite && !canWrite()) throw new Error('stale save revision')
-    this.files.set(fileKey, Buffer.from(bytes))
-    this.onWrite?.(fileKey, Buffer.from(bytes))
+    this.files.set(location.fileKey, Buffer.from(bytes))
+    this.writtenPathnames.push(location.pathname)
+    this.onWrite?.(location.fileKey, Buffer.from(bytes))
   }
 }
 
 export class MemoryFileObservationWatchFactory implements FileObservationWatchFactory {
   readonly activeWatchers = new Map<CanonicalFileKey, Set<(event: FileObservationEvent) => void>>()
 
-  watch(fileKey: CanonicalFileKey, onChange: (event: FileObservationEvent) => void): () => void {
+  watch({ fileKey }: FileLocation, onChange: (event: FileObservationEvent) => void): () => void {
     const callbacks =
       this.activeWatchers.get(fileKey) ?? new Set<(event: FileObservationEvent) => void>()
     callbacks.add(onChange)
