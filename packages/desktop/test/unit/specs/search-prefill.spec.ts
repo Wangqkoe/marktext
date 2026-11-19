@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { parse, compileScript } from 'vue/compiler-sfc'
 import ts from 'typescript'
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, reactive, computed, watch, nextTick } from 'vue'
 
 // Regression guard for the find-bar prefill race (issue: the input showed a
 // stale single char like "T" instead of the selection). The bug lives entirely
@@ -45,22 +45,25 @@ const loadComponent = (deps: Record<string, unknown>) => {
     'exports',
     'module',
     `const { _defineComponent, ref, computed, watch, onMounted, onBeforeUnmount,
-      nextTick, bus, FindCaseIcon, FindWordIcon, FindRegexIcon, useEditorStore,
-      storeToRefs, useI18n, debounce, ArrowDown, ArrowUp, RefreshRight, Switch } = __deps
+      nextTick, bus, FindCaseIcon, FindWordIcon, FindRegexIcon, useI18n, debounce,
+      ArrowDown, ArrowUp, RefreshRight, Switch } = __deps
     ${js}
     return module.exports`
   ) as (deps: Record<string, unknown>, exports: object, module: object) => {
-    default: { setup: (props: unknown, ctx: { expose: () => void }) => Bindings }
+    default: {
+      setup: (props: unknown, ctx: { expose: () => void; emit: (...args: unknown[]) => void }) => Bindings
+    }
   }
   const m = { exports: {} as Record<string, unknown> }
   return factory(deps, m.exports, m).default
 }
 
 const makeBindings = () => {
-  // currentFile.searchMatches is the channel SELECTION_CHANGE writes the
-  // selected text into; storeToRefs hands the component a ref to it.
-  const currentFile = ref<{ searchMatches: { matches: unknown[]; index: number; value: string } } | null>({
-    searchMatches: { matches: [], index: -1, value: '' }
+  // The pane editor passes its in-block selection to the bar through the
+  // `matches` prop.
+  const props = reactive({
+    paneFocused: true,
+    matches: { matches: [] as unknown[], index: -1, value: '' }
   })
   const deps = {
     _defineComponent: (o: unknown) => o,
@@ -78,15 +81,13 @@ const makeBindings = () => {
     ArrowUp: {},
     RefreshRight: {},
     Switch: {},
-    useEditorStore: () => new Proxy({}, { get: () => () => {} }),
-    storeToRefs: () => ({ currentFile }),
     useI18n: () => ({ t: (k: string) => k }),
     debounce: (fn: (...a: unknown[]) => unknown) => fn
   }
   const comp = loadComponent(deps)
-  const ret = comp.setup({}, { expose: () => {} })
+  const ret = comp.setup(props, { expose: () => {}, emit: vi.fn() })
   const setSelection = (value: string) => {
-    currentFile.value = { searchMatches: { matches: [], index: -1, value } }
+    props.matches = { matches: [], index: -1, value }
   }
   return { ret, setSelection }
 }

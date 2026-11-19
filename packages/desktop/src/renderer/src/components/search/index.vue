@@ -1,6 +1,7 @@
 <template>
   <div
     v-show="showSearch"
+    ref="searchBarRoot"
     class="search-bar"
   >
     <div
@@ -28,7 +29,10 @@
             @keyup="handleEnterKey"
           >
           <div class="controls">
-            <span class="search-result">{{ highlightIndex + 1 }} /
+            <span
+              v-show="searchValue"
+              class="search-result"
+            >{{ highlightIndex + 1 }} /
               {{ highlightCount }}
             </span>
             <span
@@ -140,15 +144,38 @@ import bus from '../../bus'
 import FindCaseIcon from '@/assets/icons/searchIcons/iconCase.svg'
 import FindWordIcon from '@/assets/icons/searchIcons/iconWord.svg'
 import FindRegexIcon from '@/assets/icons/searchIcons/iconRegex.svg'
-import { useEditorStore } from '@/store/editor'
-import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import debounce from 'lodash/debounce'
 import { ArrowDown, ArrowUp, RefreshRight, Switch } from '@element-plus/icons-vue'
 
-const { t } = useI18n()
+export interface PaneSearchMatches {
+  index: number
+  matches: Array<{ start: number; end: number; match: string }>
+  value: string
+}
 
-const editorStore = useEditorStore()
+export interface SearchOptions {
+  isCaseSensitive?: boolean
+  isWholeWord?: boolean
+  isRegexp?: boolean
+  selectHighlight?: boolean
+}
+
+// Each pane mounts its own bar. It talks only to its parent editor, so the
+// query, highlights and count stay on this pane's document.
+const props = defineProps<{
+  paneFocused: boolean
+  /** The pane's last search result, or the selection to prefill from. */
+  matches: PaneSearchMatches
+}>()
+
+const emit = defineEmits<{
+  search: [payload: { value: string; opt: SearchOptions }]
+  replace: [payload: { value: string; opt: SearchOptions & { isSingle: boolean } }]
+  find: [action: 'prev' | 'next']
+}>()
+
+const { t } = useI18n()
 
 const showSearch = ref(false)
 const isCaseSensitive = ref(false)
@@ -159,9 +186,9 @@ const searchValue = ref('')
 const replaceValue = ref('')
 const searchErrorMsg = ref('')
 const search = ref<HTMLInputElement | null>(null)
+const searchBarRoot = ref<HTMLDivElement | null>(null)
 
-const { currentFile } = storeToRefs(editorStore)
-const searchMatches = computed(() => currentFile.value?.searchMatches)
+const searchMatches = computed(() => props.matches)
 
 watch(searchValue, () => {
   if (!showSearch.value) return // make sure search box is actually open
@@ -191,37 +218,44 @@ const prefillFromSelection = () => {
   }
 }
 
-const highlightIndex = computed(() => {
-  if (searchMatches.value) {
-    return searchMatches.value.index
-  } else {
-    return -1
-  }
-})
+const highlightIndex = computed(() => searchMatches.value.index)
 
-const highlightCount = computed(() => {
-  if (searchMatches.value) {
-    return searchMatches.value.matches.length
-  } else {
-    return 0
+const highlightCount = computed(() => searchMatches.value.matches.length)
+
+// Find commands arrive on the window-wide bus; only the focused pane's bar
+// answers them.
+const whenPaneFocused = (handler: () => void) => () => {
+  if (props.paneFocused) handler()
+}
+const listenFindFocused = whenPaneFocused(() => listenFind())
+const listenReplaceFocused = whenPaneFocused(() => listenReplace())
+const listenFindNextFocused = whenPaneFocused(() => find('next'))
+const listenFindPrevFocused = whenPaneFocused(() => find('prev'))
+
+// Losing pane focus without a click (e.g. a keyboard pane switch) also closes
+// the bar, so at most one bar is open at a time.
+watch(
+  () => props.paneFocused,
+  (focused) => {
+    if (!focused) close()
   }
-})
+)
 
 onMounted(() => {
-  bus.on('find', listenFind)
-  bus.on('replace', listenReplace)
-  bus.on('findNext', listenFindNext)
-  bus.on('findPrev', listenFindPrev)
+  bus.on('find', listenFindFocused)
+  bus.on('replace', listenReplaceFocused)
+  bus.on('findNext', listenFindNextFocused)
+  bus.on('findPrev', listenFindPrevFocused)
   document.addEventListener('click', docClick)
   document.addEventListener('keyup', docKeyup)
   bus.on('search-blur', blurSearch)
 })
 
 onBeforeUnmount(() => {
-  bus.off('find', listenFind)
-  bus.off('replace', listenReplace)
-  bus.off('findNext', listenFindNext)
-  bus.off('findPrev', listenFindPrev)
+  bus.off('find', listenFindFocused)
+  bus.off('replace', listenReplaceFocused)
+  bus.off('findNext', listenFindNextFocused)
+  bus.off('findPrev', listenFindPrevFocused)
   document.removeEventListener('click', docClick)
   document.removeEventListener('keyup', docKeyup)
   bus.off('search-blur', blurSearch)
@@ -263,16 +297,8 @@ const listenReplace = () => {
   type.value = 'replace'
 }
 
-const listenFindNext = () => {
-  find('next')
-}
-
-const listenFindPrev = () => {
-  find('prev')
-}
-
 const docKeyup = (event: KeyboardEvent) => {
-  if (event.key === 'Escape') {
+  if (event.key === 'Escape' && props.paneFocused) {
     emptySearch(true)
   }
 }
@@ -283,19 +309,31 @@ const docClick = (event: MouseEvent) => {
   // document-level listener.
   const target = event.target as HTMLElement | null
   if (target && target.closest('.search-bar')) return
-  emptySearch(true)
+  // Restoring the caret onto the active match would pull DOM focus back into
+  // this pane when the click landed in the other one.
+  const ownPane = searchBarRoot.value?.closest('.workspace-pane')
+  const clickedPane = target?.closest('.workspace-pane')
+  emptySearch(!clickedPane || clickedPane === ownPane)
 }
 
 const blurSearch = () => {
-  emptySearch(true)
+  // Every pane's bar hears this; a closed one has nothing to clear.
+  if (showSearch.value) emptySearch(true)
 }
 
 const emptySearch = (selectHighlight = false) => {
   showSearch.value = false
   searchValue.value = ''
   replaceValue.value = ''
-  bus.emit('searchValue', { value: searchValue.value, opt: { selectHighlight } })
+  emit('search', { value: searchValue.value, opt: { selectHighlight } })
 }
+
+/** Closes the bar and clears its highlights without moving the caret. */
+const close = () => {
+  if (showSearch.value) emptySearch(false)
+}
+
+defineExpose({ close })
 
 const toggleSearchType = () => {
   type.value = type.value === 'search' ? 'replace' : 'search'
@@ -306,7 +344,7 @@ const toggleSearchType = () => {
  * action: prev or next
  */
 const find = (action: 'prev' | 'next') => {
-  bus.emit('find-action', action)
+  emit('find', action)
 }
 
 const handleEnterKey = (event: KeyboardEvent) => {
@@ -338,7 +376,7 @@ const searchFn = () => {
     }
   }
 
-  bus.emit('searchValue', {
+  emit('search', {
     value: searchValue.value,
     opt: {
       isCaseSensitive: isCaseSensitive.value,
@@ -351,7 +389,7 @@ const searchFn = () => {
 const debouncedSearchFn = debounce(searchFn, 150)
 
 const replace = (isSingle = true) => {
-  bus.emit('replaceValue', {
+  emit('replace', {
     value: replaceValue.value,
     opt: {
       isSingle,
@@ -367,6 +405,7 @@ const replace = (isSingle = true) => {
 .search-bar {
   position: absolute;
   width: 400px;
+  max-width: calc(100% - 40px);
   padding: 0;
   top: 0;
   right: 20px;
@@ -449,9 +488,9 @@ const replace = (isSingle = true) => {
   border-bottom-left-radius: 0;
 }
 .input-wrapper .controls {
-  position: absolute;
-  top: 6px;
-  right: 10px;
+  flex-shrink: 0;
+  align-self: flex-end;
+  padding-right: 10px;
   font-size: 12px;
   display: flex;
   color: var(--sideBarTitleColor);
@@ -500,6 +539,7 @@ const replace = (isSingle = true) => {
 
 .input-wrapper input {
   flex: 1;
+  min-width: 0;
   padding: 0 8px;
   height: 26px;
   outline: none;

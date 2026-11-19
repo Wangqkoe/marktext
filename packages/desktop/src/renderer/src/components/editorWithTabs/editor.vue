@@ -73,7 +73,15 @@
         </div>
       </template>
     </el-dialog>
-    <editor-search v-if="!props.sourceMode" />
+    <editor-search
+      v-if="!props.sourceMode"
+      ref="editorSearch"
+      :pane-focused="props.focused !== false"
+      :matches="searchMatches"
+      @search="handleSearch"
+      @replace="handReplace"
+      @find="handleFindAction"
+    />
   </div>
 </template>
 
@@ -123,6 +131,7 @@ import {
   type CaretPositionUpdate
 } from '@/util/caretPosition'
 import EditorSearch from '../search/index.vue'
+import type { PaneSearchMatches, SearchOptions } from '../search/index.vue'
 import bus from '@/bus'
 import { DEFAULT_EDITOR_FONT_FAMILY, DEFAULT_CODE_FONT_FAMILY } from '@/config'
 import notice from '@/services/notification'
@@ -308,6 +317,9 @@ const resolveEditorFont = (family: string): string =>
   family ? `${family}, ${defaultFontFamily}` : defaultFontFamily
 const resolveCodeFont = (family: string): string => `${family}, ${DEFAULT_CODE_FONT_FAMILY}`
 const selectionChange = ref<unknown>(null)
+const emptySearchMatches = (): PaneSearchMatches => ({ index: -1, matches: [], value: '' })
+// This pane's search result, or the in-block selection the bar prefills from.
+const searchMatches = ref<PaneSearchMatches>(emptySearchMatches())
 const editor = ref<MuyaInstance>(null)
 const isShowClose = ref(false)
 const dialogTableVisible = ref(false)
@@ -321,6 +333,7 @@ const tableChecker = reactive({
 const editorRef = ref<HTMLDivElement | null>(null)
 const imageViewerRef = ref<HTMLDivElement | null>(null)
 const rowInput = ref<InputNumberInstance | null>(null)
+const editorSearch = ref<InstanceType<typeof EditorSearch> | null>(null)
 
 const caretReporter = createAnimationFrameCoalescer((session: CaretSession) => {
   const position = caretPositionFromIndexCursor(editor.value?.getCursorOffset())
@@ -985,6 +998,9 @@ watch(() => currentFile.value?.id, (id, previousId) => {
     if (editor.value) {
       editor.value.hideAllFloatTools()
     }
+    // The open query and the remembered selection belong to the previous tab.
+    editorSearch.value?.close()
+    searchMatches.value = emptySearchMatches()
   }
 })
 
@@ -1341,9 +1357,9 @@ const insertImage = (src: unknown) => {
 
 // muya's search/replace/find return the live Search instance (circular:
 // Search -> muya -> ... -> ScrollPage) and each match carries a live `block`
-// reference. The store deep-clones (JSON.stringify) its payload, so extract
-// only the plain { index, matches, value } the search UI needs.
-const toSearchMatches = (result: unknown) => {
+// reference. Keep that graph out of reactive state: extract only the plain
+// { index, matches, value } the search UI needs.
+const toSearchMatches = (result: unknown): PaneSearchMatches => {
   const r = (result ?? {}) as {
     index?: number
     value?: string
@@ -1356,15 +1372,25 @@ const toSearchMatches = (result: unknown) => {
   }
 }
 
-const handleSearch = (payload: unknown) => {
-  const { value, opt } = payload as { value: string; opt: unknown }
-  editorStore.SEARCH(toSearchMatches(editor.value.search(value, opt)))
+// The pane's own search bar calls these directly, bypassing the `onFocused`
+// guard, so they load a deferred snapshot the same way before touching the
+// engine.
+const searchEngine = (): MuyaInstance => {
+  if (deferredSnapshot) loadDeferredSnapshot()
+  return editor.value
+}
+
+const handleSearch = ({ value, opt }: { value: string; opt: SearchOptions }) => {
+  const engine = searchEngine()
+  if (!engine) return
+  searchMatches.value = toSearchMatches(engine.search(value, opt))
   scrollToHighlight()
 }
 
-const handReplace = (payload: unknown) => {
-  const { value, opt } = payload as { value: string; opt: unknown }
-  editorStore.SEARCH(toSearchMatches(editor.value.replace(value, opt)))
+const handReplace = ({ value, opt }: { value: string; opt: SearchOptions & { isSingle: boolean } }) => {
+  const engine = searchEngine()
+  if (!engine) return
+  searchMatches.value = toSearchMatches(engine.replace(value, opt))
 }
 
 const handleUploadedImage = (url: unknown, deletionUrl?: unknown) => {
@@ -1553,12 +1579,14 @@ const scrollToAnchorElement = (element: unknown) => {
 }
 
 const scrollToElement = (selector: string) => {
-  // Scroll to search highlight word
-  scrollElementIntoView(document.querySelector(selector))
+  // Look only inside this pane: the other pane may show its own highlights.
+  scrollElementIntoView(getScrollContainer()?.querySelector(selector))
 }
 
-const handleFindAction = (action: unknown) => {
-  editorStore.SEARCH(toSearchMatches(editor.value.find(action)))
+const handleFindAction = (action: 'prev' | 'next') => {
+  const engine = searchEngine()
+  if (!engine) return
+  searchMatches.value = toSearchMatches(engine.find(action))
   scrollToHighlight()
 }
 
@@ -1676,6 +1704,18 @@ const handleExport = async (options: unknown) => {
 
 const handlePrintServiceClearup = () => {
   printer!.clearup()
+}
+
+// Only a selection within one block seeds the find input, as in the store's
+// `SELECTION_CHANGE`.
+const rememberSelectionForSearch = (changes: MuyaChange) => {
+  const { start, end } = adaptSelectionChange(changes)
+  if (start.key !== end.key || !start.block.text) return
+  searchMatches.value = {
+    matches: [],
+    index: -1,
+    value: start.block.text.substring(start.offset, end.offset)
+  }
 }
 
 // Push the current selection to the application-menu / toolbar state. Called on
@@ -2398,9 +2438,6 @@ onMounted(() => {
   onFocused('print-service-clearup', handlePrintServiceClearup)
   onFocused('paragraph', handleEditParagraph)
   onFocused('format', handleInlineFormat)
-  onFocused('searchValue', handleSearch)
-  onFocused('replaceValue', handReplace)
-  onFocused('find-action', handleFindAction)
   onFocused('insert-image', insertImage)
   onFocused('image-uploaded', handleUploadedImage)
   onFocused('file-changed', handleFileChange)
@@ -2522,6 +2559,7 @@ onMounted(() => {
       followCaret(caretY)
       selectionChange.value = changes
       if (!sourceCode.value) caretReporter.request(props.caretSession)
+      rememberSelectionForSearch(changes)
       pushSelectionMenuState(changes)
     }
     container.addEventListener('scroll', scrollHandler, { passive: true })
@@ -2624,9 +2662,6 @@ onBeforeUnmount(() => {
   offFocused('print-service-clearup')
   offFocused('paragraph')
   offFocused('format')
-  offFocused('searchValue')
-  offFocused('replaceValue')
-  offFocused('find-action')
   offFocused('insert-image')
   offFocused('image-uploaded')
   offFocused('file-changed')

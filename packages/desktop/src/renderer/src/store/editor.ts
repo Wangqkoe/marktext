@@ -767,11 +767,6 @@ export const useEditorStore = defineStore('editor', {
       }
     },
 
-    SEARCH(value: IFileState['searchMatches']): void {
-      if (!this.currentFile) return
-      this.currentFile.searchMatches = deepClone(value) // deep clone to trigger state changes
-    },
-
     SHOW_IMAGE_DELETION_URL(deletionUrl: string): void {
       notice
         .notify({
