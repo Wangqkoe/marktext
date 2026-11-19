@@ -11,6 +11,7 @@ import {
   TrailingNewlineCommand
 } from '../commands'
 import { defineStore } from 'pinia'
+import { toRaw } from 'vue'
 import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
@@ -337,6 +338,9 @@ interface WorkspaceFacadeBinding {
   readonly mirror: WorkspaceProjectionMirror
   readonly unsubscribe: () => void
 }
+// In development Pinia's devtools plugin runs every action with a fresh Proxy
+// as `this`, so only the raw store is a stable key across action calls.
+const storeKey = (store: object): object => toRaw(store)
 const workspaceFacadeBindings = new WeakMap<object, WorkspaceFacadeBinding>()
 /**
  * A composition is an assembly-owned command edge, not store state.  The
@@ -347,20 +351,20 @@ const workspaceCompositionBindings = new WeakMap<object, PaneEditorComposition>(
 const legacyTabActivationHistory = new WeakMap<object, string[]>()
 
 const rememberLegacyTabActivation = (store: object, tabId: string): void => {
-  const history = legacyTabActivationHistory.get(store) ?? []
-  legacyTabActivationHistory.set(store, [...history.filter(id => id !== tabId), tabId])
+  const history = legacyTabActivationHistory.get(storeKey(store)) ?? []
+  legacyTabActivationHistory.set(storeKey(store), [...history.filter(id => id !== tabId), tabId])
 }
 
 const forgetLegacyTabActivations = (store: object, tabIds: ReadonlySet<string>): void => {
-  const history = legacyTabActivationHistory.get(store)
-  if (history) legacyTabActivationHistory.set(store, history.filter(id => !tabIds.has(id)))
+  const history = legacyTabActivationHistory.get(storeKey(store))
+  if (history) legacyTabActivationHistory.set(storeKey(store), history.filter(id => !tabIds.has(id)))
 }
 
 const mostRecentLegacyTab = <T extends { id: string }>(
   store: object,
   tabs: readonly T[]
 ): T | undefined => {
-  const history = legacyTabActivationHistory.get(store) ?? []
+  const history = legacyTabActivationHistory.get(storeKey(store)) ?? []
   for (let index = history.length - 1; index >= 0; index -= 1) {
     const tab = tabs.find(candidate => candidate.id === history[index])
     if (tab) return tab
@@ -368,7 +372,7 @@ const mostRecentLegacyTab = <T extends { id: string }>(
 }
 
 const workspaceFor = (store: object): PaneEditorComposition | undefined =>
-  workspaceCompositionBindings.get(store)
+  workspaceCompositionBindings.get(storeKey(store))
 
 export const useEditorStore = defineStore('editor', {
   state: (): EditorState => ({
@@ -384,11 +388,11 @@ export const useEditorStore = defineStore('editor', {
 
   actions: {
     ATTACH_WORKSPACE_COMPOSITION(composition: PaneEditorComposition): void {
-      workspaceCompositionBindings.set(this, composition)
+      workspaceCompositionBindings.set(storeKey(this), composition)
     },
 
     DETACH_WORKSPACE_COMPOSITION(): void {
-      workspaceCompositionBindings.delete(this)
+      workspaceCompositionBindings.delete(storeKey(this))
     },
 
     ATTACH_WORKSPACE_FACADE(controller: WorkspaceController): void {
@@ -401,15 +405,15 @@ export const useEditorStore = defineStore('editor', {
           this.APPLY_WORKSPACE_PROJECTION(projection)
         }
       })
-      workspaceFacadeBindings.set(this, { mirror, unsubscribe })
+      workspaceFacadeBindings.set(storeKey(this), { mirror, unsubscribe })
     },
 
     DETACH_WORKSPACE_FACADE(): void {
-      const binding = workspaceFacadeBindings.get(this)
+      const binding = workspaceFacadeBindings.get(storeKey(this))
       if (!binding) return
       binding.unsubscribe()
       binding.mirror.dispose()
-      workspaceFacadeBindings.delete(this)
+      workspaceFacadeBindings.delete(storeKey(this))
       this.workspaceProjection = null
       this.workspaceFacade = null
     },
