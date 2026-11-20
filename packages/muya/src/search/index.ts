@@ -203,8 +203,9 @@ export class Search {
         }
 
         if (highlightIndex !== -1) {
-            // If set the highlight index, then highlight the highlighIndex
-            index = highlightIndex;
+            // A caller re-running a query after the document changed passes
+            // the old index, which may exceed the new match count.
+            index = Math.min(highlightIndex, matches.length - 1);
         }
         else if (matches.length) {
             // highlight the first word that matches.

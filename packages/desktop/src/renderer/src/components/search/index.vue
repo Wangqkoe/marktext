@@ -232,15 +232,6 @@ const listenReplaceFocused = whenPaneFocused(() => listenReplace())
 const listenFindNextFocused = whenPaneFocused(() => find('next'))
 const listenFindPrevFocused = whenPaneFocused(() => find('prev'))
 
-// Losing pane focus without a click (e.g. a keyboard pane switch) also closes
-// the bar, so at most one bar is open at a time.
-watch(
-  () => props.paneFocused,
-  (focused) => {
-    if (!focused) close()
-  }
-)
-
 onMounted(() => {
   bus.on('find', listenFindFocused)
   bus.on('replace', listenReplaceFocused)
@@ -303,17 +294,14 @@ const docKeyup = (event: KeyboardEvent) => {
   }
 }
 
+// Only a click into this bar's own pane closes it, so both panes can keep a
+// search open side by side and the sidebar, title bar or dialogs leave it be.
 const docClick = (event: MouseEvent) => {
   if (!showSearch.value) return
-  // Replaces the @click.stop that used to swallow these clicks from every other
-  // document-level listener.
   const target = event.target as HTMLElement | null
-  if (target && target.closest('.search-bar')) return
-  // Restoring the caret onto the active match would pull DOM focus back into
-  // this pane when the click landed in the other one.
+  if (!target || target.closest('.search-bar')) return
   const ownPane = searchBarRoot.value?.closest('.workspace-pane')
-  const clickedPane = target?.closest('.workspace-pane')
-  emptySearch(!clickedPane || clickedPane === ownPane)
+  if (ownPane && ownPane.contains(target)) emptySearch(true)
 }
 
 const blurSearch = () => {
@@ -333,7 +321,19 @@ const close = () => {
   if (showSearch.value) emptySearch(false)
 }
 
-defineExpose({ close })
+/**
+ * The query the open bar shows, for re-running it after the document is
+ * replaced underneath it; null when there is nothing to re-run.
+ */
+const openQuery = (): { value: string; opt: SearchOptions } | null => {
+  if (!showSearch.value || !searchValue.value || searchErrorMsg.value) return null
+  return {
+    value: searchValue.value,
+    opt: { isCaseSensitive: isCaseSensitive.value, isWholeWord: isWholeWord.value, isRegexp: isRegexp.value }
+  }
+}
+
+defineExpose({ close, openQuery })
 
 const toggleSearchType = () => {
   type.value = type.value === 'search' ? 'replace' : 'search'

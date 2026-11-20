@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test'
 import type { ElectronApplication, Locator, Page } from 'playwright'
 import { execFileSync, type ChildProcess } from 'node:child_process'
-import { launchWithMarkdown, sendIpcToRenderer } from './helpers'
+import { clickMenuById, expectNoRendererErrors, launchWithMarkdown, sendIpcToRenderer } from './helpers'
 import type { WorkspaceFacadeSnapshot } from '../../src/shared/workspace'
 
 // Each workspace pane mounts its own find bar. These specs pin that a bar only
-// opens in the focused pane and only searches, counts, highlights and replaces
-// in that pane's document.
+// opens in the focused pane, only searches, counts, highlights and replaces in
+// that pane's document, and stays open while the other pane is used.
 
 const LEFT_MARKDOWN = 'Left needle stays here.\n\nLeft plain paragraph.\n'
 const RIGHT_MARKDOWN = 'Right needle one and needle two.\n\nAnother needle on the right.\n'
@@ -14,6 +14,8 @@ const RIGHT_MARKDOWN = 'Right needle one and needle two.\n\nAnother needle on th
 const tabSelector = '.tabs-container > li'
 // Muya marks the active match `.mu-highlight` and every other match `.mu-selection`.
 const MATCH_SELECTOR = '.mu-highlight, .mu-selection'
+const FIND_NEXT_BTN = '.search-bar .search .button-group .button:not(.right)'
+const REPLACE_ALL_BTN = '.search-bar .replace .button-group .button.right'
 
 const snapshotOf = (page: Page): Promise<WorkspaceFacadeSnapshot> => page.evaluate(() =>
   (window as unknown as { __mtWorkspaceSnapshot(): WorkspaceFacadeSnapshot }).__mtWorkspaceSnapshot()
@@ -23,6 +25,24 @@ const paneAt = (page: Page, index: number): Locator => page.locator('.workspace-
 
 const paneText = (page: Page, index: number): Promise<string> =>
   paneAt(page, index).locator('.editor-component').innerText()
+
+const resultIn = async(page: Page, index: number): Promise<string> =>
+  (await paneAt(page, index).locator('.search-bar .search-result').innerText()).trim()
+
+// The pane holding DOM focus, or -1.
+const activePaneIndex = (page: Page): Promise<number> => page.evaluate(() =>
+  [...document.querySelectorAll('.workspace-pane')].findIndex(pane => pane.contains(document.activeElement))
+)
+
+// Playwright's keyboard does not reach the main-process shortcut handler;
+// `sendInputEvent` takes the same path as a physical key press.
+const pressShortcut = async(app: ElectronApplication, keyCode: string, modifiers: string[] = []): Promise<void> => {
+  await app.evaluate(({ BrowserWindow }, { keyCode, modifiers }) => {
+    const contents = BrowserWindow.getAllWindows()[0].webContents
+    contents.sendInputEvent({ type: 'keyDown', keyCode, modifiers } as Electron.KeyboardInputEvent)
+    contents.sendInputEvent({ type: 'keyUp', keyCode, modifiers } as Electron.KeyboardInputEvent)
+  }, { keyCode, modifiers })
+}
 
 const tabMenuAction = async(app: ElectronApplication, tab: Locator, label: string): Promise<void> => {
   await app.evaluate(({ Menu }) => {
@@ -98,7 +118,7 @@ test.describe('Find bar in a split workspace', () => {
     }
   })
 
-  test('opens, searches and closes only in the focused pane', async() => {
+  test('both panes keep their own find bar open side by side', async() => {
     const left = paneAt(page, 0)
     const right = paneAt(page, 1)
 
@@ -109,33 +129,103 @@ test.describe('Find bar in a split workspace', () => {
     await expect(rightInput).toBeFocused()
 
     await rightInput.fill('needle')
-    await expect.poll(() => right.locator('.search-bar .search-result').innerText()).toContain('1 / 3')
+    await expect.poll(() => resultIn(page, 1)).toBe('1 / 3')
     await expect.poll(() => right.locator(MATCH_SELECTOR).count()).toBe(3)
     await expect(right.locator('.mu-highlight')).toHaveCount(1)
     expect(await left.locator(MATCH_SELECTOR).count()).toBe(0)
 
-    // Clicking the other pane closes this bar and clears this pane's matches
-    // without dragging focus back into it.
+    // Clicking the other pane leaves this bar and its matches alone, and its
+    // kept active match does not drag focus back.
     await focusPane(page, 0)
-    await expect(right.locator('.search-bar')).toBeHidden()
-    await expect.poll(() => right.locator(MATCH_SELECTOR).count()).toBe(0)
-    expect(await page.evaluate(() =>
-      document.querySelectorAll('.workspace-pane')[0]?.contains(document.activeElement) ?? false
-    )).toBe(true)
+    await expect(right.locator('.search-bar')).toBeVisible()
+    expect(await resultIn(page, 1)).toBe('1 / 3')
+    expect(await right.locator(MATCH_SELECTOR).count()).toBe(3)
+    expect(await activePaneIndex(page)).toBe(0)
 
     await openFind(app, page, 0)
-    await expect(right.locator('.search-bar')).toBeHidden()
     const leftInput = left.locator('.search-bar .search input')
     await expect(leftInput).toBeFocused()
-    await leftInput.fill('needle')
-    await expect.poll(() => left.locator('.search-bar .search-result').innerText()).toContain('1 / 1')
-    await expect.poll(() => left.locator(MATCH_SELECTOR).count()).toBe(1)
-    expect(await right.locator(MATCH_SELECTOR).count()).toBe(0)
+    await leftInput.fill('Left')
+    await expect.poll(() => resultIn(page, 0)).toBe('1 / 2')
+    await expect.poll(() => left.locator(MATCH_SELECTOR).count()).toBe(2)
+    await expect(right.locator('.search-bar')).toBeVisible()
+    expect(await resultIn(page, 1)).toBe('1 / 3')
+    expect(await right.locator(MATCH_SELECTOR).count()).toBe(3)
+    await expect(right.locator('.mu-highlight')).toHaveCount(1)
 
-    // Escape closes the focused pane's bar.
+    // Ctrl+F again in the focused pane re-selects its own query only.
+    await openFind(app, page, 0)
+    await expect(leftInput).toBeFocused()
+    expect(await leftInput.evaluate((input: HTMLInputElement) => [input.selectionStart, input.selectionEnd])).toEqual([0, 4])
+    expect(await rightInput.inputValue()).toBe('needle')
+
+    // Enter, F3 and Shift+F3 move the focused pane's active match only.
+    await leftInput.press('Enter')
+    await expect.poll(() => resultIn(page, 0)).toBe('2 / 2')
+    await pressShortcut(app, 'F3')
+    await expect.poll(() => resultIn(page, 0)).toBe('1 / 2')
+    await pressShortcut(app, 'F3', ['shift'])
+    await expect.poll(() => resultIn(page, 0)).toBe('2 / 2')
+    expect(await resultIn(page, 1)).toBe('1 / 3')
+
+    // The other pane's arrows step that pane's matches.
+    await right.locator(FIND_NEXT_BTN).click()
+    await expect.poll(() => resultIn(page, 1)).toBe('2 / 3')
+    expect(await resultIn(page, 0)).toBe('2 / 2')
+    await rightInput.click()
+    await rightInput.press('Enter')
+    await expect.poll(() => resultIn(page, 1)).toBe('3 / 3')
+    await pressShortcut(app, 'F3')
+    await expect.poll(() => resultIn(page, 1)).toBe('1 / 3')
+    expect(await resultIn(page, 0)).toBe('2 / 2')
+    expect(await left.locator(MATCH_SELECTOR).count()).toBe(2)
+
+    // Escape closes the focused pane's bar only.
     await page.keyboard.press('Escape')
+    await expect(right.locator('.search-bar')).toBeHidden()
+    await expect.poll(() => right.locator(MATCH_SELECTOR).count()).toBe(0)
+    await expect(left.locator('.search-bar')).toBeVisible()
+    expect(await resultIn(page, 0)).toBe('2 / 2')
+    expect(await left.locator(MATCH_SELECTOR).count()).toBe(2)
+    await expectNoRendererErrors(app)
+  })
+
+  test('only a click into its own pane body closes a bar', async() => {
+    const left = paneAt(page, 0)
+    const right = paneAt(page, 1)
+
+    await focusPane(page, 0)
+    await openFind(app, page, 0)
+    await left.locator('.search-bar .search input').fill('needle')
+    await expect.poll(() => resultIn(page, 0)).toBe('1 / 1')
+    await focusPane(page, 1)
+    await openFind(app, page, 1)
+    await right.locator('.search-bar .search input').fill('needle')
+    await expect.poll(() => resultIn(page, 1)).toBe('1 / 3')
+
+    // The sidebar sits outside both panes.
+    if (!(await page.locator('.side-bar').isVisible())) await clickMenuById(app, 'sideBarMenuItem')
+    await expect(page.locator('.side-bar')).toBeVisible()
+    await page.locator('.side-bar').click({ position: { x: 20, y: 200 } })
+    await expect(left.locator('.search-bar')).toBeVisible()
+    await expect(right.locator('.search-bar')).toBeVisible()
+    expect(await left.locator(MATCH_SELECTOR).count()).toBe(1)
+    expect(await right.locator(MATCH_SELECTOR).count()).toBe(3)
+
+    // A click into the right body closes the right bar only, leaving the
+    // caret on its active match.
+    await right.locator('span.mu-paragraph-content').last().click()
+    await expect(right.locator('.search-bar')).toBeHidden()
+    await expect.poll(() => right.locator(MATCH_SELECTOR).count()).toBe(0)
+    await expect(left.locator('.search-bar')).toBeVisible()
+    expect(await resultIn(page, 0)).toBe('1 / 1')
+    expect(await left.locator(MATCH_SELECTOR).count()).toBe(1)
+    expect(await activePaneIndex(page)).toBe(1)
+
+    await left.locator('span.mu-paragraph-content').last().click()
     await expect(left.locator('.search-bar')).toBeHidden()
     await expect.poll(() => left.locator(MATCH_SELECTOR).count()).toBe(0)
+    await expectNoRendererErrors(app)
   })
 
   test('replace all only rewrites the focused pane document', async() => {
@@ -226,5 +316,80 @@ test.describe('Find bar in a split workspace', () => {
     // An empty query shows no "0 / 0" counter.
     await input.fill('')
     await expect(right.locator('.search-bar .search-result')).toBeHidden()
+  })
+})
+
+const SHARED_MARKDOWN = 'Shared needle one and needle two.\n\nAnother needle here.\n'
+
+// The bar searches 150ms after the last keystroke, and a refresh from the
+// split can count the query first; stepping before that search lands would
+// be undone by it.
+const settleQuery = (page: Page): Promise<void> => page.waitForTimeout(400)
+
+test.describe('Find bar on one document open in both panes', () => {
+  let app: ElectronApplication
+  let page: Page
+
+  test.beforeEach(async() => {
+    ;({ app, page } = await launchWithMarkdown(SHARED_MARKDOWN))
+    await page.setViewportSize({ width: 1280, height: 760 })
+    await page.waitForSelector('.tabs-container', { state: 'attached' })
+    await tabMenuAction(app, page.locator(tabSelector), 'Split Right')
+    await expect(page.locator('.workspace-pane')).toHaveCount(2)
+    await expect.poll(() => paneText(page, 1)).toContain('Another needle here.')
+  })
+
+  test.afterEach(async() => {
+    if (!app) return
+    const child = app.process()
+    try {
+      await Promise.race([app.close(), new Promise<void>(resolve => setTimeout(resolve, 5_000))])
+    } finally {
+      await terminate(child)
+    }
+  })
+
+  test('typing and replacing in one pane recounts the other pane', async() => {
+    const left = paneAt(page, 0)
+    const right = paneAt(page, 1)
+
+    await focusPane(page, 1)
+    await openFind(app, page, 1)
+    const rightInput = right.locator('.search-bar .search input')
+    await rightInput.fill('needle')
+    await expect.poll(() => resultIn(page, 1)).toBe('1 / 3')
+    await settleQuery(page)
+    await rightInput.press('Enter')
+    await expect.poll(() => resultIn(page, 1)).toBe('2 / 3')
+
+    await focusPane(page, 0)
+    await page.keyboard.press('End')
+    await page.keyboard.type(' needle typed quickly', { delay: 20 })
+    await expect.poll(() => paneText(page, 0)).toContain('Another needle here. needle typed quickly')
+    // The recount keeps the active match and leaves the typing pane alone.
+    await expect.poll(() => resultIn(page, 1)).toBe('2 / 4')
+    await expect.poll(() => right.locator(MATCH_SELECTOR).count()).toBe(4)
+    await expect(right.locator('.mu-highlight')).toHaveCount(1)
+    await expect(right.locator('.search-bar')).toBeVisible()
+    expect(await activePaneIndex(page)).toBe(0)
+    await page.keyboard.type('!')
+    await expect.poll(() => paneText(page, 0)).toContain('needle typed quickly!')
+    await expect.poll(() => paneText(page, 1)).toContain('needle typed quickly!')
+
+    // Typing in the other pane did not move this pane's caret: the bar's
+    // query and count still describe this pane's search.
+    expect(await rightInput.inputValue()).toBe('needle')
+
+    await sendIpcToRenderer(app, 'mt::editor-edit-action', 'replace')
+    await expect(left.locator('.search-bar .replace')).toBeVisible({ timeout: 5000 })
+    await left.locator('.search-bar .search input').fill('needle')
+    await expect.poll(() => resultIn(page, 0)).toBe('1 / 4')
+    await left.locator('.search-bar .replace .input-wrapper input').fill('pin')
+    await clickInPane(page, 0, REPLACE_ALL_BTN)
+    await expect.poll(() => paneText(page, 1)).toContain('Another pin here. pin typed quickly!')
+    await expect.poll(() => resultIn(page, 1)).toBe('0 / 0')
+    await expect.poll(() => right.locator(MATCH_SELECTOR).count()).toBe(0)
+    await expect(right.locator('.search-bar')).toBeVisible()
+    await expectNoRendererErrors(app)
   })
 })

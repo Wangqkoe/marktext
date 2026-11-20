@@ -88,6 +88,7 @@
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick, markRaw, computed } from 'vue'
 import log from 'electron-log'
+import debounce from 'lodash/debounce'
 import {
   Muya,
   CodeBlockLanguageSelector,
@@ -1393,6 +1394,19 @@ const handReplace = ({ value, opt }: { value: string; opt: SearchOptions & { isS
   searchMatches.value = toSearchMatches(engine.replace(value, opt))
 }
 
+// A document replaced wholesale (the other pane editing the same document, a
+// reload from disk) leaves the engine's matches pointing at discarded blocks.
+// Re-run the open query in place: no scroll and no caret move, so a pane that
+// is only showing results never disturbs the one being typed in.
+const refreshOpenSearch = () => {
+  const query = editorSearch.value?.openQuery()
+  if (!query || !editor.value || deferredSnapshot) return
+  const highlightIndex = searchMatches.value.index
+  searchMatches.value = toSearchMatches(editor.value.search(query.value, { ...query.opt, highlightIndex }))
+}
+// The other pane refreshes this one after every keystroke; recount once typing pauses.
+const refreshOpenSearchSoon = debounce(refreshOpenSearch, 200)
+
 const handleUploadedImage = (url: unknown, deletionUrl?: unknown) => {
   insertImage(url)
   editorStore.SHOW_IMAGE_DELETION_URL(deletionUrl as string)
@@ -1709,6 +1723,9 @@ const handlePrintServiceClearup = () => {
 // Only a selection within one block seeds the find input, as in the store's
 // `SELECTION_CHANGE`.
 const rememberSelectionForSearch = (changes: MuyaChange) => {
+  // An open query owns `searchMatches`; a refresh from the other pane moves
+  // this pane's caret and must not wipe the count and active match.
+  if (editorSearch.value?.openQuery()) return
   const { start, end } = adaptSelectionChange(changes)
   if (start.key !== end.key || !start.block.text) return
   searchMatches.value = {
@@ -2210,6 +2227,7 @@ onMounted(() => {
   // the document tree and instantiates the registered UI plugins).
   muya.init()
   editor.value = muya
+  muya.on('content-replaced', refreshOpenSearchSoon)
 
   // A rename or Save As changes the image base under the loaded document, so
   // re-render it. A tab switch has already applied the new base while loading
@@ -2653,6 +2671,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopProgrammaticScroll()
   caretReporter.cancel()
+  refreshOpenSearchSoon.cancel()
   offFocused('file-loaded')
   offFocused('invalidate-image-cache')
   offFocused('undo')

@@ -91,6 +91,28 @@ describe('search.search()', () => {
         expect(highlightCount(muya)).toBe(0);
         expect(selectionCount(muya)).toBe(0);
     });
+
+    it('keeps an in-range highlightIndex and clamps one past the last match', () => {
+        const muya = bootMuya('apple banana apple cherry apple\n');
+        placeCursorOnFirstBlock(muya);
+
+        const search = muya.editor.searchModule;
+        search.search('apple', { highlightIndex: 1 });
+        expect(search.index).toBe(1);
+        expect(search.matches[1].start).toBe(13);
+
+        search.search('apple', { highlightIndex: 7 });
+        expect(search.index).toBe(2);
+        expect(highlightCount(muya)).toBe(1);
+        expect(selectionCount(muya)).toBe(2);
+
+        search.search('cherry', { highlightIndex: 2 });
+        expect(search.index).toBe(0);
+
+        search.search('durian', { highlightIndex: 2 });
+        expect(search.index).toBe(-1);
+        expect(highlightCount(muya)).toBe(0);
+    });
 });
 
 describe('search.search() — regexp \\n matches on line breaks', () => {
