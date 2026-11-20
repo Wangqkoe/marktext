@@ -2250,13 +2250,27 @@ onMounted(() => {
     const preserve = !props.focused || props.sourceMode || !editorRef.value?.contains(document.activeElement)
     const ranges = preserve && selection ? Array.from({ length: selection.rangeCount }, (_, index) => selection.getRangeAt(index).cloneRange()) : []
     const activeElement = preserve ? document.activeElement as HTMLElement | null : null
+    // A focused textarea or input (CodeMirror's hidden textarea) keeps its
+    // caret inside the control; the window selection only shows a point next to
+    // it. Writing that point back moves the caret out of the control, and the
+    // browser then drops every typed character while focus stays put.
+    const textControl = activeElement instanceof HTMLTextAreaElement || activeElement instanceof HTMLInputElement
+      ? activeElement
+      : null
+    const controlSelection = textControl?.selectionStart != null && textControl.selectionEnd != null
+      ? { start: textControl.selectionStart, end: textControl.selectionEnd, direction: textControl.selectionDirection ?? undefined }
+      : undefined
     try {
       work()
     } finally {
       if (preserve && selection) {
         if (activeElement && document.activeElement !== activeElement) activeElement.focus({ preventScroll: true })
-        selection.removeAllRanges()
-        for (const range of ranges) if (range.commonAncestorContainer.isConnected) selection.addRange(range)
+        if (textControl && controlSelection) {
+          textControl.setSelectionRange(controlSelection.start, controlSelection.end, controlSelection.direction)
+        } else {
+          selection.removeAllRanges()
+          for (const range of ranges) if (range.commonAncestorContainer.isConnected) selection.addRange(range)
+        }
       }
     }
   }
