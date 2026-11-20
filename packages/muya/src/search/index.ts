@@ -115,6 +115,7 @@ export class Search {
 
             this.search(value, {
                 ...options,
+                isRegexp,
                 highlightIndex: isSingle ? highlightIndex : -1,
             });
         }

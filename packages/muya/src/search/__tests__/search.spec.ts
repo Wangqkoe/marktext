@@ -237,6 +237,51 @@ describe('search.replace() — replace all across multiple blocks', () => {
     });
 });
 
+describe('search.replace() — the recount after a regexp replace stays a regexp search', () => {
+    it('counts the remaining regexp matches after replacing one', async () => {
+        const muya = bootMuya('a1 b22 c333\n');
+        placeCursorOnFirstBlock(muya);
+
+        const search = muya.editor.searchModule;
+        search.search('\\d+', { isRegexp: true });
+        expect(search.matches.map(m => m.match)).toEqual(['1', '22', '333']);
+        search.find('next');
+
+        search.replace('X', { isSingle: true, isRegexp: true });
+
+        expect(search.matches.map(m => m.match)).toEqual(['1', '333']);
+        expect(search.index).toBe(1);
+        expect(highlightCount(muya)).toBe(1);
+        expect(selectionCount(muya)).toBe(1);
+
+        await vi.waitFor(() => {
+            expect(muya.getMarkdown()).toBe('a1 bX c333\n');
+        });
+    });
+
+    it('does not count the pattern text as a literal match after replacing all', async () => {
+        // The trailing `\d` is the pattern's own text: a literal recount would
+        // find it, a regexp recount must not.
+        const muya = bootMuya('a1 b2 \\d\n');
+        placeCursorOnFirstBlock(muya);
+
+        const search = muya.editor.searchModule;
+        search.search('\\d', { isRegexp: true });
+        expect(search.matches.map(m => m.match)).toEqual(['1', '2']);
+
+        search.replace('X', { isSingle: false, isRegexp: true });
+
+        expect(search.matches).toHaveLength(0);
+        expect(search.index).toBe(-1);
+        expect(highlightCount(muya)).toBe(0);
+        expect(selectionCount(muya)).toBe(0);
+
+        await vi.waitFor(() => {
+            expect(muya.getMarkdown()).toBe('aX bX \\d\n');
+        });
+    });
+});
+
 describe('search.replace() — regexp matches keep emoji whole', () => {
     it('replaces a whole emoji matched by a negated class', async () => {
         const muya = bootMuya('abc\u{1F642}\n');

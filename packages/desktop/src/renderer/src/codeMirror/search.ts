@@ -164,8 +164,6 @@ export class SourceSearch {
       this.replacing = false
     }
 
-    // Unlike muya's `Search.replace`, the recount keeps `isRegexp`: muya drops
-    // it there and recounts a regexp query as literal text.
     return this.search(value, {
       ...options,
       selectHighlight: false,
