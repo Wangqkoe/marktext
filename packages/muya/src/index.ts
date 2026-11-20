@@ -2,6 +2,7 @@ export type { ILocale } from './i18n/types';
 export { de, en, es, fr, ja, ko, pt, tr, zhCN, zhTW } from './locales';
 
 export { Muya } from './muya';
+export type { ISearchOption } from './search/types';
 export type { ITocItem } from './state/getTOC';
 export { MarkdownToHtml } from './state/markdownToHtml';
 export { renderToStaticHTML } from './state/renderToStaticHTML';
@@ -31,4 +32,6 @@ export { TableRowColumMenu } from './ui/tableRowColumMenu';
 export type { IImageInfo } from './utils/image';
 export { getImageInfo } from './utils/image';
 export { escapeHTML, sanitize, unescapeHTML, wordCount } from './utils/index';
+export { buildRegexValue, matchString } from './utils/search';
+export type { IStringMatch } from './utils/search';
 export { generateGithubSlug } from './utils/slug';

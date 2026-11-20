@@ -483,7 +483,7 @@ test.describe('Find bar — Escape clears highlights and restores the cursor (it
   })
 })
 
-test.describe('Find bar — suppressed in source-code mode (item 194)', () => {
+test.describe('Find bar — source-code mode (item 194)', () => {
   let app: ElectronApplication
   let page: Page
 
@@ -501,15 +501,23 @@ test.describe('Find bar — suppressed in source-code mode (item 194)', () => {
     if (app) await closeDiscardingChanges(app)
   })
 
-  test('the WYSIWYG search bar is not mounted while in source-code mode', async() => {
+  test('the find bar opens and searches the source text', async() => {
     await enterSourceMode(page, app)
 
-    // The find action is forwarded but the WYSIWYG `.search-bar` is `v-if`-gated
-    // off in source mode, so it must not be present in the DOM.
+    // Source mode mounts its own bar for CodeMirror; the WYSIWYG one stays
+    // unmounted, so the pane holds exactly one.
     await sendIpcToRenderer(app, 'mt::editor-edit-action', 'find')
-    await page.waitForTimeout(300)
-    await expect(page.locator(SEARCH_BAR)).toHaveCount(0)
+    await expect(page.locator(SEARCH_BAR)).toHaveCount(1)
+    await expect(page.locator(SEARCH_BAR)).toBeVisible({ timeout: 5000 })
+    await expect(page.locator(FIND_INPUT)).toBeFocused()
 
+    await page.locator(FIND_INPUT).fill('source')
+    await expect.poll(() => counterText(page)).toBe('1 / 2')
+    await expect(page.locator('.source-code .mt-source-search-active')).toHaveCount(1)
+    await expect(page.locator('.source-code .mt-source-search-match')).toHaveCount(1)
+
+    await page.keyboard.press('Escape')
+    await expect(page.locator(SEARCH_BAR)).toBeHidden()
     await expectNoRendererErrors(app)
     await exitSourceMode(page, app)
   })

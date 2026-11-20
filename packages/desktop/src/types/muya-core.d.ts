@@ -89,6 +89,24 @@ declare module '@muyajs/core' {
   export function unescapeHTML(str: string): string
   export function sanitize(html: string, config?: any, isInline?: boolean): string
   export function generateGithubSlug(text: string): string
+
+  export interface ISearchOption {
+    isCaseSensitive?: boolean
+    isWholeWord?: boolean
+    isRegexp?: boolean
+  }
+  export interface IStringMatch {
+    match: string
+    subMatches: (string | undefined)[]
+    /** UTF-16 offset of `match` in the searched text. */
+    index: number
+  }
+  export function matchString(text: string, value: string, options: ISearchOption): IStringMatch[]
+  /** Expands `$n` group references in a regexp replacement. */
+  export function buildRegexValue(
+    match: { match: string; subMatches: (string | undefined)[] },
+    value: string
+  ): string
   export function getImageInfo(src: string): { isUnknownType: boolean; src: string; [key: string]: any }
   export function wordCount(markdown: string): {
     word: number

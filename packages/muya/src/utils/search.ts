@@ -204,7 +204,7 @@ export function matchString(text: string, value: string, options: ISearchOption)
 // otherwise group n followed by a literal digit. A replacer function, not a
 // replacement string: the latter would read `$$` and `$&` inside the captured
 // text as patterns instead of inserting them.
-export function buildRegexValue(match: IMatch, value: string) {
+export function buildRegexValue(match: Pick<IMatch, 'match' | 'subMatches'>, value: string) {
     const groups = [match.match, ...match.subMatches];
 
     return value.replace(/(?<!\\)\$(0|[1-9]\d?)/g, (reference, digits: string) => {

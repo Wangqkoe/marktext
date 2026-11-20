@@ -104,6 +104,9 @@ const makeDeps = (over: Record<string, unknown> = {}) => ({
   scrollSourceEditorToLine: () => {},
   workspaceStatusFromCounts: () => ({}),
   captureScrollAnchor: () => () => {},
+  SourceSearch: class {},
+  scrollMatchIntoView: () => {},
+  EditorSearch: {},
   ...over
 })
 

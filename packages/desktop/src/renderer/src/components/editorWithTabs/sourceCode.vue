@@ -1,9 +1,20 @@
 <template>
-  <div
-    ref="sourceCodeContainer"
-    class="source-code"
-    :style="sourceZoomStyle"
-  />
+  <!-- `.source-code` scrolls; the bar sits beside it so it stays put. -->
+  <div class="source-code-wrapper">
+    <div
+      ref="sourceCodeContainer"
+      class="source-code"
+      :style="sourceZoomStyle"
+    />
+    <editor-search
+      ref="editorSearch"
+      :pane-focused="props.focused !== false"
+      :matches="searchMatches"
+      @search="handleSearch"
+      @replace="handleReplace"
+      @find="handleFindAction"
+    />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -13,6 +24,10 @@ import { usePreferencesStore } from '@/store/preferences'
 import { findMarkdownHeadingLine, scrollSourceEditorToLine } from '@/util/sourceModeToc'
 import { storeToRefs } from 'pinia'
 import codeMirror, { setCursorAtFirstLine, setTextDirection } from '../../codeMirror'
+import { SourceSearch, scrollMatchIntoView } from '../../codeMirror/search'
+import type { SourceSearchMatch, SourceSearchResult } from '../../codeMirror/search'
+import EditorSearch from '../search/index.vue'
+import type { PaneSearchMatches, SearchOptions } from '../search/index.vue'
 import { wordCount as getWordCount } from '@muyajs/core'
 import { adjustCursor } from '../../util'
 import bus from '../../bus'
@@ -60,6 +75,13 @@ const tabId = ref<string | null>(null)
 let sourceEventScope: PaneEditorEventScope | undefined
 let sourceDocumentId: string | undefined
 let receivingSharedDocument = false
+// Replace-all edits once per match; the document is reported once afterwards.
+let batchingReplace = false
+let sourceSearch: SourceSearch | undefined
+const editorSearch = ref<InstanceType<typeof EditorSearch> | null>(null)
+const emptySearchMatches = (): PaneSearchMatches => ({ index: -1, matches: [], value: '' })
+// This pane's search result, or the selection the bar prefills from.
+const searchMatches = ref<PaneSearchMatches>(emptySearchMatches())
 const sourceScopeAbort = new AbortController()
 const focusedBusHandlers = new Map<string, (...args: any[]) => void>()
 const onFocused = (event: string, handler: (...args: any[]) => void): void => {
@@ -297,6 +319,9 @@ const handleFileChange = (payload: unknown) => {
     prepareTabSwitch()
     tabId.value = id
     sourceDocumentId = id
+    // The open query and the remembered selection belong to the previous tab.
+    editorSearch.value?.close()
+    searchMatches.value = emptySearchMatches()
   }
 
   if (typeof newMarkdown === 'string') {
@@ -424,7 +449,7 @@ const handleImageAction = (payload: unknown) => {
 }
 
 const saveContent = (cm: CMInstance) => {
-  if (receivingSharedDocument) return
+  if (receivingSharedDocument || batchingReplace) return
   const { markdown: newMarkdown, cursor } = getMarkdownAndCursor(cm)
   // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
   const wordCount = getWordCount(newMarkdown)
@@ -454,7 +479,77 @@ const listenChange = () => {
   editor.value.on('cursorActivity', (cm: CMInstance) => {
     reportCaretPosition(cm, props.caretSession)
     saveCursor(cm)
+    rememberSelectionForSearch(cm)
   })
+}
+
+// Only a non-empty selection within one line seeds the find input. While a
+// query is open it owns `searchMatches`: a replace moves the cursor, and that
+// must not overwrite the count.
+const rememberSelectionForSearch = (cm: CMInstance) => {
+  if (sourceSearch?.active) return
+  const ranges = cm.listSelections() as { anchor: ZeroBasedEditorPoint; head: ZeroBasedEditorPoint }[]
+  const value: string =
+    ranges.length === 1 && ranges[0].anchor.line === ranges[0].head.line ? cm.getSelection() : ''
+  if (value !== searchMatches.value.value) searchMatches.value = { ...emptySearchMatches(), value }
+}
+
+const setSearchResult = (result: SourceSearchResult) => {
+  searchMatches.value = result
+}
+
+// How far down from the top of `.source-code` the open search bar reaches.
+const searchBarCover = (): number => {
+  const bar = editorSearch.value?.$el as HTMLElement | undefined
+  const container = sourceCodeContainer.value
+  if (!bar || !container || bar.offsetParent === null) return 0
+  return bar.getBoundingClientRect().bottom - container.getBoundingClientRect().top + 8
+}
+
+const revealSearchMatch = (match: SourceSearchMatch) => {
+  if (editor.value && sourceCodeContainer.value) {
+    scrollMatchIntoView(editor.value, match, sourceCodeContainer.value, searchBarCover())
+  }
+}
+
+const visibleSourceLines = (): { from: number; to: number } => {
+  const container = sourceCodeContainer.value
+  const cm = editor.value
+  if (!container || !cm) return { from: 0, to: Number.MAX_SAFE_INTEGER }
+  const { top, bottom } = container.getBoundingClientRect()
+  return { from: cm.lineAtHeight(top, 'window'), to: cm.lineAtHeight(bottom, 'window') }
+}
+
+let searchPaintFrame = 0
+const repaintSearchOnScroll = () => {
+  if (!sourceSearch?.active || searchPaintFrame) return
+  searchPaintFrame = requestAnimationFrame(() => {
+    searchPaintFrame = 0
+    sourceSearch?.paint()
+  })
+}
+
+const handleSearch = ({ value, opt }: { value: string; opt: SearchOptions }) => {
+  if (!sourceSearch) return
+  setSearchResult(sourceSearch.search(value, opt))
+}
+
+const handleReplace = ({ value, opt }: { value: string; opt: SearchOptions & { isSingle: boolean } }) => {
+  const cm = editor.value
+  if (!sourceSearch || !cm) return
+  const generation: number = cm.changeGeneration()
+  batchingReplace = true
+  try {
+    setSearchResult(sourceSearch.replace(value, opt))
+  } finally {
+    batchingReplace = false
+  }
+  if (!cm.isClean(generation)) saveContent(cm)
+}
+
+const handleFindAction = (action: 'prev' | 'next') => {
+  if (!sourceSearch) return
+  setSearchResult(sourceSearch.find(action))
 }
 
 // #3580: in Source Code mode the WYSIWYG container is hidden, so the
@@ -522,8 +617,14 @@ onMounted(async () => {
   const codeMirrorInstance = markRaw(codeMirror(container, codeMirrorConfig))
   editor.value = codeMirrorInstance
   tabId.value = id
+  sourceSearch = new SourceSearch(codeMirrorInstance, {
+    onRefresh: setSearchResult,
+    visibleLines: visibleSourceLines,
+    reveal: revealSearchMatch
+  })
   listenChange()
   container?.addEventListener('scroll', observeSourceScroll, { passive: true })
+  container?.addEventListener('scroll', repaintSearchOnScroll, { passive: true })
 
   codeMirrorInstance.on('contextmenu', (_cm: CMInstance, event: Event) => {
     event.preventDefault()
@@ -551,6 +652,9 @@ onBeforeUnmount(() => {
   sourceScopeAbort.abort()
   if (commitTimer.value) clearTimeout(commitTimer.value)
   sourceCodeContainer.value?.removeEventListener('scroll', observeSourceScroll)
+  sourceCodeContainer.value?.removeEventListener('scroll', repaintSearchOnScroll)
+  cancelAnimationFrame(searchPaintFrame)
+  sourceSearch?.dispose()
 
   offFocused('file-loaded')
   offFocused('invalidate-image-cache')
@@ -576,6 +680,10 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
+.source-code-wrapper {
+  position: relative;
+  height: 100%;
+}
 .source-code {
   height: 100%;
   box-sizing: border-box;
@@ -598,5 +706,15 @@ onBeforeUnmount(() => {
 .source-code .CodeMirror-activeline-background,
 .source-code .CodeMirror-activeline-gutter {
   background: var(--floatHoverColor);
+}
+/* The WYSIWYG editor's search colours: `.mu-selection` for every match,
+   `.mu-highlight` for the active one. */
+.source-code .mt-source-search-match {
+  background: var(--selection-color);
+  border-radius: 2px;
+}
+.source-code .mt-source-search-active {
+  background: var(--highlight-color);
+  border-radius: 1px;
 }
 </style>
